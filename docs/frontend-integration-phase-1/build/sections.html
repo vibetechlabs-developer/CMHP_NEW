@@ -1,0 +1,271 @@
+<section class="view" id="start-here">
+  <h2>A. Start Here</h2>
+  <p class="lede">This is the practical, step-by-step workbook for connecting the existing React frontend to this backend for one thing: a logged-in, permission-checked user picking a company, looking up a real customer and product, and saving/reopening a sales-order draft. Nothing here is a general API reference — for that, see <code>docs/api-dashboard/index.html</code>.</p>
+
+  <div class="cards">
+    <div class="card ready">
+      <h4>Already ready in the backend (code-verified this session)</h4>
+      <ul>
+        <li>Auth: CSRF, login, current user, refresh, logout — implemented, stable</li>
+        <li>Workspace: companies/mine, stores/mine, my-permissions (company + store) — implemented, stable</li>
+        <li>Customers &amp; Products: list/detail/create/edit, company-scoped — implemented, stable</li>
+        <li>Sales orders: list/create/detail/edit (DRAFT only) — implemented, stable</li>
+        <li>One ordinary demo user (<code>demo_sales</code>) already holds exactly the permissions this flow needs (§A below)</li>
+      </ul>
+    </div>
+    <div class="card todo-junior">
+      <h4>What the junior must integrate</h4>
+      <ul>
+        <li>An API client + auth service (none exists yet in the frontend per this task's own description)</li>
+        <li>Workspace context (company/store switcher wired to real endpoints)</li>
+        <li>Customer/product search-select components</li>
+        <li>Order create/list/detail/edit forms wired to the real endpoints</li>
+        <li>The 409/permission/validation error handling described in §I</li>
+      </ul>
+    </div>
+    <div class="card todo-you">
+      <h4>What you must provide</h4>
+      <ul>
+        <li>The frontend's exact origin (scheme + host + port) — <strong>unknown right now</strong></li>
+        <li>Confirmation of same-network vs. a shared/staging backend URL — <strong>unknown right now</strong></li>
+        <li>Once known: the exact lines to add to <code>backend/.env</code> (§B)</li>
+        <li><code>demo_sales</code>'s password, given to the junior privately — never in this document</li>
+      </ul>
+    </div>
+    <div class="card next">
+      <h4>Next action</h4>
+      <ul>
+        <li>Fill in the four connection fields in §B with the junior</li>
+        <li>Add the resulting lines to <code>backend/.env</code> yourself (this guide never edits it)</li>
+        <li>Start the backend the way §B describes once the origin is agreed</li>
+        <li>Hand the junior this file and the demo password</li>
+      </ul>
+    </div>
+    <div class="card missing">
+      <h4>Missing setup details right now</h4>
+      <ul>
+        <li>React frontend's dev-server origin</li>
+        <li>Same LAN vs. remote/staging backend arrangement</li>
+        <li>Who will run the backend during integration testing, and when</li>
+      </ul>
+    </div>
+  </div>
+
+  <p><strong>A note on scope:</strong> having login/workspace/dashboard/order <em>screens</em> already built in the frontend does not mean integration is complete — none of those screens currently call this API. This guide only covers Phase 1 (login → workspace → lookups → sales-order draft CRUD). Order confirmation, batch planning, formulas, stock and production are real, but are <strong>Later phases</strong> — see the note at the end of §H.</p>
+</section>
+
+<section class="view" id="connection">
+  <h2>B. Backend Connection</h2>
+  <p class="lede">Three facts that are easy to get wrong, verified directly against the current code and settings this session:</p>
+  <div class="cards">
+    <div class="card missing">
+      <h4>1. My localhost is not the junior's localhost</h4>
+      <p style="font-size:13px">If the junior's browser and your Django process are on different machines, <code>http://localhost:8001</code> in their code will try to reach a server on <em>their own</em> machine, not yours. A reachable, agreed URL is required — there is no way around this.</p>
+    </div>
+    <div class="card missing">
+      <h4>2. CORS is installed but confirmed DISABLED right now</h4>
+      <p style="font-size:13px"><code>django-cors-headers</code> is in <code>INSTALLED_APPS</code> and <code>CorsMiddleware</code> is wired in, but a live settings check this session shows <code>CORS_ALLOWED_ORIGINS = []</code> and <code>CSRF_TRUSTED_ORIGINS = []</code> — both empty. <code>ALLOWED_HOSTS</code> is still just <code>['localhost', '127.0.0.1']</code>. Nothing beyond this machine can reach the API yet, by design (safe default), until an origin is added.</p>
+    </div>
+    <div class="card missing">
+      <h4>3. Cookie/CSRF behavior depends on the setup you choose</h4>
+      <p style="font-size:13px">The refresh-token cookie is <code>SameSite=Lax</code>, <code>Secure=False</code> (local dev). A <strong>same-origin proxy</strong> (recommended, see below) avoids every cross-site cookie problem with zero extra setup. A <strong>direct cross-origin call</strong> from a different host needs <code>CORS_ALLOWED_ORIGINS</code>/<code>CSRF_TRUSTED_ORIGINS</code> set explicitly and still cannot rely on the refresh cookie reaching the server from a browser (SameSite=Lax blocks it on a true cross-site XHR) — only the proxy path gets full session behavior for free.</p>
+    </div>
+  </div>
+
+  <h3 style="font-size:15px;margin-top:20px">Fill-in setup checklist <span class="pending-badge">All fields pending — nothing invented</span></h3>
+  <p style="font-size:13px;color:var(--ink-soft)">Fill these in with the junior (values are saved in this browser only via the same local storage as the progress checklist in §K — they are not sent anywhere, and are not shared with your computer automatically).</p>
+  <form class="fill-form" id="connection-form" onsubmit="return false">
+    <div class="fill-row">
+      <label for="f-frontend-origin">Frontend origin (scheme + host + port)</label>
+      <input type="text" id="f-frontend-origin" data-conn-field="frontend_origin" placeholder="e.g. http://localhost:5173 — TO BE SUPPLIED">
+      <span class="hint">Whatever the junior's dev server actually prints when it starts (Vite/CRA/Next all show this).</span>
+    </div>
+    <div class="fill-row">
+      <label for="f-api-base">API base URL the frontend will call</label>
+      <input type="text" id="f-api-base" data-conn-field="api_base_url" placeholder="e.g. http://192.168.1.11:8001/api/v1 OR /api (via proxy) — TO BE SUPPLIED">
+      <span class="hint">See "Avoiding the doubled /api/v1" below before filling this in.</span>
+    </div>
+    <div class="fill-row">
+      <label for="f-includes-prefix">Does the value above already include <code>/api/v1</code>?</label>
+      <input type="text" id="f-includes-prefix" data-conn-field="includes_prefix" placeholder="yes / no — TO BE SUPPLIED">
+    </div>
+    <div class="fill-row">
+      <label for="f-network">Same network, or shared/staging backend?</label>
+      <input type="text" id="f-network" data-conn-field="network_arrangement" placeholder="e.g. same LAN, both machines / shared staging URL: ... — TO BE SUPPLIED">
+    </div>
+    <div class="fill-row">
+      <label for="f-allowed-origin">Allowed origin/host values to add to <code>backend/.env</code></label>
+      <input type="text" id="f-allowed-origin" data-conn-field="allowed_origin" placeholder="computed once the frontend origin above is known — see the box below">
+    </div>
+    <div class="fill-row">
+      <label for="f-cookie-note">Cookie/CSRF approach chosen</label>
+      <input type="text" id="f-cookie-note" data-conn-field="cookie_approach" placeholder="e.g. dev-server proxy (recommended) / direct cross-origin — TO BE SUPPLIED">
+    </div>
+    <div class="fill-row">
+      <label for="f-cred-owner">Who supplies demo credentials to the junior, and how</label>
+      <input type="text" id="f-cred-owner" data-conn-field="cred_owner" placeholder="e.g. I will send demo_sales's password by [private channel] — TO BE SUPPLIED">
+    </div>
+  </form>
+  <p class="import-status" id="connection-save-status" style="color:#8b93a8">Saved locally as you type.</p>
+
+  <h3 style="font-size:15px;margin-top:24px">Once the frontend origin is known — two ways to connect</h3>
+  <div class="cards">
+    <div class="card ready">
+      <h4>Recommended: dev-server proxy</h4>
+      <p style="font-size:13px">In the frontend's dev-server config (Vite <code>server.proxy</code>, CRA <code>"proxy"</code> in package.json, etc.), forward <code>/api</code> to the backend's real URL. The frontend then calls only relative paths (<code>/api/v1/...</code>) — the browser sees everything as same-origin, so no CORS preflight and no cross-site cookie problem exists at all. Set the frontend's <code>API base URL</code> above to <code>/api</code> (or <code>/api/v1</code> — see the doubled-prefix note below) and leave <code>CORS_ALLOWED_ORIGINS</code> alone.</p>
+    </div>
+    <div class="card missing">
+      <h4>Fallback: direct cross-origin calls</h4>
+      <p style="font-size:13px">Only if a proxy genuinely isn't possible. Requires adding the frontend's exact origin to <strong>both</strong> <code>DJANGO_CORS_ALLOWED_ORIGINS</code> and <code>DJANGO_CSRF_TRUSTED_ORIGINS</code> in <code>backend/.env</code>, plus the backend host/IP to <code>DJANGO_ALLOWED_HOSTS</code>, plus every <code>fetch</code>/<code>axios</code> call sending <code>credentials: "include"</code>. Session-restore-on-reload may still not reliably carry the refresh cookie from a real browser under <code>SameSite=Lax</code> across different hosts — budget time to verify this specifically if you must use this path.</p>
+    </div>
+  </div>
+
+  <h3 style="font-size:15px;margin-top:20px">Avoiding the doubled <code>/api/v1</code></h3>
+  <p style="font-size:13px">Every endpoint in this backend already lives under <code>/api/v1/...</code> (e.g. <code>/api/v1/auth/login/</code>). A common integration bug: the frontend's <code>API_BASE_URL</code> constant is set to <code>http://host:8001/api/v1</code>, and the code <em>also</em> appends <code>/api/v1/auth/login/</code> to it — producing a request to <code>.../api/v1/api/v1/auth/login/</code>, which 404s. <strong>Decide once</strong>: either <code>API_BASE_URL</code> stops at the host (no <code>/api/v1</code>), and every call path includes <code>/api/v1/...</code> itself; or <code>API_BASE_URL</code> already ends in <code>/api/v1</code>, and every call path starts directly with the resource (<code>/auth/login/</code>, no repeated prefix). Pick one convention and grep the codebase for the other pattern before shipping.</p>
+
+  <h3 style="font-size:15px;margin-top:20px">Explicit reminder</h3>
+  <p style="font-size:13px">This guide does <strong>not</strong> change any server configuration, expose any port, or start any server. Filling in the checklist above only fills in placeholders on this page — nothing here talks to the backend. The actual <code>.env</code> edit and server start are separate, deliberate actions you take yourself once the values above are agreed (see §K for the exact next action).</p>
+</section>
+
+<section class="view" id="login"><h2>C. Login and Session</h2><p class="lede">The exact backend contract for CSRF, login, current user, refresh, session restoration on reload, and logout — verified directly against <code>apps/authentication/views.py</code>, <code>serializers.py</code>, <code>csrf.py</code> and <code>cookies.py</code> this session, not copied from an older document.</p><div id="steps-login"></div>
+  <h3 style="font-size:15px;margin-top:20px">Compact React/TypeScript integration reference</h3>
+  <p style="font-size:13px">This is a <strong>reference pattern only</strong> — it has not been integrated into the junior's actual (unseen) frontend, and its exact shape should be adapted to whatever architecture already exists there (state library, existing HTTP wrapper, etc.). It demonstrates the required behaviors: access token in memory only, credentials included for the cookie, CSRF attached on the three POSTs that need it, one coordinated refresh shared by every simultaneously-failing request, at most one retry, and login failures never triggering a refresh attempt.</p>
+  <pre class="code">// api-client.ts — reference pattern, not integrated code
+let accessToken: string | null = null;
+let csrfToken: string | null = null;
+let refreshInFlight: Promise&lt;string&gt; | null = null;
+
+const API_BASE = "/api/v1"; // or your agreed base URL — see §B
+
+async function ensureCsrf(): Promise&lt;string&gt; {
+  if (csrfToken) return csrfToken;
+  const res = await fetch(`${API_BASE}/auth/csrf/`, { credentials: "include" });
+  const data = await res.json();
+  csrfToken = data.csrfToken; // exact field name, verified against CsrfBootstrapView
+  return csrfToken;
+}
+
+async function refreshAccessToken(): Promise&lt;string&gt; {
+  // Coordinates concurrent 401s onto ONE refresh call, not one per failed request.
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      const csrf = await ensureCsrf();
+      const res = await fetch(`${API_BASE}/auth/refresh/`, {
+        method: "POST",
+        credentials: "include",              // sends the HttpOnly refresh cookie
+        headers: { "X-CSRFToken": csrf },
+      });
+      if (!res.ok) {
+        clearSession();                        // 401 here = force logout, see §I
+        throw new Error("refresh_failed");
+      }
+      const data = await res.json();
+      accessToken = data.access;
+      return accessToken!;
+    })().finally(() => { refreshInFlight = null; });
+  }
+  return refreshInFlight;
+}
+
+export async function apiFetch(path: string, init: RequestInit = {}, isRetry = false): Promise&lt;Response&gt; {
+  if (!accessToken) await refreshAccessToken();  // e.g. right after a page reload
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    credentials: "include",
+    headers: { ...init.headers, Authorization: `Bearer ${accessToken}` },
+  });
+  const isLoginCall = path.startsWith("/auth/login/");
+  if (res.status === 401 && !isRetry && !isLoginCall) {
+    // Never refresh on a failed LOGIN — that 401 means wrong credentials,
+    // not an expired session; refreshing would just mask the real error.
+    await refreshAccessToken();
+    return apiFetch(path, init, true);           // exactly one retry, never a loop
+  }
+  return res;
+}
+
+function clearSession() {
+  accessToken = null;
+  // also clear workspace context / cached lists here — see §D
+}</pre>
+  <p style="font-size:13px"><strong>Session restoration after a browser reload:</strong> the access token lives only in memory, so a reload always starts with none. On app start, attempt <code>refreshAccessToken()</code> once (it uses the HttpOnly cookie, which does survive a reload); a 401 there means "no valid session" — send the user to the login screen, this is a normal, expected outcome, not a bug.</p>
+</section>
+
+<section class="view" id="workspace"><h2>D. Workspace Selection</h2><p class="lede">Loading the company/store switcher and the caller's own effective permissions, and the rules that keep one workspace's stale data from leaking into another.</p><div id="steps-workspace"></div>
+  <h3 style="font-size:15px;margin-top:20px">Concepts the junior needs before wiring this up</h3>
+  <ul style="font-size:13px">
+    <li><strong>Operating company ≠ the customer placing an order.</strong> "Company" here means which of the two operating companies (sharing one physical store) the session is acting as — a completely different concept from the <code>Customer</code> record picked in §E/§F. Never let these share a variable name or a dropdown.</li>
+    <li><strong>Sales orders require company context</strong> — every sales-order endpoint is under <code>/companies/&lt;company_id&gt;/...</code>. There is no company-less sales order.</li>
+    <li><strong>Shared-store context is separate</strong> from company context entirely — a user can have company access, store access, both, or neither. Phase 1 does not need store access at all (sales orders are company-scoped only) — <code>stores/mine/</code> is still called for future phases and to show the workspace switcher completely, but the returned list may legitimately be empty for this flow's demo user.</li>
+    <li><strong>Never use a store id as a company id, or vice versa</strong> — they are different resources with different permission systems, even though both appear in a "workspace" switcher.</li>
+    <li><strong>Zero accessible workspaces is a legitimate empty state</strong>, not an error — render an explicit "you have no company access yet" state, never a blank screen or a spinner that never resolves.</li>
+    <li><strong>UI permission checks are a convenience only.</strong> Hiding a button because <code>my-permissions</code> doesn't list a code is good UX, but the backend re-checks permission independently on every request regardless of what the UI showed — never skip error handling for an action just because the UI "shouldn't" have allowed it.</li>
+    <li><strong>Switching workspace must clear scoped state.</strong> When the user picks a different company, clear cached customer/product lists, in-progress order forms, and any list-page filters/pagination state tied to the previous company — otherwise a slow network response from the OLD company's list can arrive after the switch and populate the NEW company's screen with the wrong data. The safest pattern: key every cached list/query by <code>company_id</code> (e.g. <code>customers:{companyId}</code>), and cancel or ignore in-flight requests whose <code>company_id</code> no longer matches the current selection when the response arrives.</li>
+  </ul>
+</section>
+
+<section class="view" id="lookups"><h2>E. Customer and Product Lookups</h2><p class="lede">Search-select components for the create/edit order form, built against the actual company-scoped list endpoints and their real pagination/filter parameters.</p><div id="steps-lookups"></div>
+  <h3 style="font-size:15px;margin-top:20px">Design notes for 2000+ products</h3>
+  <ul style="font-size:13px">
+    <li><strong>Never load the whole catalog into a dropdown.</strong> Both list endpoints are paginated (default 20 rows, capped at 100 via <code>?page_size=</code>) — a naive "fetch everything for the dropdown" approach breaks the moment the catalog grows past a page, and wastes bandwidth well before that.</li>
+    <li><strong>Use <code>?search=</code> server-side</strong>, debounced (300–400ms is a reasonable starting point — not a backend requirement, just a sane default), so the dropdown narrows results as the user types instead of filtering a large client-side list.</li>
+    <li><strong>Filter to active records</strong> with <code>?is_active=true</code> for a picker — showing an inactive customer/product as selectable in a NEW order's picker is misleading (existing order lines that reference an inactive product are a different, already-handled case — see §H).</li>
+    <li><strong>Do not invent a minimum search-length or an unsupported filter</strong> — the backend does not require a minimum query length, and the only supported filters are <code>search</code> and <code>is_active</code> for both resources (verified against <code>apps/customers/views.py</code> and <code>apps/products/views.py</code> this session — no category/type filter exists on either).</li>
+    <li><strong>States to render explicitly:</strong> loading (a request is in flight), empty (zero results for the current search term — distinct from "no search entered yet"), and error (the request itself failed — see §I). A dropdown that silently shows nothing when the request 403'd is a real support-ticket generator; show the error.</li>
+    <li>Product creation/quick-add is a later task, not required for this phase. Sample customers/products must already exist — <code>demo_sales</code>'s company (<code>DEMOA</code>) currently has exactly <strong>1 active customer and 2 active products</strong> seeded (verified this session), enough to exercise the picker and create a real order, but not a realistic catalog size. If more sample data is needed for a fuller demo, that is a request to make of the backend side (data seeding), not something the frontend should fabricate.</li>
+  </ul>
+</section>
+
+<section class="view" id="create-order"><h2>F. Create Order</h2><p class="lede">Mapping every real request field to a form control, using the actual required/optional/immutable rules from <code>apps/sales_orders/serializers.py</code>.</p><div id="steps-create"></div></section>
+
+<section class="view" id="list-detail"><h2>G. Order List and Detail</h2><p class="lede">Listing saved drafts with the real filters, and opening one by id.</p><div id="steps-list-detail"></div></section>
+
+<section class="view" id="edit-order"><h2>H. Edit Order</h2><p class="lede">Editing a DRAFT order: full-replace line semantics, protected-line removal, and conflict handling.</p><div id="steps-edit"></div>
+  <h3 style="font-size:15px;margin-top:20px">Field-mapping reference (create and edit)</h3>
+  <table class="field-table">
+    <thead><tr><th>UI control</th><th>API field</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Customer picker</td><td><code>customer_id</code></td><td>Required on create. Must be an active customer of the current company (404 if unknown/other company, 400 if inactive). May change while DRAFT.</td></tr>
+      <tr><td>Order date</td><td><code>order_date</code></td><td>Required on create, <code>YYYY-MM-DD</code>.</td></tr>
+      <tr><td>Requested delivery date</td><td><code>requested_delivery_date</code></td><td>Optional. Cannot precede <code>order_date</code> (400, keyed to this field). Send explicit <code>null</code> to clear it on edit — omitting the key leaves it unchanged.</td></tr>
+      <tr><td>Customer order reference (their PO#)</td><td><code>customer_order_reference</code></td><td>Optional free text, not unique across orders.</td></tr>
+      <tr><td>Currency</td><td><code>currency</code></td><td>Required on create, 3 letters (shape-checked only, not a real ISO validation). <strong>Immutable after creation</strong> — do not render this field as editable on the edit form at all.</td></tr>
+      <tr><td>Notes</td><td><code>notes</code></td><td>Optional free text.</td></tr>
+      <tr><td>Product line → product</td><td><code>lines[].product_id</code></td><td>Must be an active product of the company with an active sales unit.</td></tr>
+      <tr><td>Product line → quantity</td><td><code>lines[].quantity</code></td><td>Decimal string, &gt; 0, max 3 decimal places. <strong>Whole numbers only</strong> when the product's sales unit is a COUNT unit (e.g. "Bottle", "Piece") — a fractional quantity there is a 400.</td></tr>
+      <tr><td>Product line → unit price</td><td><code>lines[].unit_price</code></td><td>Decimal string, ≥ 0 (zero allowed), max 4 decimal places.</td></tr>
+      <tr><td>Product line → description</td><td><code>lines[].description</code></td><td>Optional free text, max 500 characters.</td></tr>
+      <tr><td>Line amount (read-only)</td><td><code>lines[].line_amount</code></td><td><strong>Server-calculated</strong> — quantity × unit price, rounded to 2 decimals (ROUND_HALF_UP). Never compute or submit this client-side; always display the server's own value.</td></tr>
+      <tr><td>Subtotal (read-only)</td><td><code>subtotal</code></td><td><strong>Server-calculated</strong> sum of line amounts, 2 decimals. There is no tax-inclusive grand total anywhere in this API — label it "Subtotal", never "Total".</td></tr>
+    </tbody>
+  </table>
+  <div class="note-box" style="background:#fff8e8;border:1px solid #f0dca0;border-radius:6px;padding:8px 10px;font-size:12.5px;margin:10px 0">
+    <strong>Client-register fields with no home on this endpoint — do not silently repurpose another field for them:</strong> batch size, packing type, BMR status, and "MRP for printing" have <strong>no corresponding sales-order API field</strong>. Mark each as "Not part of this endpoint / later module" in the UI if the client-register mockup shows them here. In particular, <code>unit_price</code> is a plain commercial sell price captured on the order line — it is <strong>not</strong> MRP-for-printing, and must never be relabeled as such just because both are "a price on the line." Do not default any commercial value (price, quantity) to make a request pass — an empty/zero value the user did not actually intend is worse than a validation error.
+  </div>
+  <h3 style="font-size:15px;margin-top:20px">Later phases (not in scope here — do not build yet)</h3>
+  <p style="font-size:13px">Order confirmation (<code>confirmation-preview</code>/<code>confirm</code>), batch planning, formula/BOM, requirement previews, official batch numbering, and store preparation all already exist in the backend (see <code>docs/api-dashboard/index.html</code>) but are explicitly <strong>out of scope for this Phase 1 guide</strong>. Do not build UI for them yet — they depend on this phase's foundations (auth, workspace, an order actually existing) being solid first.</p>
+</section>
+
+<section class="view" id="errors"><h2>I. Errors and Troubleshooting</h2><p class="lede">Real, endpoint-specific behavior — not a generic error list copied onto every operation. Each row: what the user sees, what the junior checks first, what the backend developer checks if the junior is stuck.</p><table class="err-table" id="error-table"></table></section>
+
+<section class="view" id="demo"><h2>J. Demo Checklist — Non-Technical Script for Screen Sharing</h2><p class="lede">Read this out loud step by step during a screen share. Each item names what should visibly happen.</p><ol class="steps-ol" id="demo-script"></ol></section>
+
+<section class="view" id="progress">
+  <h2>K. Progress and Handoff</h2>
+  <p class="lede">Every implementation step in §C–§H has a status control. This section is the shared summary, plus export/import so the junior can send their progress back to you.</p>
+  <p style="font-size:12.5px;color:var(--ink-soft)"><strong>Important:</strong> this progress is saved only in <em>this browser's local storage</em>, on whichever computer has this file open. It is <strong>not</strong> automatically shared between your computer and the junior's — use Export/Import below to move it between you.</p>
+  <div class="progress-summary" id="progress-summary"></div>
+  <div class="io-buttons">
+    <button class="primary" id="btn-export">Export progress as JSON</button>
+    <button id="btn-import-trigger">Import progress from JSON</button>
+    <input type="file" id="file-import" accept="application/json" style="display:none">
+    <button id="btn-reset">Reset all progress (this browser only)</button>
+  </div>
+  <p class="import-status" id="import-status"></p>
+  <table class="progress-table" id="progress-table">
+    <thead><tr><th>Section</th><th>Step</th><th>Status</th><th>Note</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</section>
+
+<footer class="dash-footer">CMHP ERP — internal integration workbook. Generated 2026-09-30. Not a general API reference (see docs/api-dashboard/).</footer>

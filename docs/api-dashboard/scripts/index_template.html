@@ -1,0 +1,722 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CMHP ERP — Backend API Dashboard</title>
+<style>
+:root{
+  --navy:#0f1f3d; --navy-2:#16294d; --ink:#1c2536; --ink-soft:#4a5468;
+  --blue:#2f5fd6; --blue-2:#1d3f9e; --indigo:#5b4fd6;
+  --bg:#f5f7fb; --panel:#ffffff; --line:#e2e6ef; --line-soft:#edf0f6;
+  --get:#1c7a4a; --get-bg:#e6f5ec;
+  --post:#a6570a; --post-bg:#fbeee0;
+  --patch:#1d3f9e; --patch-bg:#e8edfb;
+  --put:#7a3b9e; --put-bg:#f3e9fb;
+  --danger:#a3283f; --danger-bg:#fbeaee;
+  --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --radius:8px;
+  --shadow:0 1px 2px rgba(15,31,61,.06),0 1px 8px rgba(15,31,61,.04);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:var(--sans); background:var(--bg); color:var(--ink);
+  font-size:14px; line-height:1.5;
+}
+a{color:var(--blue-2)}
+code, .mono{font-family:var(--mono)}
+button, select, input{font-family:inherit; font-size:inherit}
+
+/* ---------- Topbar ---------- */
+.topbar{
+  position:sticky; top:0; z-index:50; background:var(--navy);
+  color:#eef2fb; padding:10px 16px; display:flex; align-items:center; gap:16px;
+  flex-wrap:wrap; box-shadow:0 2px 10px rgba(15,31,61,.25);
+}
+.brand{display:flex; align-items:baseline; gap:8px; white-space:nowrap}
+.brand .name{font-weight:700; letter-spacing:.02em; font-size:16px}
+.brand .sub{font-size:12px; color:#aeb9d6}
+.topbar .controls{display:flex; gap:8px; flex-wrap:wrap; flex:1; align-items:center}
+.search-box{position:relative; flex:1; min-width:180px; max-width:420px}
+.search-box input{
+  width:100%; padding:7px 10px 7px 30px; border-radius:6px; border:1px solid #2a3a63;
+  background:#1a2a4f; color:#fff;
+}
+.search-box input::placeholder{color:#8b99c2}
+.search-box svg{position:absolute; left:8px; top:50%; transform:translateY(-50%); opacity:.7}
+.topbar select{
+  padding:6px 8px; border-radius:6px; border:1px solid #2a3a63; background:#1a2a4f; color:#fff;
+}
+.topbar select:focus, .search-box input:focus{outline:2px solid #7fa2ff; outline-offset:1px}
+.hint-toggle{margin-left:auto; font-size:12px; color:#aeb9d6}
+
+/* ---------- Layout ---------- */
+.layout{display:flex; align-items:flex-start; max-width:1440px; margin:0 auto}
+.sidebar{
+  width:250px; flex:0 0 250px; position:sticky; top:53px;
+  max-height:calc(100vh - 53px); overflow-y:auto; padding:16px 10px 40px 16px;
+}
+.sidebar h3{font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:#7a8399; margin:18px 0 6px}
+.sidebar h3:first-child{margin-top:4px}
+.sidebar ul{list-style:none; margin:0; padding:0}
+.sidebar li a{
+  display:flex; justify-content:space-between; gap:6px; padding:5px 8px; border-radius:6px;
+  color:var(--ink); text-decoration:none; font-size:13px;
+}
+.sidebar li a:hover, .sidebar li a:focus-visible{background:var(--line-soft); outline:none}
+.sidebar li a.active{background:#e8edfb; color:var(--blue-2); font-weight:600}
+.sidebar li a .count{color:#8b93a8; font-variant-numeric:tabular-nums; font-size:12px}
+.sidebar li a.active .count{color:var(--blue-2)}
+
+main{flex:1; min-width:0; padding:20px 20px 60px}
+
+/* ---------- Cards ---------- */
+.cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin-bottom:24px}
+.card{
+  background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+  padding:14px 16px; box-shadow:var(--shadow);
+}
+.card .big{font-size:26px; font-weight:700; color:var(--navy); font-variant-numeric:tabular-nums}
+.card .label{font-size:12px; color:var(--ink-soft); margin-top:2px}
+.card.accent{border-left:3px solid var(--blue)}
+
+/* ---------- Section framing ---------- */
+section.view{margin-bottom:36px}
+section.view h2{
+  font-size:19px; color:var(--navy); margin:0 0 4px; padding-bottom:8px; border-bottom:2px solid var(--line);
+}
+section.view > p.lede{color:var(--ink-soft); margin-top:6px; max-width:820px}
+.module-block{margin-bottom:30px; scroll-margin-top:64px}
+.module-block h3{font-size:15px; color:var(--navy-2); margin:0 0 2px; scroll-margin-top:64px}
+.module-block .module-desc{color:var(--ink-soft); font-size:12.5px; margin:0 0 10px; max-width:780px}
+
+/* ---------- Table ---------- */
+.table-wrap{overflow-x:auto; border:1px solid var(--line); border-radius:var(--radius); background:var(--panel)}
+table.ops{width:100%; border-collapse:collapse; font-size:13px}
+table.ops th{
+  text-align:left; background:#f0f3f9; color:var(--ink-soft); font-weight:600; font-size:11px;
+  text-transform:uppercase; letter-spacing:.04em; padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap;
+}
+table.ops td{padding:8px 10px; border-bottom:1px solid var(--line-soft); vertical-align:top}
+table.ops tbody tr{cursor:pointer}
+table.ops tbody tr:hover, table.ops tbody tr:focus-visible{background:#f4f7fd; outline:none}
+table.ops tbody tr:focus-visible{box-shadow:inset 0 0 0 2px var(--blue)}
+table.ops tbody tr.hidden-row{display:none}
+td.path{font-family:var(--mono); font-size:12px; color:var(--ink)}
+td.action{max-width:260px}
+.badge{
+  display:inline-block; padding:2px 7px; border-radius:20px; font-weight:700; font-size:10.5px;
+  letter-spacing:.03em; font-family:var(--mono);
+}
+.badge.GET{background:var(--get-bg); color:var(--get)}
+.badge.POST{background:var(--post-bg); color:var(--post)}
+.badge.PATCH{background:var(--patch-bg); color:var(--patch)}
+.badge.PUT{background:var(--put-bg); color:var(--put)}
+.tag{display:inline-block; padding:1px 7px; border-radius:5px; font-size:11px; background:#eef1f8; color:var(--ink-soft)}
+.tag.scope-company{background:#e8edfb; color:var(--blue-2)}
+.tag.scope-store{background:#eef3ea; color:#2f6d33}
+.tag.scope-configuration{background:#f3ecff; color:#5b3fa0}
+.tag.scope-public,.tag.scope-self,.tag.scope-authenticated{background:#f0f2f5; color:#555}
+.tag.scope-shared{background:#fff3e0; color:#8a5a00}
+.ver-yes{color:var(--blue-2); font-weight:600}
+.ver-no{color:#8b93a8}
+.perm-list{font-size:11.5px; color:var(--ink-soft)}
+.status-dot{display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--get); margin-right:5px}
+.empty-row td{text-align:center; color:#8b93a8; padding:24px}
+
+/* ---------- Detail panel ---------- */
+.overlay{
+  position:fixed; inset:0; background:rgba(15,20,35,.35); z-index:100; display:none;
+}
+.overlay.open{display:block}
+.detail-panel{
+  position:fixed; top:0; right:0; bottom:0; width:min(680px,94vw); background:#fff; z-index:101;
+  box-shadow:-8px 0 30px rgba(15,20,35,.25); transform:translateX(100%); transition:transform .18s ease-out;
+  display:flex; flex-direction:column;
+}
+.detail-panel.open{transform:translateX(0)}
+.detail-head{padding:16px 20px; border-bottom:1px solid var(--line); display:flex; align-items:flex-start; gap:12px}
+.detail-head .htxt{flex:1}
+.detail-head h3{margin:0 0 4px; font-size:16px; color:var(--navy)}
+.detail-head .sub{font-family:var(--mono); font-size:12.5px; color:var(--ink-soft); word-break:break-all}
+.detail-close{
+  border:none; background:var(--line-soft); border-radius:6px; width:30px; height:30px; cursor:pointer; font-size:16px; color:var(--ink);
+  flex:0 0 auto;
+}
+.detail-close:hover, .detail-close:focus-visible{background:#dfe4ee}
+.detail-body{overflow-y:auto; padding:16px 20px 40px; flex:1}
+.detail-body h4{
+  font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#7a8399; margin:18px 0 6px;
+  border-top:1px solid var(--line-soft); padding-top:14px;
+}
+.detail-body h4:first-child{border-top:none; padding-top:0; margin-top:0}
+.detail-body p{margin:4px 0}
+.kv{width:100%; border-collapse:collapse; font-size:12.5px}
+.kv td{padding:3px 6px 3px 0; vertical-align:top}
+.kv td:first-child{color:var(--ink-soft); white-space:nowrap; width:1%}
+pre.code{
+  background:#0f1f3d; color:#d9e2f5; padding:10px 12px; border-radius:6px; font-size:12px;
+  overflow-x:auto; margin:6px 0; line-height:1.5;
+}
+pre.code .illustrative{display:block; color:#8fa5da; font-size:10.5px; margin-top:6px}
+.copy-btn{
+  font-size:11px; padding:3px 9px; border-radius:5px; border:1px solid var(--line); background:#fff; cursor:pointer; color:var(--ink-soft);
+}
+.copy-btn:hover{background:var(--line-soft)}
+.err-table{width:100%; border-collapse:collapse; font-size:12px}
+.err-table td{padding:4px 6px; border-bottom:1px solid var(--line-soft); vertical-align:top}
+.err-table td:first-child{font-family:var(--mono); font-weight:700; width:44px; color:var(--post)}
+.field-table{width:100%; border-collapse:collapse; font-size:12px; margin:4px 0}
+.field-table td, .field-table th{padding:3px 6px; border-bottom:1px solid var(--line-soft); text-align:left}
+.field-table th{color:var(--ink-soft); font-weight:600; font-size:10.5px; text-transform:uppercase}
+.note-box{background:#fff8e8; border:1px solid #f0dca0; border-radius:6px; padding:8px 10px; font-size:12.5px; margin:8px 0}
+.src-files{font-size:11.5px; color:var(--ink-soft); font-family:var(--mono)}
+
+/* ---------- Start Here steps ---------- */
+.steps{counter-reset:step; list-style:none; padding:0; margin:0}
+.steps li{
+  counter-increment:step; position:relative; padding:10px 0 10px 40px; border-bottom:1px solid var(--line-soft);
+}
+.steps li::before{
+  content:counter(step); position:absolute; left:0; top:9px; width:26px; height:26px; border-radius:50%;
+  background:var(--blue); color:#fff; font-weight:700; font-size:12px; display:flex; align-items:center; justify-content:center;
+}
+.steps li h4{margin:0 0 3px; font-size:14px; color:var(--navy)}
+.steps li p{margin:0; color:var(--ink-soft); font-size:13px}
+.steps li a.jump{font-size:12px}
+
+/* ---------- Notes / gap tables ---------- */
+.notes-grid{display:grid; gap:14px}
+.note-card{background:#fff; border:1px solid var(--line); border-radius:var(--radius); padding:14px 16px; box-shadow:var(--shadow)}
+.note-card h4{margin:0 0 6px; font-size:13.5px; color:var(--navy-2)}
+.note-card p{margin:0; font-size:13px; color:var(--ink-soft)}
+.gap-table{width:100%; border-collapse:collapse; font-size:13px; background:#fff; border:1px solid var(--line); border-radius:var(--radius); overflow:hidden}
+.gap-table th{background:#f0f3f9; text-align:left; padding:8px 10px; font-size:11px; text-transform:uppercase; color:var(--ink-soft)}
+.gap-table td{padding:8px 10px; border-top:1px solid var(--line-soft)}
+.status-pill{padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600}
+.status-pill.impl{background:var(--get-bg); color:var(--get)}
+.status-pill.partial{background:#fff3e0; color:#8a5a00}
+.status-pill.not-impl{background:#f0f2f5; color:#555}
+.status-pill.awaiting{background:#f3e9fb; color:#5b3fa0}
+
+footer.dash-footer{color:#8b93a8; font-size:12px; padding:20px; text-align:center}
+
+/* ---------- Responsive ---------- */
+@media (max-width:900px){
+  .layout{display:block}
+  .sidebar{position:static; width:auto; max-height:none; padding:10px 16px; border-bottom:1px solid var(--line)}
+  .sidebar ul{display:flex; flex-wrap:wrap; gap:4px}
+  .sidebar h3{display:none}
+  main{padding:16px}
+  .detail-panel{width:100vw}
+}
+@media (max-width:600px){
+  .topbar{padding:8px 10px}
+  .brand .sub{display:none}
+  .cards{grid-template-columns:1fr 1fr}
+}
+
+/* ---------- Print ---------- */
+@media print{
+  .topbar, .sidebar, .detail-close, .overlay, .no-print{display:none !important}
+  body{background:#fff}
+  main{padding:0}
+  .layout{display:block}
+  table.ops tbody tr.hidden-row{display:none !important}
+  .module-block{page-break-inside:avoid}
+  a[href]::after{content:""}
+  .detail-panel{position:static; transform:none; box-shadow:none; width:auto; display:block !important}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <span class="name">CMHP ERP</span>
+    <span class="sub">Backend API Dashboard</span>
+  </div>
+  <div class="controls">
+    <div class="search-box">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aeb9d6" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="search" type="search" placeholder="Search path, action, permission, screen…" aria-label="Search API operations">
+    </div>
+    <select id="filter-module" aria-label="Filter by module"><option value="">All modules</option></select>
+    <select id="filter-method" aria-label="Filter by HTTP method">
+      <option value="">All methods</option>
+      <option>GET</option><option>POST</option><option>PATCH</option><option>PUT</option>
+    </select>
+    <select id="filter-scope" aria-label="Filter by access scope"><option value="">All scopes</option></select>
+    <select id="filter-version" aria-label="Filter by version-token requirement">
+      <option value="">Any version requirement</option>
+      <option value="yes">Requires expected_version</option>
+      <option value="no">No version token</option>
+      <option value="na">Not applicable (read-only)</option>
+    </select>
+  </div>
+</div>
+
+<div class="layout">
+  <nav class="sidebar" aria-label="Dashboard navigation">
+    <h3>Guide</h3>
+    <ul>
+      <li><a href="#summary" data-nav>Overview</a></li>
+      <li><a href="#start-here" data-nav>Start Here — Frontend Integration</a></li>
+      <li><a href="#notes" data-nav>Special Implementation Notes</a></li>
+      <li><a href="#missing" data-nav>What Is Still Missing</a></li>
+      <li><a href="#about" data-nav>Regenerating This Dashboard</a></li>
+    </ul>
+    <h3>API Reference — Modules</h3>
+    <ul id="module-nav"></ul>
+    <h3>Not Implemented</h3>
+    <ul>
+      <li><a href="#missing" data-nav>See "What Is Still Missing" <span class="count" id="not-impl-count"></span></a></li>
+    </ul>
+  </nav>
+
+  <main id="main">
+    <section class="view" id="summary">
+      <h2>Overview</h2>
+      <p class="lede">Read-only developer reference for the CMHP ERP backend API. Generated directly from the live URL resolver and current view/serializer/permission code — not from memory or an earlier document's numbers. This is documentation only: no API-execution buttons, no real login, no secrets.</p>
+      <div class="cards">
+        <div class="card accent"><div class="big" id="stat-paths">–</div><div class="label">API path patterns</div></div>
+        <div class="card accent"><div class="big" id="stat-ops">–</div><div class="label">API operations (method + path)</div></div>
+        <div class="card"><div class="big" id="stat-modules">–</div><div class="label">Backend modules (Django apps)</div></div>
+        <div class="card"><div class="big" id="stat-verified">–</div><div class="label">Source-verified operations</div></div>
+        <div class="card"><div class="big" id="stat-date" style="font-size:18px">–</div><div class="label">Last inventory verification</div></div>
+      </div>
+      <div class="notes-grid" id="discrepancy-list"></div>
+    </section>
+
+    <section class="view" id="start-here">
+      <h2>Start Here — Frontend Integration Sequence</h2>
+      <p class="lede">The actual request sequence a frontend follows to go from an unauthenticated browser to a store-prepared, officially-numbered batch plan. Each step links to its endpoint(s) in the reference table below.</p>
+      <ol class="steps" id="steps-list"></ol>
+    </section>
+
+    <section class="view" id="api-reference">
+      <h2>API Reference</h2>
+      <p class="lede">One row per HTTP method + path operation. Click a row (or press Enter) to open full endpoint detail. Use the search bar and filters above to narrow the list — the print stylesheet exports exactly what is currently visible.</p>
+      <div id="modules-container"></div>
+    </section>
+
+    <section class="view" id="notes">
+      <h2>Special Implementation Notes</h2>
+      <p class="lede">Cross-cutting behaviors that apply across many endpoints, verified directly against the code.</p>
+      <div class="notes-grid" id="special-notes"></div>
+    </section>
+
+    <section class="view" id="missing">
+      <h2>What Is Still Missing</h2>
+      <p class="lede">Business functionality that does not exist in this API today, verified against current code — distinguished by implementation status.</p>
+      <table class="gap-table">
+        <thead><tr><th>Area</th><th>Purpose</th><th>Status</th></tr></thead>
+        <tbody id="missing-body"></tbody>
+      </table>
+    </section>
+
+    <section class="view" id="about">
+      <h2>Regenerating This Dashboard</h2>
+      <p class="lede">This page embeds a static snapshot of the API (<code>api-data.json</code>, also published alongside this file for reuse). When backend endpoints change, regenerate as follows:</p>
+      <ol>
+        <li>Re-run a resolver walk against the live codebase (<code>django.urls.get_resolver()</code>, walking every pattern, checking which of GET/POST/PUT/PATCH/DELETE each view class actually implements) to get the current path/operation list.</li>
+        <li>Diff that list against <code>api-data.json</code>'s <code>operations</code> array (same method+path pairs) to see what changed.</li>
+        <li>Update the corresponding <code>module_*.py</code> generator file (see <code>docs/api-dashboard/README.md</code> for the file layout) and re-run <code>build.py</code> to regenerate <code>api-data.json</code>.</li>
+        <li>Re-embed the JSON into <code>index.html</code> (the build script does this in one step) and re-open the file in a browser to verify the counts on the Overview cards match the new resolver walk.</li>
+      </ol>
+      <p>No server, npm install, or network access is required at any point — the generator is plain Python using only the Django project already on disk.</p>
+    </section>
+
+    <footer class="dash-footer">CMHP ERP — internal developer documentation. Not a public API reference. Generated 2026-09-29.</footer>
+  </main>
+</div>
+
+<div class="overlay" id="overlay"></div>
+<aside class="detail-panel" id="detail-panel" role="dialog" aria-modal="true" aria-labelledby="detail-title">
+  <div class="detail-head">
+    <div class="htxt">
+      <h3 id="detail-title">—</h3>
+      <div class="sub" id="detail-sub">—</div>
+    </div>
+    <button class="detail-close" id="detail-close" aria-label="Close details">✕</button>
+  </div>
+  <div class="detail-body" id="detail-body"></div>
+</aside>
+
+<script id="api-data" type="application/json">__API_DATA_JSON__</script>
+<script>
+(function(){
+  "use strict";
+  var DATA = JSON.parse(document.getElementById('api-data').textContent);
+  var OPS = DATA.operations;
+  var MODULES = DATA.modules;
+
+  function esc(s){
+    if(s===null||s===undefined) return '';
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function fmtJSON(obj){
+    if(obj===null||obj===undefined) return null;
+    return JSON.stringify(obj, null, 2);
+  }
+
+  /* ---------- Overview cards ---------- */
+  document.getElementById('stat-paths').textContent = DATA.meta.counts.path_patterns;
+  document.getElementById('stat-ops').textContent = DATA.meta.counts.operations;
+  var moduleKeys = {};
+  OPS.forEach(function(o){ moduleKeys[o.module]=true; });
+  document.getElementById('stat-modules').textContent = Object.keys(moduleKeys).length;
+  document.getElementById('stat-verified').textContent = DATA.meta.counts.source_code_verified_operations + ' / ' + DATA.meta.counts.operations;
+  document.getElementById('stat-date').textContent = DATA.meta.last_inventory_verification_date;
+  document.getElementById('not-impl-count').textContent = '(' + DATA.not_implemented_modules.length + ')';
+
+  var discEl = document.getElementById('discrepancy-list');
+  DATA.meta.discrepancies.forEach(function(d){
+    var div = document.createElement('div');
+    div.className = 'note-card';
+    div.innerHTML = '<h4>Discrepancy: ' + esc(d.area) + '</h4><p>' + esc(d.finding) + '</p>';
+    discEl.appendChild(div);
+  });
+
+  /* ---------- Sidebar module nav + filter dropdown ---------- */
+  var moduleNav = document.getElementById('module-nav');
+  var filterModule = document.getElementById('filter-module');
+  var filterScope = document.getElementById('filter-scope');
+  var moduleOrder = [];
+  var moduleMeta = {};
+  MODULES.forEach(function(m){
+    if(!moduleMeta[m.key]){ moduleMeta[m.key]=m; moduleOrder.push(m.key); }
+  });
+  var moduleCounts = {};
+  OPS.forEach(function(o){ moduleCounts[o.module] = (moduleCounts[o.module]||0)+1; });
+
+  moduleOrder.forEach(function(key){
+    var m = moduleMeta[key];
+    var li = document.createElement('li');
+    li.innerHTML = '<a href="#mod-'+key+'" data-nav data-module="'+key+'">'+esc(m.name===undefined?key:m.name)+' <span class="count">'+(moduleCounts[key]||0)+'</span></a>';
+    moduleNav.appendChild(li);
+    var opt = document.createElement('option');
+    opt.value = key; opt.textContent = (m.django_app||key) + ' ('+(moduleCounts[key]||0)+')';
+    filterModule.appendChild(opt);
+  });
+
+  var scopes = {};
+  OPS.forEach(function(o){ scopes[o.scope]=true; });
+  Object.keys(scopes).sort().forEach(function(s){
+    var opt = document.createElement('option'); opt.value = s; opt.textContent = s;
+    filterScope.appendChild(opt);
+  });
+
+  /* ---------- Render module tables ---------- */
+  var container = document.getElementById('modules-container');
+  var rowsByOpId = {};
+
+  function scopeClass(scope){
+    if(scope.indexOf('company')>=0 && scope.indexOf('store')>=0) return 'scope-company';
+    if(scope.indexOf('company')>=0) return 'scope-company';
+    if(scope.indexOf('store')>=0) return 'scope-store';
+    if(scope.indexOf('configuration')>=0) return 'scope-configuration';
+    if(scope.indexOf('shared')>=0) return 'scope-shared';
+    return 'scope-public';
+  }
+  function verClass(v){
+    if(/^yes/.test(v)) return 'ver-yes';
+    if(/^no/.test(v)) return 'ver-no';
+    return 'ver-no';
+  }
+  function verLabel(v){
+    if(/^yes/.test(v)) return 'Required';
+    if(/^no/.test(v)) return 'None';
+    return '—';
+  }
+
+  moduleOrder.forEach(function(key){
+    var m = moduleMeta[key];
+    var ops = OPS.filter(function(o){ return o.module===key; });
+    if(!ops.length) return;
+    var block = document.createElement('div');
+    block.className = 'module-block';
+    block.id = 'mod-'+key;
+    var appLabel = m.django_app ? ' <span class="mono" style="font-size:11px;color:#9aa3b8">('+esc(m.django_app)+')</span>' : '';
+    block.innerHTML = '<h3>'+esc(m.name)+appLabel+'</h3><p class="module-desc">'+esc(m.description)+'</p>' +
+      '<div class="table-wrap"><table class="ops"><thead><tr>'+
+      '<th>Method</th><th>Path</th><th>Action</th><th>Scope</th><th>Permissions</th><th>Screen</th><th>Version token</th>'+
+      '</tr></thead><tbody></tbody></table></div>';
+    container.appendChild(block);
+    var tbody = block.querySelector('tbody');
+    ops.forEach(function(o){
+      var tr = document.createElement('tr');
+      tr.tabIndex = 0;
+      tr.dataset.module = o.module;
+      tr.dataset.method = o.method;
+      tr.dataset.scope = o.scope;
+      tr.dataset.ver = /^yes/.test(o.version_requirement) ? 'yes' : (/^no/.test(o.version_requirement) ? 'no' : 'na');
+      tr.dataset.search = (o.action+' '+o.path+' '+o.permissions.join(' ')+' '+o.screen+' '+o.method).toLowerCase();
+      tr.innerHTML =
+        '<td><span class="badge '+o.method+'">'+o.method+'</span></td>'+
+        '<td class="path">'+esc(o.path)+'</td>'+
+        '<td class="action">'+esc(o.action)+'</td>'+
+        '<td><span class="tag '+scopeClass(o.scope)+'">'+esc(o.scope)+'</span></td>'+
+        '<td class="perm-list">'+esc(o.permissions.join(', ')||'—')+'</td>'+
+        '<td>'+esc(o.screen||'—')+'</td>'+
+        '<td class="'+verClass(o.version_requirement)+'">'+verLabel(o.version_requirement)+'</td>';
+      tr.addEventListener('click', function(){ openDetail(o); });
+      tr.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openDetail(o); } });
+      tbody.appendChild(tr);
+      rowsByOpId[o.id] = tr;
+    });
+  });
+
+  /* ---------- Filtering / search ---------- */
+  var searchInput = document.getElementById('search');
+  var filterMethod = document.getElementById('filter-method');
+  var filterVersion = document.getElementById('filter-version');
+  var allRows = Array.prototype.slice.call(document.querySelectorAll('table.ops tbody tr'));
+
+  function applyFilters(){
+    var q = searchInput.value.trim().toLowerCase();
+    var mod = filterModule.value, meth = filterMethod.value, scope = filterScope.value, ver = filterVersion.value;
+    var visibleCount = {};
+    allRows.forEach(function(tr){
+      var ok = true;
+      if(q && tr.dataset.search.indexOf(q)===-1) ok = false;
+      if(mod && tr.dataset.module!==mod) ok = false;
+      if(meth && tr.dataset.method!==meth) ok = false;
+      if(scope && tr.dataset.scope!==scope) ok = false;
+      if(ver && tr.dataset.ver!==ver) ok = false;
+      tr.classList.toggle('hidden-row', !ok);
+      if(ok) visibleCount[tr.dataset.module] = (visibleCount[tr.dataset.module]||0)+1;
+    });
+    document.querySelectorAll('.module-block').forEach(function(block){
+      var key = block.id.replace('mod-','');
+      block.style.display = (visibleCount[key]||0) > 0 ? '' : 'none';
+    });
+  }
+  [searchInput, filterModule, filterMethod, filterScope, filterVersion].forEach(function(el){
+    el.addEventListener('input', applyFilters);
+    el.addEventListener('change', applyFilters);
+  });
+
+  /* module-nav links also set the module filter */
+  document.querySelectorAll('#module-nav a').forEach(function(a){
+    a.addEventListener('click', function(){
+      filterModule.value = a.dataset.module;
+      applyFilters();
+    });
+  });
+
+  /* ---------- Detail panel ---------- */
+  var overlay = document.getElementById('overlay');
+  var panel = document.getElementById('detail-panel');
+  var lastFocused = null;
+
+  function fieldTable(fields){
+    if(!fields || !fields.length) return '<p style="color:#8b93a8">No request body fields (GET, or empty body).</p>';
+    var rows = fields.map(function(f){
+      var flags = [];
+      if(f.required) flags.push('required'); else flags.push('optional');
+      if(f.immutable) flags.push('immutable');
+      if(f.nullable) flags.push('nullable');
+      return '<tr><td class="mono">'+esc(f.name)+'</td><td>'+flags.join(', ')+'</td><td>'+esc(f.notes||'')+'</td></tr>';
+    }).join('');
+    return '<table class="field-table"><thead><tr><th>Field</th><th>Rules</th><th>Notes</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  }
+  function errTable(errors){
+    if(!errors || !errors.length) return '<p style="color:#8b93a8">No documented error responses beyond standard auth failures.</p>';
+    return '<table class="err-table">'+errors.map(function(e){
+      return '<tr><td>'+e.status+'</td><td>'+esc(e.condition)+'</td></tr>';
+    }).join('')+'</table>';
+  }
+  function codeBlock(obj, illustrative){
+    if(obj===null||obj===undefined) return '<p style="color:#8b93a8">No body.</p>';
+    var json = fmtJSON(obj);
+    var id = 'code-'+Math.random().toString(36).slice(2);
+    return '<pre class="code" id="'+id+'">'+esc(json)+(illustrative?'<span class="illustrative">Illustrative synthetic example — not a captured live response.</span>':'')+'</pre>'+
+      '<button class="copy-btn" data-copy-target="'+id+'">Copy JSON</button>';
+  }
+
+  function openDetail(o){
+    lastFocused = document.activeElement;
+    document.getElementById('detail-title').textContent = o.action;
+    document.getElementById('detail-sub').innerHTML = '<span class="badge '+o.method+'">'+o.method+'</span> &nbsp;'+esc(o.path);
+    var d = o.detail;
+    var html = '';
+    html += '<h4>A. Purpose</h4><p>'+esc(d.purpose)+'</p>';
+    if(o.notes){ html += '<div class="note-box">'+esc(o.notes)+'</div>'; }
+
+    html += '<h4>B. Method &amp; Path</h4><p class="mono">'+o.method+' '+esc(o.path)+'</p>';
+
+    html += '<h4>C. Path Parameters</h4>';
+    if(d.path_params && d.path_params.length){
+      html += '<table class="field-table"><thead><tr><th>Name</th><th>Type</th></tr></thead><tbody>'+
+        d.path_params.map(function(p){ return '<tr><td class="mono">'+esc(p.name)+'</td><td>'+esc(p.type||'int')+'</td></tr>'; }).join('')+
+        '</tbody></table>';
+    } else { html += '<p style="color:#8b93a8">None.</p>'; }
+
+    html += '<h4>D. Query Parameters</h4>';
+    if(d.query_params && d.query_params.length){
+      html += '<table class="field-table"><thead><tr><th>Name</th><th>Type</th><th>Notes</th></tr></thead><tbody>'+
+        d.query_params.map(function(p){ return '<tr><td class="mono">'+esc(p.name)+'</td><td>'+esc(p.type||'')+'</td><td>'+esc(p.notes||p.default||'')+'</td></tr>'; }).join('')+
+        '</tbody></table>';
+    } else { html += '<p style="color:#8b93a8">None.</p>'; }
+
+    html += '<h4>E. Authentication &amp; Permissions</h4><p>'+esc(d.auth)+'</p>' +
+      '<p><strong>Required permission(s):</strong> '+ (o.permissions.length? esc(o.permissions.join(', ')) : 'none beyond authentication') +'</p>' +
+      '<p><strong>Access scope:</strong> <span class="tag '+scopeClass(o.scope)+'">'+esc(o.scope)+'</span></p>';
+
+    html += '<h4>F. Headers, Cookies &amp; CSRF</h4><p>'+esc(d.headers)+'</p>';
+
+    html += '<h4>G. Request Fields</h4>' + fieldTable(d.request_fields);
+
+    html += '<h4>H. Request JSON (copyable)</h4>' + codeBlock(d.request_example, false);
+
+    html += '<h4>I. Representative Success Response</h4><p>Status: <strong>'+d.response_status+'</strong></p>' + codeBlock(d.response_example, true);
+
+    html += '<h4>J. Error Responses</h4>' + errTable(d.errors);
+
+    html += '<h4>K. Side Effects &amp; Lifecycle</h4><p>'+esc(d.side_effects)+'</p>' +
+      '<p><strong>Version token:</strong> '+esc(o.version_requirement)+'</p>';
+
+    html += '<h4>L. Frontend Usage</h4><p>'+ (d.frontend_usage? esc(d.frontend_usage) : '<span style="color:#8b93a8">General-purpose endpoint — see the module description above.</span>') +'</p>' +
+      '<p><strong>Screen:</strong> '+esc(o.screen||'—')+'</p>';
+
+    html += '<h4>M. Source Files</h4><p class="src-files">'+ (d.source_files&&d.source_files.length? d.source_files.map(esc).join('<br>') : '—') +'</p>';
+
+    document.getElementById('detail-body').innerHTML = html;
+    overlay.classList.add('open');
+    panel.classList.add('open');
+    document.getElementById('detail-close').focus();
+
+    panel.querySelectorAll('[data-copy-target]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var pre = document.getElementById(btn.dataset.copyTarget);
+        var text = pre.childNodes[0] ? pre.childNodes[0].textContent : pre.textContent;
+        if(navigator.clipboard){ navigator.clipboard.writeText(text); }
+        btn.textContent = 'Copied!';
+        setTimeout(function(){ btn.textContent = 'Copy JSON'; }, 1200);
+      });
+    });
+  }
+  function closeDetail(){
+    overlay.classList.remove('open');
+    panel.classList.remove('open');
+    if(lastFocused) lastFocused.focus();
+  }
+  document.getElementById('detail-close').addEventListener('click', closeDetail);
+  overlay.addEventListener('click', closeDetail);
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Escape' && panel.classList.contains('open')) closeDetail();
+  });
+
+  /* ---------- Start Here steps ---------- */
+  var STEPS = [
+    {title:"CSRF, login and current user", desc:"GET /api/v1/auth/csrf/ to obtain the CSRF token, POST /api/v1/auth/login/ with it in X-CSRFToken, then GET /api/v1/auth/me/ with the returned access token to confirm the session.", ids:["auth-csrf","auth-login","auth-me"]},
+    {title:"Refresh and logout", desc:"POST /api/v1/auth/refresh/ proactively (timer just under the 5-minute access-token lifetime) or reactively on a 401 — one retry only, never a loop. POST /api/v1/auth/logout/ to end the session.", ids:["auth-refresh","auth-logout"]},
+    {title:"Load company and store workspaces", desc:"GET /api/v1/companies/mine/ and GET /api/v1/stores/mine/ populate the workspace switcher; GET the matching my-permissions/ endpoint to drive which actions the UI offers. Zero companies/stores is a valid state.", ids:["companies-mine","stores-mine","companies-mypermissions","stores-mypermissions"]},
+    {title:"Customer and product lookup", desc:"GET the company's customers and products with ?is_active=true to populate pickers for quotations, sales orders and formulas.", ids:["customers-list","products-list"]},
+    {title:"Create and retrieve a sales-order draft", desc:"POST a new DRAFT sales order, then GET it back by id (or via the list) to confirm what was saved and to read its current version.", ids:["sales_orders-create","sales_orders-detail","sales_orders-list"]},
+    {title:"Review and confirm an order where policy and permissions allow", desc:"GET the confirmation-preview to see blocking reasons and policy state, then POST confirm/ with the reviewed expected_version. Requires sales_orders.confirm and a configured confirmation policy.", ids:["sales_orders-preview","sales_orders-confirm"]},
+    {title:"Select an approved formula and create a batch plan", desc:"An APPROVED formula revision is a prerequisite. POST a batch plan pinning an explicit sales-order line and formula revision (must match product/unit exactly).", ids:["formulas-approve","batch_plans-create"]},
+    {title:"Preview requirements and packing assessment", desc:"GET the batch plan's requirement-preview for a read-only material estimate and (where applicable) the packing_assessment block — never a stock or can-produce signal.", ids:["batch_plans-preview"]},
+    {title:"Allocate an official batch number", desc:"POST allocate-number/ with the plan's current expected_version. Irreversible — confirm with the user before calling. Requires batch_plans.allocate_number.", ids:["batch_plans-allocate"]},
+    {title:"Create / update Store Preparation", desc:"POST (or PATCH) the store's preparation record for the plan — Packing Type and Insert Required only. Requires store_preparation.* in the store AND batch_plans.view in the plan's own company.", ids:["store_prep-create","store_prep-edit"]},
+  ];
+  var stepsList = document.getElementById('steps-list');
+  function findOp(pathFrag, method){
+    return OPS.find(function(o){ return o.path.indexOf(pathFrag)>=0 && (!method || o.method===method); });
+  }
+  var STEP_LOOKUPS = [
+    [["GET","/auth/csrf/"],["POST","/auth/login/"],["GET","/auth/me/"]],
+    [["POST","/auth/refresh/"],["POST","/auth/logout/"]],
+    [["GET","/companies/mine/"],["GET","/stores/mine/"],["GET","/my-permissions/"]],
+    [["GET","/customers/"],["GET","/products/"]],
+    [["POST","/sales-orders/"],["GET","/sales-orders/<sales_order_id>/"]],
+    [["GET","/confirmation-preview/"],["POST","/confirm/"]],
+    [["POST","/revisions/<revision_id>/approve/"],["POST","/batch-plans/"]],
+    [["GET","/batch-plans/<plan_id>/requirement-preview/"]],
+    [["POST","/allocate-number/"]],
+    [["POST","/stores/<store_id>/preparations/"],["PATCH","/stores/<store_id>/preparations/<preparation_id>/"]],
+  ];
+  STEPS.forEach(function(step, i){
+    var li = document.createElement('li');
+    var links = STEP_LOOKUPS[i].map(function(pair){
+      var op = OPS.find(function(o){ return o.method===pair[0] && o.path===pair[1]; });
+      if(!op) return '';
+      return '<a class="jump" href="#" data-openop="'+op.id+'">'+op.method+' '+esc(op.path)+'</a>';
+    }).filter(Boolean).join(' &nbsp;·&nbsp; ');
+    li.innerHTML = '<h4>'+esc(step.title)+'</h4><p>'+esc(step.desc)+'</p><p>'+links+'</p>';
+    stepsList.appendChild(li);
+  });
+  document.addEventListener('click', function(e){
+    var t = e.target.closest('[data-openop]');
+    if(t){
+      e.preventDefault();
+      var op = OPS.find(function(o){ return o.id===t.dataset.openop; });
+      if(op) openDetail(op);
+    }
+  });
+
+  /* ---------- Special notes ---------- */
+  var SPECIAL_NOTES = [
+    {title:"Access tokens & refresh-cookie flow", body:"Access tokens are short-lived (5 min default) and travel only in the JSON body — never a cookie. The refresh token is HttpOnly, path-scoped to /api/v1/auth/, SameSite=Lax, and the frontend never reads or sets it manually. Refresh is entirely client-driven: nothing on the backend auto-refreshes."},
+    {title:"CSRF acquisition & auth mutation requirements", body:"GET /api/v1/auth/csrf/ once per session to obtain the csrftoken cookie and its JSON echo. Every subsequent POST to /auth/login/, /auth/refresh/ or /auth/logout/ must carry X-CSRFToken. No other endpoint in this API requires the CSRF header (they are Bearer-token authenticated, not cookie-authenticated)."},
+    {title:"Company workspace vs shared-store workspace", body:"These are two independent membership systems. A user can hold a company membership, a store membership, both, or neither. Several modules (goods receiving, incoming QC, store preparation) deliberately check BOTH a store permission AND a company permission in the same request — store access never implies company access, or vice versa."},
+    {title:"No operational superuser bypass", body:"apps.permissions.services.user_has_permission / store_user_has_permission never consult is_staff or is_superuser. Every company/store-scoped business operation requires an explicit permission grant, even for a superuser account — superuser status only unlocks the separate 'active superuser' administrative endpoints (users, companies, stores, catalog, suppliers, roles, specifications), never the business-transaction ones."},
+    {title:"Lookup permissions beyond the main module permission", body:"Creating a quotation or sales order needs quotations/sales_orders.create, but POPULATING the customer/product pickers needs customers.view/products.view separately — a role with only the create permission can save by id but cannot browse. The same pattern recurs for batch plans (needs sales_orders.view + formulas.view alongside batch_plans.*) and store preparation (needs batch_plans.view in the plan's own company alongside the store permission)."},
+    {title:"Full-list replacement behavior when PATCH sends lines", body:"Every line-bearing resource (purchase requests, quotations, sales orders, formula revisions, goods receipts, incoming QC observations, specification tests) uses the same convention: omitting the lines/observations/tests key leaves the existing collection unchanged; sending it (even as []) replaces the ENTIRE collection — entries with an id update an existing row, entries without one create a new row, and existing rows not listed are removed. There is no partial add/remove-one-row endpoint anywhere in this API."},
+    {title:"Decimal quantities and amounts are strings", body:"Every quantity, unit price and monetary amount is returned as a decimal STRING (e.g. \"12.500\", \"820.0000\"), never a JSON number — this avoids floating-point precision loss. The frontend must parse these as decimals, not floats, before doing arithmetic, and should send them back as strings on write."},
+    {title:"409 conflict handling — the required pattern everywhere", body:"On any 409: do not retry the same write with the same body; re-fetch the resource to get the current version (and, for purchase requests, the current round/step); show the user what changed; never silently substitute the fresh version and resubmit the same business decision automatically — a decision like approve/confirm/allocate is a human decision, and the fresh state may mean it is no longer the right one."},
+    {title:"Approved / confirmed record immutability", body:"Once a sales order is CONFIRMED, a formula revision is APPROVED, a purchase order is ISSUED, a goods receipt is POSTED, or an incoming QC inspection is SUBMITTED, that record (and its lines) becomes permanently read-only through this API — there is no unconfirm, unapprove, reopen, un-post or un-submit action anywhere in this codebase today."},
+    {title:"Source snapshots vs current master values", body:"Line-bearing resources capture a snapshot (code/name at the time the line was created or its reference last changed) alongside a live *_is_active flag read fresh on every request. The snapshot never silently updates when the master record changes — both are shown so the frontend can badge a since-deactivated or since-renamed reference without ever hiding history."},
+    {title:"Planning calculation vs physical stock availability", body:"Every requirement-preview endpoint (formula and batch-plan) performs a pure proportional calculation from the recipe — it never checks, reserves, or reports actual stock. There is no available_stock, shortage or can_produce field anywhere in this API, because no stock-balance or stock-ledger concept exists in the codebase at all."},
+    {title:"Packing assessment does not classify the difference as waste", body:"A batch plan's packing_assessment.difference is a signed planning-quantity gap between the manufacturing target and the calculated packed content. It is shown plainly, never auto-corrected, and is explicitly never labeled waste, yield, allowance, or shortage — those are separate business concepts this API does not implement or infer."},
+    {title:"Batch-number allocation does not authorize production", body:"POST .../allocate-number/ assigns a permanent identifier and nothing else — it does not change the plan's DRAFT status, does not authorize manufacturing, does not reserve or affect stock, and is not linked to any production/QC-release/dispatch concept (none of which exist in this codebase)."},
+    {title:"Nullable policy answers are not automatic false values", body:"Confirmation and approval policy fields (allow_self_confirmation, allow_zero_price_lines, allow_self_approval, etc.) are tri-state: true, false, or null meaning 'not yet answered' — never defaulted to false. A null value or a missing policy row BLOCKS the gated action entirely; the frontend must render 'not configured' as its own distinct state, never silently treat it as false."},
+  ];
+  var notesEl = document.getElementById('special-notes');
+  SPECIAL_NOTES.forEach(function(n){
+    var div = document.createElement('div');
+    div.className = 'note-card';
+    div.innerHTML = '<h4>'+esc(n.title)+'</h4><p>'+esc(n.body)+'</p>';
+    notesEl.appendChild(div);
+  });
+
+  /* ---------- Missing table ---------- */
+  var missingBody = document.getElementById('missing-body');
+  DATA.not_implemented_modules.forEach(function(m){
+    var pillClass = 'not-impl';
+    if(/AWAITING/i.test(m.status)) pillClass = 'awaiting';
+    else if(/PARTIALLY/i.test(m.status)) pillClass = 'partial';
+    else if(/IMPLEMENTED[^\s]*\s*$/i.test(m.status) && !/NOT/i.test(m.status)) pillClass = 'impl';
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td><strong>'+esc(m.id)+'</strong> '+esc(m.name)+'</td>'+
+      '<td>'+esc(m.purpose)+'</td>'+
+      '<td><span class="status-pill '+pillClass+'">'+esc(m.status.split(' — ')[0])+'</span><br><span style="font-size:11.5px;color:#8b93a8">'+esc(m.status.split(' — ').slice(1).join(' — '))+'</span></td>';
+    missingBody.appendChild(tr);
+  });
+
+  /* ---------- Scrollspy for sidebar active state ---------- */
+  var navLinks = Array.prototype.slice.call(document.querySelectorAll('.sidebar a[data-nav]'));
+  var sections = navLinks.map(function(a){ return document.querySelector(a.getAttribute('href')); }).filter(Boolean);
+  function onScroll(){
+    var y = window.scrollY + 80;
+    var current = null;
+    sections.forEach(function(sec){ if(sec.offsetTop <= y) current = sec; });
+    navLinks.forEach(function(a){ a.classList.remove('active'); });
+    if(current){
+      var match = navLinks.find(function(a){ return a.getAttribute('href')==='#'+current.id; });
+      if(match) match.classList.add('active');
+    }
+  }
+  window.addEventListener('scroll', onScroll, {passive:true});
+  onScroll();
+
+  applyFilters();
+})();
+</script>
+</body>
+</html>

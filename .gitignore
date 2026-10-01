@@ -1,0 +1,31 @@
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+
+# Django
+*.log
+db.sqlite3
+staticfiles/
+media/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+.demo_credentials.local.json
+.demo_flow_result.local.json
+.demo_commercial_formula_result.local.json
+.demo_planning_journey_result.local.json
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

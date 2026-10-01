@@ -1,0 +1,4 @@
+code,name,product_type,description,sales_uom_code
+DEMOPROD101,Demo Herbal Tonic 500ml,Syrup,Sample product for CSV import,DEMOBTL
+DEMOPROD102,Demo Herbal Powder 1kg,Powder,,DEMOKG
+DEMOPROD103,Demo Capsule Pack,Capsules,,DEMOBTL

@@ -1,0 +1,4 @@
+formula_code,formula_name,product_code,base_output_quantity,output_uom_code,material_code,material_quantity,formula_notes,revision_notes
+DEMOF101,Demo Herbal Tonic Formula,DEMOPROD101,100,DEMOKG,DEMOMAT1,5.5,Sample formula for CSV import,Initial draft import
+DEMOF101,Demo Herbal Tonic Formula,DEMOPROD101,100,DEMOKG,DEMOPACK1,100,Sample formula for CSV import,Initial draft import
+DEMOF102,Demo Herbal Powder Formula,DEMOPROD102,50,DEMOKG,DEMOMAT1,10,,

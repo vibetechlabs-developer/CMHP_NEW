@@ -1,0 +1,31 @@
+from django.contrib import admin
+from django.urls import include, path
+
+urlpatterns = [
+    path("admin/", admin.site.urls),
+    path("api/v1/", include("apps.common.urls")),
+    path("api/v1/", include("apps.catalog.urls")),
+    path("api/v1/", include("apps.material_imports.urls")),
+    path("api/v1/", include("apps.quality.specification_urls")),
+    path("api/v1/auth/", include("apps.authentication.urls")),
+    path("api/v1/companies/", include("apps.batch_plans.urls")),
+    path("api/v1/companies/", include("apps.batch_register.urls")),
+    path("api/v1/companies/", include("apps.companies.urls")),
+    path("api/v1/companies/", include("apps.customers.urls")),
+    path("api/v1/companies/", include("apps.formula_imports.urls")),
+    path("api/v1/companies/", include("apps.formulas.urls")),
+    path("api/v1/companies/", include("apps.product_imports.urls")),
+    path("api/v1/companies/", include("apps.products.urls")),
+    path("api/v1/companies/", include("apps.purchasing.urls")),
+    path("api/v1/companies/", include("apps.quotations.urls")),
+    path("api/v1/companies/", include("apps.sales_orders.urls")),
+    path("api/v1/permissions/", include("apps.permissions.urls")),
+    path("api/v1/stores/", include("apps.stores.urls")),
+    path("api/v1/stores/", include("apps.material_requisitions.urls")),
+    path("api/v1/stores/", include("apps.receiving.urls")),
+    path("api/v1/stores/", include("apps.quality.urls")),
+    path("api/v1/stores/", include("apps.stock_movements.urls")),
+    path("api/v1/stores/", include("apps.store_preparation.urls")),
+    path("api/v1/suppliers/", include("apps.suppliers.urls")),
+    path("api/v1/users/", include("apps.users.urls")),
+]

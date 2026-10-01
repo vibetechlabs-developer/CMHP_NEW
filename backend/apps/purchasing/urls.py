@@ -1,0 +1,73 @@
+from django.urls import path
+
+from apps.purchasing.views import (
+    PurchaseOrderCancelView,
+    PurchaseOrderDetailView,
+    PurchaseOrderIssueView,
+    PurchaseOrderListCreateView,
+    PurchaseRequestApproveView,
+    PurchaseRequestCancelView,
+    PurchaseRequestDetailView,
+    PurchaseRequestListCreateView,
+    PurchaseRequestRejectView,
+    PurchaseRequestReviseView,
+    PurchaseRequestSubmitView,
+)
+
+urlpatterns = [
+    path(
+        "<int:company_id>/purchase-requests/",
+        PurchaseRequestListCreateView.as_view(),
+        name="purchase-request-list-create",
+    ),
+    path(
+        "<int:company_id>/purchase-requests/<int:request_id>/",
+        PurchaseRequestDetailView.as_view(),
+        name="purchase-request-detail",
+    ),
+    path(
+        "<int:company_id>/purchase-requests/<int:request_id>/submit/",
+        PurchaseRequestSubmitView.as_view(),
+        name="purchase-request-submit",
+    ),
+    path(
+        "<int:company_id>/purchase-requests/<int:request_id>/cancel/",
+        PurchaseRequestCancelView.as_view(),
+        name="purchase-request-cancel",
+    ),
+    path(
+        "<int:company_id>/purchase-requests/<int:request_id>/approve/",
+        PurchaseRequestApproveView.as_view(),
+        name="purchase-request-approve",
+    ),
+    path(
+        "<int:company_id>/purchase-requests/<int:request_id>/reject/",
+        PurchaseRequestRejectView.as_view(),
+        name="purchase-request-reject",
+    ),
+    path(
+        "<int:company_id>/purchase-requests/<int:request_id>/revise/",
+        PurchaseRequestReviseView.as_view(),
+        name="purchase-request-revise",
+    ),
+    path(
+        "<int:company_id>/purchase-orders/",
+        PurchaseOrderListCreateView.as_view(),
+        name="purchase-order-list-create",
+    ),
+    path(
+        "<int:company_id>/purchase-orders/<int:order_id>/",
+        PurchaseOrderDetailView.as_view(),
+        name="purchase-order-detail",
+    ),
+    path(
+        "<int:company_id>/purchase-orders/<int:order_id>/cancel/",
+        PurchaseOrderCancelView.as_view(),
+        name="purchase-order-cancel",
+    ),
+    path(
+        "<int:company_id>/purchase-orders/<int:order_id>/issue/",
+        PurchaseOrderIssueView.as_view(),
+        name="purchase-order-issue",
+    ),
+]

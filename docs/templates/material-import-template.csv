@@ -1,0 +1,4 @@
+code,name,material_type,base_unit_code,description
+DEMOMAT201,Demo Herbal Extract Beta,RAW_MATERIAL,DEMOKG,Sample raw material for CSV import
+DEMOMAT202,Demo Binder Powder,RAW_MATERIAL,DEMOKG,
+DEMOPACK201,Demo Amber Bottle 100ml,PACKAGING_MATERIAL,DEMOBTL,Sample packaging material for CSV import
