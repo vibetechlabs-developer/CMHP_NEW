@@ -177,10 +177,13 @@ class AccessTests(SalesOrderBase):
         response = get_json(self.client_, sales_order_url(self.other_company.id, created["id"]), self.token)
         self.assertEqual(response.status_code, 404)
 
-    def test_delete_rejected(self):
+    def test_delete_requires_sales_orders_delete(self):
+        # DELETE exists for DRAFT orders only, behind sales_orders.delete. A user
+        # without that permission is refused and the order is kept.
         created = self.make_sales_order()
         response = self.client_.delete(sales_order_url(self.company.id, created["id"]), **bearer(self.token))
-        self.assertEqual(response.status_code, 405)
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(SalesOrder.objects.filter(pk=created["id"]).exists())
 
 
 class CreateTests(SalesOrderBase):

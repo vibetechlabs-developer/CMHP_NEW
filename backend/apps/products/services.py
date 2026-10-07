@@ -1,5 +1,8 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
+from django.db.models import ProtectedError
+from rest_framework import exceptions
 
 from apps.audit.services import record
 from apps.common.errors import Conflict
@@ -196,3 +199,37 @@ def deactivate_product(*, actor, product_id, expected_version):
         after={"is_active": False},
     )
     return product
+
+
+PRODUCTS_DELETE = "products.delete"
+
+
+@transaction.atomic
+def delete_product(*, actor, company, product_id, expected_version):
+    """Permanently delete a product that nothing references (no sales order
+    lines, quotation lines or formulas). Locked and version-checked; the
+    deletion and its audit record commit together. Referenced products are kept
+    - deactivate them instead.
+    """
+    product = Product.objects.select_for_update().filter(pk=product_id, company=company).first()
+    if product is None:
+        raise exceptions.NotFound("Product not found in this company.")
+    if product.version != expected_version:
+        raise Conflict("This product has changed since it was last read. Refetch and retry.")
+    before = _product_snapshot(product)
+    try:
+        with transaction.atomic():
+            product.delete()
+    except ProtectedError:
+        raise DjangoValidationError(
+            {"detail": "This product is used by sales orders, quotations or formulas and cannot be deleted. Deactivate it instead."}
+        )
+    record(
+        actor=actor,
+        action="product.deleted",
+        target_type="product",
+        target_id=product_id,
+        company=company,
+        before=before,
+        after=None,
+    )

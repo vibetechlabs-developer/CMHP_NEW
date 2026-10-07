@@ -13,6 +13,8 @@ from apps.products.models import Product
 from apps.sales_orders.models import SalesOrder, SalesOrderLine
 
 ALLOWED_UPDATE_FIELDS = {
+    "mrp_for_printing",
+    "printing_status_note",
     "target_output_quantity",
     "planned_manufacturing_date",
     "packing_size_note",
@@ -369,6 +371,8 @@ def _plan_audit_snapshot(plan):
             str(plan.packing_content_quantity) if plan.packing_content_quantity is not None else None
         ),
         "packing_content_uom_id": plan.packing_content_uom_id,
+        "mrp_for_printing": str(plan.mrp_for_printing) if plan.mrp_for_printing is not None else None,
+        "printing_status_note": plan.printing_status_note,
         "status": plan.status,
         "version": plan.version,
         "source_order_reference": plan.source_order_reference_snapshot,
@@ -379,6 +383,12 @@ def _plan_audit_snapshot(plan):
         "formula_code": plan.formula_code_snapshot,
         "formula_revision_number": plan.formula_revision_number_snapshot,
     }
+
+
+def _validate_mrp(value):
+    if value is not None and value < 0:
+        raise DjangoValidationError({"mrp_for_printing": "MRP for printing cannot be negative."})
+    return value
 
 
 @transaction.atomic
@@ -395,6 +405,8 @@ def create_batch_plan(
     planned_pack_quantity=None,
     packing_content_quantity=None,
     packing_content_uom_id=None,
+    mrp_for_printing=None,
+    printing_status_note="",
 ):
     """Create a DRAFT BatchPlan connecting a sales order line and an approved
     formula revision. Locks and re-reads every dependency (see
@@ -502,6 +514,8 @@ def create_batch_plan(
         planned_pack_quantity=planned_pack_val,
         packing_content_quantity=content_val,
         packing_content_uom=content_unit,
+        mrp_for_printing=_validate_mrp(mrp_for_printing),
+        printing_status_note=(printing_status_note or "").strip(),
         status=BatchPlan.Status.DRAFT,
         version=1,
         created_by=actor,
@@ -662,7 +676,19 @@ def update_batch_plan(*, actor, plan_id, expected_version, data):
             new_notes = val
             notes_changed = True
 
-    if not (quantity_changed or date_changed or packing_note_changed or notes_changed):
+    printing_changed = False
+    new_mrp = plan.mrp_for_printing
+    new_printing_note = plan.printing_status_note
+    if "mrp_for_printing" in data and _validate_mrp(data["mrp_for_printing"]) != plan.mrp_for_printing:
+        new_mrp = _validate_mrp(data["mrp_for_printing"])
+        printing_changed = True
+    if "printing_status_note" in data:
+        value = (data["printing_status_note"] or "").strip()
+        if value != plan.printing_status_note:
+            new_printing_note = value
+            printing_changed = True
+
+    if not (quantity_changed or date_changed or packing_note_changed or notes_changed or printing_changed):
         return plan, False
 
     before_snapshot = _plan_audit_snapshot(plan)
@@ -674,6 +700,8 @@ def update_batch_plan(*, actor, plan_id, expected_version, data):
     plan.planned_pack_quantity = new_planned_pack
     plan.packing_content_quantity = new_content_qty
     plan.packing_content_uom_id = new_content_uom_id
+    plan.mrp_for_printing = new_mrp
+    plan.printing_status_note = new_printing_note
     plan.version += 1
     plan.save(
         update_fields=[
@@ -684,6 +712,8 @@ def update_batch_plan(*, actor, plan_id, expected_version, data):
             "planned_pack_quantity",
             "packing_content_quantity",
             "packing_content_uom",
+            "mrp_for_printing",
+            "printing_status_note",
             "version",
             "updated_at",
         ]

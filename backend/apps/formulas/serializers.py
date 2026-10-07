@@ -18,7 +18,7 @@ _FORMULA_CREATE = {"product_id", "code", "name", "notes", "base_output_quantity"
 _FORMULA_UPDATE = {"expected_version", "name", "notes"}
 _REVISION_CREATE = {"base_output_quantity", "notes", "output_uom_id"}
 _REVISION_UPDATE = {"expected_version", "base_output_quantity", "notes", "lines"}
-_LINE_ALLOWED = {"id", "material_id", "quantity", "notes"}
+_LINE_ALLOWED = {"id", "material_id", "quantity", "notes", "label_claim", "ar_no", "special_value"}
 _MAX_LINES = 200
 _APPROVE = {"expected_version"}
 _POLICY_UPDATE = {"expected_version", "allow_self_approval"}
@@ -39,6 +39,9 @@ _QUANTITY = dict(max_digits=14, decimal_places=3, min_value=Decimal("0.001"))
 
 class FormulaLineSerializer(serializers.ModelSerializer):
     material_id = serializers.IntegerField(read_only=True)
+    label_claim = serializers.CharField(read_only=True)
+    ar_no = serializers.CharField(read_only=True)
+    special_value = serializers.CharField(read_only=True)
     material_code = serializers.CharField(source="material_code_snapshot", read_only=True)
     material_name = serializers.CharField(source="material_name_snapshot", read_only=True)
     material_type = serializers.CharField(source="material_kind_snapshot", read_only=True)
@@ -64,6 +67,9 @@ class FormulaLineSerializer(serializers.ModelSerializer):
             "unit_is_active",
             "quantity",
             "notes",
+            "label_claim",
+            "ar_no",
+            "special_value",
         ]
         read_only_fields = fields
 
@@ -202,6 +208,9 @@ class FormulaLineInputSerializer(serializers.Serializer):
     material_id = serializers.IntegerField()
     quantity = serializers.DecimalField(**_QUANTITY)
     notes = serializers.CharField(required=False, allow_blank=True, max_length=500)
+    label_claim = serializers.CharField(required=False, allow_blank=True, max_length=100)
+    ar_no = serializers.CharField(required=False, allow_blank=True, max_length=100)
+    special_value = serializers.CharField(required=False, allow_blank=True, max_length=60)
 
     def to_internal_value(self, data):
         _reject_unknown_fields(data, _LINE_ALLOWED)

@@ -243,12 +243,15 @@ class CustomerAccessTests(CustomerAccessTestCase):
         response = get_json(self.client_, customer_url(self.company.id, customer.id), token)
         self.assertEqual(response.status_code, 404)
 
-    def test_delete_method_not_allowed(self):
+    def test_delete_requires_customers_delete(self):
+        # DELETE is implemented and gated by customers.delete. ALL_PERMS does not
+        # include it, so the request is refused and the customer is kept.
         grant_company_permission(self.superuser, self.user, self.company, *ALL_PERMS)
         customer = make_customer(self.company, "NODEL", name="X")
         token = access_token_for(self.user)
         response = self.client_.delete(customer_url(self.company.id, customer.id), **bearer(token))
-        self.assertEqual(response.status_code, 405)
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(Customer.objects.filter(pk=customer.id).exists())
 
 
 # ---------------------------------------------------------------------------

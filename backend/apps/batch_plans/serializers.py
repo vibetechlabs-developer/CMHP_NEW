@@ -1,3 +1,4 @@
+from decimal import Decimal
 from rest_framework import serializers
 
 from apps.batch_plans.models import BatchPlan
@@ -20,6 +21,8 @@ PLANNING_NOTICE = "Planning draft — official batch number not assigned."
 # a partial edit against the plan's current stored values before
 # validating the complete result.
 _PACKING_FIELDS = {"planned_pack_quantity", "packing_content_quantity", "packing_content_uom_id"}
+# Printing-department fields. Separate permission boundary (batch_plans.printing_edit).
+_PRINTING_FIELDS = {"mrp_for_printing", "printing_status_note"}
 _CREATE_ALLOWED = {
     "sales_order_line_id",
     "formula_revision_id",
@@ -27,14 +30,14 @@ _CREATE_ALLOWED = {
     "planned_manufacturing_date",
     "packing_size_note",
     "notes",
-} | _PACKING_FIELDS
+} | _PACKING_FIELDS | _PRINTING_FIELDS
 _UPDATE_ALLOWED = {
     "expected_version",
     "target_output_quantity",
     "planned_manufacturing_date",
     "packing_size_note",
     "notes",
-} | _PACKING_FIELDS
+} | _PACKING_FIELDS | _PRINTING_FIELDS
 
 
 def _reject_unknown_fields(data, allowed):
@@ -59,6 +62,10 @@ class BatchPlanCreateSerializer(serializers.Serializer):
     planned_pack_quantity = serializers.DecimalField(max_digits=14, decimal_places=3, required=False)
     packing_content_quantity = serializers.DecimalField(max_digits=14, decimal_places=3, required=False)
     packing_content_uom_id = serializers.IntegerField(required=False)
+    mrp_for_printing = serializers.DecimalField(
+        max_digits=14, decimal_places=2, required=False, allow_null=True, min_value=Decimal("0")
+    )
+    printing_status_note = serializers.CharField(required=False, allow_blank=True, max_length=255, default="")
 
     def validate(self, attrs):
         _reject_unknown_fields(self.initial_data, _CREATE_ALLOWED)
@@ -78,6 +85,10 @@ class BatchPlanUpdateSerializer(serializers.Serializer):
     planned_pack_quantity = serializers.DecimalField(max_digits=14, decimal_places=3, required=False, allow_null=True)
     packing_content_quantity = serializers.DecimalField(max_digits=14, decimal_places=3, required=False, allow_null=True)
     packing_content_uom_id = serializers.IntegerField(required=False, allow_null=True)
+    mrp_for_printing = serializers.DecimalField(
+        max_digits=14, decimal_places=2, required=False, allow_null=True, min_value=Decimal("0")
+    )
+    printing_status_note = serializers.CharField(required=False, allow_blank=True, max_length=255)
 
     def validate(self, attrs):
         _reject_unknown_fields(self.initial_data, _UPDATE_ALLOWED)
@@ -138,6 +149,7 @@ class BatchPlanListSerializer(serializers.ModelSerializer):
     numbered_by_id = serializers.SerializerMethodField()
     numbered_at = serializers.SerializerMethodField()
     notice = serializers.SerializerMethodField()
+    mrp_currency_code = serializers.SerializerMethodField()
 
     class Meta:
         model = BatchPlan
@@ -150,6 +162,9 @@ class BatchPlanListSerializer(serializers.ModelSerializer):
             "planned_manufacturing_date",
             "packing_size_note",
             "notes",
+            "mrp_for_printing",
+            "printing_status_note",
+            "mrp_currency_code",
             "planned_pack_quantity",
             "packing_content_quantity",
             "packing_content_uom_id",
@@ -172,6 +187,9 @@ class BatchPlanListSerializer(serializers.ModelSerializer):
             "updated_at",
             "notice",
         ]
+
+    def get_mrp_currency_code(self, obj):
+        return obj.sales_order_line.sales_order.currency
 
     def get_official_batch_number(self, obj):
         return _batch_number_fields(obj)["official_batch_number"]
@@ -196,6 +214,7 @@ class BatchPlanDetailSerializer(serializers.ModelSerializer):
     numbered_by_id = serializers.SerializerMethodField()
     numbered_at = serializers.SerializerMethodField()
     notice = serializers.SerializerMethodField()
+    mrp_currency_code = serializers.SerializerMethodField()
 
     class Meta:
         model = BatchPlan
@@ -208,6 +227,9 @@ class BatchPlanDetailSerializer(serializers.ModelSerializer):
             "planned_manufacturing_date",
             "packing_size_note",
             "notes",
+            "mrp_for_printing",
+            "printing_status_note",
+            "mrp_currency_code",
             "planned_pack_quantity",
             "packing_content_quantity",
             "packing_content_uom_id",
@@ -226,6 +248,9 @@ class BatchPlanDetailSerializer(serializers.ModelSerializer):
             "packing_assessment",
             "notice",
         ]
+
+    def get_mrp_currency_code(self, obj):
+        return obj.sales_order_line.sales_order.currency
 
     def get_official_batch_number(self, obj):
         return _batch_number_fields(obj)["official_batch_number"]

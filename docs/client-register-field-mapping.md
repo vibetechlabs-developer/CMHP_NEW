@@ -340,3 +340,23 @@ more than one of something is possible) reference, each behind its own COMPANY p
   screens in `docs/ux/02-screen-specifications.md`. None of this should be scoped until the smaller, upstream
   questions above are answered, since several of these events likely gate on each other (e.g. Dispatch probably
   cannot be "Yes" before Packaging is "Completed").
+
+## Department workflow mapping (2026-10-05)
+
+| Register field | Source | Edited by (permission) | Status |
+|---|---|---|---|
+| Client / Company | Sales order customer (name) | sales_orders.edit | Connected |
+| Company code | Customer code (derived) | read-only | Connected |
+| Product name / code | Order line product | sales_orders.edit | Connected |
+| Type | Order line `product_type_snapshot` from ProductType lookup | sales_orders.edit | Connected; does not change the product master |
+| Date of order | Sales order `order_date` | sales_orders.edit | Connected |
+| Planned Mfg Date (order) | Sales order `planned_manufacturing_date` | sales_orders.edit | Connected; default for a new batch plan (review pending) |
+| Batch planned date | BatchPlan `planned_manufacturing_date` | batch_plans.edit | Connected |
+| Packing Type | StorePreparation `packing_type` | store_preparation.edit | Connected |
+| Insert | StorePreparation `insert_required` (null/true/false) | store_preparation.edit | Connected |
+| Label / Box | StorePreparation `label_note` / `box_note` | store_preparation.edit | Interim unstructured text; meaning awaits client |
+| Requisition Status | MaterialRequisition status | material_requisitions.* workflow | Read-only in UI; lifecycle actions not built |
+| Batch No. | BatchPlan official number | batch_plans.allocate_number | Connected; never editable after allocation |
+| Packing Size / Batch Size | BatchPlan packing + target quantities | batch_plans.edit | Connected |
+| MRP for Printing | BatchPlan `mrp_for_printing` (sales order currency) | batch_plans.printing_edit | Connected; working default |
+| Printing Status | BatchPlan `printing_status_note` | batch_plans.printing_edit | Interim free text; no confirmed status list |

@@ -222,3 +222,29 @@ class Material(models.Model):
         # update), which this method has no way to distinguish.
         self.clean()
         super().save(*args, **kwargs)
+
+
+class ProductType(models.Model):
+    """Maintained, shared lookup of product types. `Product.product_type`
+    stays free text for compatibility; sales order lines store the type they
+    were entered with as a snapshot and never edit the product master.
+    """
+
+    name = models.CharField(max_length=100, unique=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def clean(self):
+        self.name = (self.name or "").strip()
+        if not self.name:
+            raise ValidationError({"name": "Name cannot be blank."})
+        clash = ProductType.objects.filter(name__iexact=self.name).exclude(pk=self.pk).exists()
+        if clash:
+            raise ValidationError({"name": "A product type with this name (ignoring case) already exists."})
+
+    def __str__(self):
+        return self.name

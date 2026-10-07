@@ -42,6 +42,9 @@ class SalesOrder(models.Model):
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name="sales_orders")
     order_date = models.DateField()
     requested_delivery_date = models.DateField(null=True, blank=True)
+    # Order-level initial planning date. Separate from requested delivery and from
+    # the batch-specific BatchPlan.planned_manufacturing_date (never synchronized).
+    planned_manufacturing_date = models.DateField(null=True, blank=True)
     customer_order_reference = models.CharField(max_length=100, blank=True)
     currency = models.CharField(max_length=3)
     notes = models.CharField(max_length=2000, blank=True)
@@ -136,6 +139,8 @@ class SalesOrderLine(models.Model):
     line_amount = models.DecimalField(max_digits=16, decimal_places=2, default=0)
     product_code_snapshot = models.CharField(max_length=32, blank=True)
     product_name_snapshot = models.CharField(max_length=255, blank=True)
+    # Product type chosen on this order line. A snapshot: it never edits Product.
+    product_type_snapshot = models.CharField(max_length=100, blank=True, default="")
     sales_uom_code_snapshot = models.CharField(max_length=20, blank=True)
     sales_uom_name_snapshot = models.CharField(max_length=100, blank=True)
 

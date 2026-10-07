@@ -285,11 +285,12 @@ class BatchPlanTests(BatchPlanBase):
         self.assertEqual(res2.status_code, 403)
         self.assertIn("sales_orders.view", res2.json()["detail"])
 
+        # Planning does not need formulas.view: creating a plan reads only the
+        # approved revision's identity and quantities, never recipe lines.
         user3 = make_user("partial2")
         grant_permissions(self.company, user3, ["batch_plans.view", "batch_plans.create", "sales_orders.view"], actor=self.admin)
         res3 = self.create_plan(user=user3)
-        self.assertEqual(res3.status_code, 403)
-        self.assertIn("formulas.view", res3.json()["detail"])
+        self.assertNotIn(res3.status_code, (401, 403), res3.content)
 
     def test_view_only_cannot_create_or_edit(self):
         viewer = make_user("viewer")

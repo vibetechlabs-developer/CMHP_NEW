@@ -23,6 +23,7 @@ from apps.products.serializers import (
 )
 from apps.products.services import (
     activate_product,
+    delete_product,
     create_product,
     deactivate_product,
     update_product,
@@ -33,6 +34,7 @@ PRODUCTS_CREATE = "products.create"
 PRODUCTS_EDIT = "products.edit"
 PRODUCTS_ACTIVATE = "products.activate"
 PRODUCTS_DEACTIVATE = "products.deactivate"
+PRODUCTS_DELETE = "products.delete"
 
 
 def _get_company_for_action(request, company_id, *required_permissions):
@@ -119,6 +121,22 @@ class ProductDetailView(APIView):
             Product.objects.select_related("company", "sales_uom"), pk=product_id, company=company
         )
         return Response(ProductSerializer(product).data)
+
+    def delete(self, request, company_id, product_id):
+        """Only for products nothing references. Requires products.view and
+        products.delete. `expected_version` is a required query parameter.
+        """
+        company = _get_company_for_action(request, company_id, PRODUCTS_VIEW, PRODUCTS_DELETE)
+        raw = request.query_params.get("expected_version")
+        try:
+            expected_version = int(raw)
+        except (TypeError, ValueError):
+            raise exceptions.ValidationError({"expected_version": "Required integer query parameter."})
+        try:
+            delete_product(actor=request.user, company=company, product_id=product_id, expected_version=expected_version)
+        except DjangoValidationError as exc:
+            raise translate_django_validation_error(exc) from exc
+        return Response(status=204)
 
     def patch(self, request, company_id, product_id):
         company = _get_company_for_action(request, company_id, PRODUCTS_VIEW, PRODUCTS_EDIT)

@@ -1,4 +1,7 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
+from django.db.models import ProtectedError
+from rest_framework import exceptions
 
 from apps.audit.services import record
 from apps.common.errors import Conflict
@@ -183,3 +186,37 @@ def deactivate_customer(*, actor, customer_id, expected_version):
         after={"is_active": False},
     )
     return customer
+
+
+CUSTOMERS_DELETE = "customers.delete"
+
+
+@transaction.atomic
+def delete_customer(*, actor, company, customer_id, expected_version):
+    """Permanently delete a customer that nothing references. Locked and
+    version-checked; the deletion and its audit record commit together.
+    Customers with sales orders or quotations are kept - deactivate them
+    instead.
+    """
+    customer = Customer.objects.select_for_update().filter(pk=customer_id, company=company).first()
+    if customer is None:
+        raise exceptions.NotFound("Customer not found in this company.")
+    if customer.version != expected_version:
+        raise Conflict("This customer has changed since it was last read. Refetch and retry.")
+    before = _customer_snapshot(customer)
+    try:
+        with transaction.atomic():
+            customer.delete()
+    except ProtectedError:
+        raise DjangoValidationError(
+            {"detail": "This customer has sales orders or quotations and cannot be deleted. Deactivate it instead."}
+        )
+    record(
+        actor=actor,
+        action="customer.deleted",
+        target_type="customer",
+        target_id=customer_id,
+        company=company,
+        before=before,
+        after=None,
+    )

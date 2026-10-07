@@ -367,3 +367,48 @@ class MaterialRequisitionReviseView(APIView):
             raise translate_django_validation_error(exc) from exc
         requisition = _requisition_queryset().get(pk=requisition.pk)
         return Response(MaterialRequisitionSerializer(requisition).data)
+
+
+STORE_PREPARATION_VIEW = "store_preparation.view"
+
+
+@method_decorator(never_cache, name="dispatch")
+class BatchPlanRequisitionStatusView(APIView):
+    """Status only, for the order's store block. Returns the requisition's
+    workflow status for one batch plan in ONE store - nothing else: no lines,
+    no quantities, no material, no formula, no approver, no rounds.
+
+    Access: an active store membership with `store_preparation.view` in that
+    store (store users already hold it for the order's preparation block),
+    plus `batch_plans.view` in the plan's company. `formulas.view` is NOT
+    required, because nothing recipe-derived is returned.
+
+    States (Task 15B.2 disclosure rule):
+    - `present`: a real requisition in THIS active store; its workflow status.
+    - `unavailable`: returned for EVERY other case - no requisition, a
+      requisition in another store, or one held in a deactivated store. The
+      body is identical in all of them, so the caller cannot tell whether a
+      record exists outside their authorized store.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, store_id, plan_id):
+        store = _get_store_for_action(request, store_id, STORE_PREPARATION_VIEW)
+        plan = get_object_or_404(BatchPlan.objects.select_related("company"), pk=plan_id)
+        if not user_has_permission(request.user, plan.company, BATCH_PLANS_VIEW):
+            raise exceptions.NotFound("Batch plan not found.")
+
+        # Absent, held in another store and held in a deactivated store all get
+        # the same neutral body. Only a real requisition in this active store
+        # returns its status.
+        requisition = MaterialRequisition.objects.filter(batch_plan=plan).only("id", "store_id", "status").first()
+        if requisition is None or requisition.store_id != store.id:
+            body = {"state": "unavailable"}
+        else:
+            body = {
+                "state": "present",
+                "status": requisition.status,
+                "status_label": requisition.get_status_display(),
+            }
+        return Response({"batch_plan_id": plan.id, **body})

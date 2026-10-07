@@ -1,0 +1,1083 @@
+/* Formula Master. Scoped to the formula components (and the product workspace
+   that hosts them). Nothing outside these pages is affected. */
+
+/* Design tokens. One type scale, one palette, used by every formula surface. */
+.fm-page,
+.pw-page {
+  --fm-font: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Same palette as the rest of the app (cmhp-reference.css). */
+  --fm-text: #405b70;
+  --fm-heading: #163b59;
+  --fm-label: #405b70;
+  --fm-muted: #8297a8;
+  --fm-border: #dce7ee;
+  --fm-border-strong: #c9d6e2;
+  --fm-surface: #ffffff;
+  --fm-subtle: #f8fbfd;
+  --fm-accent: #1478c9;
+  --fm-accent-soft: #eaf5fc;
+  --fm-warn-bg: #fff8ec;
+  --fm-warn-border: #f2d3a2;
+  --fm-warn-text: #8a5a00;
+  --fm-ok-bg: #eaf7ef;
+  --fm-ok-border: #bfe3cb;
+  --fm-ok-text: #1d7a3d;
+  --fm-danger: #b42318;
+  --fm-radius: 8px;
+  --fm-radius-lg: 12px;
+  --fm-size-title: 27px;
+  --fm-size-section: 13px;
+  --fm-size-table-head: 12px;
+  --fm-size-body: 13px;
+  --fm-size-support: 12px;
+  font-family: var(--fm-font);
+  font-size: var(--fm-size-body);
+  line-height: 1.5;
+  color: var(--fm-text);
+}
+
+.fm-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding-top: 8px;
+}
+
+.fm-page h2,
+.fm-page h3,
+.fm-page h4,
+.fm-page p {
+  margin: 0;
+  font-family: inherit;
+}
+
+.fm-page button,
+.fm-page input,
+.fm-page select,
+.fm-page table,
+.fm-page label {
+  font-family: inherit;
+}
+
+.fm-page button,
+.fm-page input,
+.fm-page select {
+  font-size: var(--fm-size-body);
+}
+
+/* Buttons are the shared app buttons (no local override), so they match every other page. */
+
+.fm-page .field-muted,
+.pw-page .field-muted {
+  font-size: var(--fm-size-support);
+  color: var(--fm-muted);
+}
+
+/* Page header */
+.fm-title {
+  font-size: var(--fm-size-title);
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--fm-heading);
+}
+
+.fm-subtitle {
+  margin-top: 4px;
+  font-size: var(--fm-size-support);
+  color: var(--fm-muted);
+}
+
+.fm-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.fm-head-actions,
+.fm-embed-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.fm-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.fm-field-label {
+  display: block;
+  font-size: var(--fm-size-support);
+  font-weight: 500;
+  color: var(--fm-label);
+  margin-bottom: 6px;
+}
+
+.fm-search {
+  width: 100%;
+  min-height: 40px;
+}
+
+/* Layout: selection panel on the left, workspace on the right. */
+.fm-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.fm-layout-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Formula selection */
+.fm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.fm-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fm-item {
+  width: 100%;
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  padding: 12px;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius-lg);
+  background: var(--fm-surface);
+  cursor: pointer;
+  min-width: 0;
+  font: inherit;
+  color: inherit;
+}
+
+.fm-item:hover {
+  border-color: var(--fm-border-strong);
+}
+
+.fm-item:focus-visible {
+  outline: 2px solid var(--fm-accent);
+  outline-offset: 2px;
+}
+
+.fm-item.active {
+  border-color: var(--fm-accent);
+  background: var(--fm-accent-soft);
+}
+
+.fm-item-name {
+  font-size: var(--fm-size-body);
+  font-weight: 600;
+  color: var(--fm-heading);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fm-item-code,
+.fm-item-product {
+  font-size: var(--fm-size-support);
+  color: var(--fm-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fm-pager {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+/* Embedded toolbar (order drawer and product workspace): formula select and search. */
+.fm-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: end;
+}
+
+.fm-toolbar-field {
+  min-width: 0;
+}
+
+.fm-formula-select {
+  width: 100%;
+  min-height: 40px;
+}
+
+/* Workflow guide: where the user is, and what comes next. */
+.fm-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fm-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 6px;
+  border: 1px solid var(--fm-border);
+  border-radius: 999px;
+  background: var(--fm-surface);
+  font-size: var(--fm-size-support);
+  color: var(--fm-muted);
+}
+
+.fm-step-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--fm-subtle);
+  font-size: var(--fm-size-support);
+  font-weight: 800;
+}
+
+.fm-step.done {
+  color: var(--fm-ok-text);
+  border-color: var(--fm-ok-border);
+  background: var(--fm-ok-bg);
+}
+
+.fm-step.done .fm-step-no {
+  background: var(--fm-ok-border);
+  color: var(--fm-ok-text);
+}
+
+.fm-step.current {
+  color: var(--fm-accent);
+  border-color: var(--fm-accent);
+  background: var(--fm-accent-soft);
+  font-weight: 800;
+}
+
+.fm-step.current .fm-step-no {
+  background: var(--fm-accent);
+  color: #fff;
+}
+
+/* Workspace */
+.fm-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  width: 100%;
+}
+
+.fm-detail-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fm-page h3.fm-detail-title {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.3;
+  color: var(--fm-heading);
+  overflow-wrap: anywhere;
+}
+
+.fm-detail-sub {
+  font-size: var(--fm-size-support);
+  color: var(--fm-muted);
+  overflow-wrap: anywhere;
+}
+
+/* Revision section */
+.fm-revision-bar {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.fm-revision-bar .fm-field-label {
+  width: 100%;
+}
+
+.fm-revision-select {
+  min-width: 280px;
+  max-width: 100%;
+  min-height: 40px;
+}
+
+.fm-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: var(--fm-size-support);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.fm-badge.draft {
+  background: var(--fm-warn-bg);
+  color: var(--fm-warn-text);
+  border: 1px solid var(--fm-warn-border);
+}
+
+.fm-badge.approved {
+  background: var(--fm-ok-bg);
+  color: var(--fm-ok-text);
+  border: 1px solid var(--fm-ok-border);
+}
+
+.fm-card {
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius-lg);
+  padding: 20px;
+  background: var(--fm-surface);
+  box-shadow: 0 1px 2px rgba(27, 72, 104, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.fm-summary {
+  display: flex;
+  gap: 32px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.fm-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fm-summary-label {
+  font-size: var(--fm-size-support);
+  color: var(--fm-muted);
+}
+
+.fm-summary strong {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.fm-readonly-note {
+  font-size: var(--fm-size-support);
+  color: var(--fm-muted);
+  background: var(--fm-subtle);
+  border-radius: var(--fm-radius);
+  padding: 8px 12px;
+}
+
+.fm-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.fm-form-grid-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.fm-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+/* Material sections (raw and packaging) */
+.fm-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.fm-lines-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.fm-page .fm-lines-head h4.fm-section-title {
+  font-size: var(--fm-size-section);
+  font-weight: 800;
+  line-height: 1.3;
+  color: var(--fm-heading);
+}
+
+.fm-lines-count {
+  font-size: var(--fm-size-support);
+  color: var(--fm-muted);
+  margin-top: 2px;
+}
+
+.fm-picker {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.fm-empty {
+  font-size: var(--fm-size-support);
+  color: var(--fm-muted);
+  text-align: center;
+  border: 1px dashed var(--fm-border-strong);
+  border-radius: var(--fm-radius);
+  padding: 16px;
+}
+
+.fm-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  box-sizing: border-box;
+}
+
+/* Fixed column grid so raw and packaging tables line up with each other. */
+.fm-table {
+  width: 100%;
+  min-width: 860px;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: var(--fm-size-body);
+}
+
+.fm-table th,
+.fm-table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--fm-border);
+  vertical-align: middle;
+}
+
+.fm-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.fm-table th {
+  font-size: var(--fm-size-table-head);
+  font-weight: 500;
+  color: var(--fm-label);
+  background: var(--fm-subtle);
+  white-space: nowrap;
+}
+
+.fm-table .num {
+  text-align: right;
+}
+
+.fm-table col.fm-c-sr {
+  width: 56px;
+}
+
+.fm-table col.fm-c-qty {
+  width: 150px;
+}
+
+.fm-table col.fm-c-unit {
+  width: 80px;
+}
+
+.fm-table col.fm-c-text {
+  width: 150px;
+}
+
+.fm-table col.fm-c-ar {
+  width: 130px;
+}
+
+.fm-table col.fm-c-action {
+  width: 96px;
+}
+
+.fm-table .fm-c-sr {
+  color: var(--fm-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.fm-cell-material {
+  min-width: 0;
+}
+
+.fm-cell-name {
+  display: block;
+  font-weight: 500;
+  color: var(--fm-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fm-cell-code {
+  display: block;
+  font-size: var(--fm-size-support);
+  color: var(--fm-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fm-num,
+.fm-qty-input {
+  font-variant-numeric: tabular-nums;
+}
+
+.fm-qty-input {
+  width: 100%;
+  min-height: 36px;
+  text-align: right;
+  box-sizing: border-box;
+}
+
+.fm-text-input {
+  width: 100%;
+  min-height: 36px;
+  font-size: var(--fm-size-body);
+  box-sizing: border-box;
+}
+
+.fm-remove {
+  background: none;
+  border: none;
+  color: var(--fm-danger);
+  cursor: pointer;
+  font-size: var(--fm-size-support);
+  padding: 6px;
+  border-radius: 6px;
+}
+
+.fm-remove:hover {
+  background: #fff1f0;
+}
+
+.fm-remove:focus-visible {
+  outline: 2px solid var(--fm-accent);
+  outline-offset: 1px;
+}
+
+/* Save row: visible unsaved state next to the one save action. */
+.fm-savebar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  padding-top: 16px;
+  border-top: 1px solid var(--fm-border);
+}
+
+.fm-savebar > .fm-unsaved,
+.fm-savebar > .fm-saved {
+  margin-right: auto;
+  font-size: var(--fm-size-support);
+}
+
+.fm-unsaved {
+  font-weight: 500;
+  color: var(--fm-warn-text);
+}
+
+.fm-saved {
+  color: var(--fm-muted);
+}
+
+/* Approval */
+.fm-approval {
+  border-top: 1px solid var(--fm-border);
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fm-approval-note {
+  font-size: var(--fm-size-support);
+}
+
+.fm-blockers {
+  color: var(--fm-danger);
+  margin: 0;
+  padding-left: 18px;
+  font-size: var(--fm-size-support);
+}
+
+/* Requirement calculator */
+.rc-panel {
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius-lg);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.rc-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rc-source {
+  font-size: var(--fm-size-support);
+  color: var(--fm-muted);
+}
+
+.rc-target-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.rc-target-row .field-input {
+  min-height: 40px;
+  max-width: 180px;
+}
+
+.rc-unit {
+  font-size: var(--fm-size-support);
+  color: var(--fm-muted);
+}
+
+.rc-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.rc-summary dt {
+  font-size: var(--fm-size-support);
+  color: var(--fm-muted);
+}
+
+.rc-summary dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.rc-notice {
+  padding: 8px 12px;
+  border-radius: var(--fm-radius);
+  background: var(--fm-warn-bg);
+  border: 1px solid var(--fm-warn-border);
+  font-size: var(--fm-size-support);
+}
+
+.rc-blocker {
+  background: #fff1f0;
+  border-color: #f5c2bd;
+}
+
+.rc-table-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.rc-table-block h4 {
+  font-size: var(--fm-size-body);
+  font-weight: 600;
+}
+
+.rc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fm-size-support);
+}
+
+.rc-table th,
+.rc-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--fm-border);
+  vertical-align: middle;
+}
+
+.rc-table th {
+  font-size: var(--fm-size-table-head);
+  font-weight: 500;
+  color: var(--fm-label);
+}
+
+.rc-qty {
+  display: inline-flex;
+  gap: 6px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.rc-view-full {
+  background: none;
+  border: none;
+  color: var(--fm-accent);
+  cursor: pointer;
+  font-size: var(--fm-size-support);
+  padding: 0;
+}
+
+.rc-approx {
+  color: var(--fm-warn-text);
+  font-size: var(--fm-size-support);
+}
+
+/* Product workspace (Products > Formulas tab) */
+.pw-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  color: var(--fm-text);
+}
+
+.pw-back {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--fm-accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fm-size-support);
+}
+
+.pw-title {
+  font-size: var(--fm-size-title);
+  font-weight: 800;
+  line-height: 1.2;
+  margin: 0;
+  color: var(--fm-heading);
+}
+
+.pw-sub {
+  font-size: var(--fm-size-support);
+  color: var(--fm-muted);
+  margin: 2px 0 0;
+}
+
+.pw-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--fm-border);
+}
+
+.pw-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: var(--fm-size-body);
+  font-weight: 500;
+  color: var(--fm-muted);
+  cursor: pointer;
+}
+
+.pw-tab.active {
+  color: var(--fm-accent);
+  border-bottom-color: var(--fm-accent);
+}
+
+.pw-card {
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius-lg);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--fm-surface);
+  box-shadow: 0 1px 2px rgba(27, 72, 104, 0.04);
+}
+
+.pw-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.pw-facts dt {
+  font-size: var(--fm-size-table-head);
+  font-weight: 500;
+  color: var(--fm-muted);
+}
+
+.pw-facts dd {
+  margin: 2px 0 0;
+  font-size: var(--fm-size-body);
+}
+
+.pw-page .field-label {
+  font-size: var(--fm-size-support);
+  font-weight: 500;
+  color: var(--fm-label);
+  margin-bottom: 6px;
+}
+
+/* Drawer (embedded in the order window): the editor takes the full width. */
+.fm-embedded {
+  padding-top: 0;
+}
+
+.fm-embedded .fm-form-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Narrow screens: list above the workspace, toolbar fields stacked, no page overflow. */
+@media (max-width: 900px) {
+  .fm-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .fm-revision-select {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .rc-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .fm-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fm-card {
+    padding: 16px;
+  }
+
+  .fm-head-actions,
+  .fm-embed-actions {
+    width: 100%;
+  }
+
+  .fm-head-actions .btn,
+  .fm-embed-actions .btn {
+    flex: 1 1 auto;
+  }
+
+  .fm-savebar .btn {
+    width: 100%;
+  }
+}
+
+/* ---- Refinement: section rhythm, input sizing, save area, subtle remove, stacked
+   small-screen rows. Scoped to the formula editor. ---- */
+.fm-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* One card, no nested boxed panel for the calculator inside the editor. */
+.fm-card .rc-panel {
+  border: 0;
+  padding: 0;
+  border-radius: 0;
+}
+
+/* Consistent 42px control height for every editable field in the editor. */
+.fm-table .field-input,
+.fm-savebar .fm-formula-select,
+.fm-page .fm-qty-input,
+.fm-page .fm-text-input {
+  min-height: 42px;
+  font-size: var(--fm-size-body);
+  line-height: 1.4;
+}
+
+.fm-table td {
+  vertical-align: middle;
+  padding: 10px 12px;
+}
+
+.fm-table td:last-child {
+  padding-left: 16px;
+}
+
+/* Remove is quiet by default and clearly identifiable on hover and keyboard focus. */
+.fm-remove {
+  color: var(--fm-muted);
+  font-weight: 500;
+  padding: 8px 10px;
+  min-height: 36px;
+}
+
+.fm-remove:hover,
+.fm-remove:focus-visible {
+  color: var(--fm-danger);
+  background: #fff1f0;
+}
+
+.fm-remove:focus-visible {
+  outline: 2px solid var(--fm-accent);
+  outline-offset: 2px;
+}
+
+/* Save area: a compact status line and one primary action. */
+.fm-savebar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--fm-border);
+}
+
+.fm-save-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--fm-size-support);
+}
+
+.fm-save-state {
+  font-weight: 600;
+}
+
+.fm-save-state.unsaved {
+  color: var(--fm-warn-text);
+}
+
+.fm-save-state.saved {
+  color: var(--fm-ok-text);
+}
+
+.fm-save-state.saving {
+  color: var(--fm-accent);
+}
+
+.fm-save-revision {
+  color: var(--fm-muted);
+}
+
+.fm-save-ok {
+  color: var(--fm-ok-text);
+}
+
+.fm-save-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+/* Small screens: each material becomes a labelled card (no horizontal scrolling). */
+@media (max-width: 640px) {
+  .fm-table {
+    min-width: 0;
+    table-layout: auto;
+  }
+
+  .fm-table colgroup,
+  .fm-table thead {
+    display: none;
+  }
+
+  .fm-table,
+  .fm-table tbody,
+  .fm-table tr,
+  .fm-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .fm-table tbody tr {
+    border: 1px solid var(--fm-border);
+    border-radius: var(--fm-radius-lg);
+    padding: 12px;
+    margin-bottom: 10px;
+    background: var(--fm-surface);
+  }
+
+  .fm-table td {
+    border: 0;
+    padding: 4px 0;
+    display: grid;
+    grid-template-columns: minmax(0, 120px) minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    text-align: left;
+  }
+
+  .fm-table td::before {
+    content: attr(data-label);
+    font-size: var(--fm-size-support);
+    font-weight: 500;
+    color: var(--fm-label);
+  }
+
+  .fm-table td.fm-c-sr,
+  .fm-table td.fm-c-action {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .fm-table td.fm-c-sr::before,
+  .fm-table td.fm-c-action::before {
+    content: none;
+  }
+
+  .fm-table td.fm-cell-material {
+    display: block;
+  }
+
+  .fm-table td.fm-cell-material::before {
+    content: none;
+  }
+
+  .fm-table .fm-cell-name {
+    white-space: normal;
+  }
+
+  .fm-table td.fm-c-action {
+    justify-content: flex-end;
+    padding-top: 8px;
+  }
+}

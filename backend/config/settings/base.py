@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     "apps.sales_orders",
     "apps.stock_movements",
     "apps.store_preparation",
+    "apps.bmr",
     "apps.suppliers",
     "apps.users",
 ]
@@ -142,6 +143,10 @@ SIMPLE_JWT = {
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "user_id",
     "CHECK_USER_IS_ACTIVE": True,
+    # Tokens are only valid for the database they were issued from. The database
+    # name is mixed into the signing key, so a token from one database (whose user
+    # ids may be reused in another) cannot authenticate against a different one.
+    "SIGNING_KEY": env("DJANGO_SECRET_KEY") + "|db=" + env("DB_NAME", default=""),
 }
 
 # --- Refresh-token cookie -------------------------------------------------

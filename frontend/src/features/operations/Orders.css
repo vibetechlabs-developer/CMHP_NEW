@@ -1,0 +1,267 @@
+.orders-page {
+
+  width: 100%;
+
+}
+
+
+/* =========================================================
+   CUSTOMER SEARCH ROW
+   ========================================================= */
+
+
+.order-customer-select-row {
+
+  display: flex;
+
+  align-items: flex-end;
+
+  gap: 8px;
+
+  width: 100%;
+
+}
+
+
+.order-customer-select-row .field {
+
+  flex: 1;
+
+  min-width: 0;
+
+}
+
+
+.order-customer-select-row .field-input {
+
+  width: 100%;
+
+}
+
+
+/* New searchable customer field */
+
+.order-customer-search-row {
+
+  display: flex;
+
+  align-items: flex-end;
+
+  width: 100%;
+
+  gap: 8px;
+
+}
+
+
+.order-customer-search-control {
+
+  flex: 1;
+
+  min-width: 0;
+
+}
+
+
+.customer-search-field {
+
+  position: relative;
+
+  z-index: 30;
+
+}
+
+
+/*
+ * The customer dropdown itself uses position: fixed
+ * and a portal, so it can escape the modal's scroll
+ * container correctly.
+ */
+
+.customer-search-field
+.customer-search-control {
+
+  width: 100%;
+
+}
+
+
+/* =========================================================
+   CUSTOMER ACTIONS
+   ========================================================= */
+
+
+.customer-actions {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  flex-wrap: wrap;
+
+}
+
+
+.customer-actions .company-link {
+
+  border: 0;
+
+  background: transparent;
+
+  padding: 0;
+
+  margin: 0;
+
+  font: inherit;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  text-decoration: none;
+
+}
+
+
+.customer-actions .company-link:hover {
+
+  text-decoration: underline;
+
+}
+
+
+.customer-actions .company-link:disabled {
+
+  opacity: 0.5;
+
+  cursor: not-allowed;
+
+  text-decoration: none;
+
+}
+
+
+.customer-actions .danger {
+
+  color: #dc2626;
+
+}
+
+
+.customer-actions .danger:hover {
+
+  color: #b91c1c;
+
+}
+
+
+/* =========================================================
+   TABLE ACTIONS
+   ========================================================= */
+
+
+.table-edit {
+
+  border: 0;
+
+  background: transparent;
+
+  padding: 0;
+
+  color: #2563eb;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+}
+
+
+.table-edit:hover {
+
+  text-decoration: underline;
+
+}
+
+
+.table-delete {
+
+  border: 0;
+
+  background: transparent;
+
+  padding: 0;
+
+  color: #dc2626;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+}
+
+
+.table-delete:hover {
+
+  color: #b91c1c;
+
+  text-decoration: underline;
+
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+
+@media (max-width: 768px) {
+
+  .order-customer-select-row {
+
+    flex-direction: column;
+
+    align-items: stretch;
+
+  }
+
+
+  .order-customer-select-row button {
+
+    width: 100%;
+
+  }
+
+
+  .order-customer-search-row {
+
+    flex-direction: column;
+
+    align-items: stretch;
+
+  }
+
+
+  .order-customer-search-control {
+
+    width: 100%;
+
+  }
+
+
+  .order-customer-search-row .btn {
+
+    width: 100%;
+
+  }
+
+
+  .customer-actions {
+
+    gap: 8px;
+
+  }
+
+}

@@ -4,10 +4,18 @@ from apps.batch_plans.views import (
     BatchPlanAllocateNumberView,
     BatchPlanDetailView,
     BatchPlanListCreateView,
+    BatchPlanningEligibleRevisionsView,
+    BatchPlanningUnitsView,
     BatchPlanRequirementPreviewView,
 )
 
 urlpatterns = [
+    path("<int:company_id>/batch-plans/planning-units/", BatchPlanningUnitsView.as_view(), name="batch-planning-units"),
+    path(
+        "<int:company_id>/batch-plans/eligible-revisions/",
+        BatchPlanningEligibleRevisionsView.as_view(),
+        name="batch-planning-eligible-revisions",
+    ),
     path("<int:company_id>/batch-plans/", BatchPlanListCreateView.as_view(), name="batch-plan-list-create"),
     path("<int:company_id>/batch-plans/<int:plan_id>/", BatchPlanDetailView.as_view(), name="batch-plan-detail"),
     path(

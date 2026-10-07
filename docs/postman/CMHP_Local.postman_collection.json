@@ -7996,7 +7996,7 @@
     },
     {
       "name": "Customer Management",
-      "description": "Task 10A: company-scoped customer identity/contact directory - the foundation for a future quotations/sales-order chain that does not exist yet anywhere in this project. COMPANY-SCOPING HERE IS THE WORKING IMPLEMENTATION CHOICE FOR THIS TASK, NOT A CLAIM OF CLIENT-CONFIRMED CUSTOMER-OWNERSHIP POLICY (see docs/erp-handoff-open-decisions.md \u00a7A13) - unlike Supplier Management (folder 17), which is one directory shared across both companies, each Customer row belongs to exactly one company, and its code is unique per company only (the same code may exist under a different company). Five new COMPANY-scope permissions gate this folder: customers.view, customers.create, customers.edit, customers.activate, customers.deactivate - seeded but assigned to nobody automatically, so {{access_token}} must belong to a user with an active membership and the relevant role in {{company_id}} (see folder 9's \"Company Role Management\" to grant these). No DELETE exists anywhere in this module - deactivating never deletes the record, and a deactivated customer's code is never freed for reuse within the same company. This is an identity/contact record only - no quotation, sales order, invoice, GST/PAN, credit limit, payment terms, or customer-qualification concept exists anywhere here. Running this folder creates and mutates real development-database records - see README.md. Manual Postman execution is deferred.",
+      "description": "Task 10A: company-scoped customer identity/contact directory - the foundation for a future quotations/sales-order chain that does not exist yet anywhere in this project. COMPANY-SCOPING HERE IS THE WORKING IMPLEMENTATION CHOICE FOR THIS TASK, NOT A CLAIM OF CLIENT-CONFIRMED CUSTOMER-OWNERSHIP POLICY (see docs/erp-handoff-open-decisions.md §A13) - unlike Supplier Management (folder 17), which is one directory shared across both companies, each Customer row belongs to exactly one company, and its code is unique per company only (the same code may exist under a different company). Five new COMPANY-scope permissions gate this folder: customers.view, customers.create, customers.edit, customers.activate, customers.deactivate - seeded but assigned to nobody automatically, so {{access_token}} must belong to a user with an active membership and the relevant role in {{company_id}} (see folder 9's \"Company Role Management\" to grant these). No DELETE exists anywhere in this module - deactivating never deletes the record, and a deactivated customer's code is never freed for reuse within the same company. This is an identity/contact record only - no quotation, sales order, invoice, GST/PAN, credit limit, payment terms, or customer-qualification concept exists anywhere here. Running this folder creates and mutates real development-database records - see README.md. Manual Postman execution is deferred.",
       "item": [
         {
           "name": "Create customer",
@@ -8480,12 +8480,57 @@
               }
             }
           ]
+        },
+        {
+          "name": "Delete an unreferenced customer (customers.delete)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/companies/{{company_id}}/customers/{{customer_id}}/?expected_version={{customer_version}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "companies",
+                "{{company_id}}",
+                "customers",
+                "{{customer_id}}",
+                "?expected_version={{customer_version}}",
+                ""
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Refused when referenced by sales orders or quotations: deactivate instead."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('response received', () => pm.expect(pm.response.code).to.be.below(500));"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
     {
       "name": "Product Management",
-      "description": "Task 10B: company-scoped saleable-product identity record - the foundation for a future quotation/sales-order line item that does not exist yet anywhere in this project. COMPANY-SCOPING HERE IS A PROVISIONAL IMPLEMENTATION CHOICE, NOT A CLIENT-CONFIRMED POLICY (see docs/erp-handoff-open-decisions.md \u00a7A14) - the same caveat folder 27's Customer Management already carries, for the identical reason. Five new COMPANY-scope permissions gate this folder: products.view, products.create, products.edit, products.activate, products.deactivate - seeded but assigned to nobody automatically, so {{access_token}} must belong to a user with an active membership and the relevant role in {{company_id}} (see folder 9's \"Company Role Management\" to grant these). No formula/BOM, dosage/potency/medical-claim field, pack-size calculation, batch numbering, default price/tax/HSN/GST rule, shelf-life calculation, or opening-stock/stock-ownership concept exists anywhere here, and creating a product never creates or links a Material or any inventory record. sales_uom_id must reference an ACTIVE apps.catalog.UnitOfMeasure ({{unit_id}}, from folder 13) and is IMMUTABLE after creation - there is no unit-conversion feature in this project, so a wrong choice cannot be fixed later, only worked around by deactivating this product and creating a new one. No DELETE exists anywhere in this module. Running this folder creates and mutates real development-database records - see README.md. Manual Postman execution is deferred.",
+      "description": "Task 10B: company-scoped saleable-product identity record - the foundation for a future quotation/sales-order line item that does not exist yet anywhere in this project. COMPANY-SCOPING HERE IS A PROVISIONAL IMPLEMENTATION CHOICE, NOT A CLIENT-CONFIRMED POLICY (see docs/erp-handoff-open-decisions.md §A14) - the same caveat folder 27's Customer Management already carries, for the identical reason. Five new COMPANY-scope permissions gate this folder: products.view, products.create, products.edit, products.activate, products.deactivate - seeded but assigned to nobody automatically, so {{access_token}} must belong to a user with an active membership and the relevant role in {{company_id}} (see folder 9's \"Company Role Management\" to grant these). No formula/BOM, dosage/potency/medical-claim field, pack-size calculation, batch numbering, default price/tax/HSN/GST rule, shelf-life calculation, or opening-stock/stock-ownership concept exists anywhere here, and creating a product never creates or links a Material or any inventory record. sales_uom_id must reference an ACTIVE apps.catalog.UnitOfMeasure ({{unit_id}}, from folder 13) and is IMMUTABLE after creation - there is no unit-conversion feature in this project, so a wrong choice cannot be fixed later, only worked around by deactivating this product and creating a new one. No DELETE exists anywhere in this module. Running this folder creates and mutates real development-database records - see README.md. Manual Postman execution is deferred.",
       "item": [
         {
           "name": "Create product",
@@ -8971,6 +9016,51 @@
                 "exec": [
                   "pm.test('status is 404', () => pm.response.to.have.status(404));",
                   "console.log('404: managed_product_id belongs to company_id, not second_company_id - company isolation folds a real record under the wrong company into the same 404 as an unknown id, even if second_company_id is itself a company you have access to.');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete an unreferenced product (products.delete)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/companies/{{company_id}}/products/{{product_id}}/?expected_version={{product_version}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "companies",
+                "{{company_id}}",
+                "products",
+                "{{product_id}}",
+                "?expected_version={{product_version}}",
+                ""
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Refused when referenced by order lines, quotations or formulas: deactivate instead."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('response received', () => pm.expect(pm.response.code).to.be.below(500));"
                 ]
               }
             }
@@ -10322,6 +10412,51 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('a CONFIRMED order rejects edits', () => pm.expect(pm.response.code).to.be.oneOf([400, 409, 200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete a DRAFT sales order (sales_orders.delete)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/companies/{{company_id}}/sales-orders/{{sales_order_id}}/?expected_version={{sales_order_version}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "companies",
+                "{{company_id}}",
+                "sales-orders",
+                "{{sales_order_id}}",
+                "?expected_version={{sales_order_version}}",
+                ""
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "DRAFT orders with no batch plan only. Expect 204, or 403/409/400 when refused."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('response received', () => pm.expect(pm.response.code).to.be.below(500));"
                 ]
               }
             }
@@ -11987,6 +12122,94 @@
               }
             }
           ]
+        },
+        {
+          "name": "Planning units for batch pickers (batch_plans.view)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/companies/{{company_id}}/batch-plans/planning-units/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "companies",
+                "{{company_id}}",
+                "batch-plans",
+                "planning-units",
+                ""
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Active units only. No shared_catalog.view needed."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('response received', () => pm.expect(pm.response.code).to.be.below(500));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Approved revisions for a product (batch_plans.view)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/companies/{{company_id}}/batch-plans/eligible-revisions/?product={{product_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "companies",
+                "{{company_id}}",
+                "batch-plans",
+                "eligible-revisions",
+                ""
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "APPROVED revisions only; identity and quantities, no recipe lines. Empty result means no approved formula for that product."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('response received', () => pm.expect(pm.response.code).to.be.below(500));"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -12307,6 +12530,102 @@
               }
             }
           ]
+        },
+        {
+          "name": "Create order-line preparation (no batch plan needed)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/stores/{{store_id}}/preparations/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "stores",
+                "{{store_id}}",
+                "preparations",
+                ""
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Confirmed workflow: saved before any batch plan exists. Give sales_order_line_id OR batch_plan_id, never both.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sales_order_line_id\": \"{{sales_order_line_id}}\",\n  \"packing_type\": \"Amber 200ml\",\n  \"insert_required\": null,\n  \"label_note\": \"L-1\",\n  \"box_note\": \"B-1\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('response received', () => pm.expect(pm.response.code).to.be.below(500));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List order-line preparation for a line",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/stores/{{store_id}}/preparations/?sales_order_line={{sales_order_line_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "stores",
+                "{{store_id}}",
+                "preparations",
+                "?sales_order_line={{sales_order_line_id}}",
+                ""
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Returns order-line rows and legacy rows the caller can see; legacy rows are marked by batch_plan_id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('response received', () => pm.expect(pm.response.code).to.be.below(500));"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -12571,6 +12890,189 @@
               }
             },
             "description": "material_requisitions.view + .submit (store) + batch_plans.view + formulas.view (company). Freezes the request as SUBMITTED - does NOT approve quantities, reserve stock, issue materials, authorize production or release anything from QC. A repeat call at the current version is an idempotent no-op; every header/line edit is rejected (400) once SUBMITTED."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200, 400, 403, 404 or 409', () => pm.expect(pm.response.code).to.be.oneOf([200, 400, 403, 404, 409]));",
+                  "if (pm.response.code === 200) { const body = pm.response.json(); pm.environment.set('material_requisition_version', String(body.version)); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Approve material requisition (Task 15C)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/stores/{{store_id}}/material-requisitions/{{material_requisition_id}}/approve/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "",
+                "api",
+                "v1",
+                "stores",
+                "{{store_id}}",
+                "material-requisitions",
+                "{{material_requisition_id}}",
+                "approve",
+                ""
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expected_version\": {{material_requisition_version}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "material_requisitions.view + .approve (store) + batch_plans.view + formulas.view (company). Only a SUBMITTED requisition can be approved. Blocked (400) if the actor is the requisition's own creator, the current round's submitter, or made a substantive requested_quantity change currently reflected on any line - no exception. A repeat call at the current (already-APPROVED) version is an idempotent no-op, preserving the original decided_by/decided_at."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200, 400, 403, 404 or 409', () => pm.expect(pm.response.code).to.be.oneOf([200, 400, 403, 404, 409]));",
+                  "if (pm.response.code === 200) { const body = pm.response.json(); pm.environment.set('material_requisition_version', String(body.version)); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject material requisition (Task 15C)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/stores/{{store_id}}/material-requisitions/{{material_requisition_id}}/reject/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "",
+                "api",
+                "v1",
+                "stores",
+                "{{store_id}}",
+                "material-requisitions",
+                "{{material_requisition_id}}",
+                "reject",
+                ""
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expected_version\": {{material_requisition_version}},\n  \"rejection_reason\": \"Quantities look wrong on the raw line\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Same permission (material_requisitions.view + .approve) and self-decision ban as approve - there is no separate .reject permission. rejection_reason is required (non-blank). Unlike approve, rejection never re-checks source drift - a drift that blocks approval never blocks rejection, since rejection's purpose is to send the request back for correction. A repeat call at the current version with the SAME reason is an idempotent no-op; the same call with a DIFFERENT reason is 409, never silently applied."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200, 400, 403, 404 or 409', () => pm.expect(pm.response.code).to.be.oneOf([200, 400, 403, 404, 409]));",
+                  "if (pm.response.code === 200) { const body = pm.response.json(); pm.environment.set('material_requisition_version', String(body.version)); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Revise material requisition (Task 15C)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/stores/{{store_id}}/material-requisitions/{{material_requisition_id}}/revise/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "",
+                "api",
+                "v1",
+                "stores",
+                "{{store_id}}",
+                "material-requisitions",
+                "{{material_requisition_id}}",
+                "revise",
+                ""
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expected_version\": {{material_requisition_version}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "material_requisitions.view + .edit + .revise (store) + batch_plans.view + formulas.view (company) - revising reopens editable data, so .edit is additionally required here, unlike approve/reject/submit. Only a REJECTED requisition can be revised, back to DRAFT. Plain reopen (no quantity-affecting source drift): lines carry forward completely unchanged. If the source HAS drifted, this same call is rejected (400) unless the body also includes refresh_from_source:true and the CURRENT expected_batch_plan_version (a stale plan version is 409) - see docs/frontend-api-handoff.md §18.10 for the full refresh contract. Every prior round's own submission and decision is permanently preserved, never touched by this action."
           },
           "event": [
             {
@@ -13264,9 +13766,18 @@
                 ""
               ],
               "query": [
-                {"key": "has_batch_number", "value": "false"},
-                {"key": "order", "value": "planned_manufacturing_date"},
-                {"key": "search", "value": "{{batch_plan_search_term}}"}
+                {
+                  "key": "has_batch_number",
+                  "value": "false"
+                },
+                {
+                  "key": "order",
+                  "value": "planned_manufacturing_date"
+                },
+                {
+                  "key": "search",
+                  "value": "{{batch_plan_search_term}}"
+                }
               ]
             },
             "auth": {
@@ -13313,7 +13824,10 @@
                 ""
               ],
               "query": [
-                {"key": "not_a_real_filter", "value": "1"}
+                {
+                  "key": "not_a_real_filter",
+                  "value": "1"
+                }
               ]
             },
             "auth": {
@@ -13335,6 +13849,312 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status is 400', () => pm.expect(pm.response.code).to.eql(400));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Product Types",
+      "item": [
+        {
+          "name": "List product types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/product-types/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "product-types",
+                ""
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Maintained lookup for product and order-line type dropdowns. Active types by default."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('response received', () => pm.expect(pm.response.code).to.be.below(500));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create product type (superuser only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/product-types/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "product-types",
+                ""
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Configuration; superuser only. Name must be unique.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Syrup\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('response received', () => pm.expect(pm.response.code).to.be.below(500));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rename or deactivate product type (superuser only)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/product-types/{{product_type_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "product-types",
+                "{{product_type_id}}",
+                ""
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Configuration; superuser only. Audited.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_active\": false\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('response received', () => pm.expect(pm.response.code).to.be.below(500));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Batch Manufacturing Record (BMR)",
+      "item": [
+        {
+          "name": "Read BMR for a batch plan (404 when none)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/companies/{{company_id}}/batch-plans/{{batch_plan_id}}/bmr/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "companies",
+                "{{company_id}}",
+                "batch-plans",
+                "{{batch_plan_id}}",
+                "bmr",
+                ""
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "bmr.view and batch_plans.view."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('response received', () => pm.expect(pm.response.code).to.be.below(500));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create BMR from requirement preview",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/companies/{{company_id}}/batch-plans/{{batch_plan_id}}/bmr/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "companies",
+                "{{company_id}}",
+                "batch-plans",
+                "{{batch_plan_id}}",
+                "bmr",
+                ""
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "bmr.create, batch_plans.view and formulas.view. One record per plan.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('response received', () => pm.expect(pm.response.code).to.be.below(500));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Edit BMR line (Label Claim, AR No., special value, qty received)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/companies/{{company_id}}/bmr/{{bmr_id}}/lines/{{bmr_line_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "companies",
+                "{{company_id}}",
+                "bmr",
+                "{{bmr_id}}",
+                "lines",
+                "{{bmr_line_id}}",
+                ""
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "bmr.edit. Required quantities cannot be changed here. qty_received is for packing lines only.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expected_version\": 1,\n  \"label_claim\": \"0.25 mL\",\n  \"ar_no\": \"AR-TEST-001\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('response received', () => pm.expect(pm.response.code).to.be.below(500));"
                 ]
               }
             }

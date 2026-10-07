@@ -22,6 +22,15 @@ than repeating them — see the reference list at the end.
 
 ## 1. Startup
 
+**Current setup (verified 2026-10-06):**
+- Frontend (Vite dev server): `http://localhost:5173`, started from `D:\CMHP_NEW\frontend`.
+- Frontend API base: relative `/api`, proxied by Vite to `http://127.0.0.1:8000` (`frontend/vite.config.js`). `frontend/.env` sets `VITE_API_URL` to a relative path, so requests go through the proxy.
+- Backend: `D:\CMHP_NEW\backend`, settings `config.settings.local`, port **8000**.
+- Port 8001 is not used for this project any more.
+
+**Environment note (follow-up, not changed by this runbook):** the running backend was verified to use the **system Python 3.12** (`C:\Users\Admin\AppData\Local\Programs\Python\Python312\python.exe`), while the steps below activate the project venv (`D:\CMHP_NEW\venv`). Environment alignment is open. Do not switch interpreters or install packages during demo preparation until it is decided.
+
+
 ```powershell
 cd D:\CMHP_NEW
 .\venv\Scripts\Activate.ps1
@@ -29,16 +38,18 @@ cd backend
 python manage.py check                              # system checks
 python manage.py makemigrations --check --dry-run    # migration consistency
 python manage.py migrate                             # apply any pending migrations
-python manage.py runserver 127.0.0.1:8001
+python manage.py runserver 127.0.0.1:8000
 ```
 
-**Health check**: `GET http://127.0.0.1:8001/api/v1/health/` → `{"status": "ok"}`.
+**Health check**: `GET http://127.0.0.1:8000/api/v1/health/` → `{"status": "ok"}`.
 
-Before starting the server, verify nothing else is already on port 8001,
+**Follow-up:** `backend/scripts/demo_http_flow.py` still hard-codes `BASE_URL = "http://127.0.0.1:8001"`. It will not reach the port-8000 server until that constant is changed. This runbook does not change the script.
+
+Before starting the server, verify nothing else is already on port 8000,
 and if something is, confirm via its process command line that it is
 actually this project's own `manage.py runserver` before reusing or
 restarting it (`Get-CimInstance Win32_Process -Filter "Name = 'python.exe'"`
-in PowerShell, or `netstat -ano | findstr :8001` to find the PID first).
+in PowerShell, or `netstat -ano | findstr :8000` to find the PID first).
 Never assume a listening process on that port belongs to this project.
 
 ## 2. Demo-account setup (secure, local, idempotent)
@@ -153,13 +164,13 @@ python scripts/demo_http_flow.py
 
 This standard-library-only Python script (no `requests` dependency — see
 its own docstring) runs the **entire** flow above over real HTTP against
-`127.0.0.1:8001`, using the demo credentials file from step 2, and
+`127.0.0.1:8000`, using the demo credentials file from step 2, and
 prints each step's result. It was executed for real as part of this
 task — see §6 below for the actual outcome.
 
 ### 4.3 Commercial and formula drafting demo (Task 11B, real HTTP)
 
-Execution order (server already running on `127.0.0.1:8001`; confirm it is
+Execution order (server already running on `127.0.0.1:8000`; confirm it is
 this project's own `manage.py runserver` before reusing it):
 
 ```powershell
@@ -299,7 +310,7 @@ any identity that doesn't already look like its own output.
 | `python manage.py check` | Passed — no issues |
 | `python manage.py makemigrations --check --dry-run` | Passed — no changes detected |
 | `python manage.py migrate` (live dev database) | Passed — `permissions.0010_seed_incoming_qc_permissions`, `quality.0001_initial` applied cleanly |
-| Real HTTP demo (`scripts/demo_http_flow.py`) against `127.0.0.1:8001` | **All stages passed**: PR created → submitted → approved ×3 (`APPROVED`) → PO created → priced → issued (`ISSUED`) → 60 units received (`PARTIALLY_RECEIVED`, 40 remaining confirmed) → 40 units received (`FULLY_RECEIVED` confirmed) → QC inspection draft created against the first receipt's line → one observation recorded and retrieved back correctly |
+| Real HTTP demo (`scripts/demo_http_flow.py`) against `127.0.0.1:8001` (historical run; the current port is 8000) | **All stages passed**: PR created → submitted → approved ×3 (`APPROVED`) → PO created → priced → issued (`ISSUED`) → 60 units received (`PARTIALLY_RECEIVED`, 40 remaining confirmed) → 40 units received (`FULLY_RECEIVED` confirmed) → QC inspection draft created against the first receipt's line → one observation recorded and retrieved back correctly |
 | Task 11B seed regression tests (`tests.test_seed_demo_data`) | **8/8, OK**, Python exit code 0 |
 | Task 11B real HTTP demo (`scripts/demo_http_commercial_formula.py`) | **52/52 checks passed** (35 HTTP status checks, 17 assertions) - see `docs/demo-integration-matrix.md` |
 | Prior full regression suite (Task 09A, last full run) | 958/958, `OK`, exit code 0 — see `docs/backend-tasks.md`, Task 09A row (this session's task explicitly said not to duplicate a full-suite run without cause) |

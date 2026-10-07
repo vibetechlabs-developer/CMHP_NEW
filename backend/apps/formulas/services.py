@@ -296,6 +296,9 @@ def update_formula_revision(*, actor, revision_id, expected_version, data):
         seen_ids = set()
         for index, item in enumerate(data["lines"], start=1):
             notes = (item.get("notes") or "").strip()
+            label_claim = (item.get("label_claim") or "").strip()
+            ar_no = (item.get("ar_no") or "").strip()
+            special_value = (item.get("special_value") or "").strip()
             line_id = item.get("id")
             if line_id is None:
                 material = _resolve_line_material(item["material_id"], index)
@@ -308,6 +311,9 @@ def update_formula_revision(*, actor, revision_id, expected_version, data):
                         quantity=item["quantity"],
                         unit=material.base_unit,
                         notes=notes,
+                        label_claim=label_claim,
+                        ar_no=ar_no,
+                        special_value=special_value,
                         **_material_snapshot_fields(material),
                     )
                 )
@@ -322,6 +328,9 @@ def update_formula_revision(*, actor, revision_id, expected_version, data):
                 item["material_id"] == line.material_id
                 and item["quantity"] == line.quantity
                 and notes == line.notes
+                and label_claim == line.label_claim
+                and ar_no == line.ar_no
+                and special_value == line.special_value
             )
             if not unchanged:
                 material = _resolve_line_material(item["material_id"], index)
@@ -333,6 +342,9 @@ def update_formula_revision(*, actor, revision_id, expected_version, data):
                         setattr(line, field, value)
                 line.quantity = item["quantity"]
                 line.notes = notes
+                line.label_claim = label_claim
+                line.ar_no = ar_no
+                line.special_value = special_value
             kept.append((line, index, not unchanged))
 
         removed_ids = set(existing) - seen_ids

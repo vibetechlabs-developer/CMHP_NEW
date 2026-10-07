@@ -12,6 +12,7 @@ from apps.common.errors import translate_django_validation_error
 from apps.common.pagination import BoundedPageNumberPagination
 from apps.common.validation import parse_strict_bool
 from apps.companies.services import active_companies_for_user
+from apps.customers.imports import commit_customer_rows, preview_customer_rows
 from apps.customers.models import Customer
 from apps.customers.serializers import (
     CustomerCreateSerializer,
@@ -20,6 +21,7 @@ from apps.customers.serializers import (
     CustomerVersionSerializer,
 )
 from apps.customers.services import (
+    delete_customer,
     activate_customer,
     create_customer,
     deactivate_customer,
@@ -32,6 +34,7 @@ CUSTOMERS_CREATE = "customers.create"
 CUSTOMERS_EDIT = "customers.edit"
 CUSTOMERS_ACTIVATE = "customers.activate"
 CUSTOMERS_DEACTIVATE = "customers.deactivate"
+CUSTOMERS_DELETE = "customers.delete"
 
 
 def _get_company_for_action(request, company_id, *required_permissions):
@@ -121,6 +124,22 @@ class CustomerDetailView(APIView):
         customer = get_object_or_404(Customer.objects.select_related("company"), pk=customer_id, company=company)
         return Response(CustomerSerializer(customer).data)
 
+    def delete(self, request, company_id, customer_id):
+        """Only for customers nothing references. Requires customers.view and
+        customers.delete. `expected_version` is a required query parameter.
+        """
+        company = _get_company_for_action(request, company_id, CUSTOMERS_VIEW, CUSTOMERS_DELETE)
+        raw = request.query_params.get("expected_version")
+        try:
+            expected_version = int(raw)
+        except (TypeError, ValueError):
+            raise exceptions.ValidationError({"expected_version": "Required integer query parameter."})
+        try:
+            delete_customer(actor=request.user, company=company, customer_id=customer_id, expected_version=expected_version)
+        except DjangoValidationError as exc:
+            raise translate_django_validation_error(exc) from exc
+        return Response(status=204)
+
     def patch(self, request, company_id, customer_id):
         company = _get_company_for_action(request, company_id, CUSTOMERS_VIEW, CUSTOMERS_EDIT)
         customer = get_object_or_404(Customer, pk=customer_id, company=company)
@@ -190,3 +209,28 @@ class CustomerDeactivateView(APIView):
             raise translate_django_validation_error(exc) from exc
         customer = Customer.objects.select_related("company").get(pk=customer.pk)
         return Response(CustomerSerializer(customer).data)
+
+
+@method_decorator(never_cache, name="dispatch")
+class CustomerImportPreviewView(APIView):
+    """Validate customer rows without writing anything. Needs customers.view and
+    customers.create (duplicate detection reveals existing codes, so create is required).
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, company_id):
+        company = _get_company_for_action(request, company_id, CUSTOMERS_VIEW, CUSTOMERS_CREATE)
+        return Response(preview_customer_rows(company, request.data.get("rows")), status=200)
+
+
+@method_decorator(never_cache, name="dispatch")
+class CustomerImportCommitView(APIView):
+    """Create every valid row or none (all-or-nothing). Each created customer is audited."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, company_id):
+        company = _get_company_for_action(request, company_id, CUSTOMERS_VIEW, CUSTOMERS_CREATE)
+        created = commit_customer_rows(actor=request.user, company=company, rows=request.data.get("rows"))
+        return Response({"created": len(created), "codes": [c.code for c in created]}, status=201)

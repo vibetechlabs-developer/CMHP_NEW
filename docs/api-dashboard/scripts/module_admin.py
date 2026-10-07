@@ -63,8 +63,8 @@ op("authentication", "POST", "/api/v1/auth/logout/", "Log out", "public",
 
 op("authentication", "GET", "/api/v1/auth/me/", "Current user identity", "authenticated",
    [], "AUTH-01 / NAV-01", "not applicable",
-   "Confirms the access token actually works and returns the caller's display identity.",
-   response_example={"id": 8, "username": "demo_sales", "email": "", "first_name": "", "last_name": ""},
+   "Confirms the access token actually works and returns the caller's display identity. Also returns read-only UI capabilities derived from the same rule the server enforces (currently capabilities.can_manage_material_catalog = active superuser). Capabilities are presentation hints only and grant nothing.",
+   response_example={"id": 8, "username": "demo_sales", "email": "", "first_name": "", "last_name": "", "capabilities": {"can_manage_material_catalog": False}},
    errors=STD_ERRORS_RW[1:2],
    frontend_usage="Step 3 of session bootstrap — confirms the token before loading workspace data.",
    source_files=["apps/authentication/views.py"])
@@ -523,3 +523,25 @@ op("suppliers", "POST", "/api/v1/suppliers/<supplier_id>/deactivate/", "Deactiva
    ["active superuser"], "ADM-11/12 area", "no", "Deactivates a supplier.",
    path_params=[{"name": "supplier_id", "type": "int"}], request_fields=[], request_example={},
    response_example={"id": 9, "is_active": False}, errors=STD_ERRORS_RW, source_files=["apps/suppliers/views.py"])
+
+op("catalog", "GET", "/api/v1/product-types/", "List product types", "shared",
+   ["shared_catalog.view (in an active store)"], "CAT-05", "not applicable",
+   "Maintained product-type lookup used by the product and order-line type dropdowns. Active types by default.",
+   query_params=[{"name": "is_active", "required": False, "type": "bool"}],
+   response_example={"count": 9, "results": [{"id": 1, "name": "Capsule", "is_active": True}]},
+   errors=STD_ERRORS_RW, source_files=["apps/catalog/views.py"])
+
+op("catalog", "POST", "/api/v1/product-types/", "Create a product type", "shared",
+   ["superuser only (configuration)"], "CAT-05", "no",
+   "Adds a product type. Name must be unique (case-insensitive) and non-blank.",
+   request_fields=[{"name": "name", "required": True}],
+   request_example={"name": "Syrup"}, response_example={"id": 10, "name": "Syrup", "is_active": True},
+   response_status=201, errors=STD_ERRORS_MUTATE, source_files=["apps/catalog/views.py"])
+
+op("catalog", "PATCH", "/api/v1/product-types/<product_type_id>/", "Rename or activate/deactivate a product type", "shared",
+   ["superuser only (configuration)"], "CAT-05", "no",
+   "Changes name or is_active. Audited.",
+   path_params=[{"name": "product_type_id", "type": "int"}],
+   request_fields=[{"name": "name", "required": False}, {"name": "is_active", "required": False}],
+   request_example={"is_active": False}, response_example={"id": 10, "name": "Syrup", "is_active": False},
+   errors=STD_ERRORS_MUTATE, source_files=["apps/catalog/views.py"])

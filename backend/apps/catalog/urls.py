@@ -1,6 +1,8 @@
 from django.urls import path
 
 from apps.catalog.views import (
+    ProductTypeDetailView,
+    ProductTypeListCreateView,
     MaterialActivateView,
     MaterialCategoryActivateView,
     MaterialCategoryDeactivateView,
@@ -17,6 +19,8 @@ from apps.catalog.views import (
 
 urlpatterns = [
     path("units/", UnitOfMeasureListCreateView.as_view(), name="unit-list-create"),
+    path("product-types/", ProductTypeListCreateView.as_view(), name="product-type-list-create"),
+    path("product-types/<int:product_type_id>/", ProductTypeDetailView.as_view(), name="product-type-detail"),
     path("units/<int:unit_id>/", UnitOfMeasureDetailView.as_view(), name="unit-detail"),
     path("units/<int:unit_id>/activate/", UnitOfMeasureActivateView.as_view(), name="unit-activate"),
     path("units/<int:unit_id>/deactivate/", UnitOfMeasureDeactivateView.as_view(), name="unit-deactivate"),

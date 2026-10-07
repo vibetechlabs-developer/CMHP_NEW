@@ -1,0 +1,28 @@
+priority,order,item,type,owner,depends_on,acceptance,status
+A,1,Stop false success on /operations quotations and batches (connect to real endpoints or hide the add buttons),Code change,Frontend engineer,none,No success message without a backend response; a test proves it,Not started (confirmed in code audit 2026-10-06)
+A,2,Browser-verify the three-person journey on a synthetic order (Nishita Admin; Saloni Store Manager; Fenil Manager),Verification,QA and product owner,item 1 and Fenil signing out and in after role change,Each step in client-flow-completion-checklist.md recorded with result,Pending browser (no browser run in audit)
+A,3,Decide Store Manager visibility of requisition status (grant material_requisitions.view or show explicit not-connected label),Client decision then code,Product owner,none,Decision recorded; Saloni sees status or the explicit label,Awaiting client decision
+B,4,Material import UI for existing material_imports endpoints (preview and commit),Code change,Full-stack,material import endpoint contract confirmed,Preview and commit call real endpoints; errors shown without raw codes,Not started (backend exists; no frontend reach)
+B,5,Formula import UI for existing formula_imports endpoints,Code change,Full-stack,formula import endpoint contract confirmed,Preview and commit call real endpoints,Not started (backend exists; no frontend reach)
+B,6,Connect /operations quotations tab to real quotations endpoints,Code change,Frontend engineer,backend quotations contract confirmed,List and create read and write through API,Not started
+B,7,Connect Quality screen to qualityService real endpoints (replace mock store),Code change,Full-stack,quality endpoint contract confirmed,Lists and actions call the backend; mock store removed from screen,Not started (backend 9 paths; screen mock-only)
+B,8,Connect receiving and stock movement read screens,Code change,Full-stack,receiving endpoints stable,Balances and receipts read from backend,Not started
+C,9,Production status, packaging status, dispatch and invoice (backend models and screens),Client definition then build,Product owner and Full-stack,client definitions for each status,Requirements signed off before build,Not implemented
+C,10,Separate Remark field on sales order (currently shown as Notes),Client decision then small code,Product owner and Frontend engineer,client answer,Remark stored and shown separately,Working choice only (Notes)
+C,11,Purchasing (requests, orders, issue) connected to supply chain screen,Code change,Full-stack,supply chain permissions,Screen uses purchasing endpoints; mock service removed,Not started (backend 11 paths)
+C,12,HR backend (no app exists) and connection of HR screens,Build then code,Full-stack,client HR definitions,HR routes use real endpoints,Not implemented
+C,13,Audit log viewer and Tally integration,Build then code,Full-stack,client definition for Tally,Viewer lists audit rows for owners; Tally scope signed off,Not implemented
+D,14,Planned manufacturing: exact date or month,Client decision,Product owner,none,Decision recorded; field type matches it,Awaiting client decision (stored as DATE today)
+D,15,Definitions for production status, packaging status, dispatch and invoice,Client decision,Product owner,none,Each status list agreed,Awaiting client decision
+D,16,Demo accounts (demo_* users, DEMOA and DEMOB companies): deactivate or delete,Owner decision,Product owner,none,Owner chooses; no demo rows in client screens,Awaiting owner decision (carried over)
+D,17,Plan-create rule without formulas.view,Owner decision,Product owner,none,Owner confirms or reinstates gate,Awaiting owner decision (carried over)
+D,18,Demo-data labelling on dashboard and demo pages; keep or remove Coming soon and Partly demo badges,Client decision,Product owner,none,Labels match what is shown,Awaiting client decision
+D,19,Operating company record (CMHP) and its accounts (today data is DEMOA and DEMOB),Client data,Product owner,client company details,Operating company exists; accounts assigned,Awaiting client data
+E,20,Replace raw permission codes in user-facing messages with plain language,Code change,Frontend engineer,none,No permission code visible to users,Not started (example: "You do not have formulas.view.")
+E,21,Guard in-app route changes when edits are unsaved (browser prompt covers only tab close and reload),Code change,Frontend engineer,none,Switching page with unsaved edits asks first,Not started
+E,22,Clear next-step hints on the order screen (formulas screen already has steps),Code change,Frontend engineer,none,Hint shows current step,Not started
+F,23,Load test product search at 2000+ rows,Verification,Backend engineer,none,Search response time within agreed limit,Not started
+F,24,Fix existing lint warnings in order and formula files (53 warnings, 0 errors),Code change,Frontend engineer,none,Lint warning count reduced,Not started
+F,25,HTTP integration tests for the three-person journey,Verification,Backend engineer,items 1 and 2,Scripted run on test database covers each step,Not started
+F,26,Production security review (refresh cookie, CSRF, CORS, secrets handling),Review,Backend engineer,none,Review recorded with findings,Not started
+F,27,Re-count API paths and operations at router level (current count is an approximation for viewsets),Documentation,Backend engineer,none,Router-level count reconciles with dashboard,Not started

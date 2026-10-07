@@ -9,15 +9,47 @@ from apps.permissions.services import deactivate_role_assignment as _deactivate_
 
 User = get_user_model()
 
-USER_TRACKED_FIELDS = ["username", "email", "first_name", "last_name"]
+USER_TRACKED_FIELDS = [
+    "username",
+    "email",
+    "first_name",
+    "last_name",
+    "phone",
+    "employee_id",
+    "department",
+    "common_inventory_access",
+    "designation",
+    "joining_date",
+    "employment_status",
+]
 
 
 def _user_snapshot(user):
-    return {field: getattr(user, field) for field in USER_TRACKED_FIELDS}
+    # Dates are stored as ISO strings so the audit JSON stays serializable.
+    snapshot = {}
+    for field in USER_TRACKED_FIELDS:
+        value = getattr(user, field)
+        snapshot[field] = value.isoformat() if hasattr(value, "isoformat") else value
+    return snapshot
 
 
 @transaction.atomic
-def create_user(*, actor, username, email, initial_password, first_name="", last_name=""):
+def create_user(
+    *,
+    actor,
+    username,
+    email,
+    initial_password,
+    first_name="",
+    last_name="",
+    phone="",
+    employee_id="",
+    department="",
+    common_inventory_access=False,
+    designation="",
+    joining_date=None,
+    employment_status=User.EmploymentStatus.ACTIVE,
+):
     """Create an ordinary user via Django's normal user-creation path
     (`UserManager.create_user`, which hashes the password with
     `set_password()` - never stored/logged in plaintext, and never
@@ -31,6 +63,13 @@ def create_user(*, actor, username, email, initial_password, first_name="", last
         password=initial_password,
         first_name=first_name,
         last_name=last_name,
+        phone=phone,
+        employee_id=employee_id,
+        department=department,
+        common_inventory_access=common_inventory_access,
+        designation=designation,
+        joining_date=joining_date,
+        employment_status=employment_status,
     )
     record(
         actor=actor,

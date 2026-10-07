@@ -56,7 +56,7 @@ op("customers", "POST", "/api/v1/companies/<company_id>/customers/<customer_id>/
 
 op("customers", "POST", "/api/v1/companies/<company_id>/customers/<customer_id>/deactivate/", "Deactivate customer", "company",
    ["customers.view", "customers.deactivate"], "CUST-04", "yes",
-   "Deactivates a customer. Never deletes the record or any of its data, never cascades — no DELETE endpoint exists anywhere in this module.",
+   "Deactivates a customer. Never deletes the record or any of its data, never cascades. Permanent removal is a separate DELETE endpoint, allowed only when nothing references the customer.",
    path_params=[{"name": "company_id", "type": "int"}, {"name": "customer_id", "type": "int"}],
    request_fields=[{"name": "expected_version", "required": True}], request_example={"expected_version": 2},
    response_example={"id": 17, "is_active": False, "version": 3},
@@ -272,3 +272,47 @@ op("sales_orders", "PATCH", "/api/v1/companies/<company_id>/sales-order-confirma
    response_example={"company_id": 3, "status": "INCOMPLETE", "version": 1, "allow_zero_price_lines": False, "allow_self_confirmation": None},
    errors=STD_ERRORS_MUTATE, side_effects="Every change is audited with before/after; a no-op keeps the version and writes no audit entry.",
    source_files=["apps/sales_orders/views.py"])
+
+op("customers", "DELETE", "/api/v1/companies/<company_id>/customers/<customer_id>/", "Delete an unreferenced customer", "company",
+   ["customers.view", "customers.delete"], "CUST-05", "yes (expected_version as query parameter)",
+   "Permanently deletes a customer only when no sales order or quotation references it. Refused with a validation error otherwise: deactivate instead. Audited.",
+   path_params=[{"name": "company_id", "type": "int"}, {"name": "customer_id", "type": "int"}],
+   query_params=[{"name": "expected_version", "required": True, "type": "int"}],
+   response_status=204, errors=STD_ERRORS_MUTATE,
+   source_files=["apps/customers/views.py", "apps/customers/services.py"])
+
+op("products", "DELETE", "/api/v1/companies/<company_id>/products/<product_id>/", "Delete an unreferenced product", "company",
+   ["products.view", "products.delete"], "PROD-05", "yes (expected_version as query parameter)",
+   "Permanently deletes a product only when no sales order line, quotation line or formula references it. Refused otherwise: deactivate instead. Audited.",
+   path_params=[{"name": "company_id", "type": "int"}, {"name": "product_id", "type": "int"}],
+   query_params=[{"name": "expected_version", "required": True, "type": "int"}],
+   response_status=204, errors=STD_ERRORS_MUTATE,
+   source_files=["apps/products/views.py", "apps/products/services.py"])
+
+op("sales_orders", "DELETE", "/api/v1/companies/<company_id>/sales-orders/<sales_order_id>/", "Delete a DRAFT sales order", "company",
+   ["sales_orders.view", "sales_orders.delete"], "SO-05", "yes (expected_version as query parameter)",
+   "Deletes a DRAFT sales order that has no batch plan. Refused for any other status and when batch plans exist. Audited.",
+   path_params=[{"name": "company_id", "type": "int"}, {"name": "sales_order_id", "type": "int"}],
+   query_params=[{"name": "expected_version", "required": True, "type": "int"}],
+   response_status=204, errors=STD_ERRORS_MUTATE,
+   source_files=["apps/sales_orders/views.py", "apps/sales_orders/services.py"])
+
+
+# Customer CSV-style import (CUST-IMPORT): preview writes nothing; commit is all-or-nothing.
+op("customers", "POST", "/api/v1/companies/<company_id>/customers/import-preview/", "Preview a customer import (no writes)", "company",
+   ["customers.view", "customers.create"], "CUST-IMPORT-01", "not applicable (read-only check)",
+   "Validates up to 500 customer rows with the create serializer, flags duplicate codes against existing customers and inside the file, and returns a per-row result. Writes nothing.",
+   path_params=[{"name": "company_id", "type": "int"}],
+   request_fields=[{"name": "rows", "required": True, "notes": "List of objects with code, name and optional contact_person, email, phone, billing_address, shipping_address, notes."}],
+   request_example={"rows": [{"code": "EXAMPLE1", "name": "Example Customer"}]},
+   response_example={"summary": {"total": 1, "valid": 1, "invalid": 0, "eligible_for_commit": True}, "rows": [{"row_number": 1, "status": "ok", "code": "EXAMPLE1", "name": "Example Customer", "errors": []}]},
+   errors=STD_ERRORS_RW, source_files=["apps/customers/imports.py", "apps/customers/views.py", "apps/customers/urls.py"])
+
+op("customers", "POST", "/api/v1/companies/<company_id>/customers/import-commit/", "Commit a customer import (all-or-nothing)", "company",
+   ["customers.view", "customers.create"], "CUST-IMPORT-02", "no (creates customers; each audited)",
+   "Re-validates every row. If any row is invalid nothing is created (400). Otherwise creates every row in one transaction through the create service, which writes one audit record per customer. A failing audit rolls the whole import back.",
+   path_params=[{"name": "company_id", "type": "int"}],
+   request_fields=[{"name": "rows", "required": True, "notes": "Same shape as the preview."}],
+   request_example={"rows": [{"code": "EXAMPLE1", "name": "Example Customer"}]},
+   response_example={"created": 1, "codes": ["EXAMPLE1"]},
+   errors=STD_ERRORS_RW, source_files=["apps/customers/imports.py", "apps/customers/views.py", "apps/customers/urls.py"])

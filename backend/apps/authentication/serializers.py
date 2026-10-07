@@ -19,7 +19,16 @@ class CurrentUserSerializer(serializers.ModelSerializer):
     the login response.
     """
 
+    capabilities = serializers.SerializerMethodField()
+
     class Meta:
         model = get_user_model()
-        fields = ["id", "username", "email", "first_name", "last_name"]
+        fields = ["id", "username", "email", "first_name", "last_name", "capabilities"]
         read_only_fields = fields
+
+    def get_capabilities(self, obj):
+        # Read-only UI hints derived from the SAME rule the server enforces.
+        # Never accepted from client input. Not an access grant.
+        from apps.common.permissions import is_active_superuser
+
+        return {"can_manage_material_catalog": is_active_superuser(obj)}

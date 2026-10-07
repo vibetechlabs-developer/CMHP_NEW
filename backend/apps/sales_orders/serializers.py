@@ -3,9 +3,10 @@ from decimal import Decimal
 from rest_framework import serializers
 
 from apps.quotations.serializers import (
+    _CREATE_LINE_ALLOWED,
     _MAX_LINES,
-    QuotationLineCreateInputSerializer,
-    QuotationLineUpdateInputSerializer,
+    _UPDATE_LINE_ALLOWED,
+    _LineInputBase,
     _reject_unknown_fields,
 )
 from apps.quotations.services import _LINE_AMOUNT_QUANTIZE
@@ -19,6 +20,7 @@ _CREATE_HEADER_ALLOWED = {
     "customer_id",
     "order_date",
     "requested_delivery_date",
+    "planned_manufacturing_date",
     "customer_order_reference",
     "currency",
     "notes",
@@ -29,10 +31,31 @@ _UPDATE_HEADER_ALLOWED = {
     "customer_id",
     "order_date",
     "requested_delivery_date",
+    "planned_manufacturing_date",
     "customer_order_reference",
     "notes",
     "lines",
 }
+
+
+_LINE_TYPE_FIELD = "product_type_snapshot"
+
+
+class SalesOrderLineCreateInputSerializer(_LineInputBase):
+    product_type_snapshot = serializers.CharField(required=False, allow_blank=True, max_length=100)
+
+    def to_internal_value(self, data):
+        _reject_unknown_fields(data, _CREATE_LINE_ALLOWED | {_LINE_TYPE_FIELD})
+        return super().to_internal_value(data)
+
+
+class SalesOrderLineUpdateInputSerializer(_LineInputBase):
+    id = serializers.IntegerField(required=False)
+    product_type_snapshot = serializers.CharField(required=False, allow_blank=True, max_length=100)
+
+    def to_internal_value(self, data):
+        _reject_unknown_fields(data, _UPDATE_LINE_ALLOWED | {_LINE_TYPE_FIELD})
+        return super().to_internal_value(data)
 
 
 class SalesOrderLineSerializer(serializers.ModelSerializer):
@@ -60,6 +83,7 @@ class SalesOrderLineSerializer(serializers.ModelSerializer):
             "unit_price",
             "description",
             "line_amount",
+            "product_type_snapshot",
         ]
         read_only_fields = fields
 
@@ -86,6 +110,7 @@ class SalesOrderSerializer(serializers.ModelSerializer):
             "customer_is_active",
             "order_date",
             "requested_delivery_date",
+            "planned_manufacturing_date",
             "customer_order_reference",
             "currency",
             "notes",
@@ -125,7 +150,8 @@ class SalesOrderCreateSerializer(serializers.Serializer):
     customer_order_reference = serializers.CharField(required=False, allow_blank=True, max_length=100, default="")
     currency = serializers.CharField(max_length=3)
     notes = serializers.CharField(required=False, allow_blank=True, max_length=2000, default="")
-    lines = QuotationLineCreateInputSerializer(many=True, required=False, default=list, max_length=_MAX_LINES)
+    planned_manufacturing_date = serializers.DateField(required=False, allow_null=True)
+    lines = SalesOrderLineCreateInputSerializer(many=True, required=False, default=list, max_length=_MAX_LINES)
 
     def validate(self, attrs):
         _reject_unknown_fields(self.initial_data, _CREATE_HEADER_ALLOWED)
@@ -149,7 +175,8 @@ class SalesOrderUpdateSerializer(serializers.Serializer):
     requested_delivery_date = serializers.DateField(required=False, allow_null=True)
     customer_order_reference = serializers.CharField(required=False, allow_blank=True, max_length=100)
     notes = serializers.CharField(required=False, allow_blank=True, max_length=2000)
-    lines = QuotationLineUpdateInputSerializer(many=True, required=False, max_length=_MAX_LINES)
+    planned_manufacturing_date = serializers.DateField(required=False, allow_null=True)
+    lines = SalesOrderLineUpdateInputSerializer(many=True, required=False, max_length=_MAX_LINES)
 
     def validate(self, attrs):
         _reject_unknown_fields(self.initial_data, _UPDATE_HEADER_ALLOWED)

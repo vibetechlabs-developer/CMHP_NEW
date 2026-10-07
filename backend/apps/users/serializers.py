@@ -53,6 +53,13 @@ class UserSerializer(serializers.ModelSerializer):
             "is_superuser",
             "date_joined",
             "updated_at",
+            "phone",
+            "common_inventory_access",
+            "employee_id",
+            "department",
+            "designation",
+            "joining_date",
+            "employment_status",
             "memberships_url",
         ]
         read_only_fields = fields
@@ -66,10 +73,30 @@ class UserCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["username", "email", "first_name", "last_name", "initial_password"]
+        fields = [
+            "username",
+            "email",
+            "first_name",
+            "last_name",
+            "initial_password",
+            "phone",
+            "employee_id",
+            "common_inventory_access",
+            "department",
+            "designation",
+            "joining_date",
+            "employment_status",
+        ]
         extra_kwargs = {
             "first_name": {"required": False, "allow_blank": True},
             "last_name": {"required": False, "allow_blank": True},
+            "phone": {"required": False, "allow_blank": True, "max_length": 30},
+            "employee_id": {"required": False, "allow_blank": True, "max_length": 50},
+            "common_inventory_access": {"required": False},
+            "department": {"required": False, "allow_blank": True, "max_length": 100},
+            "designation": {"required": False, "allow_blank": True, "max_length": 100},
+            "joining_date": {"required": False, "allow_null": True},
+            "employment_status": {"required": False},
         }
 
     def validate(self, attrs):
@@ -90,12 +117,31 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["username", "email", "first_name", "last_name"]
+        fields = [
+            "username",
+            "email",
+            "first_name",
+            "last_name",
+            "phone",
+            "employee_id",
+            "department",
+            "designation",
+            "joining_date",
+            "employment_status",
+            "common_inventory_access",
+        ]
         extra_kwargs = {
             "username": {"required": False},
             "email": {"required": False},
             "first_name": {"required": False, "allow_blank": True},
             "last_name": {"required": False, "allow_blank": True},
+            "phone": {"required": False, "allow_blank": True, "max_length": 30},
+            "employee_id": {"required": False, "allow_blank": True, "max_length": 50},
+            "common_inventory_access": {"required": False},
+            "department": {"required": False, "allow_blank": True, "max_length": 100},
+            "designation": {"required": False, "allow_blank": True, "max_length": 100},
+            "joining_date": {"required": False, "allow_null": True},
+            "employment_status": {"required": False},
         }
 
     def validate(self, attrs):

@@ -1,6 +1,8 @@
 from django.urls import path
 
 from apps.customers.views import (
+    CustomerImportCommitView,
+    CustomerImportPreviewView,
     CustomerActivateView,
     CustomerDeactivateView,
     CustomerDetailView,
@@ -8,6 +10,16 @@ from apps.customers.views import (
 )
 
 urlpatterns = [
+    path(
+        "<int:company_id>/customers/import-preview/",
+        CustomerImportPreviewView.as_view(),
+        name="customer-import-preview",
+    ),
+    path(
+        "<int:company_id>/customers/import-commit/",
+        CustomerImportCommitView.as_view(),
+        name="customer-import-commit",
+    ),
     path(
         "<int:company_id>/customers/",
         CustomerListCreateView.as_view(),

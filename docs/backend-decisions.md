@@ -3415,3 +3415,40 @@ to see it via that other endpoint regardless of what this register does. Gating 
 inventing a NEW restriction beyond what the project's own existing API already grants - scope the task warned
 against ("do not change mutation validation or grant new permissions" and "do not expand into a general
 audit").
+
+# Backend Decisions — Task 15C
+
+**Documentation note:** this entry, like Task 15C's own `docs/backend-tasks.md` section, was written
+retroactively during a later frontend-integration task, after discovering the original documentation pass had
+never been done. The reasoning below was re-derived from reading the actual shipped code (`apps/material_
+requisitions/models.py`, `services.py`, the migrations) rather than from memory of writing it.
+
+**Why one round = one decision, with no separate decision table** (unlike `apps.purchasing`'s `PurchaseRequestApproval`, a separate append-only table keyed by round+step). This workflow has exactly one approval step, confirmed as the task's own explicit, deliberately-not-three-step design. A round can be decided at most once - `MaterialRequisitionRound.outcome`/`decided_by`/`decided_at`/`rejection_reason` fields folded directly onto the round row capture that fact completely; a separate decision table would only be justified by a MULTI-decision-per-round shape, which does not exist here.
+
+**Why contributor tracking lives on the LINE, not a separate per-revision contributor table** (unlike `apps.formulas.models.FormulaRevisionContributor`, an append-only set). A formula revision's contributor set only ever grows; a requisition line's `requested_quantity` is a single current value that is either overwritten by a new author or carried forward unchanged - never co-authored. A single `requested_quantity_contributor` FK that moves with the value, persisting across a reject/revise reopen when untouched, correctly models "who is responsible for the value currently being reviewed" without inventing a history log this task never asked for.
+
+**Why the self-decision rule covers three distinct roles (creator, current-round submitter, line contributor) rather than just "the approver is a contributor"** (the formulas app's own, narrower rule). The task's own explicit instruction named these three separately; a requisition's submitter is not necessarily its creator (a different store user can submit a draft someone else created) and is not necessarily a line contributor (submitting is not editing) - collapsing these into one check would have under-covered the stated rule.
+
+**Why the legacy-data migration can mark `contributor_provenance_complete=True` with confidence, rather than defaulting every pre-existing round to the fail-closed `False`.** `create_material_requisition`/`update_material_requisition` have unconditionally written one audit event for every create and every real change since this app's very first task (13A) - there has never been a code path that changes a line's `requested_quantity` without auditing it. The migration replays that trail and cross-checks its own reconstruction against each line's actual current value before trusting it; only a round whose audit trail does not fully explain its current state is left `False`. In practice, at migration time, zero `SUBMITTED` requisitions existed in the real dev database, so this logic had nothing to reconstruct - documented here for whenever it does.
+
+## Department order workflow (2026-10-05)
+
+- **Order-level planned manufacturing date** (`SalesOrder.planned_manufacturing_date`, nullable). Kept separate from `requested_delivery_date` and from the batch-specific `BatchPlan.planned_manufacturing_date`. Never synchronized. The frontend offers it as the default when a batch plan is created; this defaulting is a working choice requiring client review.
+- **Product type lookup** (`catalog.ProductType`, shared, maintained by active superusers through `/api/v1/product-types/`). Imported from the distinct non-blank `Product.product_type` values that existed at migration time, exactly as stored (`catalog.0004_import_product_types`). Variants are not merged automatically. The product master keeps its free-text field.
+- **Order-line type snapshot** (`SalesOrderLine.product_type_snapshot`). A value chosen on an order line is stored on that line and never edits the product master. Historical snapshots are not rewritten when a type is renamed.
+- **Store Manager text fields** (`StorePreparation.label_note`, `box_note`, max 255, blank allowed). Unstructured interim entries. Not used for stock, availability or readiness. Meaning still awaits client definition.
+- **MRP for printing** (`BatchPlan.mrp_for_printing`, Decimal(14,2), nullable, non-negative). Working value in the sales order's currency (reported as `mrp_currency_code`). No tax, invoice or stock effect. Currency choice is a working default requiring review.
+- **Printing status** (`BatchPlan.printing_status_note`, free text, max 255). No confirmed status catalog exists, so no lifecycle is implemented and nothing is triggered from it.
+- **New permission**: `batch_plans.printing_edit`, seeded at company scope and assigned to no role or user. Required for any create/update request containing `mrp_for_printing` or `printing_status_note`. Other existing codes are reused (`sales_orders.*`, `batch_plans.*`, `store_preparation.*`, `material_requisitions.*`).
+- **Business Admin** is not `is_superuser`. It is a company role built from explicit permissions. No account is assigned that role until the client/owner chooses one.
+- **Draft-order deletion** is out of scope for this change.
+
+## Draft sales order deletion (2026-10-05)
+
+- `DELETE /api/v1/companies/<id>/sales-orders/<order_id>/?expected_version=<n>` permanently deletes a DRAFT order with no batch plans. Requires `sales_orders.view` and `sales_orders.delete`. Confirmed orders are never deleted here. Stale versions return 409. The deletion and its `sales_order.deleted` audit record commit together.
+- `sales_orders.delete` is seeded at company scope and assigned to no role or user (`permissions.0029`). The Delete action in the Orders list appears only for users holding it. Assigning it to the business Admin role is part of the pending admin-account setup.
+
+## Customer deletion (2026-10-05)
+
+- `DELETE /api/v1/companies/<id>/customers/<customer_id>/?expected_version=<n>` permanently deletes a customer that nothing references. Requires `customers.view` and `customers.delete` (seeded to no role, `permissions.0030`). Customers with sales orders or quotations are refused with 400 and should be deactivated instead. Audited (`customer.deleted`) and atomic.
+- `customers.delete` was added to the DEMOA `ADMIN_DEMOA` role, which only Nishita holds.

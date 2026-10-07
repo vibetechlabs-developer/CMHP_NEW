@@ -1,0 +1,797 @@
+/* =========================================================
+   CMHP PHARMA ERP
+   PROFESSIONAL CUSTOMER SEARCH
+   ========================================================= */
+
+
+.customer-search-control {
+
+  position: relative;
+
+  width: 100%;
+
+  min-width: 0;
+
+}
+
+
+/* =========================================================
+   INPUT
+   ========================================================= */
+
+
+.customer-search-input {
+
+  width: 100%;
+
+  min-height: 42px;
+
+  padding:
+    9px
+    58px
+    9px
+    36px;
+
+  box-sizing: border-box;
+
+  color: #405b70;
+
+  background: #f9fcfe;
+
+  border: 1px solid #d7e4ec;
+
+  border-radius: 8px;
+
+  outline: none;
+
+  font-family: inherit;
+
+  font-size: 11px;
+
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+
+}
+
+
+.customer-search-input::placeholder {
+
+  color: #9aacba;
+
+}
+
+
+.customer-search-input:hover {
+
+  border-color: #bfd2de;
+
+}
+
+
+.customer-search-input:focus {
+
+  background: #fff;
+
+  border-color: #318bd1;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(49, 139, 209, 0.10);
+
+}
+
+
+.customer-search-input:disabled {
+
+  color: #8799a8;
+
+  background: #f1f5f8;
+
+  cursor: not-allowed;
+
+}
+
+
+/* =========================================================
+   SEARCH ICON
+   ========================================================= */
+
+
+.customer-search-leading-icon {
+
+  position: absolute;
+
+  left: 12px;
+
+  top: 50%;
+
+  z-index: 2;
+
+  transform:
+    translateY(-50%);
+
+  color: #6f8da2;
+
+  font-size: 11px;
+
+  pointer-events: none;
+
+}
+
+
+/* =========================================================
+   CHEVRON
+   ========================================================= */
+
+
+.customer-search-chevron {
+
+  position: absolute;
+
+  right: 12px;
+
+  top: 50%;
+
+  z-index: 2;
+
+  transform:
+    translateY(-50%);
+
+  color: #66859b;
+
+  font-size: 8px;
+
+  pointer-events: none;
+
+  transition:
+    transform 0.18s ease;
+
+}
+
+
+.customer-search-chevron.open {
+
+  transform:
+    translateY(-50%)
+    rotate(180deg);
+
+}
+
+
+/* =========================================================
+   CLEAR BUTTON
+   ========================================================= */
+
+
+.customer-search-clear {
+
+  position: absolute;
+
+  right: 28px;
+
+  top: 50%;
+
+  z-index: 3;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  width: 20px;
+
+  height: 20px;
+
+  padding: 0;
+
+  transform:
+    translateY(-50%);
+
+  color: #7890a1;
+
+  background: transparent;
+
+  border: 0;
+
+  border-radius: 50%;
+
+  cursor: pointer;
+
+  font-family: inherit;
+
+  font-size: 17px;
+
+  line-height: 1;
+
+}
+
+
+.customer-search-clear:hover {
+
+  color: #31536b;
+
+  background: #edf4f8;
+
+}
+
+
+.customer-search-clear:disabled {
+
+  cursor: not-allowed;
+
+  opacity: 0.5;
+
+}
+
+
+/* =========================================================
+   DROPDOWN
+   ========================================================= */
+
+
+.customer-search-dropdown {
+
+  position: fixed;
+
+  z-index: 100000;
+
+  overflow: hidden;
+
+  background: #ffffff;
+
+  border: 1px solid #d6e4ec;
+
+  border-radius: 11px;
+
+  box-shadow:
+    0 18px 45px
+    rgba(25, 70, 100, 0.18);
+
+  animation:
+    customer-dropdown-in
+    0.14s ease-out;
+
+}
+
+
+@keyframes customer-dropdown-in {
+
+  from {
+
+    opacity: 0;
+
+    transform:
+      translateY(-4px);
+
+  }
+
+  to {
+
+    opacity: 1;
+
+    transform:
+      translateY(0);
+
+  }
+
+}
+
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+
+.customer-search-header {
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 12px;
+
+  min-height: 38px;
+
+  padding:
+    8px
+    12px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #f1f8fc,
+      #fbfdff
+    );
+
+  border-bottom:
+    1px solid #e6eef3;
+
+  color: #557087;
+
+  font-size: 9px;
+
+  font-weight: 800;
+
+  text-transform: uppercase;
+
+  letter-spacing:
+    0.035em;
+
+}
+
+
+.customer-search-count {
+
+  color: #1478c9;
+
+  font-size: 8.5px;
+
+  font-weight: 750;
+
+}
+
+
+/* =========================================================
+   OPTIONS AREA
+   ========================================================= */
+
+
+.customer-search-options {
+
+  max-height: 285px;
+
+  overflow-y: auto;
+
+  overscroll-behavior:
+    contain;
+
+}
+
+
+.customer-search-options::-webkit-scrollbar {
+
+  width: 6px;
+
+}
+
+
+.customer-search-options::-webkit-scrollbar-track {
+
+  background: #f5f8fa;
+
+}
+
+
+.customer-search-options::-webkit-scrollbar-thumb {
+
+  background: #c6d8e3;
+
+  border-radius: 10px;
+
+}
+
+
+.customer-search-options::-webkit-scrollbar-thumb:hover {
+
+  background: #a9c1cf;
+
+}
+
+
+/* =========================================================
+   OPTION
+   ========================================================= */
+
+
+.customer-search-option {
+
+  position: relative;
+
+  display: flex;
+
+  align-items: center;
+
+  width: 100%;
+
+  min-height: 58px;
+
+  padding:
+    8px
+    36px
+    8px
+    12px;
+
+  gap: 10px;
+
+  box-sizing: border-box;
+
+  color: #405b70;
+
+  background: #fff;
+
+  border: 0;
+
+  border-bottom:
+    1px solid #eef3f6;
+
+  cursor: pointer;
+
+  text-align: left;
+
+  font-family: inherit;
+
+  transition:
+    background 0.13s ease,
+    transform 0.13s ease;
+
+}
+
+
+.customer-search-option:last-child {
+
+  border-bottom: 0;
+
+}
+
+
+.customer-search-option:hover,
+
+.customer-search-option.is-highlighted {
+
+  background: #eef7fd;
+
+}
+
+
+.customer-search-option.is-selected {
+
+  background: #f3f9fd;
+
+}
+
+
+.customer-search-option.is-highlighted
+.customer-option-name {
+
+  color: #1478c9;
+
+}
+
+
+/* =========================================================
+   CUSTOMER AVATAR
+   ========================================================= */
+
+
+.customer-avatar {
+
+  flex: 0 0 auto;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  width: 34px;
+
+  height: 34px;
+
+  color: #1478c9;
+
+  background:
+    linear-gradient(
+      135deg,
+      #e5f3fc,
+      #f2f9fd
+    );
+
+  border:
+    1px solid #cfe5f2;
+
+  border-radius: 9px;
+
+  font-size: 10px;
+
+  font-weight: 850;
+
+}
+
+
+/* =========================================================
+   CUSTOMER CONTENT
+   ========================================================= */
+
+
+.customer-option-content {
+
+  min-width: 0;
+
+  display: flex;
+
+  flex: 1;
+
+  flex-direction: column;
+
+  gap: 4px;
+
+}
+
+
+.customer-option-name {
+
+  overflow: hidden;
+
+  color: #294b65;
+
+  font-size: 11px;
+
+  font-weight: 800;
+
+  line-height: 1.25;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+
+}
+
+
+.customer-option-meta {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 7px;
+
+  overflow: hidden;
+
+  color: #8297a8;
+
+  font-size: 8.5px;
+
+  line-height: 1.25;
+
+}
+
+
+.customer-option-meta span {
+
+  overflow: hidden;
+
+  max-width: 160px;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+
+}
+
+
+.customer-option-meta span + span {
+
+  position: relative;
+
+  padding-left: 8px;
+
+}
+
+
+.customer-option-meta span + span::before {
+
+  content: '';
+
+  position: absolute;
+
+  left: 0;
+
+  top: 50%;
+
+  width: 3px;
+
+  height: 3px;
+
+  transform:
+    translateY(-50%);
+
+  background: #a8bac6;
+
+  border-radius: 50%;
+
+}
+
+
+/* =========================================================
+   SELECTED CHECK
+   ========================================================= */
+
+
+.customer-selected-check {
+
+  position: absolute;
+
+  right: 13px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  width: 18px;
+
+  height: 18px;
+
+  color: #ffffff;
+
+  background: #1478c9;
+
+  border-radius: 50%;
+
+  font-size: 10px;
+
+  font-weight: 900;
+
+}
+
+
+/* =========================================================
+   EMPTY STATE
+   ========================================================= */
+
+
+.customer-search-empty {
+
+  display: flex;
+
+  align-items: center;
+
+  flex-direction: column;
+
+  justify-content: center;
+
+  min-height: 145px;
+
+  padding: 20px;
+
+  color: #8297a8;
+
+  text-align: center;
+
+}
+
+
+.customer-empty-icon {
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  width: 38px;
+
+  height: 38px;
+
+  margin-bottom: 8px;
+
+  background: #f1f6f9;
+
+  border-radius: 50%;
+
+  font-size: 14px;
+
+}
+
+
+.customer-search-empty strong {
+
+  margin-bottom: 5px;
+
+  color: #557087;
+
+  font-size: 10px;
+
+}
+
+
+.customer-search-empty span {
+
+  max-width: 230px;
+
+  color: #9aacba;
+
+  font-size: 8.5px;
+
+  line-height: 1.45;
+
+}
+
+
+/* =========================================================
+   FOOTER
+   ========================================================= */
+
+
+.customer-search-footer {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  padding:
+    7px
+    11px;
+
+  color: #91a4b1;
+
+  background: #fafcfd;
+
+  border-top:
+    1px solid #edf2f5;
+
+  font-size: 8px;
+
+}
+
+
+.customer-search-footer span {
+
+  white-space: nowrap;
+
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+
+@media (max-width: 600px) {
+
+  .customer-search-footer {
+
+    display: none;
+
+  }
+
+
+  .customer-search-options {
+
+    max-height: 230px;
+
+  }
+
+
+  .customer-option-meta {
+
+    max-width: 190px;
+
+  }
+
+}
+
+/* Customer search field */
+.customer-search-field {
+  min-width: 0;
+  width: 100%;
+}
+
+.customer-search-field .customer-search-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.customer-search-field input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}

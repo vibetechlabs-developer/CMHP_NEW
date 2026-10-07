@@ -1,5 +1,5 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
@@ -8,9 +8,12 @@ from rest_framework import exceptions, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.catalog.models import Material, MaterialCategory, UnitOfMeasure
+from apps.audit.services import record
+from apps.catalog.models import Material, MaterialCategory, ProductType, UnitOfMeasure
 from apps.catalog.permissions import CanReadSharedCatalog
 from apps.catalog.serializers import (
+    ProductTypeSerializer,
+    ProductTypeWriteSerializer,
     MaterialCategoryCreateSerializer,
     MaterialCategorySerializer,
     MaterialCategoryUpdateSerializer,
@@ -355,3 +358,84 @@ class MaterialDeactivateView(APIView):
         material = get_object_or_404(Material, pk=material_id)
         material = deactivate_material(actor=request.user, material=material)
         return Response(MaterialSerializer(material).data)
+
+
+class ProductTypeListCreateView(generics.ListCreateAPIView):
+    """GET: active superuser or `shared_catalog.view` in an active store
+    (same rule as units). POST: active superuser only (configuration).
+    """
+
+    pagination_class = BoundedPageNumberPagination
+
+    def get_permissions(self):
+        return _read_write_permissions(self.request)
+
+    def get_serializer_class(self):
+        return ProductTypeWriteSerializer if self.request.method == "POST" else ProductTypeSerializer
+
+    def get_queryset(self):
+        queryset = ProductType.objects.all()
+        is_active_param = self.request.query_params.get("is_active")
+        if is_active_param is not None:
+            queryset = queryset.filter(is_active=parse_strict_bool(is_active_param))
+        return queryset
+
+    def create(self, request, *args, **kwargs):
+        serializer = ProductTypeWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        product_type = ProductType(name=serializer.validated_data["name"])
+        try:
+            product_type.clean()
+            with transaction.atomic():
+                product_type.save()
+                record(
+                    actor=request.user,
+                    action="product_type.created",
+                    target_type="product_type",
+                    target_id=product_type.id,
+                    after={"name": product_type.name, "is_active": product_type.is_active},
+                )
+        except DjangoValidationError as exc:
+            raise translate_django_validation_error(exc) from exc
+        except IntegrityError as exc:
+            raise exceptions.ValidationError({"name": "A product type with this name already exists."}) from exc
+        return Response(ProductTypeSerializer(product_type).data, status=201)
+
+
+@method_decorator(never_cache, name="dispatch")
+class ProductTypeDetailView(APIView):
+    """PATCH: active superuser only. Accepts `name` and `is_active`. Renaming a
+    type does not rewrite order-line snapshots, which keep the value they were
+    saved with.
+    """
+
+    permission_classes = [IsActiveSuperuser]
+
+    def patch(self, request, product_type_id):
+        product_type = get_object_or_404(ProductType, pk=product_type_id)
+        allowed = {"name", "is_active"}
+        unknown = sorted(set(request.data.keys()) - allowed)
+        if unknown:
+            raise exceptions.ValidationError({key: "This field cannot be set through this endpoint." for key in unknown})
+        before = {"name": product_type.name, "is_active": product_type.is_active}
+        if "name" in request.data:
+            product_type.name = str(request.data["name"]).strip()
+        if "is_active" in request.data:
+            product_type.is_active = parse_strict_bool(request.data["is_active"])
+        try:
+            product_type.clean()
+            with transaction.atomic():
+                product_type.save()
+                record(
+                    actor=request.user,
+                    action="product_type.updated",
+                    target_type="product_type",
+                    target_id=product_type.id,
+                    before=before,
+                    after={"name": product_type.name, "is_active": product_type.is_active},
+                )
+        except DjangoValidationError as exc:
+            raise translate_django_validation_error(exc) from exc
+        except IntegrityError as exc:
+            raise exceptions.ValidationError({"name": "A product type with this name already exists."}) from exc
+        return Response(ProductTypeSerializer(product_type).data)

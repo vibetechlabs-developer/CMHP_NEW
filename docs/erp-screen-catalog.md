@@ -1003,3 +1003,13 @@ anywhere in the frontend yet.
 - **Full pages backed by implemented APIs**: 44 (AUTH-01, NAV-01–03, ADM-01, ADM-03, ADM-05, ADM-07–09, ADM-11–12, CAT-01–04, SUP-01–02, PR-01–03, PO-01–03, GR-01–03, QC-01–03, SPEC-01–03, CUST-01, CUST-03, PROD-01, PROD-03, QUOT-01–03, SO-01–03, FRM-01, FRM-02, FRM-04, FRM-06 panel) plus SO-06 (Task 10F) and the SO-04 panel (Task 10E/10F) — corrected from the earlier count of 30, which had omitted CUST-01/CUST-03 (Task 10A); now also includes PROD-01/PROD-03 (Task 10B) QUOT-01–03 (Task 10C) SO-01–03 (Task 10D) and FRM-01–05 (Task 11A) Now also includes BATCH-01–04 (Task 12A), PREP-01 (Task 12C) and MREQ-01/MREQ-03 (Task 13A) — total **48**. Now also includes STK-01 (Task 13C) — total **49**.
 - **Modals/tabs/confirm dialogs backed by implemented APIs**: 26 (ADM-02, ADM-04, ADM-06, ADM-10, ADM-13–14, PR-04–05, PO-04–05, GR-04–07, QC-04–05, SPEC-04–05, CUST-02, CUST-04, PROD-02, PROD-04, FRM-03, FRM-05, SO-05) — corrected from the earlier count of 19, which had omitted CUST-02/CUST-04 (Task 10A); now also includes PROD-02/PROD-04 (Task 10B) Now also includes BATCH-05 (Task 12D) and MREQ-02 (Task 13A) — total **28**.
 - **Proposed screens for planned, unbuilt modules**: 16 (PLAN-01–16, with PLAN-05 narrowed to disposition/release only now that drafting is implemented)
+
+## Store & Materials (2026-10-06)
+
+| Screen | Route | Real data | Writes | Status |
+|---|---|---|---|---|
+| Materials (shared catalog) | `/inventory/materials` | yes (`/api/v1/materials/`) | create/edit/activate/deactivate and import: active superuser only (server) | Connected in code; browser pending |
+| Locations (store) | `/inventory/locations` | yes (`/api/v1/stores/<id>/locations/`) | none in this screen | Connected in code; browser pending |
+| Recorded Receipts | `/inventory/receipts` | yes (stock-movements, stock-balances) | none (read-only) | Connected in code; browser pending |
+
+Mock inventory screens (Overview, Stock & Lots, Issue / Return, Consumption Ledger) are removed from the sidebar. The old `features/inventory/Inventory.jsx` is no longer routed.

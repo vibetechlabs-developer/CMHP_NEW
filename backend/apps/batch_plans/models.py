@@ -64,6 +64,10 @@ class BatchPlan(models.Model):
     )
 
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
+    # Printing-department fields. MRP is a working value in the sales order currency
+    # (reported with the plan); no tax, invoice or stock effect.
+    mrp_for_printing = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    printing_status_note = models.CharField(max_length=255, blank=True, default="")
     version = models.PositiveIntegerField(default=1)
 
     created_by = models.ForeignKey(

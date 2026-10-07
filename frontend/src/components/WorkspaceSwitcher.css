@@ -1,0 +1,606 @@
+/* =========================================================
+   CMHP PHARMA ERP
+   WORKSPACE SWITCHER
+   Light Pharmaceutical Enterprise Theme
+   ========================================================= */
+
+.workspace-switcher {
+  position: relative;
+
+  display: inline-flex;
+
+  align-items: center;
+
+  flex: 0 0 auto;
+
+  z-index: 220;
+}
+
+
+/* =========================================================
+   TRIGGER
+   ========================================================= */
+
+.workspace-trigger {
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 7px;
+
+  min-width: 155px;
+
+  max-width: 190px;
+
+  min-height: 39px;
+
+  padding: 5px 9px 5px 6px;
+
+  color: #315a73;
+
+  background:
+    linear-gradient(
+      135deg,
+      #ffffff 0%,
+      #f7fbfe 100%
+    );
+
+  border: 1px solid #d8e6ee;
+
+  border-radius: 11px;
+
+  box-shadow:
+    0 5px 16px
+    rgba(25, 78, 111, 0.06);
+
+  cursor: pointer;
+
+  text-align: left;
+
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease,
+    background 0.18s ease;
+}
+
+
+.workspace-trigger:hover,
+.workspace-trigger.is-open {
+  border-color: #acd1e5;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 8px 22px
+    rgba(20, 120, 201, 0.11);
+}
+
+
+.workspace-trigger.is-open {
+  transform: translateY(-1px);
+}
+
+
+/* =========================================================
+   TRIGGER ICON
+   ========================================================= */
+
+.workspace-trigger-icon {
+  display: inline-flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  flex: 0 0 28px;
+
+  width: 28px;
+
+  height: 28px;
+
+  color: #1478c9;
+
+  background: #eaf5fc;
+
+  border: 1px solid #d7eaf6;
+
+  border-radius: 8px;
+}
+
+
+/* =========================================================
+   TRIGGER TEXT
+   ========================================================= */
+
+.workspace-trigger-copy {
+  display: flex;
+
+  flex-direction: column;
+
+  min-width: 0;
+
+  flex: 1;
+
+  gap: 2px;
+}
+
+
+.workspace-trigger-label {
+  display: block;
+
+  color: #8aa0af;
+
+  font-size: 7px;
+
+  line-height: 1;
+
+  font-weight: 800;
+
+  letter-spacing: 0.75px;
+
+  text-transform: uppercase;
+}
+
+
+.workspace-trigger-value {
+  display: block;
+
+  overflow: hidden;
+
+  color: #173f5b;
+
+  font-size: 10.5px;
+
+  line-height: 1.25;
+
+  font-weight: 800;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+   CHEVRON
+   ========================================================= */
+
+.workspace-chevron {
+  flex: 0 0 auto;
+
+  color: #7591a2;
+
+  transition:
+    transform 0.18s ease;
+}
+
+
+.workspace-trigger.is-open
+.workspace-chevron {
+  transform: rotate(180deg);
+}
+
+
+/* =========================================================
+   DROPDOWN
+   ========================================================= */
+
+.workspace-menu {
+  position: absolute;
+
+  top: calc(100% + 9px);
+
+  right: 0;
+
+  width: 300px;
+
+  padding: 9px;
+
+  overflow: hidden;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.99),
+      rgba(248, 252, 254, 0.99)
+    );
+
+  border: 1px solid #d6e5ed;
+
+  border-radius: 16px;
+
+  box-shadow:
+    0 22px 55px
+    rgba(24, 72, 102, 0.16),
+    0 5px 15px
+    rgba(24, 72, 102, 0.07);
+
+  animation:
+    workspaceMenuIn
+    0.16s ease-out;
+}
+
+
+/* Decorative circle */
+
+.workspace-menu::before {
+  content: "";
+
+  position: absolute;
+
+  top: -45px;
+
+  right: -35px;
+
+  width: 120px;
+
+  height: 120px;
+
+  pointer-events: none;
+
+  background:
+    rgba(23, 169, 159, 0.08);
+
+  border-radius: 50%;
+}
+
+
+/* =========================================================
+   MENU HEADER
+   ========================================================= */
+
+.workspace-menu-head {
+  position: relative;
+
+  padding: 8px 9px 10px;
+
+  border-bottom:
+    1px solid #edf2f5;
+}
+
+
+.workspace-menu-kicker {
+  display: block;
+
+  color: #173f5b;
+
+  font-size: 13px;
+
+  line-height: 1.2;
+
+  font-weight: 850;
+}
+
+
+.workspace-menu-subtitle {
+  display: block;
+
+  margin-top: 4px;
+
+  color: #8a9eac;
+
+  font-size: 9px;
+
+  line-height: 1.45;
+}
+
+
+/* =========================================================
+   OPTIONS
+   ========================================================= */
+
+.workspace-options {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 4px;
+
+  padding: 7px 0;
+}
+
+
+.workspace-option {
+  position: relative;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  width: 100%;
+
+  min-height: 62px;
+
+  padding: 8px 9px;
+
+  color: #466276;
+
+  background: transparent;
+
+  border: 1px solid transparent;
+
+  border-radius: 11px;
+
+  cursor: pointer;
+
+  text-align: left;
+
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    transform 0.16s ease;
+}
+
+
+.workspace-option:hover {
+  background: #f2f8fc;
+
+  border-color: #e0edf4;
+
+  transform: translateX(2px);
+}
+
+
+.workspace-option.selected {
+  background:
+    linear-gradient(
+      100deg,
+      #eaf6fc 0%,
+      #f5fbfd 100%
+    );
+
+  border-color: #cfe5f1;
+}
+
+
+/* =========================================================
+   OPTION ICON
+   ========================================================= */
+
+.workspace-option-icon {
+  display: inline-flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  flex: 0 0 36px;
+
+  width: 36px;
+
+  height: 36px;
+
+  color: #1478c9;
+
+  background: #ffffff;
+
+  border: 1px solid #dceaf1;
+
+  border-radius: 10px;
+
+  box-shadow:
+    0 3px 8px
+    rgba(31, 83, 112, 0.05);
+}
+
+
+.workspace-option-icon.common {
+  color: #159b72;
+
+  background: #effaf6;
+
+  border-color: #d4eee4;
+}
+
+
+/* =========================================================
+   OPTION TEXT
+   ========================================================= */
+
+.workspace-option-copy {
+  display: flex;
+
+  flex-direction: column;
+
+  min-width: 0;
+
+  flex: 1;
+
+  gap: 3px;
+}
+
+
+.workspace-option-title {
+  color: #1d4964;
+
+  font-size: 11.5px;
+
+  line-height: 1.25;
+
+  font-weight: 800;
+}
+
+
+.workspace-option-description {
+  overflow: hidden;
+
+  color: #91a2ae;
+
+  font-size: 8.5px;
+
+  line-height: 1.35;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+   ACTIVE CHECK
+   ========================================================= */
+
+.workspace-check {
+  display: inline-flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  flex: 0 0 22px;
+
+  width: 22px;
+
+  height: 22px;
+
+  color: transparent;
+
+  background: transparent;
+
+  border-radius: 50%;
+
+  font-size: 11px;
+
+  font-weight: 900;
+}
+
+
+.workspace-check.visible {
+  color: #ffffff;
+
+  background: #159b72;
+
+  box-shadow:
+    0 4px 10px
+    rgba(21, 155, 114, 0.2);
+}
+
+
+/* =========================================================
+   FOOTER
+   ========================================================= */
+
+.workspace-menu-footer {
+  display: flex;
+
+  align-items: center;
+
+  gap: 6px;
+
+  padding: 8px 9px 5px;
+
+  color: #96a8b4;
+
+  border-top:
+    1px solid #edf2f5;
+
+  font-size: 8px;
+
+  line-height: 1.3;
+}
+
+
+.workspace-secure-dot {
+  width: 6px;
+
+  height: 6px;
+
+  flex: 0 0 6px;
+
+  background: #17a99f;
+
+  border-radius: 50%;
+
+  box-shadow:
+    0 0 0 3px #e9f8f6;
+}
+
+
+/* =========================================================
+   ANIMATION
+   ========================================================= */
+
+@keyframes workspaceMenuIn {
+
+  from {
+    opacity: 0;
+
+    transform:
+      translateY(-5px)
+      scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+
+    transform:
+      translateY(0)
+      scale(1);
+  }
+
+}
+
+
+/* =========================================================
+   TABLET
+   ========================================================= */
+
+@media (max-width: 1050px) {
+
+  .workspace-trigger {
+    min-width: 42px;
+
+    width: 42px;
+
+    padding: 5px;
+
+    justify-content: center;
+  }
+
+
+  .workspace-trigger-copy {
+    display: none;
+  }
+
+
+  .workspace-chevron {
+    display: none;
+  }
+
+
+  .workspace-trigger-icon {
+    margin: 0;
+  }
+
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 700px) {
+
+  .workspace-switcher {
+    display: none;
+  }
+
+
+  .workspace-menu {
+    position: fixed;
+
+    top: 66px;
+
+    right: 12px;
+
+    left: 12px;
+
+    width: auto;
+
+    max-width: none;
+  }
+
+}

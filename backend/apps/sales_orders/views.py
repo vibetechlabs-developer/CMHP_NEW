@@ -31,8 +31,10 @@ from apps.sales_orders.models import SalesOrderConfirmationPolicy
 from apps.sales_orders.preview import build_confirmation_preview
 from apps.sales_orders.services import (
     SALES_ORDERS_CONFIRM,
+    SALES_ORDERS_DELETE,
     confirm_sales_order,
     create_sales_order,
+    delete_sales_order,
     update_confirmation_policy,
     update_sales_order,
 )
@@ -141,6 +143,24 @@ class SalesOrderDetailView(APIView):
         company = _get_company_for_action(request, company_id, SALES_ORDERS_VIEW)
         sales_order = get_object_or_404(_sales_order_queryset(), pk=sales_order_id, company=company)
         return Response(SalesOrderSerializer(sales_order).data)
+
+    def delete(self, request, company_id, sales_order_id):
+        """DRAFT orders with no batch plans only. `expected_version` is a required
+        query parameter. Requires sales_orders.view and sales_orders.delete.
+        """
+        company = _get_company_for_action(request, company_id, SALES_ORDERS_VIEW, SALES_ORDERS_DELETE)
+        raw = request.query_params.get("expected_version")
+        try:
+            expected_version = int(raw)
+        except (TypeError, ValueError):
+            raise exceptions.ValidationError({"expected_version": "Required integer query parameter."})
+        try:
+            delete_sales_order(
+                actor=request.user, company=company, sales_order_id=sales_order_id, expected_version=expected_version
+            )
+        except DjangoValidationError as exc:
+            raise translate_django_validation_error(exc) from exc
+        return Response(status=204)
 
     def patch(self, request, company_id, sales_order_id):
         company = _get_company_for_action(request, company_id, SALES_ORDERS_VIEW, SALES_ORDERS_EDIT)

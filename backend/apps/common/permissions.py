@@ -17,5 +17,12 @@ class IsActiveSuperuser(BasePermission):
     message = "You must be an active superuser to perform this action."
 
     def has_permission(self, request, view):
-        user = request.user
-        return bool(user and user.is_authenticated and user.is_active and user.is_superuser)
+        return is_active_superuser(request.user)
+
+
+def is_active_superuser(user):
+    """The single rule behind IsActiveSuperuser. The current-user response's
+    `capabilities.can_manage_material_catalog` uses this same function, so the UI
+    flag can never disagree with the server's write check.
+    """
+    return bool(user and user.is_authenticated and user.is_active and user.is_superuser)

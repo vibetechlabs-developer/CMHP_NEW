@@ -10,6 +10,7 @@ urlpatterns = [
     path("api/v1/auth/", include("apps.authentication.urls")),
     path("api/v1/companies/", include("apps.batch_plans.urls")),
     path("api/v1/companies/", include("apps.batch_register.urls")),
+    path("api/v1/companies/", include("apps.bmr.urls")),
     path("api/v1/companies/", include("apps.companies.urls")),
     path("api/v1/companies/", include("apps.customers.urls")),
     path("api/v1/companies/", include("apps.formula_imports.urls")),

@@ -5553,3 +5553,41 @@ api-handoff.md` §21.1/§21.2/§21.2a and the API dashboard's `batch_register` o
 changed, only response-shape documentation). See `docs/backend-decisions.md`, Task 15B.2 for the full
 reasoning behind removing the coverage exception rather than patching it, and for why `is_incompatible`
 remains ungated.
+
+## Task 15C — Material Requisition Approval and Revision
+
+**Status note (added during the frontend sales-order integration task, 2026-10-01): this entry was written
+retroactively.** Task 15C's code was implemented and fully tested in an earlier turn of this same session, but
+the documentation pass was never completed before a separate frontend integration task began - this is that
+missed documentation, written from direct inspection of the actual current code (routes/serializers/services/
+permissions/migrations), not from memory of having planned it.
+
+**What exists, confirmed by inspection today:** extends `MaterialRequisition.Status` with `APPROVED`/
+`REJECTED` (`DRAFT -> SUBMITTED -> APPROVED` / `-> REJECTED -> DRAFT -> SUBMITTED`). Three new store-scoped
+actions under the existing requisition detail URL:
+
+| Method | Path | Required permissions |
+|---|---|---|
+| POST | `/stores/<store_id>/material-requisitions/<id>/approve/` | `material_requisitions.view` + `.approve` (store) + `batch_plans.view` + `formulas.view` (company) |
+| POST | `/stores/<store_id>/material-requisitions/<id>/reject/` | Same as approve - **"Approve and reject require view + approve"**, the task's own explicit instruction; there is no separate `.reject` permission |
+| POST | `/stores/<store_id>/material-requisitions/<id>/revise/` | `material_requisitions.view` + `.edit` + `.revise` (store) + the same dual company check - revising reopens editable data, so `.edit` is additionally required, unlike approve/reject/submit which each stand alone |
+
+New request serializers: `MaterialRequisitionApproveSerializer` (`expected_version` only), `MaterialRequisitionRejectSerializer` (`expected_version` + required non-blank `rejection_reason`), `MaterialRequisitionReviseSerializer` (`expected_version` + optional `refresh_from_source`/`expected_batch_plan_version`, required together only when the source has actually drifted). New services in `apps/material_requisitions/services.py`: `approve_material_requisition`, `reject_material_requisition`, `revise_material_requisition`, plus the shared eligibility gate `_reject_if_self_or_unprovable` (creator/submitter/contributor self-decision ban, fail-closed on incomplete legacy contributor provenance).
+
+**New history structure**: `MaterialRequisitionRound` (one row per submission, folds the single decision directly onto the round - no separate per-step decision table, since this workflow has exactly one approval step, unlike `apps.purchasing`'s three-step round) and `MaterialRequisitionRoundLine` (permanent per-round line snapshot, including `requested_quantity_contributor` provenance). Contributor tracking lives on `MaterialRequisitionLine.requested_quantity_contributor`/`_contributed_at`, updated only on a genuine value change (never a no-op or remark-only edit).
+
+**New permissions** (migration `apps/permissions/migrations/0027_seed_material_requisitions_approve_revise_permissions.py`): `material_requisitions.approve`, `material_requisitions.revise` - both STORE scope, seeded idempotently, assigned to no role/user by the migration itself (matches every other permission-seeding migration in this project).
+
+**Migrations applied to the real dev database** (confirmed today, re-checking actual effect rather than assuming it from an earlier description): `material_requisitions.0003` (schema, purely additive) and `0004` (data backfill - reconstructs `current_round`/`MaterialRequisitionRound` history for any pre-existing `SUBMITTED` requisition from this app's own complete audit trail, honestly marking `contributor_provenance_complete=False` wherever reconstruction cannot be proven reliable, never fabricating a contributor). At application time the real dev database held exactly **one** pre-existing requisition, status `DRAFT` - the backfill migration therefore created zero `MaterialRequisitionRound` rows and changed no existing data beyond confirming `current_round` stayed at its default `0`. `permissions.0027` seeded the two new permission codes, assigned to nobody.
+
+**Test evidence (current, not historical):** `tests/test_material_requisitions.py` - **87 tests, OK, Python exit code 0**, confirmed by a fresh run today, 2026-10-01 (~380s). This is the full file (Tasks 13A/15A/15B's own requisition tests plus 15C's new `ApproveRejectTests`/`ReviseTests` classes and extended `ConcurrencyTests`), not a partial or cumulative count. `manage.py check` and `makemigrations --check --dry-run` both clean against the current model state. `tests/test_batch_register.py` (39 tests) was also re-run today as a shared-surface regression check, since `apps.batch_register` reads `MaterialRequisition.status`/the new round data indirectly - still 39/39, OK, exit 0 (`apps.batch_register` needed no code change; it already read `.status` generically, with no hardcoded status enum).
+
+**Deliberately not done in Task 15C** (unchanged scope boundary, restated here since it was never written down before): no cancel, unapprove, issue, fulfil, stock reservation, or automatic production action; no multi-step approval chain (the task's own explicit "one approval step... not client-validated" framing); no new business status beyond `APPROVED`/`REJECTED`. See the model's own docstring in `apps/material_requisitions/models.py` for the full, already-written design rationale this entry is documenting the existence of, not repeating.
+
+## Department order workflow — delivered (2026-10-05)
+
+- Schema: `sales_orders.0003`, `store_preparation.0002`, `batch_plans.0004`, `catalog.0003`, data `catalog.0004`, seed `permissions.0028`. All additive; existing rows keep null/blank.
+- API: sales-order create/update/detail carry `planned_manufacturing_date` and line `product_type_snapshot`; store preparation carries `label_note`/`box_note`; batch plan carries `mrp_for_printing`/`printing_status_note`/`mrp_currency_code`; new `/api/v1/product-types/` (list/create, PATCH detail).
+- Tests: `tests/test_department_workflow.py` (14 tests). Affected existing modules re-run: batch plans, sales orders, store preparation, catalog, batch-number allocation, store permissions.
+- Known pre-existing failure: `tests.test_store_permissions` scope-filter tests compare one page (default size 20) against the full COMPANY-scope set (39 rows). Not caused by this change.
+- Not done in this pass: draft-order delete; requisition submit/approve/reject/revise UI; batch register display of the new fields; Postman collection and API dashboard regeneration; browser verification.

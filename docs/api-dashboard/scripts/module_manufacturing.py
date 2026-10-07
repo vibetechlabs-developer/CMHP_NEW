@@ -73,7 +73,7 @@ op("formulas", "PATCH", "/api/v1/companies/<company_id>/formulas/<formula_id>/re
    "DRAFT only (400 once APPROVED — permanently read-only afterward). lines, when present (even []), is the complete final collection — id updates, no-id creates, missing lines removed. Changing base_output_quantity never rescales existing lines. output_uom is always immutable here.",
    path_params=[{"name": "company_id", "type": "int"}, {"name": "formula_id", "type": "int"}, {"name": "revision_id", "type": "int"}],
    request_fields=[{"name": "expected_version", "required": True}, {"name": "base_output_quantity", "required": False},
-                    {"name": "lines", "required": False, "notes": "Full replace when present. material_type/unit_id/line_number never accepted — all derived from the material."}],
+                    {"name": "lines", "required": False, "notes": "Full replace when present. material_type/unit_id/line_number never accepted — all derived from the material. Each line may carry label_claim, ar_no and special_value (free text, optional, not used in any calculation)."}],
    request_example={"expected_version": 1, "base_output_quantity": "100", "lines": [{"id": 31, "material_id": 7, "quantity": "5.500"}, {"material_id": 8, "quantity": "100"}]},
    response_example={"id": 12, "version": 2, "line_count": 2},
    errors=STD_ERRORS_MUTATE + [{"status": 400, "condition": "Revision is APPROVED — permanently read-only."}],
@@ -178,7 +178,7 @@ op("batch_plans", "GET", "/api/v1/companies/<company_id>/batch-plans/", "List ba
    errors=STD_ERRORS_RW, source_files=["apps/batch_plans/views.py"])
 
 op("batch_plans", "POST", "/api/v1/companies/<company_id>/batch-plans/", "Create a planning draft", "company",
-   ["batch_plans.view", "batch_plans.create", "sales_orders.view", "formulas.view"], "BATCH-02", "no (new resource; server assigns version=1)",
+   ["batch_plans.view", "batch_plans.create", "sales_orders.view"], "BATCH-02", "no (new resource; server assigns version=1)",
    "Pins an explicit sales-order line + an already-APPROVED formula revision (must match the line's product and sales unit exactly, by id). Nothing is defaulted — the user must explicitly pick both. List/detail never expose the formula's own recipe lines.",
    path_params=[{"name": "company_id", "type": "int"}],
    request_fields=[{"name": "sales_order_line_id", "required": True, "immutable": True}, {"name": "formula_revision_id", "required": True, "immutable": True, "notes": "Must be APPROVED and match the line's product/unit exactly."},
@@ -247,15 +247,15 @@ op("store_preparation", "GET", "/api/v1/stores/<store_id>/preparations/", "List 
    errors=STD_ERRORS_RW, source_files=["apps/store_preparation/views.py"])
 
 op("store_preparation", "POST", "/api/v1/stores/<store_id>/preparations/", "Create a store preparation record", "store + company",
-   ["store_preparation.view", "store_preparation.create (store)", "batch_plans.view (plan's own company)"], "PREP-01", "no (new resource; server assigns version=1)",
-   "Creates the confirmed preparation info for an existing planning draft. batch_plan_id is required, explicit, never auto-selected or inferred from a GET. store_id is never accepted in the body — always from the URL. Response never includes formula lines, recipe quantities or prices.",
+   ["store_preparation.view (store)", "store_preparation.create (store)", "sales_orders.view (order line's company) for order-line rows", "batch_plans.view (plan's company) for legacy batch rows"], "PREP-01", "no (new resource; server assigns version=1)",
+   "Creates store preparation for EXACTLY ONE owner: sales_order_line_id (confirmed workflow: saved before any batch plan exists) or the legacy batch_plan_id. store_id always comes from the URL. Response never includes formula lines, recipe quantities or prices. One order-line preparation per store and line (409 on duplicate).",
    path_params=[{"name": "store_id", "type": "int"}],
-   request_fields=[{"name": "batch_plan_id", "required": True, "immutable": True}, {"name": "packing_type", "required": False, "notes": "Free text, e.g. '25 Gm G2' — no fixed choice list."},
+   request_fields=[{"name": "sales_order_line_id", "required": False, "immutable": True, "notes": "Give exactly one of sales_order_line_id or batch_plan_id."}, {"name": "batch_plan_id", "required": False, "immutable": True, "notes": "Legacy batch-specific rows only."}, {"name": "packing_type", "required": False, "notes": "Free text, e.g. '25 Gm G2' — no fixed choice list."},
                     {"name": "insert_required", "required": False, "notes": "true/false/omit for 'not specified'."}],
-   request_example={"batch_plan_id": 60, "packing_type": "25 Gm G2", "insert_required": True},
+   request_example={"sales_order_line_id": 31, "packing_type": "25 Gm G2", "insert_required": True},
    response_example={"id": 8, "batch_plan_id": 60, "packing_type": "25 Gm G2", "insert_required": True, "version": 1,
                       "plan_context": {"planning_id": 60, "order_reference": "SO-20260924-3F9A1C22BE", "product_code": "PROD-001"}},
-   response_status=201, errors=STD_ERRORS_RW + [{"status": 409, "condition": "A preparation for this plan already exists — one per plan."}],
+   response_status=201, errors=STD_ERRORS_RW + [{"status": 409, "condition": "A preparation for this store and order line (or this batch plan, for legacy rows) already exists."}],
    frontend_usage="Start Here step 10 (create/update store preparation).",
    source_files=["apps/store_preparation/views.py", "apps/store_preparation/serializers.py"])
 
@@ -291,6 +291,15 @@ op("material_requisitions", "GET", "/api/v1/stores/<store_id>/material-requisiti
    query_params=[{"name": "batch_plan", "type": "int", "notes": "Filter to one source plan's requisition."}],
    response_example={"count": 1, "next": None, "previous": None, "results": [{"id": 12, "batch_plan_id": 60, "status": "DRAFT", "formula_code_snapshot": "F-001", "target_output_quantity_snapshot": "50.000", "version": 1}]},
    errors=STD_ERRORS_RW, source_files=["apps/material_requisitions/views.py"])
+
+op("material_requisitions", "GET", "/api/v1/stores/<store_id>/batch-plans/<plan_id>/requisition-status/", "Read requisition status for a batch plan (status only)", "store + company",
+   ["store_preparation.view (store)", "batch_plans.view (company)"], "MREQ-03", "not applicable",
+   "Returns only the workflow status of this plan's requisition in THIS active store. state is present (status and status_label included) or unavailable. unavailable is returned identically for an absent requisition, one held in another store, and one held in a deactivated store, so existence is never disclosed. No lines, quantities, material, formula, actors or approval history. formulas.view is not required. Read-only. Refusals: non-member store 404; missing store_preparation.view 403; missing company batch_plans.view 404.",
+   path_params=[{"name": "store_id", "type": "int"}, {"name": "plan_id", "type": "int"}],
+   response_example={"batch_plan_id": 60, "state": "present", "status": "DRAFT", "status_label": "Draft"},
+   # Unavailable example (absent, other-store and deactivated-store records share this body):
+   # {"batch_plan_id": 60, "state": "unavailable"}
+   errors=STD_ERRORS_RW, source_files=["apps/material_requisitions/views.py", "apps/material_requisitions/urls.py"])
 
 op("material_requisitions", "POST", "/api/v1/stores/<store_id>/material-requisitions/", "Create a material requisition", "store + company",
    ["material_requisitions.view", "material_requisitions.create (store)", "batch_plans.view (company)", "formulas.view (company)"], "MREQ-02", "no (new resource; see expected_batch_plan_version below)",
@@ -350,6 +359,54 @@ op("material_requisitions", "POST", "/api/v1/stores/<store_id>/material-requisit
    ],
    side_effects="Every header/line edit (PATCH) is rejected (400) once SUBMITTED, forever — there is no reopen/amend action. A later BatchPlan change remains visible via source_drift on a GET, never rewriting this requisition's own frozen snapshots. Creates no StockMovement, BatchNumberAllocation, or BatchPlan status change.",
    notes="SUBMITTED is explicitly NOT 'approved', 'ready to issue', or 'fulfilled', and is NOT automatically the client's own Excel 'Requisition Status' column — that mapping is still unconfirmed. See docs/backend-decisions.md, Task 15A.",
+   source_files=["apps/material_requisitions/views.py", "apps/material_requisitions/services.py"])
+
+op("material_requisitions", "POST", "/api/v1/stores/<store_id>/material-requisitions/<requisition_id>/approve/", "Approve a material requisition", "store + company",
+   ["material_requisitions.view", "material_requisitions.approve (store)", "batch_plans.view (company)", "formulas.view (company)"], "not applicable (backend only; no frontend screen built yet)", "yes (an already-APPROVED requisition at its current version is an idempotent no-op, preserving the original decided_by/decided_at)",
+   "Task 15C: SUBMITTED -> APPROVED, the one approval step this working flow defines (accepted by the project lead, not yet client-validated; deliberately not apps.purchasing's three-step engine). A recorded decision only — does NOT reserve stock, issue materials, authorize production, or release anything from QC. Blocked (400) if the actor is the requisition's own creator, the current round's submitter, or made a substantive requested_quantity change currently reflected on any line (carried-forward-unchanged values keep their original author) — no exception, including for superusers. Blocked for EVERY actor if the round's contributor history cannot be proven complete (legacy data only). Re-validates, under lock: frozen submitted quantities/explanations, source formula still APPROVED, referenced materials/units still active, and no quantity-affecting source drift (the same checks submission itself ran).",
+   path_params=[{"name": "store_id", "type": "int"}, {"name": "requisition_id", "type": "int"}],
+   request_fields=[{"name": "expected_version", "required": True}],
+   request_example={"expected_version": 2},
+   response_example={"id": 12, "status": "APPROVED", "version": 3, "current_round": 1, "current_decision": {"round_number": 1, "outcome": "APPROVED", "decided_by_id": 11, "decided_at": "2026-10-01T10:00:00Z"}},
+   errors=STD_ERRORS_MUTATE + [
+       {"status": 400, "condition": "Not SUBMITTED; self-decision (creator/submitter/contributor); incomplete contributor provenance; quantity-affecting source drift; formula revision no longer APPROVED; or a referenced material/unit no longer active."},
+   ],
+   side_effects="Creates no StockMovement, BatchNumberAllocation, or BatchPlan status change. source_drift on a later GET stays fully independent of this decision — never silently revokes or rewrites it; a future issue action, if built, must perform its own current validation.",
+   notes="Approval is historical, not a trust-forever stamp — see docs/frontend-api-handoff.md §18.11. See docs/backend-decisions.md, Task 15C.",
+   source_files=["apps/material_requisitions/views.py", "apps/material_requisitions/services.py"])
+
+op("material_requisitions", "POST", "/api/v1/stores/<store_id>/material-requisitions/<requisition_id>/reject/", "Reject a material requisition", "store + company",
+   ["material_requisitions.view", "material_requisitions.approve (store)", "batch_plans.view (company)", "formulas.view (company)"], "not applicable (backend only; no frontend screen built yet)", "yes (same version/reason repeated against an already-REJECTED requisition is an idempotent no-op; a DIFFERENT reason at that version is 409, never silently applied)",
+   "Task 15C: SUBMITTED -> REJECTED, always with a non-blank rejection_reason. Same permission as approve (there is no separate .reject code) and the identical self-decision ban. Deliberately does NOT re-check source drift — unlike approve, a drift that would block approval never blocks rejection, since rejection's whole purpose is to send the request back for correction.",
+   path_params=[{"name": "store_id", "type": "int"}, {"name": "requisition_id", "type": "int"}],
+   request_fields=[{"name": "expected_version", "required": True}, {"name": "rejection_reason", "required": True, "notes": "Non-blank."}],
+   request_example={"expected_version": 2, "rejection_reason": "Quantities look wrong on the raw line"},
+   response_example={"id": 12, "status": "REJECTED", "version": 3, "current_round": 1, "current_decision": {"round_number": 1, "outcome": "REJECTED", "rejection_reason": "Quantities look wrong on the raw line", "decided_by_id": 11, "decided_at": "2026-10-01T10:00:00Z"}},
+   errors=STD_ERRORS_MUTATE + [
+       {"status": 400, "condition": "Blank rejection_reason; not SUBMITTED; self-decision (creator/submitter/contributor); or incomplete contributor provenance."},
+       {"status": 409, "condition": "Stale expected_version; or already REJECTED with a DIFFERENT reason than the one supplied."},
+   ],
+   side_effects="Creates no StockMovement or BatchPlan status change. The round this closes is permanently preserved (outcome + reason), never overwritten by a later revise/resubmit.",
+   notes="See docs/backend-decisions.md, Task 15C.",
+   source_files=["apps/material_requisitions/views.py", "apps/material_requisitions/services.py"])
+
+op("material_requisitions", "POST", "/api/v1/stores/<store_id>/material-requisitions/<requisition_id>/revise/", "Revise a rejected material requisition back to draft", "store + company",
+   ["material_requisitions.view", "material_requisitions.edit (store)", "material_requisitions.revise (store)", "batch_plans.view (company)", "formulas.view (company)"], "not applicable (backend only; no frontend screen built yet)", "yes (a DRAFT reached via a genuine prior revise, repeated at its current version, is an idempotent no-op — a never-submitted DRAFT is 400, 'nothing to revise')",
+   "Task 15C: REJECTED -> DRAFT, the only way back. Reopens editable data, so .edit is additionally required (unlike approve/reject/submit, which each stand alone). Two paths: (1) no quantity-affecting source drift — a plain reopen, every line/contributor carries forward completely unchanged; (2) drift exists — requires refresh_from_source=true AND the CURRENT expected_batch_plan_version (proof the reviewer has seen the current state), then rebuilds every line from the source using the exact same calculator create_material_requisition uses, clearing any manual override/remark and never silently rounding an unresolved result. Every prior round's own submission and decision is permanently preserved either way — resubmitting starts a NEW round; the old rejection is never overwritten.",
+   path_params=[{"name": "store_id", "type": "int"}, {"name": "requisition_id", "type": "int"}],
+   request_fields=[
+       {"name": "expected_version", "required": True},
+       {"name": "refresh_from_source", "required": False, "notes": "Default false. Required true when quantity-affecting source drift exists."},
+       {"name": "expected_batch_plan_version", "required": False, "notes": "Required, and must equal the BatchPlan's CURRENT version, only when refresh_from_source is used for actual drift."},
+   ],
+   request_example={"expected_version": 4},
+   response_example={"id": 12, "status": "DRAFT", "version": 5, "current_round": 1},
+   errors=STD_ERRORS_MUTATE + [
+       {"status": 400, "condition": "Not REJECTED (and not an idempotent DRAFT-via-prior-revise repeat); quantity-affecting drift exists but refresh_from_source was not set true."},
+       {"status": 409, "condition": "Stale expected_version; or expected_batch_plan_version does not match the plan's current version."},
+   ],
+   side_effects="Does not itself touch notes/lines when no refresh is needed (use the existing PATCH endpoint afterwards). current_round is left untouched — the next submit increments it regardless of its current value.",
+   notes="See docs/frontend-api-handoff.md §18.10 and docs/backend-decisions.md, Task 15C.",
    source_files=["apps/material_requisitions/views.py", "apps/material_requisitions/services.py"])
 
 # ===========================================================================
@@ -486,3 +543,48 @@ op("common", "GET", "/api/v1/health/", "Liveness check", "public",
    auth="None — public endpoint.", headers="None required.",
    response_example={"status": "ok"}, errors=[],
    source_files=["apps/common/views.py"])
+
+op("batch_plans", "GET", "/api/v1/companies/<company_id>/batch-plans/planning-units/", "Units for batch planning pickers", "company",
+   ["batch_plans.view"], "BATCH-06", "not applicable",
+   "Active units only, for the packing-content and batch-size pickers. Deliberately not gated by shared_catalog.view or any catalog administration permission.",
+   path_params=[{"name": "company_id", "type": "int"}],
+   response_example={"results": [{"id": 1, "code": "BTL", "name": "Bottle", "dimension": "COUNT"}]},
+   errors=STD_ERRORS_RW, source_files=["apps/batch_plans/views.py"])
+
+op("batch_plans", "GET", "/api/v1/companies/<company_id>/batch-plans/eligible-revisions/", "Approved formula revisions for a product", "company",
+   ["batch_plans.view"], "BATCH-07", "not applicable",
+   "APPROVED revisions of one product in this company, for choosing a batch plan's source. Returns identity and quantities only: never recipe lines and never draft revisions. Empty result means no approved formula exists for that product.",
+   path_params=[{"name": "company_id", "type": "int"}],
+   query_params=[{"name": "product", "required": True, "type": "int"}],
+   response_example={"results": [{"id": 3, "formula_id": 2, "formula_code": "DEMOF", "formula_name": "Demo formula", "revision_number": 1, "base_output_quantity": "100.000", "output_uom_id": 1, "output_uom_code": "BTL"}]},
+   errors=STD_ERRORS_RW, source_files=["apps/batch_plans/views.py"])
+
+# ===========================================================================
+# apps.bmr - batch manufacturing record (one per batch plan). Lines come from
+# the batch plan's existing requirement preview. Free-text fields only.
+# ===========================================================================
+
+op("bmr", "GET", "/api/v1/companies/<company_id>/batch-plans/<plan_id>/bmr/", "Read the batch manufacturing record of a plan", "company",
+   ["bmr.view", "batch_plans.view"], "BMR-01", "not applicable",
+   "Returns the BMR with its raw material and packing slip lines. 404 when no record exists yet for this plan.",
+   path_params=[{"name": "company_id", "type": "int"}, {"name": "plan_id", "type": "int"}],
+   response_example={"id": 7, "batch_plan_id": 9, "formula_revision_id": 3, "version": 1, "lines": [{"id": 1, "slip": "RAW", "required_text": "5", "label_claim": "", "ar_no": "", "version": 1}]},
+   errors=STD_ERRORS_RW, source_files=["apps/bmr/views.py"])
+
+op("bmr", "POST", "/api/v1/companies/<company_id>/batch-plans/<plan_id>/bmr/", "Create the batch manufacturing record from the requirement preview", "company",
+   ["bmr.create", "batch_plans.view", "formulas.view"], "BMR-01", "no (new resource)",
+   "Creates the record with one line per formula line, taking each required quantity from the existing requirement preview. Refused when the preview is not calculation-complete, and once per plan. Does not allocate a batch number, create stock movements or requisitions.",
+   path_params=[{"name": "company_id", "type": "int"}, {"name": "plan_id", "type": "int"}],
+   response_status=201,
+   response_example={"id": 7, "batch_plan_id": 9, "lines": []},
+   errors=STD_ERRORS_MUTATE + [{"status": 409, "condition": "A record already exists for this plan."}],
+   source_files=["apps/bmr/views.py", "apps/bmr/services.py"])
+
+op("bmr", "PATCH", "/api/v1/companies/<company_id>/bmr/<bmr_id>/lines/<line_id>/", "Edit a BMR line's free-text fields", "company",
+   ["bmr.view", "bmr.edit"], "BMR-01", "yes (expected_version = line version)",
+   "Edits special_value, label_claim, ar_no and (packing lines only) qty_received. Required quantities cannot be changed here. Version-checked and audited.",
+   path_params=[{"name": "company_id", "type": "int"}, {"name": "bmr_id", "type": "int"}, {"name": "line_id", "type": "int"}],
+   request_fields=[{"name": "expected_version", "required": True}, {"name": "special_value", "required": False}, {"name": "label_claim", "required": False}, {"name": "ar_no", "required": False}, {"name": "qty_received", "required": False, "notes": "Packing lines only."}],
+   request_example={"expected_version": 1, "label_claim": "0.25 mL", "ar_no": "AR-TEST-001"},
+   response_example={"id": 1, "label_claim": "0.25 mL", "ar_no": "AR-TEST-001", "version": 2},
+   errors=STD_ERRORS_MUTATE, source_files=["apps/bmr/views.py", "apps/bmr/services.py"])

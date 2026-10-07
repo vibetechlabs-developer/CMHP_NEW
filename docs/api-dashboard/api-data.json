@@ -3,14 +3,14 @@
     "generated_at": "2026-09-30",
     "generator": "docs/api-dashboard — built from a live django.urls.get_resolver() walk plus direct reading of apps/*/views.py, apps/*/serializers.py and apps/*/models.py, cross-referenced against docs/frontend-api-handoff.md and docs/api-inventory-current.md.",
     "counts": {
-      "path_patterns": 131,
-      "operations": 187,
-      "modules_implemented": 24,
+      "path_patterns": 143,
+      "operations": 204,
+      "modules_implemented": 25,
       "modules_not_implemented": 17,
-      "source_code_verified_operations": 187,
+      "source_code_verified_operations": 204,
       "documentation_only_operations": 0
     },
-    "verification_note": "All 187 operations are source-code verified in the sense that their existence (method + exact path) was confirmed directly against the live URL resolver in this session, and their permission codes were either read directly from the relevant views.py in this session (apps.customers, apps.purchasing, apps.quality, apps.receiving, apps.material_requisitions) or carried over from docs/frontend-api-handoff.md / docs/api-inventory-current.md, both of which were themselves built from direct code reading in earlier tasks of this same project and are cross-checked, not re-derived from memory, in this dashboard. No entry describes a proposed or planned endpoint as implemented.",
+    "verification_note": "All 204 operations are source-code verified in the sense that their existence (method + exact path) was confirmed directly against the live URL resolver in this session, and their permission codes were either read directly from the relevant views.py in this session (apps.customers, apps.purchasing, apps.quality, apps.receiving, apps.material_requisitions) or carried over from docs/frontend-api-handoff.md / docs/api-inventory-current.md, both of which were themselves built from direct code reading in earlier tasks of this same project and are cross-checked, not re-derived from memory, in this dashboard. No entry describes a proposed or planned endpoint as implemented.",
     "counting_rules": [
       "Unique API path patterns and implemented method+path operations were recalculated fresh from the live django.urls.get_resolver() output on 2026-09-29 — not copied from any earlier document's numbers.",
       "GET and POST on the same path = 2 operations; GET and PATCH = 2 operations. A path with only one method = 1 operation.",
@@ -283,7 +283,7 @@
       "key": "material_requisitions",
       "name": "Material Requisitions",
       "django_app": "apps.material_requisitions",
-      "description": "Material requisition auto-fetched from a batch plan's approved formula — DRAFT (editable) or SUBMITTED (Task 15A, frozen; not approved/ready-to-issue/fulfilled). Requests materials only — never reserves, issues or consumes stock. Store access plus BOTH batch_plans.view and formulas.view in the plan's company.",
+      "description": "Material requisition auto-fetched from a batch plan's approved formula — DRAFT (editable) -> SUBMITTED (Task 15A, frozen) -> APPROVED or REJECTED (Task 15C, one approval step, project-lead-accepted working flow, not client-validated; REJECTED -> DRAFT via revise is the only way back). Never reserves, issues or consumes stock, at any status — approval is a recorded decision only. Store access plus BOTH batch_plans.view and formulas.view in the plan's company.",
       "screens": [
         "MREQ-01",
         "MREQ-02",
@@ -358,7 +358,7 @@
       "id": "PLAN-08",
       "name": "Production / BMR",
       "purpose": "Record a batch manufacturing record",
-      "status": "NOT IMPLEMENTED"
+      "status": "PARTIAL - BMR header, raw and packing slips, sign-off lines and print are built; production execution is not"
     },
     {
       "id": "PLAN-09",
@@ -603,7 +603,7 @@
       "version_requirement": "not applicable",
       "status": "code-verified",
       "detail": {
-        "purpose": "Confirms the access token actually works and returns the caller's display identity.",
+        "purpose": "Confirms the access token actually works and returns the caller's display identity. Also returns read-only UI capabilities derived from the same rule the server enforces (currently capabilities.can_manage_material_catalog = active superuser). Capabilities are presentation hints only and grant nothing.",
         "path_params": [],
         "query_params": [],
         "auth": "Bearer access token required (Authorization header). Membership/permission re-checked server-side on every call.",
@@ -615,7 +615,10 @@
           "username": "demo_sales",
           "email": "",
           "first_name": "",
-          "last_name": ""
+          "last_name": "",
+          "capabilities": {
+            "can_manage_material_catalog": false
+          }
         },
         "response_status": 200,
         "errors": [
@@ -5324,6 +5327,207 @@
     },
     {
       "id": "op-077",
+      "module": "catalog",
+      "method": "GET",
+      "path": "/api/v1/product-types/",
+      "action": "List product types",
+      "scope": "shared",
+      "permissions": [
+        "shared_catalog.view (in an active store)"
+      ],
+      "screen": "CAT-05",
+      "version_requirement": "not applicable",
+      "status": "code-verified",
+      "detail": {
+        "purpose": "Maintained product-type lookup used by the product and order-line type dropdowns. Active types by default.",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "is_active",
+            "required": false,
+            "type": "bool"
+          }
+        ],
+        "auth": "Bearer access token required (Authorization header). Membership/permission re-checked server-side on every call.",
+        "headers": "Authorization: Bearer <access>. No CSRF header needed (CSRF only applies to the cookie-authenticated /auth/ endpoints).",
+        "request_fields": [],
+        "request_example": null,
+        "response_example": {
+          "count": 9,
+          "results": [
+            {
+              "id": 1,
+              "name": "Capsule",
+              "is_active": true
+            }
+          ]
+        },
+        "response_status": 200,
+        "errors": [
+          {
+            "status": 400,
+            "condition": "Validation failure (bad field value, unknown/protected field, or business-rule rejection)."
+          },
+          {
+            "status": 401,
+            "condition": "Missing/invalid/expired access token."
+          },
+          {
+            "status": 403,
+            "condition": "Authenticated with membership, but the specific permission is missing (names it)."
+          },
+          {
+            "status": 404,
+            "condition": "No such resource, or no membership/access at all (deliberately indistinguishable)."
+          }
+        ],
+        "side_effects": "None beyond the described create/update — no stock, production or financial side effect exists anywhere in this API.",
+        "frontend_usage": "",
+        "source_files": [
+          "apps/catalog/views.py"
+        ]
+      },
+      "notes": ""
+    },
+    {
+      "id": "op-078",
+      "module": "catalog",
+      "method": "POST",
+      "path": "/api/v1/product-types/",
+      "action": "Create a product type",
+      "scope": "shared",
+      "permissions": [
+        "superuser only (configuration)"
+      ],
+      "screen": "CAT-05",
+      "version_requirement": "no",
+      "status": "code-verified",
+      "detail": {
+        "purpose": "Adds a product type. Name must be unique (case-insensitive) and non-blank.",
+        "path_params": [],
+        "query_params": [],
+        "auth": "Bearer access token required (Authorization header). Membership/permission re-checked server-side on every call.",
+        "headers": "Authorization: Bearer <access>. No CSRF header needed (CSRF only applies to the cookie-authenticated /auth/ endpoints).",
+        "request_fields": [
+          {
+            "name": "name",
+            "required": true
+          }
+        ],
+        "request_example": {
+          "name": "Syrup"
+        },
+        "response_example": {
+          "id": 10,
+          "name": "Syrup",
+          "is_active": true
+        },
+        "response_status": 201,
+        "errors": [
+          {
+            "status": 400,
+            "condition": "Validation failure (bad field value, unknown/protected field, or business-rule rejection)."
+          },
+          {
+            "status": 401,
+            "condition": "Missing/invalid/expired access token."
+          },
+          {
+            "status": 403,
+            "condition": "Authenticated with membership, but the specific permission is missing (names it)."
+          },
+          {
+            "status": 404,
+            "condition": "No such resource, or no membership/access at all (deliberately indistinguishable)."
+          },
+          {
+            "status": 409,
+            "condition": "Stale expected_version (or, for goods receipts, an idempotency-key content mismatch) — refetch and show the conflict, never silently retry."
+          }
+        ],
+        "side_effects": "None beyond the described create/update — no stock, production or financial side effect exists anywhere in this API.",
+        "frontend_usage": "",
+        "source_files": [
+          "apps/catalog/views.py"
+        ]
+      },
+      "notes": ""
+    },
+    {
+      "id": "op-079",
+      "module": "catalog",
+      "method": "PATCH",
+      "path": "/api/v1/product-types/<product_type_id>/",
+      "action": "Rename or activate/deactivate a product type",
+      "scope": "shared",
+      "permissions": [
+        "superuser only (configuration)"
+      ],
+      "screen": "CAT-05",
+      "version_requirement": "no",
+      "status": "code-verified",
+      "detail": {
+        "purpose": "Changes name or is_active. Audited.",
+        "path_params": [
+          {
+            "name": "product_type_id",
+            "type": "int"
+          }
+        ],
+        "query_params": [],
+        "auth": "Bearer access token required (Authorization header). Membership/permission re-checked server-side on every call.",
+        "headers": "Authorization: Bearer <access>. No CSRF header needed (CSRF only applies to the cookie-authenticated /auth/ endpoints).",
+        "request_fields": [
+          {
+            "name": "name",
+            "required": false
+          },
+          {
+            "name": "is_active",
+            "required": false
+          }
+        ],
+        "request_example": {
+          "is_active": false
+        },
+        "response_example": {
+          "id": 10,
+          "name": "Syrup",
+          "is_active": false
+        },
+        "response_status": 200,
+        "errors": [
+          {
+            "status": 400,
+            "condition": "Validation failure (bad field value, unknown/protected field, or business-rule rejection)."
+          },
+          {
+            "status": 401,
+            "condition": "Missing/invalid/expired access token."
+          },
+          {
+            "status": 403,
+            "condition": "Authenticated with membership, but the specific permission is missing (names it)."
+          },
+          {
+            "status": 404,
+            "condition": "No such resource, or no membership/access at all (deliberately indistinguishable)."
+          },
+          {
+            "status": 409,
+            "condition": "Stale expected_version (or, for goods receipts, an idempotency-key content mismatch) — refetch and show the conflict, never silently retry."
+          }
+        ],
+        "side_effects": "None beyond the described create/update — no stock, production or financial side effect exists anywhere in this API.",
+        "frontend_usage": "",
+        "source_files": [
+          "apps/catalog/views.py"
+        ]
+      },
+      "notes": ""
+    },
+    {
+      "id": "op-080",
       "module": "purchasing",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/purchase-requests/",
@@ -5389,7 +5593,7 @@
       "notes": ""
     },
     {
-      "id": "op-078",
+      "id": "op-081",
       "module": "purchasing",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/purchase-requests/",
@@ -5476,7 +5680,7 @@
       "notes": ""
     },
     {
-      "id": "op-079",
+      "id": "op-082",
       "module": "purchasing",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/purchase-requests/<request_id>/",
@@ -5569,7 +5773,7 @@
       "notes": ""
     },
     {
-      "id": "op-080",
+      "id": "op-083",
       "module": "purchasing",
       "method": "PATCH",
       "path": "/api/v1/companies/<company_id>/purchase-requests/<request_id>/",
@@ -5664,7 +5868,7 @@
       "notes": ""
     },
     {
-      "id": "op-081",
+      "id": "op-084",
       "module": "purchasing",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/purchase-requests/<request_id>/submit/",
@@ -5740,7 +5944,7 @@
       "notes": ""
     },
     {
-      "id": "op-082",
+      "id": "op-085",
       "module": "purchasing",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/purchase-requests/<request_id>/cancel/",
@@ -5823,7 +6027,7 @@
       "notes": ""
     },
     {
-      "id": "op-083",
+      "id": "op-086",
       "module": "purchasing",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/purchase-requests/<request_id>/approve/",
@@ -5917,7 +6121,7 @@
       "notes": ""
     },
     {
-      "id": "op-084",
+      "id": "op-087",
       "module": "purchasing",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/purchase-requests/<request_id>/reject/",
@@ -6007,7 +6211,7 @@
       "notes": ""
     },
     {
-      "id": "op-085",
+      "id": "op-088",
       "module": "purchasing",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/purchase-requests/<request_id>/revise/",
@@ -6081,7 +6285,7 @@
       "notes": ""
     },
     {
-      "id": "op-086",
+      "id": "op-089",
       "module": "purchasing",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/purchase-orders/",
@@ -6147,7 +6351,7 @@
       "notes": ""
     },
     {
-      "id": "op-087",
+      "id": "op-090",
       "module": "purchasing",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/purchase-orders/",
@@ -6232,7 +6436,7 @@
       "notes": ""
     },
     {
-      "id": "op-088",
+      "id": "op-091",
       "module": "purchasing",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/purchase-orders/<order_id>/",
@@ -6311,7 +6515,7 @@
       "notes": ""
     },
     {
-      "id": "op-089",
+      "id": "op-092",
       "module": "purchasing",
       "method": "PATCH",
       "path": "/api/v1/companies/<company_id>/purchase-orders/<order_id>/",
@@ -6399,7 +6603,7 @@
       "notes": ""
     },
     {
-      "id": "op-090",
+      "id": "op-093",
       "module": "purchasing",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/purchase-orders/<order_id>/cancel/",
@@ -6478,7 +6682,7 @@
       "notes": ""
     },
     {
-      "id": "op-091",
+      "id": "op-094",
       "module": "purchasing",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/purchase-orders/<order_id>/issue/",
@@ -6560,7 +6764,7 @@
       "notes": ""
     },
     {
-      "id": "op-092",
+      "id": "op-095",
       "module": "receiving",
       "method": "GET",
       "path": "/api/v1/stores/<store_id>/goods-receipts/",
@@ -6625,7 +6829,7 @@
       "notes": ""
     },
     {
-      "id": "op-093",
+      "id": "op-096",
       "module": "receiving",
       "method": "POST",
       "path": "/api/v1/stores/<store_id>/goods-receipts/",
@@ -6726,7 +6930,7 @@
       "notes": ""
     },
     {
-      "id": "op-094",
+      "id": "op-097",
       "module": "receiving",
       "method": "GET",
       "path": "/api/v1/stores/<store_id>/goods-receipts/eligible-purchase-orders/",
@@ -6801,7 +7005,7 @@
       "notes": ""
     },
     {
-      "id": "op-095",
+      "id": "op-098",
       "module": "receiving",
       "method": "GET",
       "path": "/api/v1/stores/<store_id>/goods-receipts/<receipt_id>/",
@@ -6869,7 +7073,7 @@
       "notes": ""
     },
     {
-      "id": "op-096",
+      "id": "op-099",
       "module": "receiving",
       "method": "PATCH",
       "path": "/api/v1/stores/<store_id>/goods-receipts/<receipt_id>/",
@@ -6959,7 +7163,7 @@
       "notes": ""
     },
     {
-      "id": "op-097",
+      "id": "op-100",
       "module": "receiving",
       "method": "POST",
       "path": "/api/v1/stores/<store_id>/goods-receipts/<receipt_id>/post/",
@@ -7039,7 +7243,7 @@
       "notes": ""
     },
     {
-      "id": "op-098",
+      "id": "op-101",
       "module": "receiving",
       "method": "POST",
       "path": "/api/v1/stores/<store_id>/goods-receipts/<receipt_id>/cancel/",
@@ -7118,7 +7322,7 @@
       "notes": ""
     },
     {
-      "id": "op-099",
+      "id": "op-102",
       "module": "stock_movements",
       "method": "GET",
       "path": "/api/v1/stores/<store_id>/stock-movements/",
@@ -7212,7 +7416,7 @@
       "notes": "No create/edit/delete endpoint exists anywhere in this app — every movement is created only as a side effect of apps.receiving.services.post_goods_receipt. A previously-POSTED receipt (from before this feature existed) is never backfilled, and repeating POST .../post/ on one never creates a movement for it (verified by test)."
     },
     {
-      "id": "op-100",
+      "id": "op-103",
       "module": "stock_movements",
       "method": "GET",
       "path": "/api/v1/stores/<store_id>/stock-balances/",
@@ -7298,7 +7502,7 @@
       "notes": "Deliberately never named available_stock/usable_stock/on_hand anywhere — always recorded_receipt_quantity, always paired with the coverage block above."
     },
     {
-      "id": "op-101",
+      "id": "op-104",
       "module": "quality",
       "method": "GET",
       "path": "/api/v1/material-specifications/",
@@ -7370,7 +7574,7 @@
       "notes": ""
     },
     {
-      "id": "op-102",
+      "id": "op-105",
       "module": "quality",
       "method": "POST",
       "path": "/api/v1/material-specifications/",
@@ -7460,7 +7664,7 @@
       "notes": ""
     },
     {
-      "id": "op-103",
+      "id": "op-106",
       "module": "quality",
       "method": "GET",
       "path": "/api/v1/material-specifications/<specification_id>/",
@@ -7534,7 +7738,7 @@
       "notes": ""
     },
     {
-      "id": "op-104",
+      "id": "op-107",
       "module": "quality",
       "method": "PATCH",
       "path": "/api/v1/material-specifications/<specification_id>/",
@@ -7611,7 +7815,7 @@
       "notes": "Corrected mid-project (Task 09B-3B.1): the first implementation gave this resource no concurrency token at all, reasoning it was unversioned shared master-data like Material/Supplier. That was wrong given this feature's own requirement, and was fixed the same session — PATCH now requires expected_version like every other mutation in this API."
     },
     {
-      "id": "op-105",
+      "id": "op-108",
       "module": "quality",
       "method": "GET",
       "path": "/api/v1/material-specifications/<specification_id>/versions/",
@@ -7683,7 +7887,7 @@
       "notes": ""
     },
     {
-      "id": "op-106",
+      "id": "op-109",
       "module": "quality",
       "method": "POST",
       "path": "/api/v1/material-specifications/<specification_id>/versions/",
@@ -7756,7 +7960,7 @@
       "notes": ""
     },
     {
-      "id": "op-107",
+      "id": "op-110",
       "module": "quality",
       "method": "GET",
       "path": "/api/v1/material-specifications/<specification_id>/versions/<version_id>/",
@@ -7828,7 +8032,7 @@
       "notes": ""
     },
     {
-      "id": "op-108",
+      "id": "op-111",
       "module": "quality",
       "method": "PATCH",
       "path": "/api/v1/material-specifications/<specification_id>/versions/<version_id>/",
@@ -7941,7 +8145,7 @@
       "notes": "Distinguish this version's own 'version' (concurrency token for THIS draft's content) from MaterialSpecification.version (the parent row's own metadata token) and revision_number (a plain sequential label, never sent as expected_version) — these are three separate counters that never invalidate one another."
     },
     {
-      "id": "op-109",
+      "id": "op-112",
       "module": "quality",
       "method": "GET",
       "path": "/api/v1/stores/<store_id>/incoming-inspections/",
@@ -8019,7 +8223,7 @@
       "notes": ""
     },
     {
-      "id": "op-110",
+      "id": "op-113",
       "module": "quality",
       "method": "POST",
       "path": "/api/v1/stores/<store_id>/incoming-inspections/",
@@ -8127,7 +8331,7 @@
       "notes": ""
     },
     {
-      "id": "op-111",
+      "id": "op-114",
       "module": "quality",
       "method": "GET",
       "path": "/api/v1/stores/<store_id>/incoming-inspections/eligible-receipt-lines/",
@@ -8193,7 +8397,7 @@
       "notes": ""
     },
     {
-      "id": "op-112",
+      "id": "op-115",
       "module": "quality",
       "method": "GET",
       "path": "/api/v1/stores/<store_id>/incoming-inspections/<inspection_id>/",
@@ -8263,7 +8467,7 @@
       "notes": ""
     },
     {
-      "id": "op-113",
+      "id": "op-116",
       "module": "quality",
       "method": "PATCH",
       "path": "/api/v1/stores/<store_id>/incoming-inspections/<inspection_id>/",
@@ -8363,7 +8567,7 @@
       "notes": ""
     },
     {
-      "id": "op-114",
+      "id": "op-117",
       "module": "quality",
       "method": "POST",
       "path": "/api/v1/stores/<store_id>/incoming-inspections/<inspection_id>/submit/",
@@ -8442,7 +8646,7 @@
       "notes": ""
     },
     {
-      "id": "op-115",
+      "id": "op-118",
       "module": "quality",
       "method": "POST",
       "path": "/api/v1/stores/<store_id>/incoming-inspections/<inspection_id>/cancel/",
@@ -8520,7 +8724,7 @@
       "notes": ""
     },
     {
-      "id": "op-116",
+      "id": "op-119",
       "module": "customers",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/customers/",
@@ -8597,7 +8801,7 @@
       "notes": ""
     },
     {
-      "id": "op-117",
+      "id": "op-120",
       "module": "customers",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/customers/",
@@ -8709,7 +8913,7 @@
       "notes": ""
     },
     {
-      "id": "op-118",
+      "id": "op-121",
       "module": "customers",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/customers/<customer_id>/",
@@ -8775,7 +8979,7 @@
       "notes": ""
     },
     {
-      "id": "op-119",
+      "id": "op-122",
       "module": "customers",
       "method": "PATCH",
       "path": "/api/v1/companies/<company_id>/customers/<customer_id>/",
@@ -8860,7 +9064,7 @@
       "notes": ""
     },
     {
-      "id": "op-120",
+      "id": "op-123",
       "module": "customers",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/customers/<customer_id>/activate/",
@@ -8934,7 +9138,7 @@
       "notes": ""
     },
     {
-      "id": "op-121",
+      "id": "op-124",
       "module": "customers",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/customers/<customer_id>/deactivate/",
@@ -8948,7 +9152,7 @@
       "version_requirement": "yes",
       "status": "code-verified",
       "detail": {
-        "purpose": "Deactivates a customer. Never deletes the record or any of its data, never cascades — no DELETE endpoint exists anywhere in this module.",
+        "purpose": "Deactivates a customer. Never deletes the record or any of its data, never cascades. Permanent removal is a separate DELETE endpoint, allowed only when nothing references the customer.",
         "path_params": [
           {
             "name": "company_id",
@@ -9008,7 +9212,7 @@
       "notes": ""
     },
     {
-      "id": "op-122",
+      "id": "op-125",
       "module": "products",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/products/",
@@ -9086,7 +9290,7 @@
       "notes": ""
     },
     {
-      "id": "op-123",
+      "id": "op-126",
       "module": "products",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/products/",
@@ -9177,7 +9381,7 @@
       "notes": ""
     },
     {
-      "id": "op-124",
+      "id": "op-127",
       "module": "products",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/products/<product_id>/",
@@ -9243,7 +9447,7 @@
       "notes": ""
     },
     {
-      "id": "op-125",
+      "id": "op-128",
       "module": "products",
       "method": "PATCH",
       "path": "/api/v1/companies/<company_id>/products/<product_id>/",
@@ -9322,7 +9526,7 @@
       "notes": ""
     },
     {
-      "id": "op-126",
+      "id": "op-129",
       "module": "products",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/products/<product_id>/activate/",
@@ -9396,7 +9600,7 @@
       "notes": ""
     },
     {
-      "id": "op-127",
+      "id": "op-130",
       "module": "products",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/products/<product_id>/deactivate/",
@@ -9470,7 +9674,7 @@
       "notes": ""
     },
     {
-      "id": "op-128",
+      "id": "op-131",
       "module": "product_imports",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/products/import-preview/",
@@ -9555,7 +9759,7 @@
       "notes": ""
     },
     {
-      "id": "op-129",
+      "id": "op-132",
       "module": "product_imports",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/products/import-preview/<batch_id>/",
@@ -9634,7 +9838,7 @@
       "notes": ""
     },
     {
-      "id": "op-130",
+      "id": "op-133",
       "module": "product_imports",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/products/import-commit/",
@@ -9719,7 +9923,7 @@
       "notes": "version is fixed at 1 for the resource's whole life; the concurrency guard is the row lock + status field, not an incrementing counter — see docs/backend-decisions.md, Task 14A."
     },
     {
-      "id": "op-131",
+      "id": "op-134",
       "module": "quotations",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/quotations/",
@@ -9803,7 +10007,7 @@
       "notes": ""
     },
     {
-      "id": "op-132",
+      "id": "op-135",
       "module": "quotations",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/quotations/",
@@ -9908,7 +10112,7 @@
       "notes": ""
     },
     {
-      "id": "op-133",
+      "id": "op-136",
       "module": "quotations",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/quotations/<quotation_id>/",
@@ -9982,7 +10186,7 @@
       "notes": ""
     },
     {
-      "id": "op-134",
+      "id": "op-137",
       "module": "quotations",
       "method": "PATCH",
       "path": "/api/v1/companies/<company_id>/quotations/<quotation_id>/",
@@ -10084,7 +10288,7 @@
       "notes": ""
     },
     {
-      "id": "op-135",
+      "id": "op-138",
       "module": "sales_orders",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/sales-orders/",
@@ -10168,7 +10372,7 @@
       "notes": ""
     },
     {
-      "id": "op-136",
+      "id": "op-139",
       "module": "sales_orders",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/sales-orders/",
@@ -10269,7 +10473,7 @@
       "notes": ""
     },
     {
-      "id": "op-137",
+      "id": "op-140",
       "module": "sales_orders",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/sales-orders/<sales_order_id>/",
@@ -10345,7 +10549,7 @@
       "notes": ""
     },
     {
-      "id": "op-138",
+      "id": "op-141",
       "module": "sales_orders",
       "method": "PATCH",
       "path": "/api/v1/companies/<company_id>/sales-orders/<sales_order_id>/",
@@ -10441,7 +10645,7 @@
       "notes": ""
     },
     {
-      "id": "op-139",
+      "id": "op-142",
       "module": "sales_orders",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/sales-orders/<sales_order_id>/confirmation-preview/",
@@ -10527,7 +10731,7 @@
       "notes": ""
     },
     {
-      "id": "op-140",
+      "id": "op-143",
       "module": "sales_orders",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/sales-orders/<sales_order_id>/confirm/",
@@ -10610,7 +10814,7 @@
       "notes": ""
     },
     {
-      "id": "op-141",
+      "id": "op-144",
       "module": "sales_orders",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/sales-order-confirmation-policy/",
@@ -10671,7 +10875,7 @@
       "notes": ""
     },
     {
-      "id": "op-142",
+      "id": "op-145",
       "module": "sales_orders",
       "method": "PATCH",
       "path": "/api/v1/companies/<company_id>/sales-order-confirmation-policy/",
@@ -10757,7 +10961,378 @@
       "notes": ""
     },
     {
-      "id": "op-143",
+      "id": "op-146",
+      "module": "customers",
+      "method": "DELETE",
+      "path": "/api/v1/companies/<company_id>/customers/<customer_id>/",
+      "action": "Delete an unreferenced customer",
+      "scope": "company",
+      "permissions": [
+        "customers.view",
+        "customers.delete"
+      ],
+      "screen": "CUST-05",
+      "version_requirement": "yes (expected_version as query parameter)",
+      "status": "code-verified",
+      "detail": {
+        "purpose": "Permanently deletes a customer only when no sales order or quotation references it. Refused with a validation error otherwise: deactivate instead. Audited.",
+        "path_params": [
+          {
+            "name": "company_id",
+            "type": "int"
+          },
+          {
+            "name": "customer_id",
+            "type": "int"
+          }
+        ],
+        "query_params": [
+          {
+            "name": "expected_version",
+            "required": true,
+            "type": "int"
+          }
+        ],
+        "auth": "Bearer access token required (Authorization header). Membership/permission re-checked server-side on every call.",
+        "headers": "Authorization: Bearer <access>. No CSRF header needed (CSRF only applies to the cookie-authenticated /auth/ endpoints).",
+        "request_fields": [],
+        "request_example": null,
+        "response_example": null,
+        "response_status": 204,
+        "errors": [
+          {
+            "status": 400,
+            "condition": "Validation failure (bad field value, unknown/protected field, or business-rule rejection)."
+          },
+          {
+            "status": 401,
+            "condition": "Missing/invalid/expired access token."
+          },
+          {
+            "status": 403,
+            "condition": "Authenticated with membership, but the specific permission is missing (names it)."
+          },
+          {
+            "status": 404,
+            "condition": "No such resource, or no membership/access at all (deliberately indistinguishable)."
+          },
+          {
+            "status": 409,
+            "condition": "Stale expected_version (or, for goods receipts, an idempotency-key content mismatch) — refetch and show the conflict, never silently retry."
+          }
+        ],
+        "side_effects": "None beyond the described create/update — no stock, production or financial side effect exists anywhere in this API.",
+        "frontend_usage": "",
+        "source_files": [
+          "apps/customers/views.py",
+          "apps/customers/services.py"
+        ]
+      },
+      "notes": ""
+    },
+    {
+      "id": "op-147",
+      "module": "products",
+      "method": "DELETE",
+      "path": "/api/v1/companies/<company_id>/products/<product_id>/",
+      "action": "Delete an unreferenced product",
+      "scope": "company",
+      "permissions": [
+        "products.view",
+        "products.delete"
+      ],
+      "screen": "PROD-05",
+      "version_requirement": "yes (expected_version as query parameter)",
+      "status": "code-verified",
+      "detail": {
+        "purpose": "Permanently deletes a product only when no sales order line, quotation line or formula references it. Refused otherwise: deactivate instead. Audited.",
+        "path_params": [
+          {
+            "name": "company_id",
+            "type": "int"
+          },
+          {
+            "name": "product_id",
+            "type": "int"
+          }
+        ],
+        "query_params": [
+          {
+            "name": "expected_version",
+            "required": true,
+            "type": "int"
+          }
+        ],
+        "auth": "Bearer access token required (Authorization header). Membership/permission re-checked server-side on every call.",
+        "headers": "Authorization: Bearer <access>. No CSRF header needed (CSRF only applies to the cookie-authenticated /auth/ endpoints).",
+        "request_fields": [],
+        "request_example": null,
+        "response_example": null,
+        "response_status": 204,
+        "errors": [
+          {
+            "status": 400,
+            "condition": "Validation failure (bad field value, unknown/protected field, or business-rule rejection)."
+          },
+          {
+            "status": 401,
+            "condition": "Missing/invalid/expired access token."
+          },
+          {
+            "status": 403,
+            "condition": "Authenticated with membership, but the specific permission is missing (names it)."
+          },
+          {
+            "status": 404,
+            "condition": "No such resource, or no membership/access at all (deliberately indistinguishable)."
+          },
+          {
+            "status": 409,
+            "condition": "Stale expected_version (or, for goods receipts, an idempotency-key content mismatch) — refetch and show the conflict, never silently retry."
+          }
+        ],
+        "side_effects": "None beyond the described create/update — no stock, production or financial side effect exists anywhere in this API.",
+        "frontend_usage": "",
+        "source_files": [
+          "apps/products/views.py",
+          "apps/products/services.py"
+        ]
+      },
+      "notes": ""
+    },
+    {
+      "id": "op-148",
+      "module": "sales_orders",
+      "method": "DELETE",
+      "path": "/api/v1/companies/<company_id>/sales-orders/<sales_order_id>/",
+      "action": "Delete a DRAFT sales order",
+      "scope": "company",
+      "permissions": [
+        "sales_orders.view",
+        "sales_orders.delete"
+      ],
+      "screen": "SO-05",
+      "version_requirement": "yes (expected_version as query parameter)",
+      "status": "code-verified",
+      "detail": {
+        "purpose": "Deletes a DRAFT sales order that has no batch plan. Refused for any other status and when batch plans exist. Audited.",
+        "path_params": [
+          {
+            "name": "company_id",
+            "type": "int"
+          },
+          {
+            "name": "sales_order_id",
+            "type": "int"
+          }
+        ],
+        "query_params": [
+          {
+            "name": "expected_version",
+            "required": true,
+            "type": "int"
+          }
+        ],
+        "auth": "Bearer access token required (Authorization header). Membership/permission re-checked server-side on every call.",
+        "headers": "Authorization: Bearer <access>. No CSRF header needed (CSRF only applies to the cookie-authenticated /auth/ endpoints).",
+        "request_fields": [],
+        "request_example": null,
+        "response_example": null,
+        "response_status": 204,
+        "errors": [
+          {
+            "status": 400,
+            "condition": "Validation failure (bad field value, unknown/protected field, or business-rule rejection)."
+          },
+          {
+            "status": 401,
+            "condition": "Missing/invalid/expired access token."
+          },
+          {
+            "status": 403,
+            "condition": "Authenticated with membership, but the specific permission is missing (names it)."
+          },
+          {
+            "status": 404,
+            "condition": "No such resource, or no membership/access at all (deliberately indistinguishable)."
+          },
+          {
+            "status": 409,
+            "condition": "Stale expected_version (or, for goods receipts, an idempotency-key content mismatch) — refetch and show the conflict, never silently retry."
+          }
+        ],
+        "side_effects": "None beyond the described create/update — no stock, production or financial side effect exists anywhere in this API.",
+        "frontend_usage": "",
+        "source_files": [
+          "apps/sales_orders/views.py",
+          "apps/sales_orders/services.py"
+        ]
+      },
+      "notes": ""
+    },
+    {
+      "id": "op-149",
+      "module": "customers",
+      "method": "POST",
+      "path": "/api/v1/companies/<company_id>/customers/import-preview/",
+      "action": "Preview a customer import (no writes)",
+      "scope": "company",
+      "permissions": [
+        "customers.view",
+        "customers.create"
+      ],
+      "screen": "CUST-IMPORT-01",
+      "version_requirement": "not applicable (read-only check)",
+      "status": "code-verified",
+      "detail": {
+        "purpose": "Validates up to 500 customer rows with the create serializer, flags duplicate codes against existing customers and inside the file, and returns a per-row result. Writes nothing.",
+        "path_params": [
+          {
+            "name": "company_id",
+            "type": "int"
+          }
+        ],
+        "query_params": [],
+        "auth": "Bearer access token required (Authorization header). Membership/permission re-checked server-side on every call.",
+        "headers": "Authorization: Bearer <access>. No CSRF header needed (CSRF only applies to the cookie-authenticated /auth/ endpoints).",
+        "request_fields": [
+          {
+            "name": "rows",
+            "required": true,
+            "notes": "List of objects with code, name and optional contact_person, email, phone, billing_address, shipping_address, notes."
+          }
+        ],
+        "request_example": {
+          "rows": [
+            {
+              "code": "EXAMPLE1",
+              "name": "Example Customer"
+            }
+          ]
+        },
+        "response_example": {
+          "summary": {
+            "total": 1,
+            "valid": 1,
+            "invalid": 0,
+            "eligible_for_commit": true
+          },
+          "rows": [
+            {
+              "row_number": 1,
+              "status": "ok",
+              "code": "EXAMPLE1",
+              "name": "Example Customer",
+              "errors": []
+            }
+          ]
+        },
+        "response_status": 200,
+        "errors": [
+          {
+            "status": 400,
+            "condition": "Validation failure (bad field value, unknown/protected field, or business-rule rejection)."
+          },
+          {
+            "status": 401,
+            "condition": "Missing/invalid/expired access token."
+          },
+          {
+            "status": 403,
+            "condition": "Authenticated with membership, but the specific permission is missing (names it)."
+          },
+          {
+            "status": 404,
+            "condition": "No such resource, or no membership/access at all (deliberately indistinguishable)."
+          }
+        ],
+        "side_effects": "None beyond the described create/update — no stock, production or financial side effect exists anywhere in this API.",
+        "frontend_usage": "",
+        "source_files": [
+          "apps/customers/imports.py",
+          "apps/customers/views.py",
+          "apps/customers/urls.py"
+        ]
+      },
+      "notes": ""
+    },
+    {
+      "id": "op-150",
+      "module": "customers",
+      "method": "POST",
+      "path": "/api/v1/companies/<company_id>/customers/import-commit/",
+      "action": "Commit a customer import (all-or-nothing)",
+      "scope": "company",
+      "permissions": [
+        "customers.view",
+        "customers.create"
+      ],
+      "screen": "CUST-IMPORT-02",
+      "version_requirement": "no (creates customers; each audited)",
+      "status": "code-verified",
+      "detail": {
+        "purpose": "Re-validates every row. If any row is invalid nothing is created (400). Otherwise creates every row in one transaction through the create service, which writes one audit record per customer. A failing audit rolls the whole import back.",
+        "path_params": [
+          {
+            "name": "company_id",
+            "type": "int"
+          }
+        ],
+        "query_params": [],
+        "auth": "Bearer access token required (Authorization header). Membership/permission re-checked server-side on every call.",
+        "headers": "Authorization: Bearer <access>. No CSRF header needed (CSRF only applies to the cookie-authenticated /auth/ endpoints).",
+        "request_fields": [
+          {
+            "name": "rows",
+            "required": true,
+            "notes": "Same shape as the preview."
+          }
+        ],
+        "request_example": {
+          "rows": [
+            {
+              "code": "EXAMPLE1",
+              "name": "Example Customer"
+            }
+          ]
+        },
+        "response_example": {
+          "created": 1,
+          "codes": [
+            "EXAMPLE1"
+          ]
+        },
+        "response_status": 200,
+        "errors": [
+          {
+            "status": 400,
+            "condition": "Validation failure (bad field value, unknown/protected field, or business-rule rejection)."
+          },
+          {
+            "status": 401,
+            "condition": "Missing/invalid/expired access token."
+          },
+          {
+            "status": 403,
+            "condition": "Authenticated with membership, but the specific permission is missing (names it)."
+          },
+          {
+            "status": 404,
+            "condition": "No such resource, or no membership/access at all (deliberately indistinguishable)."
+          }
+        ],
+        "side_effects": "None beyond the described create/update — no stock, production or financial side effect exists anywhere in this API.",
+        "frontend_usage": "",
+        "source_files": [
+          "apps/customers/imports.py",
+          "apps/customers/views.py",
+          "apps/customers/urls.py"
+        ]
+      },
+      "notes": ""
+    },
+    {
+      "id": "op-151",
       "module": "formulas",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/formulas/",
@@ -10840,7 +11415,7 @@
       "notes": ""
     },
     {
-      "id": "op-144",
+      "id": "op-152",
       "module": "formulas",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/formulas/",
@@ -10943,7 +11518,7 @@
       "notes": ""
     },
     {
-      "id": "op-145",
+      "id": "op-153",
       "module": "formulas",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/formulas/<formula_id>/",
@@ -11007,7 +11582,7 @@
       "notes": ""
     },
     {
-      "id": "op-146",
+      "id": "op-154",
       "module": "formulas",
       "method": "PATCH",
       "path": "/api/v1/companies/<company_id>/formulas/<formula_id>/",
@@ -11085,7 +11660,7 @@
       "notes": "Four distinct version-like values exist on Formula/FormulaRevision and must never be conflated: Formula.version (concurrency token for name/notes), Formula.latest_revision_number (a plain allocation counter, never sent as expected_version, unaffected by metadata edits), FormulaRevision.revision_number (sequential draft label 1,2,3..., read-only), and FormulaRevision.version (content concurrency token for that revision's own base output/notes/lines). Creating a revision bumps only latest_revision_number; editing formula metadata bumps only Formula.version; editing a revision bumps only that revision's own version — none invalidates another."
     },
     {
-      "id": "op-147",
+      "id": "op-155",
       "module": "formulas",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/formulas/<formula_id>/revisions/",
@@ -11156,7 +11731,7 @@
       "notes": ""
     },
     {
-      "id": "op-148",
+      "id": "op-156",
       "module": "formulas",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/formulas/<formula_id>/revisions/",
@@ -11239,7 +11814,7 @@
       "notes": ""
     },
     {
-      "id": "op-149",
+      "id": "op-157",
       "module": "formulas",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/formulas/<formula_id>/revisions/<revision_id>/",
@@ -11323,7 +11898,7 @@
       "notes": ""
     },
     {
-      "id": "op-150",
+      "id": "op-158",
       "module": "formulas",
       "method": "PATCH",
       "path": "/api/v1/companies/<company_id>/formulas/<formula_id>/revisions/<revision_id>/",
@@ -11367,7 +11942,7 @@
           {
             "name": "lines",
             "required": false,
-            "notes": "Full replace when present. material_type/unit_id/line_number never accepted — all derived from the material."
+            "notes": "Full replace when present. material_type/unit_id/line_number never accepted — all derived from the material. Each line may carry label_claim, ar_no and special_value (free text, optional, not used in any calculation)."
           }
         ],
         "request_example": {
@@ -11426,7 +12001,7 @@
       "notes": ""
     },
     {
-      "id": "op-151",
+      "id": "op-159",
       "module": "formulas",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/formulas/<formula_id>/revisions/<revision_id>/requirement-preview/",
@@ -11529,7 +12104,7 @@
       "notes": ""
     },
     {
-      "id": "op-152",
+      "id": "op-160",
       "module": "formulas",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/formulas/<formula_id>/revisions/<revision_id>/approval-preview/",
@@ -11609,7 +12184,7 @@
       "notes": ""
     },
     {
-      "id": "op-153",
+      "id": "op-161",
       "module": "formulas",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/formulas/<formula_id>/revisions/<revision_id>/approve/",
@@ -11695,7 +12270,7 @@
       "notes": ""
     },
     {
-      "id": "op-154",
+      "id": "op-162",
       "module": "formulas",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/formula-approval-policy/",
@@ -11754,7 +12329,7 @@
       "notes": ""
     },
     {
-      "id": "op-155",
+      "id": "op-163",
       "module": "formulas",
       "method": "PATCH",
       "path": "/api/v1/companies/<company_id>/formula-approval-policy/",
@@ -11830,7 +12405,7 @@
       "notes": ""
     },
     {
-      "id": "op-156",
+      "id": "op-164",
       "module": "formula_imports",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/formulas/import-preview/",
@@ -11922,7 +12497,7 @@
       "notes": ""
     },
     {
-      "id": "op-157",
+      "id": "op-165",
       "module": "formula_imports",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/formulas/import-preview/<batch_id>/",
@@ -12002,7 +12577,7 @@
       "notes": ""
     },
     {
-      "id": "op-158",
+      "id": "op-166",
       "module": "formula_imports",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/formulas/import-commit/",
@@ -12091,7 +12666,7 @@
       "notes": "version is fixed at 1 for the resource's whole life; the concurrency guard is the row lock + status field, not an incrementing counter — same design as apps.product_imports (Task 14A). See docs/backend-decisions.md, Task 14B."
     },
     {
-      "id": "op-159",
+      "id": "op-167",
       "module": "batch_plans",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/batch-plans/",
@@ -12157,7 +12732,7 @@
       "notes": ""
     },
     {
-      "id": "op-160",
+      "id": "op-168",
       "module": "batch_plans",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/batch-plans/",
@@ -12166,8 +12741,7 @@
       "permissions": [
         "batch_plans.view",
         "batch_plans.create",
-        "sales_orders.view",
-        "formulas.view"
+        "sales_orders.view"
       ],
       "screen": "BATCH-02",
       "version_requirement": "no (new resource; server assigns version=1)",
@@ -12279,7 +12853,7 @@
       "notes": ""
     },
     {
-      "id": "op-161",
+      "id": "op-169",
       "module": "batch_plans",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/batch-plans/<plan_id>/",
@@ -12349,7 +12923,7 @@
       "notes": ""
     },
     {
-      "id": "op-162",
+      "id": "op-170",
       "module": "batch_plans",
       "method": "PATCH",
       "path": "/api/v1/companies/<company_id>/batch-plans/<plan_id>/",
@@ -12436,7 +13010,7 @@
       "notes": ""
     },
     {
-      "id": "op-163",
+      "id": "op-171",
       "module": "batch_plans",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/batch-plans/<plan_id>/requirement-preview/",
@@ -12518,7 +13092,7 @@
       "notes": ""
     },
     {
-      "id": "op-164",
+      "id": "op-172",
       "module": "batch_plans",
       "method": "POST",
       "path": "/api/v1/companies/<company_id>/batch-plans/<plan_id>/allocate-number/",
@@ -12600,7 +13174,7 @@
       "notes": ""
     },
     {
-      "id": "op-165",
+      "id": "op-173",
       "module": "store_preparation",
       "method": "GET",
       "path": "/api/v1/stores/<store_id>/preparations/",
@@ -12667,22 +13241,23 @@
       "notes": ""
     },
     {
-      "id": "op-166",
+      "id": "op-174",
       "module": "store_preparation",
       "method": "POST",
       "path": "/api/v1/stores/<store_id>/preparations/",
       "action": "Create a store preparation record",
       "scope": "store + company",
       "permissions": [
-        "store_preparation.view",
+        "store_preparation.view (store)",
         "store_preparation.create (store)",
-        "batch_plans.view (plan's own company)"
+        "sales_orders.view (order line's company) for order-line rows",
+        "batch_plans.view (plan's company) for legacy batch rows"
       ],
       "screen": "PREP-01",
       "version_requirement": "no (new resource; server assigns version=1)",
       "status": "code-verified",
       "detail": {
-        "purpose": "Creates the confirmed preparation info for an existing planning draft. batch_plan_id is required, explicit, never auto-selected or inferred from a GET. store_id is never accepted in the body — always from the URL. Response never includes formula lines, recipe quantities or prices.",
+        "purpose": "Creates store preparation for EXACTLY ONE owner: sales_order_line_id (confirmed workflow: saved before any batch plan exists) or the legacy batch_plan_id. store_id always comes from the URL. Response never includes formula lines, recipe quantities or prices. One order-line preparation per store and line (409 on duplicate).",
         "path_params": [
           {
             "name": "store_id",
@@ -12694,9 +13269,16 @@
         "headers": "Authorization: Bearer <access>. No CSRF header needed (CSRF only applies to the cookie-authenticated /auth/ endpoints).",
         "request_fields": [
           {
+            "name": "sales_order_line_id",
+            "required": false,
+            "immutable": true,
+            "notes": "Give exactly one of sales_order_line_id or batch_plan_id."
+          },
+          {
             "name": "batch_plan_id",
-            "required": true,
-            "immutable": true
+            "required": false,
+            "immutable": true,
+            "notes": "Legacy batch-specific rows only."
           },
           {
             "name": "packing_type",
@@ -12710,7 +13292,7 @@
           }
         ],
         "request_example": {
-          "batch_plan_id": 60,
+          "sales_order_line_id": 31,
           "packing_type": "25 Gm G2",
           "insert_required": true
         },
@@ -12746,7 +13328,7 @@
           },
           {
             "status": 409,
-            "condition": "A preparation for this plan already exists — one per plan."
+            "condition": "A preparation for this store and order line (or this batch plan, for legacy rows) already exists."
           }
         ],
         "side_effects": "None beyond the described create/update — no stock, production or financial side effect exists anywhere in this API.",
@@ -12759,7 +13341,7 @@
       "notes": ""
     },
     {
-      "id": "op-167",
+      "id": "op-175",
       "module": "store_preparation",
       "method": "GET",
       "path": "/api/v1/stores/<store_id>/preparations/<preparation_id>/",
@@ -12824,7 +13406,7 @@
       "notes": ""
     },
     {
-      "id": "op-168",
+      "id": "op-176",
       "module": "store_preparation",
       "method": "PATCH",
       "path": "/api/v1/stores/<store_id>/preparations/<preparation_id>/",
@@ -12909,7 +13491,7 @@
       "notes": ""
     },
     {
-      "id": "op-169",
+      "id": "op-177",
       "module": "material_requisitions",
       "method": "GET",
       "path": "/api/v1/stores/<store_id>/material-requisitions/",
@@ -12985,7 +13567,72 @@
       "notes": ""
     },
     {
-      "id": "op-170",
+      "id": "op-178",
+      "module": "material_requisitions",
+      "method": "GET",
+      "path": "/api/v1/stores/<store_id>/batch-plans/<plan_id>/requisition-status/",
+      "action": "Read requisition status for a batch plan (status only)",
+      "scope": "store + company",
+      "permissions": [
+        "store_preparation.view (store)",
+        "batch_plans.view (company)"
+      ],
+      "screen": "MREQ-03",
+      "version_requirement": "not applicable",
+      "status": "code-verified",
+      "detail": {
+        "purpose": "Returns only the workflow status of this plan's requisition in THIS active store. state is present (status and status_label included) or unavailable. unavailable is returned identically for an absent requisition, one held in another store, and one held in a deactivated store, so existence is never disclosed. No lines, quantities, material, formula, actors or approval history. formulas.view is not required. Read-only. Refusals: non-member store 404; missing store_preparation.view 403; missing company batch_plans.view 404.",
+        "path_params": [
+          {
+            "name": "store_id",
+            "type": "int"
+          },
+          {
+            "name": "plan_id",
+            "type": "int"
+          }
+        ],
+        "query_params": [],
+        "auth": "Bearer access token required (Authorization header). Membership/permission re-checked server-side on every call.",
+        "headers": "Authorization: Bearer <access>. No CSRF header needed (CSRF only applies to the cookie-authenticated /auth/ endpoints).",
+        "request_fields": [],
+        "request_example": null,
+        "response_example": {
+          "batch_plan_id": 60,
+          "state": "present",
+          "status": "DRAFT",
+          "status_label": "Draft"
+        },
+        "response_status": 200,
+        "errors": [
+          {
+            "status": 400,
+            "condition": "Validation failure (bad field value, unknown/protected field, or business-rule rejection)."
+          },
+          {
+            "status": 401,
+            "condition": "Missing/invalid/expired access token."
+          },
+          {
+            "status": 403,
+            "condition": "Authenticated with membership, but the specific permission is missing (names it)."
+          },
+          {
+            "status": 404,
+            "condition": "No such resource, or no membership/access at all (deliberately indistinguishable)."
+          }
+        ],
+        "side_effects": "None beyond the described create/update — no stock, production or financial side effect exists anywhere in this API.",
+        "frontend_usage": "",
+        "source_files": [
+          "apps/material_requisitions/views.py",
+          "apps/material_requisitions/urls.py"
+        ]
+      },
+      "notes": ""
+    },
+    {
+      "id": "op-179",
       "module": "material_requisitions",
       "method": "POST",
       "path": "/api/v1/stores/<store_id>/material-requisitions/",
@@ -13099,7 +13746,7 @@
       "notes": ""
     },
     {
-      "id": "op-171",
+      "id": "op-180",
       "module": "material_requisitions",
       "method": "GET",
       "path": "/api/v1/stores/<store_id>/material-requisitions/<requisition_id>/",
@@ -13185,7 +13832,7 @@
       "notes": ""
     },
     {
-      "id": "op-172",
+      "id": "op-181",
       "module": "material_requisitions",
       "method": "PATCH",
       "path": "/api/v1/stores/<store_id>/material-requisitions/<requisition_id>/",
@@ -13281,7 +13928,7 @@
       "notes": ""
     },
     {
-      "id": "op-173",
+      "id": "op-182",
       "module": "material_requisitions",
       "method": "POST",
       "path": "/api/v1/stores/<store_id>/material-requisitions/<requisition_id>/submit/",
@@ -13364,7 +14011,291 @@
       "notes": "SUBMITTED is explicitly NOT 'approved', 'ready to issue', or 'fulfilled', and is NOT automatically the client's own Excel 'Requisition Status' column — that mapping is still unconfirmed. See docs/backend-decisions.md, Task 15A."
     },
     {
-      "id": "op-174",
+      "id": "op-183",
+      "module": "material_requisitions",
+      "method": "POST",
+      "path": "/api/v1/stores/<store_id>/material-requisitions/<requisition_id>/approve/",
+      "action": "Approve a material requisition",
+      "scope": "store + company",
+      "permissions": [
+        "material_requisitions.view",
+        "material_requisitions.approve (store)",
+        "batch_plans.view (company)",
+        "formulas.view (company)"
+      ],
+      "screen": "not applicable (backend only; no frontend screen built yet)",
+      "version_requirement": "yes (an already-APPROVED requisition at its current version is an idempotent no-op, preserving the original decided_by/decided_at)",
+      "status": "code-verified",
+      "detail": {
+        "purpose": "Task 15C: SUBMITTED -> APPROVED, the one approval step this working flow defines (accepted by the project lead, not yet client-validated; deliberately not apps.purchasing's three-step engine). A recorded decision only — does NOT reserve stock, issue materials, authorize production, or release anything from QC. Blocked (400) if the actor is the requisition's own creator, the current round's submitter, or made a substantive requested_quantity change currently reflected on any line (carried-forward-unchanged values keep their original author) — no exception, including for superusers. Blocked for EVERY actor if the round's contributor history cannot be proven complete (legacy data only). Re-validates, under lock: frozen submitted quantities/explanations, source formula still APPROVED, referenced materials/units still active, and no quantity-affecting source drift (the same checks submission itself ran).",
+        "path_params": [
+          {
+            "name": "store_id",
+            "type": "int"
+          },
+          {
+            "name": "requisition_id",
+            "type": "int"
+          }
+        ],
+        "query_params": [],
+        "auth": "Bearer access token required (Authorization header). Membership/permission re-checked server-side on every call.",
+        "headers": "Authorization: Bearer <access>. No CSRF header needed (CSRF only applies to the cookie-authenticated /auth/ endpoints).",
+        "request_fields": [
+          {
+            "name": "expected_version",
+            "required": true
+          }
+        ],
+        "request_example": {
+          "expected_version": 2
+        },
+        "response_example": {
+          "id": 12,
+          "status": "APPROVED",
+          "version": 3,
+          "current_round": 1,
+          "current_decision": {
+            "round_number": 1,
+            "outcome": "APPROVED",
+            "decided_by_id": 11,
+            "decided_at": "2026-10-01T10:00:00Z"
+          }
+        },
+        "response_status": 200,
+        "errors": [
+          {
+            "status": 400,
+            "condition": "Validation failure (bad field value, unknown/protected field, or business-rule rejection)."
+          },
+          {
+            "status": 401,
+            "condition": "Missing/invalid/expired access token."
+          },
+          {
+            "status": 403,
+            "condition": "Authenticated with membership, but the specific permission is missing (names it)."
+          },
+          {
+            "status": 404,
+            "condition": "No such resource, or no membership/access at all (deliberately indistinguishable)."
+          },
+          {
+            "status": 409,
+            "condition": "Stale expected_version (or, for goods receipts, an idempotency-key content mismatch) — refetch and show the conflict, never silently retry."
+          },
+          {
+            "status": 400,
+            "condition": "Not SUBMITTED; self-decision (creator/submitter/contributor); incomplete contributor provenance; quantity-affecting source drift; formula revision no longer APPROVED; or a referenced material/unit no longer active."
+          }
+        ],
+        "side_effects": "Creates no StockMovement, BatchNumberAllocation, or BatchPlan status change. source_drift on a later GET stays fully independent of this decision — never silently revokes or rewrites it; a future issue action, if built, must perform its own current validation.",
+        "frontend_usage": "",
+        "source_files": [
+          "apps/material_requisitions/views.py",
+          "apps/material_requisitions/services.py"
+        ]
+      },
+      "notes": "Approval is historical, not a trust-forever stamp — see docs/frontend-api-handoff.md §18.11. See docs/backend-decisions.md, Task 15C."
+    },
+    {
+      "id": "op-184",
+      "module": "material_requisitions",
+      "method": "POST",
+      "path": "/api/v1/stores/<store_id>/material-requisitions/<requisition_id>/reject/",
+      "action": "Reject a material requisition",
+      "scope": "store + company",
+      "permissions": [
+        "material_requisitions.view",
+        "material_requisitions.approve (store)",
+        "batch_plans.view (company)",
+        "formulas.view (company)"
+      ],
+      "screen": "not applicable (backend only; no frontend screen built yet)",
+      "version_requirement": "yes (same version/reason repeated against an already-REJECTED requisition is an idempotent no-op; a DIFFERENT reason at that version is 409, never silently applied)",
+      "status": "code-verified",
+      "detail": {
+        "purpose": "Task 15C: SUBMITTED -> REJECTED, always with a non-blank rejection_reason. Same permission as approve (there is no separate .reject code) and the identical self-decision ban. Deliberately does NOT re-check source drift — unlike approve, a drift that would block approval never blocks rejection, since rejection's whole purpose is to send the request back for correction.",
+        "path_params": [
+          {
+            "name": "store_id",
+            "type": "int"
+          },
+          {
+            "name": "requisition_id",
+            "type": "int"
+          }
+        ],
+        "query_params": [],
+        "auth": "Bearer access token required (Authorization header). Membership/permission re-checked server-side on every call.",
+        "headers": "Authorization: Bearer <access>. No CSRF header needed (CSRF only applies to the cookie-authenticated /auth/ endpoints).",
+        "request_fields": [
+          {
+            "name": "expected_version",
+            "required": true
+          },
+          {
+            "name": "rejection_reason",
+            "required": true,
+            "notes": "Non-blank."
+          }
+        ],
+        "request_example": {
+          "expected_version": 2,
+          "rejection_reason": "Quantities look wrong on the raw line"
+        },
+        "response_example": {
+          "id": 12,
+          "status": "REJECTED",
+          "version": 3,
+          "current_round": 1,
+          "current_decision": {
+            "round_number": 1,
+            "outcome": "REJECTED",
+            "rejection_reason": "Quantities look wrong on the raw line",
+            "decided_by_id": 11,
+            "decided_at": "2026-10-01T10:00:00Z"
+          }
+        },
+        "response_status": 200,
+        "errors": [
+          {
+            "status": 400,
+            "condition": "Validation failure (bad field value, unknown/protected field, or business-rule rejection)."
+          },
+          {
+            "status": 401,
+            "condition": "Missing/invalid/expired access token."
+          },
+          {
+            "status": 403,
+            "condition": "Authenticated with membership, but the specific permission is missing (names it)."
+          },
+          {
+            "status": 404,
+            "condition": "No such resource, or no membership/access at all (deliberately indistinguishable)."
+          },
+          {
+            "status": 409,
+            "condition": "Stale expected_version (or, for goods receipts, an idempotency-key content mismatch) — refetch and show the conflict, never silently retry."
+          },
+          {
+            "status": 400,
+            "condition": "Blank rejection_reason; not SUBMITTED; self-decision (creator/submitter/contributor); or incomplete contributor provenance."
+          },
+          {
+            "status": 409,
+            "condition": "Stale expected_version; or already REJECTED with a DIFFERENT reason than the one supplied."
+          }
+        ],
+        "side_effects": "Creates no StockMovement or BatchPlan status change. The round this closes is permanently preserved (outcome + reason), never overwritten by a later revise/resubmit.",
+        "frontend_usage": "",
+        "source_files": [
+          "apps/material_requisitions/views.py",
+          "apps/material_requisitions/services.py"
+        ]
+      },
+      "notes": "See docs/backend-decisions.md, Task 15C."
+    },
+    {
+      "id": "op-185",
+      "module": "material_requisitions",
+      "method": "POST",
+      "path": "/api/v1/stores/<store_id>/material-requisitions/<requisition_id>/revise/",
+      "action": "Revise a rejected material requisition back to draft",
+      "scope": "store + company",
+      "permissions": [
+        "material_requisitions.view",
+        "material_requisitions.edit (store)",
+        "material_requisitions.revise (store)",
+        "batch_plans.view (company)",
+        "formulas.view (company)"
+      ],
+      "screen": "not applicable (backend only; no frontend screen built yet)",
+      "version_requirement": "yes (a DRAFT reached via a genuine prior revise, repeated at its current version, is an idempotent no-op — a never-submitted DRAFT is 400, 'nothing to revise')",
+      "status": "code-verified",
+      "detail": {
+        "purpose": "Task 15C: REJECTED -> DRAFT, the only way back. Reopens editable data, so .edit is additionally required (unlike approve/reject/submit, which each stand alone). Two paths: (1) no quantity-affecting source drift — a plain reopen, every line/contributor carries forward completely unchanged; (2) drift exists — requires refresh_from_source=true AND the CURRENT expected_batch_plan_version (proof the reviewer has seen the current state), then rebuilds every line from the source using the exact same calculator create_material_requisition uses, clearing any manual override/remark and never silently rounding an unresolved result. Every prior round's own submission and decision is permanently preserved either way — resubmitting starts a NEW round; the old rejection is never overwritten.",
+        "path_params": [
+          {
+            "name": "store_id",
+            "type": "int"
+          },
+          {
+            "name": "requisition_id",
+            "type": "int"
+          }
+        ],
+        "query_params": [],
+        "auth": "Bearer access token required (Authorization header). Membership/permission re-checked server-side on every call.",
+        "headers": "Authorization: Bearer <access>. No CSRF header needed (CSRF only applies to the cookie-authenticated /auth/ endpoints).",
+        "request_fields": [
+          {
+            "name": "expected_version",
+            "required": true
+          },
+          {
+            "name": "refresh_from_source",
+            "required": false,
+            "notes": "Default false. Required true when quantity-affecting source drift exists."
+          },
+          {
+            "name": "expected_batch_plan_version",
+            "required": false,
+            "notes": "Required, and must equal the BatchPlan's CURRENT version, only when refresh_from_source is used for actual drift."
+          }
+        ],
+        "request_example": {
+          "expected_version": 4
+        },
+        "response_example": {
+          "id": 12,
+          "status": "DRAFT",
+          "version": 5,
+          "current_round": 1
+        },
+        "response_status": 200,
+        "errors": [
+          {
+            "status": 400,
+            "condition": "Validation failure (bad field value, unknown/protected field, or business-rule rejection)."
+          },
+          {
+            "status": 401,
+            "condition": "Missing/invalid/expired access token."
+          },
+          {
+            "status": 403,
+            "condition": "Authenticated with membership, but the specific permission is missing (names it)."
+          },
+          {
+            "status": 404,
+            "condition": "No such resource, or no membership/access at all (deliberately indistinguishable)."
+          },
+          {
+            "status": 409,
+            "condition": "Stale expected_version (or, for goods receipts, an idempotency-key content mismatch) — refetch and show the conflict, never silently retry."
+          },
+          {
+            "status": 400,
+            "condition": "Not REJECTED (and not an idempotent DRAFT-via-prior-revise repeat); quantity-affecting drift exists but refresh_from_source was not set true."
+          },
+          {
+            "status": 409,
+            "condition": "Stale expected_version; or expected_batch_plan_version does not match the plan's current version."
+          }
+        ],
+        "side_effects": "Does not itself touch notes/lines when no refresh is needed (use the existing PATCH endpoint afterwards). current_round is left untouched — the next submit increments it regardless of its current value.",
+        "frontend_usage": "",
+        "source_files": [
+          "apps/material_requisitions/views.py",
+          "apps/material_requisitions/services.py"
+        ]
+      },
+      "notes": "See docs/frontend-api-handoff.md §18.10 and docs/backend-decisions.md, Task 15C."
+    },
+    {
+      "id": "op-186",
       "module": "batch_register",
       "method": "GET",
       "path": "/api/v1/companies/<company_id>/batch-register/",
@@ -13519,7 +14450,7 @@
       "notes": "No new model/migration (deliberately — this task's own 'no duplicated register table' instruction taken literally). No per-row extra queries: register_queryset's select_related covers every joined section plus both reverse one-to-ones (store_preparation, material_requisition) and number_allocation. source_drift surfaces is_incompatible (generic, already part of apps.batch_plans's own existing ungated contract) and issues from the existing apps.batch_plans.assess_source_drift — never its own current_source_state sub-dict, which would otherwise leak order_date/customer_id around the order_context/customer sections' own gating. Three issue codes (INCOMPATIBLE_PRODUCT_DRIFT/PRODUCT_RENAMED/INACTIVE_PRODUCT) are split into a nested source_drift.product_detail sub-section, {\"access\": \"unavailable\"} without products.view (Task 15B.2 — redacting only the message was insufficient, since the bare code already names the protected live fact). Task 15B: 28 tests. Task 15B.1 (closed the disclosed store-coverage existence leak): 8 more tests. Task 15B.2 (removed the full-active-store-coverage exception entirely — a deactivated store can still hold an existing record — and closed the source_drift code-level leak): 3 more tests, 2 existing tests updated for the simplified contract. 39 tests total, OK, Python exit 0. See docs/backend-decisions.md and docs/backend-tasks.md, Tasks 15B/15B.1/15B.2."
     },
     {
-      "id": "op-175",
+      "id": "op-187",
       "module": "users",
       "method": "GET",
       "path": "/api/v1/users/",
@@ -13595,7 +14526,7 @@
       "notes": ""
     },
     {
-      "id": "op-176",
+      "id": "op-188",
       "module": "users",
       "method": "POST",
       "path": "/api/v1/users/",
@@ -13681,7 +14612,7 @@
       "notes": ""
     },
     {
-      "id": "op-177",
+      "id": "op-189",
       "module": "users",
       "method": "GET",
       "path": "/api/v1/users/<user_id>/",
@@ -13743,7 +14674,7 @@
       "notes": ""
     },
     {
-      "id": "op-178",
+      "id": "op-190",
       "module": "users",
       "method": "PATCH",
       "path": "/api/v1/users/<user_id>/",
@@ -13815,7 +14746,7 @@
       "notes": ""
     },
     {
-      "id": "op-179",
+      "id": "op-191",
       "module": "users",
       "method": "POST",
       "path": "/api/v1/users/<user_id>/activate/",
@@ -13872,7 +14803,7 @@
       "notes": ""
     },
     {
-      "id": "op-180",
+      "id": "op-192",
       "module": "users",
       "method": "POST",
       "path": "/api/v1/users/<user_id>/deactivate/",
@@ -13937,7 +14868,7 @@
       "notes": ""
     },
     {
-      "id": "op-181",
+      "id": "op-193",
       "module": "users",
       "method": "GET",
       "path": "/api/v1/users/<user_id>/memberships/",
@@ -13999,7 +14930,7 @@
       "notes": ""
     },
     {
-      "id": "op-182",
+      "id": "op-194",
       "module": "users",
       "method": "POST",
       "path": "/api/v1/users/<user_id>/memberships/",
@@ -14065,7 +14996,7 @@
       "notes": ""
     },
     {
-      "id": "op-183",
+      "id": "op-195",
       "module": "users",
       "method": "POST",
       "path": "/api/v1/users/<user_id>/memberships/<membership_id>/deactivate/",
@@ -14126,7 +15057,7 @@
       "notes": ""
     },
     {
-      "id": "op-184",
+      "id": "op-196",
       "module": "users",
       "method": "GET",
       "path": "/api/v1/users/<user_id>/memberships/<membership_id>/roles/",
@@ -14192,7 +15123,7 @@
       "notes": ""
     },
     {
-      "id": "op-185",
+      "id": "op-197",
       "module": "users",
       "method": "POST",
       "path": "/api/v1/users/<user_id>/memberships/<membership_id>/roles/",
@@ -14262,7 +15193,7 @@
       "notes": ""
     },
     {
-      "id": "op-186",
+      "id": "op-198",
       "module": "users",
       "method": "POST",
       "path": "/api/v1/users/<user_id>/memberships/<membership_id>/roles/<assignment_id>/deactivate/",
@@ -14327,7 +15258,7 @@
       "notes": ""
     },
     {
-      "id": "op-187",
+      "id": "op-199",
       "module": "common",
       "method": "GET",
       "path": "/api/v1/health/",
@@ -14354,6 +15285,388 @@
         "frontend_usage": "",
         "source_files": [
           "apps/common/views.py"
+        ]
+      },
+      "notes": ""
+    },
+    {
+      "id": "op-200",
+      "module": "batch_plans",
+      "method": "GET",
+      "path": "/api/v1/companies/<company_id>/batch-plans/planning-units/",
+      "action": "Units for batch planning pickers",
+      "scope": "company",
+      "permissions": [
+        "batch_plans.view"
+      ],
+      "screen": "BATCH-06",
+      "version_requirement": "not applicable",
+      "status": "code-verified",
+      "detail": {
+        "purpose": "Active units only, for the packing-content and batch-size pickers. Deliberately not gated by shared_catalog.view or any catalog administration permission.",
+        "path_params": [
+          {
+            "name": "company_id",
+            "type": "int"
+          }
+        ],
+        "query_params": [],
+        "auth": "Bearer access token required (Authorization header). Membership/permission re-checked server-side on every call.",
+        "headers": "Authorization: Bearer <access>. No CSRF header needed (CSRF only applies to the cookie-authenticated /auth/ endpoints).",
+        "request_fields": [],
+        "request_example": null,
+        "response_example": {
+          "results": [
+            {
+              "id": 1,
+              "code": "BTL",
+              "name": "Bottle",
+              "dimension": "COUNT"
+            }
+          ]
+        },
+        "response_status": 200,
+        "errors": [
+          {
+            "status": 400,
+            "condition": "Validation failure (bad field value, unknown/protected field, or business-rule rejection)."
+          },
+          {
+            "status": 401,
+            "condition": "Missing/invalid/expired access token."
+          },
+          {
+            "status": 403,
+            "condition": "Authenticated with membership, but the specific permission is missing (names it)."
+          },
+          {
+            "status": 404,
+            "condition": "No such resource, or no membership/access at all (deliberately indistinguishable)."
+          }
+        ],
+        "side_effects": "None beyond the described create/update — no stock, production or financial side effect exists anywhere in this API.",
+        "frontend_usage": "",
+        "source_files": [
+          "apps/batch_plans/views.py"
+        ]
+      },
+      "notes": ""
+    },
+    {
+      "id": "op-201",
+      "module": "batch_plans",
+      "method": "GET",
+      "path": "/api/v1/companies/<company_id>/batch-plans/eligible-revisions/",
+      "action": "Approved formula revisions for a product",
+      "scope": "company",
+      "permissions": [
+        "batch_plans.view"
+      ],
+      "screen": "BATCH-07",
+      "version_requirement": "not applicable",
+      "status": "code-verified",
+      "detail": {
+        "purpose": "APPROVED revisions of one product in this company, for choosing a batch plan's source. Returns identity and quantities only: never recipe lines and never draft revisions. Empty result means no approved formula exists for that product.",
+        "path_params": [
+          {
+            "name": "company_id",
+            "type": "int"
+          }
+        ],
+        "query_params": [
+          {
+            "name": "product",
+            "required": true,
+            "type": "int"
+          }
+        ],
+        "auth": "Bearer access token required (Authorization header). Membership/permission re-checked server-side on every call.",
+        "headers": "Authorization: Bearer <access>. No CSRF header needed (CSRF only applies to the cookie-authenticated /auth/ endpoints).",
+        "request_fields": [],
+        "request_example": null,
+        "response_example": {
+          "results": [
+            {
+              "id": 3,
+              "formula_id": 2,
+              "formula_code": "DEMOF",
+              "formula_name": "Demo formula",
+              "revision_number": 1,
+              "base_output_quantity": "100.000",
+              "output_uom_id": 1,
+              "output_uom_code": "BTL"
+            }
+          ]
+        },
+        "response_status": 200,
+        "errors": [
+          {
+            "status": 400,
+            "condition": "Validation failure (bad field value, unknown/protected field, or business-rule rejection)."
+          },
+          {
+            "status": 401,
+            "condition": "Missing/invalid/expired access token."
+          },
+          {
+            "status": 403,
+            "condition": "Authenticated with membership, but the specific permission is missing (names it)."
+          },
+          {
+            "status": 404,
+            "condition": "No such resource, or no membership/access at all (deliberately indistinguishable)."
+          }
+        ],
+        "side_effects": "None beyond the described create/update — no stock, production or financial side effect exists anywhere in this API.",
+        "frontend_usage": "",
+        "source_files": [
+          "apps/batch_plans/views.py"
+        ]
+      },
+      "notes": ""
+    },
+    {
+      "id": "op-202",
+      "module": "bmr",
+      "method": "GET",
+      "path": "/api/v1/companies/<company_id>/batch-plans/<plan_id>/bmr/",
+      "action": "Read the batch manufacturing record of a plan",
+      "scope": "company",
+      "permissions": [
+        "bmr.view",
+        "batch_plans.view"
+      ],
+      "screen": "BMR-01",
+      "version_requirement": "not applicable",
+      "status": "code-verified",
+      "detail": {
+        "purpose": "Returns the BMR with its raw material and packing slip lines. 404 when no record exists yet for this plan.",
+        "path_params": [
+          {
+            "name": "company_id",
+            "type": "int"
+          },
+          {
+            "name": "plan_id",
+            "type": "int"
+          }
+        ],
+        "query_params": [],
+        "auth": "Bearer access token required (Authorization header). Membership/permission re-checked server-side on every call.",
+        "headers": "Authorization: Bearer <access>. No CSRF header needed (CSRF only applies to the cookie-authenticated /auth/ endpoints).",
+        "request_fields": [],
+        "request_example": null,
+        "response_example": {
+          "id": 7,
+          "batch_plan_id": 9,
+          "formula_revision_id": 3,
+          "version": 1,
+          "lines": [
+            {
+              "id": 1,
+              "slip": "RAW",
+              "required_text": "5",
+              "label_claim": "",
+              "ar_no": "",
+              "version": 1
+            }
+          ]
+        },
+        "response_status": 200,
+        "errors": [
+          {
+            "status": 400,
+            "condition": "Validation failure (bad field value, unknown/protected field, or business-rule rejection)."
+          },
+          {
+            "status": 401,
+            "condition": "Missing/invalid/expired access token."
+          },
+          {
+            "status": 403,
+            "condition": "Authenticated with membership, but the specific permission is missing (names it)."
+          },
+          {
+            "status": 404,
+            "condition": "No such resource, or no membership/access at all (deliberately indistinguishable)."
+          }
+        ],
+        "side_effects": "None beyond the described create/update — no stock, production or financial side effect exists anywhere in this API.",
+        "frontend_usage": "",
+        "source_files": [
+          "apps/bmr/views.py"
+        ]
+      },
+      "notes": ""
+    },
+    {
+      "id": "op-203",
+      "module": "bmr",
+      "method": "POST",
+      "path": "/api/v1/companies/<company_id>/batch-plans/<plan_id>/bmr/",
+      "action": "Create the batch manufacturing record from the requirement preview",
+      "scope": "company",
+      "permissions": [
+        "bmr.create",
+        "batch_plans.view",
+        "formulas.view"
+      ],
+      "screen": "BMR-01",
+      "version_requirement": "no (new resource)",
+      "status": "code-verified",
+      "detail": {
+        "purpose": "Creates the record with one line per formula line, taking each required quantity from the existing requirement preview. Refused when the preview is not calculation-complete, and once per plan. Does not allocate a batch number, create stock movements or requisitions.",
+        "path_params": [
+          {
+            "name": "company_id",
+            "type": "int"
+          },
+          {
+            "name": "plan_id",
+            "type": "int"
+          }
+        ],
+        "query_params": [],
+        "auth": "Bearer access token required (Authorization header). Membership/permission re-checked server-side on every call.",
+        "headers": "Authorization: Bearer <access>. No CSRF header needed (CSRF only applies to the cookie-authenticated /auth/ endpoints).",
+        "request_fields": [],
+        "request_example": null,
+        "response_example": {
+          "id": 7,
+          "batch_plan_id": 9,
+          "lines": []
+        },
+        "response_status": 201,
+        "errors": [
+          {
+            "status": 400,
+            "condition": "Validation failure (bad field value, unknown/protected field, or business-rule rejection)."
+          },
+          {
+            "status": 401,
+            "condition": "Missing/invalid/expired access token."
+          },
+          {
+            "status": 403,
+            "condition": "Authenticated with membership, but the specific permission is missing (names it)."
+          },
+          {
+            "status": 404,
+            "condition": "No such resource, or no membership/access at all (deliberately indistinguishable)."
+          },
+          {
+            "status": 409,
+            "condition": "Stale expected_version (or, for goods receipts, an idempotency-key content mismatch) — refetch and show the conflict, never silently retry."
+          },
+          {
+            "status": 409,
+            "condition": "A record already exists for this plan."
+          }
+        ],
+        "side_effects": "None beyond the described create/update — no stock, production or financial side effect exists anywhere in this API.",
+        "frontend_usage": "",
+        "source_files": [
+          "apps/bmr/views.py",
+          "apps/bmr/services.py"
+        ]
+      },
+      "notes": ""
+    },
+    {
+      "id": "op-204",
+      "module": "bmr",
+      "method": "PATCH",
+      "path": "/api/v1/companies/<company_id>/bmr/<bmr_id>/lines/<line_id>/",
+      "action": "Edit a BMR line's free-text fields",
+      "scope": "company",
+      "permissions": [
+        "bmr.view",
+        "bmr.edit"
+      ],
+      "screen": "BMR-01",
+      "version_requirement": "yes (expected_version = line version)",
+      "status": "code-verified",
+      "detail": {
+        "purpose": "Edits special_value, label_claim, ar_no and (packing lines only) qty_received. Required quantities cannot be changed here. Version-checked and audited.",
+        "path_params": [
+          {
+            "name": "company_id",
+            "type": "int"
+          },
+          {
+            "name": "bmr_id",
+            "type": "int"
+          },
+          {
+            "name": "line_id",
+            "type": "int"
+          }
+        ],
+        "query_params": [],
+        "auth": "Bearer access token required (Authorization header). Membership/permission re-checked server-side on every call.",
+        "headers": "Authorization: Bearer <access>. No CSRF header needed (CSRF only applies to the cookie-authenticated /auth/ endpoints).",
+        "request_fields": [
+          {
+            "name": "expected_version",
+            "required": true
+          },
+          {
+            "name": "special_value",
+            "required": false
+          },
+          {
+            "name": "label_claim",
+            "required": false
+          },
+          {
+            "name": "ar_no",
+            "required": false
+          },
+          {
+            "name": "qty_received",
+            "required": false,
+            "notes": "Packing lines only."
+          }
+        ],
+        "request_example": {
+          "expected_version": 1,
+          "label_claim": "0.25 mL",
+          "ar_no": "AR-TEST-001"
+        },
+        "response_example": {
+          "id": 1,
+          "label_claim": "0.25 mL",
+          "ar_no": "AR-TEST-001",
+          "version": 2
+        },
+        "response_status": 200,
+        "errors": [
+          {
+            "status": 400,
+            "condition": "Validation failure (bad field value, unknown/protected field, or business-rule rejection)."
+          },
+          {
+            "status": 401,
+            "condition": "Missing/invalid/expired access token."
+          },
+          {
+            "status": 403,
+            "condition": "Authenticated with membership, but the specific permission is missing (names it)."
+          },
+          {
+            "status": 404,
+            "condition": "No such resource, or no membership/access at all (deliberately indistinguishable)."
+          },
+          {
+            "status": 409,
+            "condition": "Stale expected_version (or, for goods receipts, an idempotency-key content mismatch) — refetch and show the conflict, never silently retry."
+          }
+        ],
+        "side_effects": "None beyond the described create/update — no stock, production or financial side effect exists anywhere in this API.",
+        "frontend_usage": "",
+        "source_files": [
+          "apps/bmr/views.py",
+          "apps/bmr/services.py"
         ]
       },
       "notes": ""

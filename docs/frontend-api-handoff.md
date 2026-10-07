@@ -1911,22 +1911,31 @@ stock, not dispatch - and never changes the plan's own `DRAFT` status or the sou
   source is compatible again - show that message, do not treat it as a generic error.
 - **No stock/production-readiness indicator of any kind is shown here** - none exists.
 
-## 18. Material Requisitions (Task 13A) — screens MREQ-01–03
+## 18. Material Requisitions (Task 13A/15A/15C) — screens MREQ-01–03, no screen yet for approve/reject/revise
 
 A `MaterialRequisition` is a planning document requesting materials from a shared store for an existing
 `BatchPlan` - auto-fetched from the plan's own pinned, APPROVED formula revision. It REQUESTS materials; it does
 **not** reserve, issue, consume, or otherwise change any stock (there is no stock-balance/stock-ledger concept
-anywhere in this API), is not itself a stock transaction, and creating or submitting it authorizes no
+anywhere in this API), is not itself a stock transaction, and creating/submitting/approving it authorizes no
 manufacturing. No official batch number is required to create or submit one.
 
-**Two statuses only (Task 15A added the second one) - never conflate them:**
+**Four statuses (Task 15C added the last two) - never conflate them:**
 - **`DRAFT`** = an editable request. `notes` and existing lines' `requested_quantity`/`quantity_remark` may still
   be changed.
-- **`SUBMITTED`** = a FROZEN request, awaiting some future processing workflow this API does not define yet.
-  **Never render this as "approved," "ready to issue," or "fulfilled"** - none of those concepts exist. It is
-  also **not** automatically the same thing as the client's own Excel "Requisition Status" column - that mapping
-  is still unconfirmed (see `docs/client-register-field-mapping.md`). There is no reopen/amend/cancel/approve/
-  reject/fulfil/issue action anywhere in this API - once `SUBMITTED`, a requisition stays that way.
+- **`SUBMITTED`** = a FROZEN request, pending exactly ONE approval step by an explicitly-permissioned Admin
+  (`material_requisitions.approve`) - this is a working flow accepted by the project lead, **not** a client-
+  validated process, and is deliberately not `apps.purchasing`'s own three-step engine. **Never render this as
+  "ready to issue" or "fulfilled"** - those concepts still do not exist.
+- **`APPROVED`** = the one approval step decided in favour. Terminal - still **not** stock reservation, issue, or
+  production authorization; a future "issue" action, if built, must perform its own current validation rather
+  than trust this historical decision (see §18.11).
+- **`REJECTED`** = the one approval step decided against, always with a non-blank reason. The only way out is
+  `revise` (§18.10), back to `DRAFT`.
+
+None of the four is automatically the same thing as the client's own Excel "Requisition Status" column - that
+mapping is still unconfirmed (see `docs/client-register-field-mapping.md`). **Corrected from an earlier version
+of this document, which stated no approve/reject/revise action existed anywhere in this API - that was true
+only through Task 15A; Task 15C added all three, documented in §18.9/§18.10 below.**
 
 ### 18.1 Endpoints and permissions
 
@@ -1937,6 +1946,9 @@ manufacturing. No official batch number is required to create or submit one.
 | GET | `/stores/<store_id>/material-requisitions/<id>/` | same dual access as list |
 | PATCH | `/stores/<store_id>/material-requisitions/<id>/` | `material_requisitions.view` + `.edit` (store) + the same dual company check |
 | POST | `/stores/<store_id>/material-requisitions/<id>/submit/` | `material_requisitions.view` + `.submit` (store) + the same dual company check |
+| POST | `/stores/<store_id>/material-requisitions/<id>/approve/` (Task 15C) | `material_requisitions.view` + `.approve` (store) + the same dual company check |
+| POST | `/stores/<store_id>/material-requisitions/<id>/reject/` (Task 15C) | Same as approve - **"approve and reject require view + approve"**, there is no separate `.reject` permission |
+| POST | `/stores/<store_id>/material-requisitions/<id>/revise/` (Task 15C) | `material_requisitions.view` + `.edit` + `.revise` (store) + the same dual company check - revising reopens editable data, so `.edit` is additionally required here, unlike approve/reject/submit |
 
 **`.submit` is deliberately independent of `.edit`** (Task 15A's own explicit instruction) - a user may hold one,
 both, or neither; submitting is not a form of editing and is never gated behind edit access.
@@ -2099,6 +2111,108 @@ rewrites this requisition's own frozen snapshots or lines.
 
 `submitted_by_id`/`submitted_at` are both `null` on a `DRAFT` requisition, and are set exactly once, together,
 the moment submission actually transitions the record - never independently.
+
+### 18.9 Approve / Reject (Task 15C)
+
+```json
+// POST /api/v1/stores/4/material-requisitions/12/approve/
+{"expected_version": 2}
+
+// POST /api/v1/stores/4/material-requisitions/12/reject/
+{"expected_version": 2, "rejection_reason": "Quantities look wrong on the raw line"}
+```
+
+Only `SUBMITTED` can be decided. **Self-decision is banned with no exception, for three distinct people, not
+just "the approver is a contributor" (a narrower rule `apps.formulas` uses for its own, separate approval
+concept):**
+1. The requisition's own **creator**.
+2. The current round's **submitter**.
+3. Anyone who made a **substantive `requested_quantity` change** currently reflected on any line - including a
+   value carried forward unchanged from an earlier, rejected round; reopening/resubmitting never erases that
+   authorship.
+
+Each is a distinct `400` naming which rule blocked it (`SELF_DECISION_CREATOR`/`_SUBMITTER`/`_CONTRIBUTOR` in
+the error detail). If a round's contributor history cannot be fully proven complete (only possible for data
+that pre-dates Task 15C), approval/rejection is blocked for **every** user, not just an affected one
+(`CONTRIBUTOR_PROVENANCE_INCOMPLETE`) - fail closed, never guessed.
+
+**`reject` always requires a non-blank `rejection_reason`.** **`approve` never re-checks source drift leniently
+for reject** - approval re-validates frozen quantities/explanations, source formula approval, active materials/
+units, and **no quantity-affecting source drift** (the same checks submission already ran); rejection
+deliberately skips all of that, since its entire purpose is to send a problem back for correction - **a drift
+that blocks approval never blocks rejection**.
+
+**Retry semantics**: a repeat `approve` call at the CURRENT (already-`APPROVED`) version is an idempotent
+no-op, preserving the original `decided_by`/`decided_at` - not reassessed. A repeat `reject` call at the
+current (already-`REJECTED`) version with the **same** `rejection_reason` is likewise a no-op; the **same**
+call with a **different** reason is `409` ("already rejected with a different reason - refetch and review"),
+never silently applied on top. A decision attempted at a stale version is the normal `409`.
+
+Response shape is the same requisition detail (§18.3) with `status` now `APPROVED`/`REJECTED` and
+`current_decision` populated (see §18.3a).
+
+### 18.10 Revise (Task 15C) — the only way back from REJECTED
+
+```json
+// Plain reopen (no source drift) - just flips status
+// POST /api/v1/stores/4/material-requisitions/12/revise/
+{"expected_version": 4}
+
+// Required when the source HAS drifted in a quantity-affecting way
+// POST /api/v1/stores/4/material-requisitions/12/revise/
+{"expected_version": 4, "refresh_from_source": true, "expected_batch_plan_version": 5}
+```
+
+Only `REJECTED` can be revised (an idempotent-repeat exception exists for a `DRAFT` reached via a genuine prior
+revise, mirroring `apps.purchasing`'s identical convention - not for a never-submitted `DRAFT`, which is `400`,
+"nothing to revise").
+
+- **No quantity-affecting drift**: a plain reopen. Lines are **not touched at all** - every `requested_quantity`/
+  `quantity_remark`/contributor carries forward unchanged. `refresh_from_source: true` with nothing to refresh
+  is accepted as a harmless no-op, never an error.
+- **Quantity-affecting drift exists**: `refresh_from_source: true` **and** `expected_batch_plan_version` matching
+  the plan's CURRENT version are both required, or `400`/`409` respectively. When satisfied, every line is
+  **rebuilt from the current source** (same calculator as create) - any manual override/remark is **cleared**,
+  never carried forward incorrectly; an unresolved result is **never silently rounded**. The header's own
+  `*_snapshot` fields (normally immutable - see §18) are rewritten to the new source state, the ONE documented
+  exception to that rule.
+
+**Every prior round's own submission and decision is permanently preserved, never touched by revise** - see
+§18.3a's `rounds` array. Resubmitting after a revise starts a **new** round; the old, rejected round's
+`rejection_reason` is never overwritten.
+
+### 18.3a New response fields (Task 15C)
+
+Every requisition detail response (create/get/patch/submit/approve/reject/revise) now additionally includes:
+
+```json
+{
+  "current_round": 2,
+  "current_decision": {
+    "round_number": 2, "outcome": "APPROVED", "submitted_by_id": 9, "submitted_at": "2026-10-01T09:05:00Z",
+    "decided_by_id": 11, "decided_at": "2026-10-01T10:00:00Z", "rejection_reason": "",
+    "contributor_provenance_complete": true
+  },
+  "rounds": [
+    {"round_number": 1, "outcome": "REJECTED", "rejection_reason": "Fix the raw line", "lines": [...], "...": "..."},
+    {"round_number": 2, "outcome": "APPROVED", "rejection_reason": "", "lines": [...], "...": "..."}
+  ]
+}
+```
+
+`current_round` is `0` for a never-submitted `DRAFT` (`current_decision` is then `null`). `rounds` is the full,
+permanently-preserved history, oldest first - every round that has ever existed for this requisition, each with
+its own frozen `lines` snapshot (requested quantities/remarks/contributor **as actually submitted**, never the
+live, possibly-since-edited values).
+
+### 18.11 Approval is historical, not a trust-forever stamp
+
+An `APPROVED` requisition's `source_drift` (already documented in §18.6) is computed fresh on every read and
+stays completely independent of the decision - a plan edited after approval shows real, current drift
+alongside the still-`APPROVED` status, never one silently overwriting the other. **If a future "issue
+materials" action is ever built, it must perform its own current validation (active materials, current
+quantities, etc.) rather than trust this approval as still valid** - approval is never silently revoked or
+rewritten by this API, and nothing here re-validates it after the fact either.
 
 
 ## 19. Physical Receipt Ledger — Recorded Receipts (Task 13C) — screen STK-01
@@ -2504,3 +2618,73 @@ On any 409:
   current code — every proposed/provisional policy described in those
   documents matches what
   the code actually enforces today.
+
+## Department order workflow additions (2026-10-05)
+
+- `GET /api/v1/product-types/?is_active=true` returns the maintained type list (`CanReadSharedCatalog`). Used by the order line Type field and the product form. Write endpoints are superuser configuration only.
+- Sales order create/update accept `planned_manufacturing_date` (nullable) and each line accepts `product_type_snapshot` (blank or an active type name). Unknown keys are still rejected.
+- Store preparation create/update accept `label_note` and `box_note` (optional text, max 255).
+- Batch plan create/update accept `mrp_for_printing` (nullable, >= 0, 2 dp) and `printing_status_note` (text, max 255). These require `batch_plans.printing_edit`; without it the request returns 403 naming the permission.
+- Save actions are separate requests. Order, store preparation and batch plan each use their own version (`expected_version` where the resource requires it). The UI never reports them as one atomic save.
+
+- Draft delete: `DELETE /api/v1/companies/<id>/sales-orders/<order_id>/?expected_version=<n>` returns 204. Errors: 400 for confirmed orders or orders with batch plans, 403 without `sales_orders.delete`, 409 for a stale version.
+
+
+## Formula Master, requirement calculator and in-context Manage formulas
+
+Screens (frontend):
+- Formulas (`/formulas`, menu item visible with `formulas.view`). Also embedded in the order window as "Manage formulas". Lists formulas with search and product filter, creates a formula, lists revisions, edits DRAFT revisions (raw and packaging tables, saved together), approves through the approval preview and approve action.
+- Material requirements panel in batch planning. Draft preview for the chosen approved revision, or the saved plan's preview. Shows the backend's quantities, scale factor and warnings. No arithmetic in the browser.
+
+Endpoints used (all existing):
+- GET/POST `/v1/companies/<company_id>/formulas/`, GET `/formulas/<formula_id>/`
+- GET/POST `/formulas/<formula_id>/revisions/`, GET/PATCH `/revisions/<revision_id>/` (PATCH sends the full line list for both material kinds, with `expected_version`)
+- GET `/formulas/<formula_id>/revisions/<revision_id>/requirement-preview/?target_output_quantity=`
+- GET `/formulas/<formula_id>/revisions/<revision_id>/approval-preview/`, POST `/revisions/<revision_id>/approve/`
+- GET `/v1/companies/<company_id>/batch-plans/<plan_id>/requirement-preview/?target_output_quantity=` (saved plan)
+- GET `/v1/materials/` (line picker, read only)
+
+Permissions: formulas.view (read, calculator), formulas.create, formulas.edit, formulas.approve. Approval also needs the company policy and the self-approval rules; the backend's answer is shown as a blocker and nothing is auto-approved.
+
+Batch picker: lists only APPROVED revisions for the selected product (batch_plans.view). Keeps the selected revision after a refresh; never chooses another revision automatically. Failed refresh keeps the input and offers Retry.
+
+Order window: Manage formulas opens inside the order window. Closing it returns to the same order, line and batch with unsaved inputs intact, and refreshes the approved revisions only. A company or user change remounts the window, so no form state carries over.
+
+---
+
+## Store & Materials workspace (2026-10-06)
+
+Screens: `/inventory/materials`, `/inventory/locations`, `/inventory/receipts` (sidebar section "Store & Materials"). Code: `frontend/src/features/store/`. No backend change; every call below is an existing endpoint.
+
+| Screen action | Method and path | Access (server) | Notes |
+|---|---|---|---|
+| Accessible stores | GET `/api/v1/stores/mine/` | active store membership | Store is never hardcoded; one store is auto-selected |
+| List materials (search, type, status, pages) | GET `/api/v1/materials/` with `search`, `kind`, `is_active`, `page`, `page_size` | superuser, or `shared_catalog.view` in an active store | server-side only |
+| Create material | POST `/api/v1/materials/` (`code`, `name`, `description`, `kind`, `base_unit_id`) | active superuser only | no company field |
+| Edit material | PATCH `/api/v1/materials/<id>/` (`name`, `description`, `category_id`) | active superuser only | code, kind, base unit immutable; no expected_version in this API |
+| Activate / deactivate | POST `/api/v1/materials/<id>/activate/` and `/deactivate/` | active superuser only | no DELETE |
+| Unit picker | GET `/api/v1/units/` (existing `searchActiveUnits`) | `shared_catalog.view` or superuser | active units only |
+| Import: template | client-side CSV: `code,name,material_type,base_unit_code,description` | — | template is generated in the browser |
+| Import: preview | POST `/api/v1/materials/import-preview/` (multipart `file`) | active superuser only | returns batch with `version` and paginated `rows` |
+| Import: page rows | GET `/api/v1/materials/import-preview/<id>/?page=&page_size=` | ownership of the preview | |
+| Import: commit | POST `/api/v1/materials/import-commit/` `{preview_id, expected_version}` | active superuser only | all-or-nothing; stale preview refused |
+| Locations | GET `/api/v1/stores/<store_id>/locations/` | `storage_locations.view` in that store | read-only in this screen |
+| Recorded receipt lines | GET `/api/v1/stores/<store_id>/stock-movements/` (`material`, `page`, `page_size`) | `stock.view` + company `purchase_orders.view` per source | returns `coverage` notice |
+| Recorded receipt quantity | GET `/api/v1/stores/<store_id>/stock-balances/` (`material`) | same as above | grouped by material, unit, source company |
+
+Write controls are shown to everyone with read access; the server decides. A 403 on a write shows "Only an administrator can change the material catalog."
+
+### Current-user capability (2026-10-06)
+
+`GET /api/v1/auth/me/` and the login response's `user` now include `capabilities`:
+
+```json
+{ "id": 1, "username": "...", "email": "", "first_name": "", "last_name": "",
+  "capabilities": { "can_manage_material_catalog": true } }
+```
+
+- `can_manage_material_catalog` is true only for an active superuser. It is the same rule as `IsActiveSuperuser`, which guards material create, edit, activate, deactivate and material import on the server.
+- It is read-only UI information. It never grants access, and the server still enforces every write.
+- It is not `is_superuser`, and a business Admin role does not set it.
+- The session restore refreshes it from `/auth/me/`, so a stored user never keeps a stale value.
+- The frontend hides the Materials write controls unless this is true, and shows "Read-only access" otherwise.

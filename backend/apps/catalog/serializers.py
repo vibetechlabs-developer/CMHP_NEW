@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from apps.catalog.models import Material, MaterialCategory, UnitOfMeasure
+from apps.catalog.models import Material, MaterialCategory, ProductType, UnitOfMeasure
 
 # Fields explicitly rejected (not silently ignored) if present in the
 # request body, on both create and update unless noted - `is_active` has
@@ -189,3 +189,20 @@ class MaterialUpdateSerializer(serializers.Serializer):
     def validate(self, attrs):
         _reject_prohibited_fields(self.initial_data, _MATERIAL_PROHIBITED_ON_UPDATE)
         return attrs
+
+
+class ProductTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductType
+        fields = ["id", "name", "is_active", "created_at", "updated_at"]
+        read_only_fields = fields
+
+
+class ProductTypeWriteSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=100)
+
+    def validate_name(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Name cannot be blank.")
+        return value

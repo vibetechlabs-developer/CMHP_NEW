@@ -1,0 +1,1055 @@
+/* =========================================================
+   HRMS - SHARED STYLES
+   Pharma ERP Theme
+   ========================================================= */
+
+.hr-page {
+  width: 100%;
+  min-width: 0;
+}
+
+
+/* =========================================================
+   HR HEADER
+   ========================================================= */
+
+.hr-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+.hr-header h1 {
+  margin: 6px 0 7px;
+  color: #173b59;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -0.3px;
+}
+
+.hr-header p {
+  max-width: 650px;
+  margin: 0;
+  color: #6d859a;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+
+/* =========================================================
+   HR DASHBOARD KPI CARDS
+   ========================================================= */
+
+.hr-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.hr-kpi-card {
+  position: relative;
+  min-height: 100px;
+  padding: 17px 18px;
+
+  overflow: hidden;
+
+  background:
+    radial-gradient(
+      circle at 100% 0%,
+      rgba(39, 145, 214, 0.08),
+      transparent 45%
+    ),
+    linear-gradient(
+      135deg,
+      #ffffff 0%,
+      #f9fcfe 100%
+    );
+
+  border: 1px solid #dce8ef;
+  border-radius: 14px;
+
+  box-shadow:
+    0 3px 14px rgba(27, 72, 104, 0.045),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.hr-kpi-card::after {
+  content: "";
+
+  position: absolute;
+  right: -28px;
+  bottom: -34px;
+
+  width: 85px;
+  height: 85px;
+
+  border: 1px solid rgba(32, 145, 214, 0.06);
+  border-radius: 50%;
+
+  pointer-events: none;
+}
+
+.hr-kpi-card:hover {
+  transform: translateY(-2px);
+
+  border-color: #c9dfea;
+
+  box-shadow:
+    0 7px 20px rgba(27, 72, 104, 0.08);
+}
+
+.hr-kpi-value {
+  position: relative;
+  z-index: 1;
+
+  color: #173b59;
+
+  font-size: 25px;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.hr-kpi-label {
+  position: relative;
+  z-index: 1;
+
+  margin-top: 7px;
+
+  color: #7890a1;
+
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+
+/* =========================================================
+   HR DASHBOARD GRID
+   ========================================================= */
+
+.hr-page .dash-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.hr-page .dash-card {
+  min-width: 0;
+  padding: 20px;
+
+  background: #ffffff;
+
+  border: 1px solid #dce7ee;
+  border-radius: 15px;
+
+  box-shadow:
+    0 3px 14px rgba(27, 72, 104, 0.045);
+}
+
+.hr-page .dash-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+
+  margin-bottom: 14px;
+}
+
+.hr-page .dash-card-title {
+  margin: 0;
+
+  color: #173b59;
+
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.hr-page .dash-card-sub {
+  margin: 4px 0 0;
+
+  color: #8a9eac;
+
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+.hr-page .dash-empty {
+  min-height: 125px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  margin: 0;
+
+  color: #91a3b0;
+
+  font-size: 10px;
+  text-align: center;
+}
+
+
+/* =========================================================
+   ACTIVITY LIST
+   ========================================================= */
+
+.hr-page .activity-list {
+  display: flex;
+  flex-direction: column;
+
+  gap: 0;
+
+  margin: 0;
+  padding: 0;
+
+  list-style: none;
+}
+
+.hr-page .activity-list li {
+  display: flex;
+  align-items: center;
+
+  gap: 12px;
+
+  min-height: 58px;
+
+  padding: 10px 0;
+
+  border-bottom: 1px solid #edf2f5;
+}
+
+.hr-page .activity-list li:last-child {
+  border-bottom: 0;
+}
+
+.hr-page .activity-title {
+  margin: 0 0 3px;
+
+  color: #244c69;
+
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.hr-page .activity-time {
+  color: #8ca0ae;
+
+  font-size: 8.5px;
+}
+
+.hr-page .activity-dot {
+  width: 9px;
+  height: 9px;
+
+  flex: 0 0 9px;
+
+  border-radius: 50%;
+}
+
+.hr-page .activity-blue {
+  background: #278fd2;
+  box-shadow: 0 0 0 4px #eaf5fc;
+}
+
+.hr-page .activity-green {
+  background: #35a77f;
+  box-shadow: 0 0 0 4px #eaf8f2;
+}
+
+.hr-page .activity-purple {
+  background: #8b6fd8;
+  box-shadow: 0 0 0 4px #f1edfc;
+}
+
+
+/* =========================================================
+   ERROR / LOADING
+   ========================================================= */
+
+.hr-page > .dash-card {
+  margin-bottom: 18px;
+}
+
+
+/* =========================================================
+   CHECK-IN / CHECK-OUT ACTION CARD
+   ========================================================= */
+
+.hr-checkin-card {
+  position: relative;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+
+  gap: 24px;
+
+  min-height: 160px;
+
+  padding: 26px 30px;
+
+  margin-bottom: 18px;
+
+  overflow: hidden;
+
+  background:
+    radial-gradient(
+      circle at 96% 15%,
+      rgba(31, 137, 214, 0.11) 0,
+      rgba(31, 137, 214, 0.045) 18%,
+      transparent 42%
+    ),
+    radial-gradient(
+      circle at 78% 115%,
+      rgba(36, 174, 132, 0.07) 0,
+      transparent 34%
+    ),
+    linear-gradient(
+      135deg,
+      #edf8ff 0%,
+      #ffffff 48%,
+      #f8fcff 100%
+    );
+
+  border: 1px solid #d8e6ef;
+  border-radius: 16px;
+
+  box-shadow:
+    0 5px 18px rgba(27, 72, 104, 0.055),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+
+/* =========================================================
+   MEDICAL BACKGROUND DETAILS
+   ========================================================= */
+
+.hr-checkin-card::before {
+  content: "+";
+
+  position: absolute;
+
+  right: 42px;
+  top: 18px;
+
+  width: 38px;
+  height: 38px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  color: rgba(21, 128, 201, 0.09);
+
+  font-size: 38px;
+  font-weight: 300;
+
+  pointer-events: none;
+}
+
+.hr-checkin-card::after {
+  content: "";
+
+  position: absolute;
+
+  right: -55px;
+  bottom: -85px;
+
+  width: 220px;
+  height: 220px;
+
+  border: 1px solid rgba(21, 128, 201, 0.07);
+
+  border-radius: 50%;
+
+  box-shadow:
+    0 0 0 25px rgba(21, 128, 201, 0.022),
+    0 0 0 50px rgba(21, 128, 201, 0.016);
+
+  pointer-events: none;
+}
+
+
+/* =========================================================
+   CHECK-IN STATUS CONTENT
+   ========================================================= */
+
+.hr-checkin-card > .hr-checkin-status {
+  position: relative;
+  z-index: 2;
+
+  padding-left: 18px;
+}
+
+.hr-checkin-card > .hr-checkin-status::before {
+  content: "";
+
+  position: absolute;
+
+  left: 0;
+  top: 2px;
+  bottom: 2px;
+
+  width: 3px;
+
+  background:
+    linear-gradient(
+      180deg,
+      #168bd8,
+      #51b5e9
+    );
+
+  border-radius: 10px;
+}
+
+.hr-checkin-status {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 5px;
+}
+
+.hr-checkin-status strong {
+  color: #123b5a;
+
+  font-size: 16px;
+  font-weight: 800;
+
+  line-height: 1.35;
+}
+
+.hr-checkin-status > span {
+  color: #71889b;
+
+  font-size: 10.5px;
+
+  line-height: 1.4;
+}
+
+
+/* =========================================================
+   CHECK-IN / CHECK-OUT TIME
+   ========================================================= */
+
+.hr-checkin-times {
+  display: flex;
+  align-items: flex-start;
+
+  gap: 30px;
+
+  margin-top: 9px;
+}
+
+.hr-checkin-times div {
+  position: relative;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 3px;
+
+  min-width: 66px;
+}
+
+.hr-checkin-times div + div {
+  padding-left: 20px;
+}
+
+.hr-checkin-times div + div::before {
+  content: "";
+
+  position: absolute;
+
+  left: 0;
+  top: 2px;
+
+  width: 1px;
+  height: 30px;
+
+  background: #dce8ef;
+}
+
+.hr-checkin-times span {
+  color: #8b9fac;
+
+  font-size: 8.5px;
+  font-weight: 800;
+
+  letter-spacing: 0.6px;
+
+  text-transform: uppercase;
+}
+
+.hr-checkin-times strong {
+  color: #1a4563;
+
+  font-size: 13px;
+  font-weight: 800;
+
+  line-height: 1.3;
+}
+
+
+/* =========================================================
+   CHECK-IN ACTION AREA
+   ========================================================= */
+
+.hr-checkin-actions {
+  position: relative;
+  z-index: 3;
+
+  display: flex;
+  align-items: center;
+
+  gap: 11px;
+
+  padding: 6px;
+
+  background: rgba(255, 255, 255, 0.58);
+
+  border: 1px solid rgba(213, 227, 237, 0.8);
+
+  border-radius: 12px;
+
+  backdrop-filter: blur(6px);
+}
+
+
+/* =========================================================
+   BUTTON BASE
+   ========================================================= */
+
+.hr-checkin-actions button {
+  position: relative;
+
+  min-width: 116px;
+  min-height: 44px;
+
+  padding: 0 18px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 8px;
+
+  border-radius: 9px;
+
+  font-family: inherit;
+
+  font-size: 10.5px;
+  font-weight: 800;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    color 0.18s ease;
+}
+
+
+/* =========================================================
+   CHECK IN - PRIMARY BLUE
+   ========================================================= */
+
+.hr-checkin-actions button:first-child {
+  color: #ffffff;
+
+  background:
+    linear-gradient(
+      135deg,
+      #2098e6 0%,
+      #0b72c3 100%
+    );
+
+  border: 1px solid #0b72c3;
+
+  box-shadow:
+    0 5px 13px rgba(10, 112, 193, 0.22);
+}
+
+.hr-checkin-actions button:first-child::after {
+  content: "";
+
+  position: absolute;
+
+  left: 10px;
+  right: 10px;
+  top: 1px;
+
+  height: 1px;
+
+  background: rgba(255, 255, 255, 0.35);
+
+  border-radius: 10px;
+}
+
+.hr-checkin-actions button:first-child:hover {
+  background:
+    linear-gradient(
+      135deg,
+      #2da2ed 0%,
+      #096bb8 100%
+    );
+
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 8px 18px rgba(10, 112, 193, 0.27);
+}
+
+.hr-checkin-actions button:first-child:active {
+  transform: translateY(0);
+
+  box-shadow:
+    0 3px 8px rgba(10, 112, 193, 0.18);
+}
+
+
+/* =========================================================
+   CHECK OUT - LIGHT PHARMA BLUE
+   ========================================================= */
+
+.hr-checkin-actions button:last-child {
+  color: #27709c;
+
+  background:
+    linear-gradient(
+      135deg,
+      #ffffff 0%,
+      #eef8fd 100%
+    );
+
+  border: 1px solid #cfe3ee;
+
+  box-shadow:
+    0 2px 7px rgba(39, 112, 156, 0.07);
+}
+
+.hr-checkin-actions button:last-child:hover {
+  color: #155f8b;
+
+  background:
+    linear-gradient(
+      135deg,
+      #fafdff 0%,
+      #e3f3fb 100%
+    );
+
+  border-color: #afd3e5;
+
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 7px 15px rgba(39, 112, 156, 0.12);
+}
+
+.hr-checkin-actions button:last-child:active {
+  transform: translateY(0);
+
+  box-shadow:
+    0 2px 6px rgba(39, 112, 156, 0.08);
+}
+
+
+/* =========================================================
+   DISABLED BUTTON
+   ========================================================= */
+
+.hr-checkin-actions button:disabled {
+  color: #aebbc4 !important;
+
+  background: #f5f8fa !important;
+
+  border-color: #e0e7ec !important;
+
+  box-shadow: none !important;
+
+  cursor: not-allowed;
+
+  opacity: 0.72;
+
+  transform: none !important;
+}
+
+
+/* =========================================================
+   COMPLETED CHECK-IN
+   ========================================================= */
+
+.hr-checkin-actions button:first-child:disabled {
+  color: #16865b !important;
+
+  background:
+    linear-gradient(
+      135deg,
+      #effaf5 0%,
+      #e5f7ee 100%
+    ) !important;
+
+  border-color: #c3e6d4 !important;
+
+  opacity: 1;
+
+  box-shadow: none !important;
+}
+
+
+/* =========================================================
+   BUTTON ICONS
+   ========================================================= */
+
+.hr-checkin-actions button svg {
+  width: 15px;
+  height: 15px;
+
+  flex-shrink: 0;
+}
+
+
+/* =========================================================
+   ATTENDANCE STATUS BADGES
+   ========================================================= */
+
+.attendance-status {
+  display: inline-flex;
+  align-items: center;
+
+  gap: 5px;
+
+  padding: 4px 9px;
+
+  border-radius: 999px;
+
+  font-size: 8px;
+  font-weight: 750;
+
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.attendance-status::before {
+  content: "";
+
+  width: 5px;
+  height: 5px;
+
+  background: currentColor;
+
+  border-radius: 50%;
+}
+
+.attendance-PRESENT {
+  color: #159b72;
+  background: #eaf8f2;
+}
+
+.attendance-LATE {
+  color: #b8860b;
+  background: #fbf3de;
+}
+
+.attendance-WFH {
+  color: #2679ae;
+  background: #eaf5fc;
+}
+
+.attendance-HALF_DAY {
+  color: #c07a1f;
+  background: #fdf1e2;
+}
+
+.attendance-EARLY_EXIT {
+  color: #c07a1f;
+  background: #fdf1e2;
+}
+
+.attendance-ABSENT {
+  color: #c94b5b;
+  background: #fdecee;
+}
+
+.attendance-LEAVE {
+  color: #8b5cf6;
+  background: #f2eefd;
+}
+
+.attendance-HOLIDAY {
+  color: #0b73df;
+  background: #e9f2fd;
+}
+
+.attendance-WEEKLY_OFF {
+  color: #7c91a1;
+  background: #eef3f6;
+}
+
+.attendance-NOT_MARKED {
+  color: #91a3b0;
+  background: #f5f8fa;
+}
+
+
+/* =========================================================
+   LEAVE STATUS BADGES
+   ========================================================= */
+
+.leave-status {
+  display: inline-flex;
+  align-items: center;
+
+  gap: 5px;
+
+  padding: 4px 9px;
+
+  border-radius: 999px;
+
+  font-size: 8px;
+  font-weight: 750;
+
+  text-transform: uppercase;
+}
+
+.leave-PENDING {
+  color: #b8860b;
+  background: #fbf3de;
+}
+
+.leave-APPROVED {
+  color: #159b72;
+  background: #eaf8f2;
+}
+
+.leave-REJECTED {
+  color: #c94b5b;
+  background: #fdecee;
+}
+
+.leave-CANCELLED {
+  color: #7c91a1;
+  background: #eef3f6;
+}
+
+
+/* =========================================================
+   MARK ATTENDANCE SELECT
+   ========================================================= */
+
+.hr-mark-select {
+  min-height: 30px;
+
+  padding: 4px 8px;
+
+  color: #405b70;
+
+  background: #f9fcfe;
+
+  border: 1px solid #d7e4ec;
+
+  border-radius: 7px;
+
+  font-size: 9px;
+
+  outline: none;
+
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.hr-mark-select:focus {
+  border-color: #79b3d2;
+
+  box-shadow:
+    0 0 0 3px rgba(39, 143, 210, 0.08);
+}
+
+
+/* =========================================================
+   HR FILTERS
+   ========================================================= */
+
+.hr-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+
+  gap: 10px;
+
+  margin-bottom: 14px;
+}
+
+.hr-subtext {
+  margin-top: 2px;
+
+  color: #91a3b0;
+
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.hr-hint {
+  display: block;
+
+  margin-top: 5px;
+
+  color: #7b91a2;
+
+  font-size: 9px;
+
+  line-height: 1.5;
+}
+
+.hr-note {
+  margin: 0 0 12px;
+
+  padding: 9px 12px;
+
+  color: #8a6408;
+
+  background: #fbf3de;
+
+  border: 1px solid #f1e2b4;
+
+  border-radius: 8px;
+
+  font-size: 10px;
+
+  line-height: 1.55;
+}
+
+
+/* =========================================================
+   HR TABLE HELPERS
+   ========================================================= */
+
+.company-table th.hr-num,
+.company-table td.hr-num {
+  text-align: right;
+
+  white-space: nowrap;
+}
+
+.hr-adj-input {
+  width: 90px;
+  min-height: 30px;
+
+  padding: 4px 8px;
+
+  color: #405b70;
+
+  text-align: right;
+
+  background: #f9fcfe;
+
+  border: 1px solid #d7e4ec;
+
+  border-radius: 7px;
+
+  font-size: 10px;
+
+  outline: none;
+}
+
+.hr-adj-input:focus {
+  border-color: #79b3d2;
+
+  box-shadow:
+    0 0 0 3px rgba(39, 143, 210, 0.08);
+}
+
+.company-table tr.hr-total-row td {
+  color: #173b59;
+
+  background: #f3f8fb;
+
+  font-weight: 800;
+}
+
+
+/* =========================================================
+   RESPONSIVE - TABLET
+   ========================================================= */
+
+@media (max-width: 1100px) {
+  .hr-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .hr-page .dash-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* =========================================================
+   RESPONSIVE - MOBILE
+   ========================================================= */
+
+@media (max-width: 760px) {
+  .hr-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hr-header {
+    flex-direction: column;
+  }
+
+  .hr-checkin-card {
+    min-height: 0;
+
+    padding: 22px;
+
+    flex-direction: column;
+
+    align-items: stretch;
+  }
+
+  .hr-checkin-actions {
+    width: 100%;
+  }
+
+  .hr-checkin-actions button {
+    flex: 1;
+
+    min-width: 0;
+  }
+}
+
+
+@media (max-width: 480px) {
+  .hr-kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .hr-kpi-card {
+    min-height: 90px;
+  }
+
+  .hr-checkin-actions {
+    flex-direction: column;
+  }
+
+  .hr-checkin-actions button {
+    width: 100%;
+  }
+
+  .hr-checkin-times {
+    gap: 18px;
+  }
+}

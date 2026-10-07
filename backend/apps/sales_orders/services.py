@@ -58,9 +58,37 @@ def _header_snapshot(order):
         "requested_delivery_date": (
             order.requested_delivery_date.isoformat() if order.requested_delivery_date else None
         ),
+        "planned_manufacturing_date": (
+            order.planned_manufacturing_date.isoformat() if order.planned_manufacturing_date else None
+        ),
         "customer_order_reference": order.customer_order_reference,
         "notes": order.notes,
     }
+
+
+def _so_line_snapshot_list(lines):
+    lines = list(lines)
+    base = _line_snapshot_list(lines)
+    by_id = {line.id: line for line in lines}
+    for entry in base:
+        entry["product_type_snapshot"] = by_id[entry["id"]].product_type_snapshot
+    return base
+
+
+def _resolve_product_type(value, line_number):
+    """Blank is allowed (no type recorded). Otherwise the value must be an
+    active, maintained ProductType name. The product master is never changed.
+    """
+    value = (value or "").strip()
+    if not value:
+        return ""
+    from apps.catalog.models import ProductType
+
+    if not ProductType.objects.filter(name=value, is_active=True).exists():
+        raise DjangoValidationError(
+            {"lines": f"Line {line_number}: product type '{value}' is not an active product type."}
+        )
+    return value
 
 
 def _check_dates(order_date, requested_delivery_date):
@@ -71,7 +99,7 @@ def _check_dates(order_date, requested_delivery_date):
 
 
 def _create_header_with_unique_reference(*, company, actor, customer, order_date, requested_delivery_date,
-                                         customer_order_reference, currency, notes):
+                                         planned_manufacturing_date, customer_order_reference, currency, notes):
     for _ in range(_REFERENCE_MAX_ATTEMPTS):
         try:
             with transaction.atomic():
@@ -81,6 +109,7 @@ def _create_header_with_unique_reference(*, company, actor, customer, order_date
                     customer=customer,
                     order_date=order_date,
                     requested_delivery_date=requested_delivery_date,
+                    planned_manufacturing_date=planned_manufacturing_date,
                     customer_order_reference=customer_order_reference,
                     currency=currency,
                     notes=notes,
@@ -98,7 +127,7 @@ def _create_header_with_unique_reference(*, company, actor, customer, order_date
 
 @transaction.atomic
 def create_sales_order(*, actor, company, customer_id, order_date, currency, requested_delivery_date=None,
-                       customer_order_reference="", notes="", lines=None):
+                       planned_manufacturing_date=None, customer_order_reference="", notes="", lines=None):
     """Always `DRAFT`, `version=1`. Empty drafts and zero-price lines are
     allowed. Customer must be active and in `company`; every line's
     product (and its sales unit) must be active and in `company`.
@@ -119,6 +148,7 @@ def create_sales_order(*, actor, company, customer_id, order_date, currency, req
                 unit_price=item["unit_price"],
                 description=(item.get("description") or "").strip(),
                 line_amount=_compute_line_amount(item["quantity"], item["unit_price"]),
+                product_type_snapshot=_resolve_product_type(item.get("product_type_snapshot"), index),
                 **_snapshot_fields(product),
             )
         )
@@ -129,6 +159,7 @@ def create_sales_order(*, actor, company, customer_id, order_date, currency, req
         customer=customer,
         order_date=order_date,
         requested_delivery_date=requested_delivery_date,
+        planned_manufacturing_date=planned_manufacturing_date,
         customer_order_reference=(customer_order_reference or "").strip(),
         currency=currency,
         notes=notes or "",
@@ -148,7 +179,7 @@ def create_sales_order(*, actor, company, customer_id, order_date, currency, req
             "status": order.status,
             "currency": order.currency,
             **_header_snapshot(order),
-            "lines": _line_snapshot_list(order.lines.all()),
+            "lines": _so_line_snapshot_list(order.lines.all()),
         },
     )
     return order
@@ -185,6 +216,9 @@ def update_sales_order(*, actor, sales_order_id, expected_version, data):
     if "requested_delivery_date" in data and data["requested_delivery_date"] != order.requested_delivery_date:
         order.requested_delivery_date = data["requested_delivery_date"]
         header_changed = True
+    if "planned_manufacturing_date" in data and data["planned_manufacturing_date"] != order.planned_manufacturing_date:
+        order.planned_manufacturing_date = data["planned_manufacturing_date"]
+        header_changed = True
     if "customer_order_reference" in data:
         value = (data["customer_order_reference"] or "").strip()
         if value != order.customer_order_reference:
@@ -204,7 +238,7 @@ def update_sales_order(*, actor, sales_order_id, expected_version, data):
     removed_ids = set()
     if "lines" in data:
         existing = {line.id: line for line in order.lines.all()}
-        before_lines = _line_snapshot_list(existing.values())
+        before_lines = _so_line_snapshot_list(existing.values())
         seen_ids = set()
         for index, item in enumerate(data["lines"], start=1):
             line_id = item.get("id")
@@ -220,6 +254,7 @@ def update_sales_order(*, actor, sales_order_id, expected_version, data):
                         unit_price=item["unit_price"],
                         description=(item.get("description") or "").strip(),
                         line_amount=_compute_line_amount(item["quantity"], item["unit_price"]),
+                        product_type_snapshot=_resolve_product_type(item.get("product_type_snapshot"), index),
                         **_snapshot_fields(product),
                     )
                 )
@@ -232,22 +267,33 @@ def update_sales_order(*, actor, sales_order_id, expected_version, data):
                 raise DjangoValidationError({"lines": f"Line {line_id} does not belong to this sales order."})
 
             description = (item.get("description") or "").strip()
+            type_value = (
+                _resolve_product_type(item["product_type_snapshot"], index)
+                if "product_type_snapshot" in item
+                else line.product_type_snapshot
+            )
             unchanged = (
                 item["product_id"] == line.product_id
                 and item["quantity"] == line.quantity
                 and item["unit_price"] == line.unit_price
                 and description == line.description
+                and type_value == line.product_type_snapshot
             )
             if not unchanged:
                 product = _resolve_line_product(company, item["product_id"], index)
                 _check_quantity(product, item["quantity"], index)
                 if product.id != line.product_id:
+                    if line.store_preparations.exists():
+                        raise DjangoValidationError(
+                            {"lines": f"Line {line_id}: the product cannot be changed because store preparation is recorded for this line. Preparation is kept with its line and is never reassigned. Add a new line for the other product."}
+                        )
                     line.product = product
                     for field, value in _snapshot_fields(product).items():
                         setattr(line, field, value)
                 line.quantity = item["quantity"]
                 line.unit_price = item["unit_price"]
                 line.description = description
+                line.product_type_snapshot = type_value
                 line.line_amount = _compute_line_amount(line.quantity, line.unit_price)
             kept.append((line, index, not unchanged))
 
@@ -264,6 +310,10 @@ def update_sales_order(*, actor, sales_order_id, expected_version, data):
             try:
                 order.lines.filter(id__in=removed_ids).delete()
             except ProtectedError as e:
+                if any(type(obj).__name__ == "StorePreparation" for obj in e.protected_objects):
+                    raise DjangoValidationError(
+                        {"lines": "A removed line has store preparation recorded against it. Preparation is kept with its order line, so that line cannot be removed."}
+                    )
                 referenced_lines = sorted({
                     obj.sales_order_line_id
                     for obj in e.protected_objects
@@ -300,6 +350,7 @@ def update_sales_order(*, actor, sales_order_id, expected_version, data):
                     "product_name_snapshot",
                     "sales_uom_code_snapshot",
                     "sales_uom_name_snapshot",
+                    "product_type_snapshot",
                 ],
             )
         if new_lines:
@@ -322,7 +373,7 @@ def update_sales_order(*, actor, sales_order_id, expected_version, data):
     audit_after = _header_snapshot(order)
     if lines_changed:
         audit_before["lines"] = before_lines
-        audit_after["lines"] = _line_snapshot_list(order.lines.all())
+        audit_after["lines"] = _so_line_snapshot_list(order.lines.all())
 
     record(
         actor=actor,
@@ -536,3 +587,54 @@ def confirm_sales_order(*, actor, company_id, sales_order_id, expected_version):
         },
     )
     return order
+
+
+SALES_ORDERS_DELETE = "sales_orders.delete"
+
+
+@transaction.atomic
+def delete_sales_order(*, actor, company, sales_order_id, expected_version):
+    """Permanently delete a DRAFT sales order that has no batch plans. Locked
+    and version-checked; the deletion and its audit record commit together.
+    Confirmed orders are never deleted here, and an order with batch plans
+    must have those plans removed first.
+    """
+    from apps.batch_plans.models import BatchPlan
+
+    order = SalesOrder.objects.select_for_update().filter(pk=sales_order_id, company=company).first()
+    if order is None:
+        raise exceptions.NotFound("Sales order not found in this company.")
+    if order.version != expected_version:
+        raise Conflict("This sales order has changed since it was last read. Refetch and retry.")
+    if order.status != SalesOrder.Status.DRAFT:
+        raise DjangoValidationError({"detail": "Only a draft sales order can be deleted."})
+    if BatchPlan.objects.filter(sales_order_line__sales_order=order).exists():
+        raise DjangoValidationError({"detail": "This order has batch plans. Remove them before deleting the order."})
+    # Store preparation is protected (PROTECT) on its order line, and the store
+    # team owns it. A draft with such a record is refused, never cascaded.
+    from apps.store_preparation.models import StorePreparation
+
+    if StorePreparation.objects.filter(sales_order_line__sales_order=order).exists():
+        raise DjangoValidationError(
+            {"detail": "This order has store preparation records, so it cannot be deleted. Store preparation is kept as recorded by the store team."}
+        )
+
+    before = {
+        "reference": order.reference,
+        **_header_snapshot(order),
+        "lines": _so_line_snapshot_list(order.lines.all()),
+    }
+    record(
+        actor=actor,
+        action="sales_order.deleted",
+        target_type="sales_order",
+        target_id=order.id,
+        company=company,
+        before=before,
+        after=None,
+    )
+    try:
+        order.delete()
+    except ProtectedError as exc:
+        # Any other protected link that appears later is still refused as JSON, never a 500.
+        raise DjangoValidationError({"detail": "This order is linked to other records, so it cannot be deleted."}) from exc

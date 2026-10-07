@@ -11,6 +11,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.batch_plans.models import BatchPlan
+from apps.catalog.models import UnitOfMeasure
+from apps.formulas.models import FormulaRevision
 from apps.batch_plans.numbering import allocate_batch_number
 from apps.batch_plans.requirement_preview import (
     build_batch_plan_requirement_preview,
@@ -37,6 +39,8 @@ BATCH_PLANS_VIEW = "batch_plans.view"
 BATCH_PLANS_CREATE = "batch_plans.create"
 BATCH_PLANS_EDIT = "batch_plans.edit"
 BATCH_PLANS_ALLOCATE_NUMBER = "batch_plans.allocate_number"
+BATCH_PLANS_PRINTING_EDIT = "batch_plans.printing_edit"
+PRINTING_FIELDS = {"mrp_for_printing", "printing_status_note"}
 SALES_ORDERS_VIEW = "sales_orders.view"
 FORMULAS_VIEW = "formulas.view"
 
@@ -84,10 +88,22 @@ def _parse_date_filter(raw_value, *, field):
         raise exceptions.ValidationError({field: "Must be a date in YYYY-MM-DD format."})
 
 
+def _require_printing_edit(request, company, data):
+    """Printing fields are a separate access boundary: any printing key in the
+    request requires batch_plans.printing_edit in this company.
+    """
+    if not PRINTING_FIELDS & set(data.keys()):
+        return
+    if not user_has_permission(request.user, company, BATCH_PLANS_PRINTING_EDIT):
+        raise exceptions.PermissionDenied(
+            f"The following permission(s) are required: {BATCH_PLANS_PRINTING_EDIT}."
+        )
+
+
 @method_decorator(never_cache, name="dispatch")
 class BatchPlanListCreateView(generics.ListCreateAPIView):
     """GET: `batch_plans.view`.
-    POST: `batch_plans.view` + `batch_plans.create` + `sales_orders.view` + `formulas.view`.
+    POST: `batch_plans.view` + `batch_plans.create` + `sales_orders.view`.
 
     List query params:
       `?order=<sales_order_id>`
@@ -140,14 +156,18 @@ class BatchPlanListCreateView(generics.ListCreateAPIView):
         return queryset.order_by("-created_at", "-id")
 
     def create(self, request, *args, **kwargs):
+        # `formulas.view` is intentionally NOT required here: the create response
+        # carries revision identity and quantities only (no recipe lines), and the
+        # service already requires an APPROVED revision of this company. The
+        # requirement preview (recipe-derived) keeps its formulas.view gate.
         company = _get_company_for_action(
             request,
             self.kwargs["company_id"],
             BATCH_PLANS_VIEW,
             BATCH_PLANS_CREATE,
             SALES_ORDERS_VIEW,
-            FORMULAS_VIEW,
         )
+        _require_printing_edit(request, company, request.data)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
@@ -175,6 +195,7 @@ class BatchPlanDetailView(APIView):
     def patch(self, request, company_id, plan_id):
         company = _get_company_for_action(request, company_id, BATCH_PLANS_VIEW, BATCH_PLANS_EDIT)
         plan = get_object_or_404(_batch_plan_queryset(), pk=plan_id, company=company)
+        _require_printing_edit(request, company, request.data)
         serializer = BatchPlanUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -242,3 +263,71 @@ class BatchPlanAllocateNumberView(APIView):
             raise translate_django_validation_error(exc) from exc
         plan = _batch_plan_queryset().get(pk=plan_id)
         return Response(BatchPlanDetailSerializer(plan).data)
+
+
+@method_decorator(never_cache, name="dispatch")
+class BatchPlanningUnitsView(APIView):
+    """Read-only list of ACTIVE units for batch planning pickers (packing
+    content unit, batch size unit). Gated by `batch_plans.view` in the
+    company - deliberately NOT by `shared_catalog.view` or any catalog
+    administration permission. Returns only identifying fields.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, company_id):
+        _get_company_for_action(request, company_id, BATCH_PLANS_VIEW)
+        units = UnitOfMeasure.objects.filter(is_active=True).order_by("code")
+        return Response(
+            {
+                "results": [
+                    {"id": unit.id, "code": unit.code, "name": unit.name, "dimension": unit.dimension}
+                    for unit in units
+                ]
+            }
+        )
+
+
+@method_decorator(never_cache, name="dispatch")
+class BatchPlanningEligibleRevisionsView(APIView):
+    """APPROVED formula revisions of one product in this company, for choosing
+    a batch plan's source. Returns identifying and quantity fields only - never
+    the formula's material lines or any draft revision. Gated by
+    `batch_plans.view` in the company, so planners need no `formulas.view`.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, company_id):
+        company = _get_company_for_action(request, company_id, BATCH_PLANS_VIEW)
+        raw = request.query_params.get("product")
+        try:
+            product_id = int(raw)
+        except (TypeError, ValueError):
+            raise exceptions.ValidationError({"product": "Required integer query parameter."})
+        revisions = (
+            FormulaRevision.objects.select_related("formula", "output_uom")
+            .filter(
+                formula__company=company,
+                formula__product_id=product_id,
+                status=FormulaRevision.Status.APPROVED,
+            )
+            .order_by("formula__code", "revision_number")
+        )
+        return Response(
+            {
+                "results": [
+                    {
+                        "id": revision.id,
+                        "formula_id": revision.formula_id,
+                        "formula_code": revision.formula.code,
+                        "formula_name": revision.formula.name,
+                        "revision_number": revision.revision_number,
+                        "base_output_quantity": str(revision.base_output_quantity),
+                        "output_uom_id": revision.output_uom_id,
+                        "output_uom_code": revision.output_uom.code,
+                    }
+                    for revision in revisions
+                ]
+            }
+        )

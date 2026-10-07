@@ -293,6 +293,11 @@ class FormulaLine(models.Model):
     quantity = models.DecimalField(max_digits=14, decimal_places=3)
     unit = models.ForeignKey(UnitOfMeasure, on_delete=models.PROTECT, related_name="formula_lines")
     notes = models.CharField(max_length=500, blank=True)
+    # Client-defined free text, entered per formula line. Not used in any calculation.
+    label_claim = models.CharField(max_length=100, blank=True, default="")
+    ar_no = models.CharField(max_length=100, blank=True, default="")
+    # Non-numeric value such as "Q.S." or "45% V/V". Shown instead of a number when set.
+    special_value = models.CharField(max_length=60, blank=True, default="")
     material_code_snapshot = models.CharField(max_length=32, blank=True)
     material_name_snapshot = models.CharField(max_length=255, blank=True)
     material_kind_snapshot = models.CharField(max_length=20, blank=True)

@@ -1,6 +1,7 @@
 from django.urls import path
 
 from apps.material_requisitions.views import (
+    BatchPlanRequisitionStatusView,
     MaterialRequisitionApproveView,
     MaterialRequisitionDetailView,
     MaterialRequisitionListCreateView,
@@ -24,6 +25,11 @@ urlpatterns = [
         "<int:store_id>/material-requisitions/<int:requisition_id>/submit/",
         MaterialRequisitionSubmitView.as_view(),
         name="material-requisition-submit",
+    ),
+    path(
+        "<int:store_id>/batch-plans/<int:plan_id>/requisition-status/",
+        BatchPlanRequisitionStatusView.as_view(),
+        name="batch-plan-requisition-status",
     ),
     path(
         "<int:store_id>/material-requisitions/<int:requisition_id>/approve/",

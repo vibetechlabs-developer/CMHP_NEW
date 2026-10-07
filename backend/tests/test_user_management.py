@@ -927,3 +927,63 @@ class AuditFailureRollbackTests(UserManagementTestCase):
                     self.superuser_token,
                 )
         self.assertFalse(CompanyMembership.objects.filter(user=target, company=company).exists())
+
+
+class ProfileFieldTests(UserManagementTestCase):
+    """Employee profile fields (employee_id, department, designation,
+    joining_date, employment_status) on create, update and read."""
+
+    def test_create_stores_profile_fields(self):
+        response = post_json(
+            self.client_,
+            USERS_URL,
+            {
+                "username": "staffer",
+                "email": "staffer@example.com",
+                "first_name": "Staff",
+                "initial_password": "another-strong-pass-1",
+                "employee_id": "EMP-001",
+                "department": "Store",
+                "designation": "Store Manager",
+                "joining_date": "2026-01-15",
+                "employment_status": "probation",
+            },
+            self.superuser_token,
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        body = response.json()
+        self.assertEqual(body["employee_id"], "EMP-001")
+        self.assertEqual(body["joining_date"], "2026-01-15")
+        self.assertEqual(body["employment_status"], "probation")
+        user = User.objects.get(username="staffer")
+        self.assertEqual(user.department, "Store")
+
+    def test_create_rejects_unknown_employment_status(self):
+        response = post_json(
+            self.client_,
+            USERS_URL,
+            {
+                "username": "badstatus",
+                "email": "badstatus@example.com",
+                "first_name": "Bad",
+                "initial_password": "another-strong-pass-1",
+                "employment_status": "retired",
+            },
+            self.superuser_token,
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("employment_status", response.json())
+
+    def test_patch_updates_profile_fields(self):
+        target = make_user("editme")
+        response = patch_json(
+            self.client_,
+            user_url(target.id),
+            {"designation": "Admin", "joining_date": None, "employee_id": "EMP-9"},
+            self.superuser_token,
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        target.refresh_from_db()
+        self.assertEqual(target.designation, "Admin")
+        self.assertEqual(target.employee_id, "EMP-9")
+        self.assertIsNone(target.joining_date)
