@@ -5,6 +5,7 @@ import { getErrorMessage } from '../../utils/errors'
 
 import { hrService } from './hrService'
 import { allowedCompanyIds, canViewHrReports } from './permissions'
+import { LoadingState } from '../../components/Spinner'
 
 import '../dashboard/Dashboard.css'
 import './Hrms.css'
@@ -88,7 +89,7 @@ export default function HrDashboard() {
 
       {!summary && !error && (
         <section className="dash-card">
-          Loading HR summary…
+          <LoadingState label="Loading HR summary…" compact />
         </section>
       )}
 

@@ -219,6 +219,77 @@ class UserListTests(UserManagementTestCase):
         self.assertNotIn(b"password", response.content)
 
 
+class UserListCompanyFilterTests(UserManagementTestCase):
+    """?company_id= - only the "Users" tab's own real-company scoping
+    (Task: show a company's own employees, not every account on the
+    platform). A plain account isn't owned by one company, so this
+    filters through CompanyMembership, never a field on User itself.
+    """
+
+    def test_only_members_of_the_given_company_are_returned(self):
+        company_a = make_company("ALPHA")
+        company_b = make_company("BETA")
+        in_a = make_user("in_alpha")
+        in_b = make_user("in_beta")
+        CompanyMembership.objects.create(user=in_a, company=company_a)
+        CompanyMembership.objects.create(user=in_b, company=company_b)
+
+        response = get_json(self.client_, USERS_URL + f"?company_id={company_a.id}", self.superuser_token)
+        usernames = [u["username"] for u in response.json()["results"]]
+        self.assertIn("in_alpha", usernames)
+        self.assertNotIn("in_beta", usernames)
+
+    def test_a_user_with_no_membership_at_all_is_excluded(self):
+        company = make_company("GAMMA")
+        make_user("nowhere")
+        response = get_json(self.client_, USERS_URL + f"?company_id={company.id}", self.superuser_token)
+        usernames = [u["username"] for u in response.json()["results"]]
+        self.assertNotIn("nowhere", usernames)
+
+    def test_an_inactive_membership_does_not_count(self):
+        company = make_company("DELTA")
+        user = make_user("retired")
+        CompanyMembership.objects.create(user=user, company=company, is_active=False)
+        response = get_json(self.client_, USERS_URL + f"?company_id={company.id}", self.superuser_token)
+        usernames = [u["username"] for u in response.json()["results"]]
+        self.assertNotIn("retired", usernames)
+
+    def test_belonging_to_a_different_company_is_not_enough(self):
+        own_company = make_company("EPSILON")
+        other_company = make_company("ZETA")
+        user = make_user("elsewhere")
+        CompanyMembership.objects.create(user=user, company=other_company)
+        response = get_json(self.client_, USERS_URL + f"?company_id={own_company.id}", self.superuser_token)
+        usernames = [u["username"] for u in response.json()["results"]]
+        self.assertNotIn("elsewhere", usernames)
+
+    def test_a_user_in_two_companies_is_not_duplicated(self):
+        company = make_company("THETA")
+        other_company = make_company("IOTA")
+        user = make_user("double_member")
+        CompanyMembership.objects.create(user=user, company=company)
+        CompanyMembership.objects.create(user=user, company=other_company)
+        response = get_json(self.client_, USERS_URL + f"?company_id={company.id}", self.superuser_token)
+        usernames = [u["username"] for u in response.json()["results"]]
+        self.assertEqual(usernames.count("double_member"), 1)
+
+    def test_no_company_id_keeps_the_existing_unfiltered_behaviour(self):
+        company = make_company("KAPPA")
+        in_company = make_user("has_company")
+        not_in_any = make_user("no_company_at_all")
+        CompanyMembership.objects.create(user=in_company, company=company)
+
+        response = get_json(self.client_, USERS_URL, self.superuser_token)
+        usernames = [u["username"] for u in response.json()["results"]]
+        self.assertIn("has_company", usernames)
+        self.assertIn("no_company_at_all", usernames)
+
+    def test_unknown_company_id_returns_an_empty_list_not_an_error(self):
+        response = get_json(self.client_, USERS_URL + "?company_id=999999", self.superuser_token)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["results"], [])
+
+
 class UserCreateTests(UserManagementTestCase):
     def test_create_success_hashes_password(self):
         response = post_json(

@@ -1725,28 +1725,6 @@
   font-size: 10px;
 }
 
-.loading-spinner {
-  width: 18px;
-  height: 18px;
-
-  border:
-    2px solid #dcecf6;
-
-  border-top-color: #2787d8;
-
-  border-radius: 50%;
-
-  animation:
-    dashboard-spin .8s linear infinite;
-}
-
-@keyframes dashboard-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-
 /* =========================================================
    RESPONSIVE
    ========================================================= */

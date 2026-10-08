@@ -1,0 +1,1166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CMHP ERP — User Guide</title>
+<style>
+  :root{
+    --blue:#1478c9; --blue-dark:#0c5fa5; --blue-soft:#eaf5fc;
+    --navy:#163b59; --text:#2c3e4e; --muted:#6b7f95;
+    --bg:#f4f8fb; --panel:#ffffff; --border:#dce7ee;
+    --ok-bg:#eaf7ef; --ok-text:#1d7a3d; --ok-border:#bfe3cb;
+    --warn-bg:#fff8ec; --warn-text:#8a5a00; --warn-border:#f2d3a2;
+    --bad-bg:#fdecea; --bad-text:#b42318; --bad-border:#f5c2bd;
+    --confirm-bg:#f1eefc; --confirm-text:#5b3fae; --confirm-border:#dcd2f7;
+    --radius:10px; --radius-sm:6px;
+    --shadow:0 1px 2px rgba(22,59,89,.06), 0 1px 1px rgba(22,59,89,.04);
+    font-family:-apple-system,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-size:16px;line-height:1.55;}
+  a{color:var(--blue);}
+  code,kbd{font-family:"Cascadia Code","Consolas",monospace;font-size:13px;background:#f1f6fa;border:1px solid var(--border);border-radius:4px;padding:1px 5px;}
+  pre{background:#0f2338;color:#dbeeff;border-radius:var(--radius-sm);padding:12px 14px;overflow:auto;font-size:13px;line-height:1.6;}
+  pre code{background:none;border:none;color:inherit;padding:0;}
+  button,select,input[type="text"],input[type="search"]{font:inherit;}
+
+  /* ---------- layout ---------- */
+  .app{display:flex;min-height:100vh;}
+  .sidebar{
+    width:250px;flex:0 0 250px;background:var(--panel);border-right:1px solid var(--border);
+    padding:18px 14px;position:sticky;top:0;align-self:flex-start;height:100vh;overflow-y:auto;
+  }
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:4px;}
+  .brand .logo{width:34px;height:34px;border-radius:8px;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex:0 0 auto;}
+  .brand strong{font-size:15px;color:var(--navy);}
+  .brand small{display:block;color:var(--muted);font-size:12px;}
+  .sidebar hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
+  .navgroup-title{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:14px 0 6px;padding:0 6px;}
+  .navlink{display:block;padding:8px 10px;border-radius:var(--radius-sm);color:var(--text);text-decoration:none;font-size:14px;margin-bottom:2px;}
+  .navlink:hover{background:var(--blue-soft);}
+  .navlink.active{background:var(--blue-soft);color:var(--blue-dark);font-weight:700;}
+  .navlink:focus-visible,.btn:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--blue);outline-offset:2px;}
+
+  .main{flex:1 1 auto;min-width:0;padding:24px 28px 80px;max-width:980px;}
+  header.pageheader{margin-bottom:18px;}
+  header.pageheader h1{font-size:26px;margin:0 0 6px;color:var(--navy);}
+  header.pageheader p.intro{margin:0 0 10px;color:var(--muted);font-size:15px;}
+  .notice{
+    background:var(--warn-bg);border:1px solid var(--warn-border);color:var(--warn-text);
+    border-radius:var(--radius-sm);padding:10px 14px;font-size:14px;font-weight:600;margin-bottom:16px;
+  }
+
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:22px;position:sticky;top:0;background:var(--bg);padding:10px 0;z-index:5;}
+  .toolbar input[type="search"]{flex:1 1 220px;min-width:180px;min-height:40px;padding:0 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:#fff;}
+  .toolbar select{min-height:40px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:#fff;}
+  .btn{
+    display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 14px;border-radius:var(--radius-sm);
+    border:1px solid var(--border);background:#fff;color:var(--text);cursor:pointer;font-size:14px;font-weight:600;
+  }
+  .btn:hover{border-color:var(--blue);color:var(--blue-dark);}
+  .btn.primary{background:var(--blue);border-color:var(--blue);color:#fff;}
+  .btn.primary:hover{background:var(--blue-dark);}
+  .btn.danger{color:var(--bad-text);}
+  .btn.danger:hover{border-color:var(--bad-border);background:var(--bad-bg);}
+
+  section.guide-section{margin-bottom:42px;scroll-margin-top:80px;}
+  section.guide-section h2{font-size:22px;color:var(--navy);margin:0 0 4px;border-bottom:2px solid var(--blue-soft);padding-bottom:8px;}
+  section.guide-section > p.section-sub{color:var(--muted);font-size:14px;margin:6px 0 16px;}
+
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 18px;margin-bottom:14px;}
+  .card h3{margin:0 0 4px;font-size:17px;color:var(--navy);}
+  .card p{margin:4px 0;}
+
+  /* step cards */
+  .step{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 18px;margin-bottom:14px;}
+  .step-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}
+  .step-head h3{margin:0;font-size:18px;color:var(--navy);}
+  .step-grid{display:grid;grid-template-columns:200px 1fr;gap:4px 14px;margin:0;}
+  .step-grid dt{font-size:14px;font-weight:700;color:var(--muted);padding:6px 0;border-top:1px solid var(--border);}
+  .step-grid dd{font-size:15px;margin:0;padding:6px 0;border-top:1px solid var(--border);}
+  .step-grid dt:first-of-type,.step-grid dd:first-of-type{border-top:none;}
+  .step .problem{background:var(--bg);border:1px dashed var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-top:10px;font-size:14px;}
+  .step .problem b{color:var(--navy);}
+
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;white-space:nowrap;}
+  .badge.website{background:var(--ok-bg);color:var(--ok-text);border:1px solid var(--ok-border);}
+  .badge.api{background:var(--warn-bg);color:var(--warn-text);border:1px solid var(--warn-border);}
+  .badge.missing{background:var(--bad-bg);color:var(--bad-text);border:1px solid var(--bad-border);}
+  .badge.confirm{background:var(--confirm-bg);color:var(--confirm-text);border:1px solid var(--confirm-border);}
+
+  details.tech{margin-top:10px;background:#f8fbfd;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 12px;}
+  details.tech summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--blue-dark);padding:8px 0;}
+  details.tech .tbl{width:100%;border-collapse:collapse;font-size:13px;margin:6px 0 10px;}
+  details.tech .tbl td{padding:4px 6px;vertical-align:top;border-bottom:1px solid var(--border);}
+  details.tech .tbl td:first-child{color:var(--muted);white-space:nowrap;width:140px;}
+
+  table.data{width:100%;border-collapse:collapse;font-size:14px;background:#fff;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;}
+  table.data th{background:var(--blue-soft);color:var(--navy);text-align:left;padding:9px 10px;font-size:13px;font-weight:700;}
+  table.data td{padding:9px 10px;border-top:1px solid var(--border);vertical-align:top;}
+  table.data tr:hover td{background:#fbfdff;}
+
+  .roleflow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:14px;margin:10px 0 18px;}
+  .roleflow .pill{background:var(--blue-soft);color:var(--blue-dark);border-radius:999px;padding:5px 12px;font-weight:700;}
+  .roleflow .arrow{color:var(--muted);}
+
+  .matrixgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:14px 0;}
+  .matrixgrid .cell{border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;background:#fff;}
+  .matrixgrid .cell h4{margin:0 0 4px;font-size:14px;color:var(--navy);}
+  .matrixgrid .cell p{margin:0;font-size:13px;color:var(--muted);}
+
+  .checklist-row td input[type="text"]{width:100%;min-height:34px;border:1px solid var(--border);border-radius:6px;padding:0 8px;font-size:13px;}
+  .checklist-row td select{min-height:34px;border:1px solid var(--border);border-radius:6px;font-size:13px;}
+  .chk-result-nottested{color:var(--muted);}
+  .chk-result-pass{color:var(--ok-text);font-weight:700;}
+  .chk-result-fail{color:var(--bad-text);font-weight:700;}
+  .chk-result-blocked{color:var(--warn-text);font-weight:700;}
+
+  .hidden-by-search{display:none !important;}
+  .hidden-by-role{display:none !important;}
+
+  footer.guide-footer{color:var(--muted);font-size:13px;margin-top:40px;border-top:1px solid var(--border);padding-top:14px;}
+
+  @media (max-width:860px){
+    .app{flex-direction:column;}
+    .sidebar{width:100%;flex:none;position:relative;height:auto;border-right:none;border-bottom:1px solid var(--border);}
+    .main{max-width:100%;padding:18px 14px 60px;}
+    .step-grid{grid-template-columns:1fr;}
+    .step-grid dt{border-top:1px solid var(--border);padding-bottom:0;}
+    .step-grid dd{border-top:none;padding-top:2px;}
+  }
+
+  @media print{
+    .sidebar,.toolbar,.no-print{display:none !important;}
+    .app{display:block;}
+    .main{max-width:100%;padding:0;}
+    .step,.card{box-shadow:none;border:1px solid #999;break-inside:avoid;}
+    section.guide-section{break-before:page;}
+    section.guide-section:first-of-type{break-before:auto;}
+    a[href]:after{content:"";}
+    body{background:#fff;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============================= SIDEBAR ============================= -->
+  <nav class="sidebar no-print" aria-label="Guide sections">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">C</span>
+      <div><strong>CMHP ERP</strong><small>User Guide</small></div>
+    </div>
+    <hr/>
+    <a class="navlink" href="#sec-a">A. Start Here</a>
+    <a class="navlink" href="#sec-b">B. First-Time Setup</a>
+    <a class="navlink" href="#sec-c">C. Customers &amp; Products</a>
+    <a class="navlink" href="#sec-d">D. Shared Store &amp; Materials</a>
+    <a class="navlink" href="#sec-e">E. Formulas &amp; Revisions</a>
+    <div class="navgroup-title">One order, three departments</div>
+    <a class="navlink" href="#sec-f">F. Admin — Create Order</a>
+    <a class="navlink" href="#sec-g">G. Store Manager — Store Prep</a>
+    <a class="navlink" href="#sec-h">H. Manager — Batch &amp; Printing</a>
+    <div class="navgroup-title">Beyond the order</div>
+    <a class="navlink" href="#sec-i">I. Material Requisition</a>
+    <a class="navlink" href="#sec-j">J. BMR</a>
+    <a class="navlink" href="#sec-k">K. Purchasing, Receiving &amp; QC</a>
+    <div class="navgroup-title">Reference</div>
+    <a class="navlink" href="#sec-l">L. Troubleshooting</a>
+    <a class="navlink" href="#sec-m">M. Testing Checklist</a>
+    <a class="navlink" href="#sec-n">N. Available Now / Pending</a>
+  </nav>
+
+  <!-- ============================== MAIN ================================ -->
+  <main class="main">
+
+    <header class="pageheader">
+      <h1>CMHP ERP — User Guide</h1>
+      <p class="intro">Follow your role, complete each step, and verify your work.</p>
+      <div class="notice">This is a guide. Actions here do not change ERP records.</div>
+    </header>
+
+    <div class="toolbar no-print">
+      <input id="guideSearch" type="search" placeholder="Search the guide (e.g. &quot;batch number&quot;, &quot;insert&quot;, &quot;approval policy&quot;)…" aria-label="Search the guide"/>
+      <select id="roleFilter" aria-label="Filter by role">
+        <option value="all">All roles</option>
+        <option value="setup">Setup Administrator</option>
+        <option value="admin">Business Admin</option>
+        <option value="store">Store Manager</option>
+        <option value="batch">Batch Manager</option>
+        <option value="formula">Formula Editor / Approver</option>
+      </select>
+      <button class="btn" type="button" onclick="window.print()">🖨️ Print / Save PDF</button>
+    </div>
+
+    <p style="font-size:13px;color:var(--muted);margin:-10px 0 20px;">
+      Permissions, not role names, actually control access. The role filter above only hides or shows guide steps for readability —
+      it changes nothing in the real application. Status badges:
+      <span class="badge website">Website available</span>
+      <span class="badge api">Setup team / API only</span>
+      <span class="badge missing">Not implemented</span>
+      <span class="badge confirm">Needs confirmation</span>
+    </p>
+
+    <!-- ============================ A. START HERE ============================ -->
+    <section class="guide-section" id="sec-a">
+      <h2>A. Start Here</h2>
+      <p class="section-sub">A short map before you begin. Each numbered item links to its full section.</p>
+      <div class="card">
+        <h3>If this is a brand-new installation</h3>
+        <ol>
+          <li>A Setup Administrator completes <a href="#sec-b">B. First-Time Setup</a> once. Most of it is command-line or API work — ask your setup administrator if you are not that person.</li>
+          <li>Business Admin creates customers and products: <a href="#sec-c">C. Customers &amp; Products</a>.</li>
+          <li>Someone with catalog access sets up shared materials: <a href="#sec-d">D. Shared Store &amp; Materials</a>.</li>
+          <li>A formula is drafted and approved: <a href="#sec-e">E. Formulas &amp; Revisions</a>.</li>
+          <li>The daily three-department order flow begins: <a href="#sec-f">F</a> → <a href="#sec-g">G</a> → <a href="#sec-h">H</a>.</li>
+        </ol>
+      </div>
+      <div class="card">
+        <h3>If setup is already done and you just need to place an order</h3>
+        <p>Go straight to <a href="#sec-f">F. Admin — Create Order</a>.</p>
+      </div>
+      <div class="card">
+        <h3>What "Website available" really means</h3>
+        <p><strong>"Website available" means the screen is connected to the real backend in the application's source code.</strong>
+        It does <em>not</em> mean someone has clicked through it in a browser to confirm the screen renders correctly on your machine.
+        Treat it as "built and wired up," not as "already visually verified today."</p>
+      </div>
+    </section>
+
+    <!-- ============================ B. FIRST-TIME SETUP ============================ -->
+    <section class="guide-section" id="sec-b" data-role="setup">
+      <h2>B. First-Time Setup</h2>
+      <p class="section-sub">Performed once, by a Setup Administrator. Most of this is outside the website on purpose — these are
+        administrative actions, the same way a brand-new Windows PC needs an administrator account before anyone else can log in.</p>
+
+      <div class="roleflow">
+        <span class="pill">1. First superuser</span><span class="arrow">→</span>
+        <span class="pill">2. Companies</span><span class="arrow">→</span>
+        <span class="pill">3. Shared store</span><span class="arrow">→</span>
+        <span class="pill">4. Your own membership</span><span class="arrow">→</span>
+        <span class="pill">5. Roles</span><span class="arrow">→</span>
+        <span class="pill">6. Other users</span><span class="arrow">→</span>
+        <span class="pill">7. Store memberships/roles</span><span class="arrow">→</span>
+        <span class="pill">8. Units/types</span><span class="arrow">→</span>
+        <span class="pill">9. Materials</span><span class="arrow">→</span>
+        <span class="pill">10. Formula policy</span>
+      </div>
+
+      <article class="step" data-role="setup">
+        <div class="step-head"><h3>B1. Create the first superuser</h3><span class="badge api">Setup team / API only</span></div>
+        <dl class="step-grid">
+          <dt>Who performs it</dt><dd>Setup Administrator</dd>
+          <dt>Required setup</dt><dd>Backend server running; no existing accounts required — this is the very first one.</dd>
+          <dt>Where to go</dt><dd>Not in the website. A terminal, in the backend folder your setup administrator provides.</dd>
+          <dt>What to enter</dt><dd>Username, email (optional) and password. Typed locally; nothing is shown back to anyone else.</dd>
+          <dt>Action</dt><dd><code>python manage.py createsuperuser</code> (your setup administrator runs this)</dd>
+          <dt>Expected result</dt><dd>The command finishes without an error.</dd>
+          <dt>Save / reopen / refresh check</dt><dd>Log in at the website's login page with the new username and password.</dd>
+          <dt>Next step</dt><dd>Log in, then B4 — give this account its own first company membership.</dd>
+        </dl>
+        <div class="problem"><b>Common problem:</b> "Username already exists" — someone already created an account with that name. Choose a different one.</div>
+      </article>
+
+      <article class="step" data-role="setup">
+        <div class="step-head"><h3>B2. Create the two operating companies</h3><span class="badge api">Setup team / API only</span></div>
+        <dl class="step-grid">
+          <dt>Who performs it</dt><dd>Setup Administrator, signed in as the superuser</dd>
+          <dt>Where to go</dt><dd>There is no "Create company" button anywhere in the website. This is deliberate, administrative-only configuration.</dd>
+          <dt>What to enter</dt><dd>A short company code and a legal name, for each company.</dd>
+          <dt>Expected result</dt><dd>Each call returns a new company id. Record both ids.</dd>
+          <dt>Next step</dt><dd>B3 — create the shared store.</dd>
+        </dl>
+        <details class="tech">
+          <summary>Technical details</summary>
+          <table class="tbl">
+            <tr><td>Method / path</td><td><code>POST /api/v1/companies/</code></td></tr>
+            <tr><td>Minimal body</td><td><code>{"code": "&lt;company_code&gt;", "legal_name": "&lt;Legal Name&gt;"}</code></td></tr>
+            <tr><td>Optional field</td><td><code>display_name</code></td></tr>
+            <tr><td>Success</td><td><code>201</code>, response includes <code>"id"</code></td></tr>
+            <tr><td>Common errors</td><td><code>400</code> duplicate code; <code>403</code> if the signed-in account is not an active superuser</td></tr>
+          </table>
+          <p style="font-size:12px;color:var(--muted);">Use placeholder ids like <code>&lt;company_a_id&gt;</code> below — never assume a number. Read the real id back from each response.</p>
+        </details>
+      </article>
+
+      <article class="step" data-role="setup">
+        <div class="step-head"><h3>B3. Create one shared physical store</h3><span class="badge api">Setup team / API only</span></div>
+        <dl class="step-grid">
+          <dt>What to enter</dt><dd>A store code and name, e.g. a warehouse code.</dd>
+          <dt>Expected result</dt><dd><code>201</code>, record the store id. The store belongs to neither company — both will use it.</dd>
+        </dl>
+        <details class="tech">
+          <summary>Technical details</summary>
+          <table class="tbl">
+            <tr><td>Method / path</td><td><code>POST /api/v1/stores/</code></td></tr>
+            <tr><td>Minimal body</td><td><code>{"code": "&lt;store_code&gt;", "name": "&lt;Store Name&gt;"}</code></td></tr>
+          </table>
+        </details>
+      </article>
+
+      <article class="step" data-role="setup">
+        <div class="step-head"><h3>B4. Give your own superuser account its first company membership</h3><span class="badge api">Setup team / API only — required before the website is usable</span></div>
+        <dl class="step-grid">
+          <dt>Why this step exists</dt><dd>The website's main menu (Dashboard, Orders, Products, Customers, User Management…) is hidden entirely
+            until a "Company A" or "Company B" workspace is active. A brand-new superuser has <em>zero</em> company memberships, so none of that
+            appears yet — not even the User Management screen you would normally use to assign memberships to other people. The very first
+            membership, for your own account, has to be created this one time through the API.</dd>
+          <dt>Who performs it</dt><dd>Setup Administrator, using their own superuser account's user id</dd>
+          <dt>What to enter</dt><dd>Your own user id (from the current-user call) and one of the company ids from B2.</dd>
+          <dt>Expected result</dt><dd><code>201</code>. The workspace switcher in the website's top bar now offers "Company A" for this account.</dd>
+          <dt>Save / reopen / refresh check</dt><dd>Reload the website, open the workspace switcher, choose the company — the full main menu, including User Management, appears.</dd>
+          <dt>Next step</dt><dd>B5 — create roles, so other users have something to be assigned.</dd>
+        </dl>
+        <details class="tech">
+          <summary>Technical details</summary>
+          <table class="tbl">
+            <tr><td>Find your user id</td><td><code>GET /api/v1/auth/me/</code> (while signed in) — use the <code>"id"</code> in the response</td></tr>
+            <tr><td>Method / path</td><td><code>POST /api/v1/users/&lt;your_user_id&gt;/memberships/</code></td></tr>
+            <tr><td>Body</td><td><code>{"company_id": &lt;company_a_id&gt;}</code></td></tr>
+            <tr><td>Success</td><td><code>201</code> with a membership id</td></tr>
+          </table>
+        </details>
+      </article>
+
+      <article class="step" data-role="setup">
+        <div class="step-head"><h3>B5. Create company and store roles, with explicit permissions</h3><span class="badge api">Setup team / API only</span></div>
+        <dl class="step-grid">
+          <dt>Who performs it</dt><dd>Setup Administrator</dd>
+          <dt>What to decide</dt><dd>Which permission codes each role actually needs. See the access matrix in each department section
+            (F, G, H, I, J). A role's name grants nothing by itself — only the permission codes you attach to it matter.</dd>
+          <dt>Expected result</dt><dd>A role exists for Business Admin, Store Manager and Batch Manager, each with only the permissions
+            that role needs — not "all permissions for convenience."</dd>
+          <dt>Next step</dt><dd>B6 — create the real people and assign them.</dd>
+        </dl>
+        <details class="tech">
+          <summary>Technical details</summary>
+          <table class="tbl">
+            <tr><td>List company permission codes</td><td><code>GET /api/v1/permissions/?scope=COMPANY</code></td></tr>
+            <tr><td>Create a company role</td><td><code>POST /api/v1/companies/&lt;company_id&gt;/roles/</code> body <code>{"code": "BIZ_ADMIN", "name": "Business Admin", "description": "..."}</code></td></tr>
+            <tr><td>Set its permissions</td><td><code>PUT /api/v1/companies/&lt;company_id&gt;/roles/&lt;role_id&gt;/permissions/</code> body <code>{"permission_codes": ["sales_orders.view", "..."]}</code></td></tr>
+            <tr><td>List store permission codes</td><td><code>GET /api/v1/permissions/?scope=STORE</code></td></tr>
+            <tr><td>Create a store role / set permissions</td><td>Same pattern, under <code>/api/v1/stores/&lt;store_id&gt;/roles/...</code></td></tr>
+          </table>
+        </details>
+      </article>
+
+      <article class="step" data-role="setup">
+        <div class="step-head"><h3>B6. Create the real business users and assign company membership/role</h3><span class="badge website">Website available (User Management)</span></div>
+        <dl class="step-grid">
+          <dt>Who performs it</dt><dd>Setup Administrator or Business Admin, with <code>users.manage</code>-level access (the superuser has this)</dd>
+          <dt>Required setup</dt><dd>B1–B5 complete; at least one company role already exists for the dropdown to offer</dd>
+          <dt>Where to go</dt><dd>Workspace switcher → Company A → sidebar → <strong>User Management</strong></dd>
+          <dt>What to enter</dt><dd>Username, Password (at least 8 characters), First/Last name, Email, Employment status, Department (free text),
+            and — in the same form, or by opening the saved user afterward — Company and Role to assign.</dd>
+          <dt>Action</dt><dd>Click <strong>+ Add user</strong>, fill the form, save.</dd>
+          <dt>Expected result</dt><dd>The new user appears in the list, with the company and role shown against their name.</dd>
+          <dt>Save / reopen / refresh check</dt><dd>Reopen the user's row after saving; the membership and role are still shown.</dd>
+          <dt>Next step</dt><dd>B7 — give the Store Manager and Batch Manager their store access (API only).</dd>
+        </dl>
+        <div class="problem"><b>Common problem:</b> the Role dropdown is empty — no company role exists yet for this company. Go back to B5.</div>
+      </article>
+
+      <article class="step" data-role="setup">
+        <div class="step-head"><h3>B7. Give the Store Manager and Batch Manager their store access</h3><span class="badge api">Setup team / API only</span></div>
+        <dl class="step-grid">
+          <dt>Who performs it</dt><dd>Setup Administrator</dd>
+          <dt>Required setup</dt><dd>B3 (store exists), B5 (a store role exists), B6 (the users exist)</dd>
+          <dt>Expected result</dt><dd>Each account has a store membership and, for the Store Manager, a store role carrying
+            <code>store_preparation.view</code>, <code>store_preparation.create</code>, <code>store_preparation.edit</code> only.</dd>
+          <dt>Next step</dt><dd>B8 — units, product types and materials; then C/D/E for daily master data.</dd>
+        </dl>
+        <details class="tech">
+          <summary>Technical details</summary>
+          <table class="tbl">
+            <tr><td>Assign store membership</td><td><code>POST /api/v1/stores/&lt;store_id&gt;/memberships/</code> body <code>{"user_id": &lt;user_id&gt;}</code></td></tr>
+            <tr><td>Assign a store role to that membership</td><td><code>POST /api/v1/stores/&lt;store_id&gt;/memberships/&lt;membership_id&gt;/roles/</code> body <code>{"role_id": &lt;store_role_id&gt;}</code></td></tr>
+          </table>
+        </details>
+      </article>
+
+      <article class="step" data-role="setup">
+        <div class="step-head"><h3>B8. Units of measure and product types</h3><span class="badge api">Setup team / API only — no creation screen exists</span></div>
+        <dl class="step-grid">
+          <dt>Why this matters to ordinary users</dt><dd>The Materials and Products forms only let you <em>search</em> active units and
+            product types — they cannot create new ones. If this step is skipped, the unit search box in Materials/Products will
+            simply find nothing, and the Product Type dropdown will only offer "Not specified."</dd>
+          <dt>Expected result</dt><dd>At least one unit per dimension you need (e.g. a mass unit, a count unit) and at least one
+            product type exist and are active.</dd>
+        </dl>
+        <details class="tech">
+          <summary>Technical details</summary>
+          <table class="tbl">
+            <tr><td>Create a unit</td><td><code>POST /api/v1/units/</code> body <code>{"code": "KG", "name": "Kilogram", "dimension": "MASS"}</code> — <code>dimension</code> is one of <code>MASS</code>, <code>VOLUME</code>, <code>COUNT</code></td></tr>
+            <tr><td>Optional conversion factor</td><td><code>canonical_factor</code> on the same call — becomes immutable once set</td></tr>
+            <tr><td>Create a product type</td><td><code>POST /api/v1/product-types/</code> body <code>{"name": "&lt;Type Name&gt;"}</code></td></tr>
+          </table>
+        </details>
+      </article>
+
+      <article class="step" data-role="formula">
+        <div class="step-head"><h3>B9. Decide the formula approval policy</h3><span class="badge api">Setup team / API only — unanswered business decision</span></div>
+        <dl class="step-grid">
+          <dt>Why you must decide this, not skip it</dt><dd>With no policy configured, <strong>every</strong> approval attempt is
+            refused — not "approval is open by default." Approval stays blocked company-wide until someone explicitly answers this.</dd>
+          <dt>The decision</dt><dd>
+            <strong>Allow self-approval</strong> — whoever drafted or edited a revision may also approve it. Simpler for a small team,
+            but weaker separation of duties.<br/>
+            <strong>Do not allow self-approval</strong> — a different, real person must approve. You then need a second account with
+            <code>formulas.approve</code> who did not contribute to that revision, or nothing can ever be approved.
+          </dd>
+          <dt>Next step</dt><dd>C and D — master data; then E — formulas, which depends on this policy to approve anything.</dd>
+        </dl>
+        <details class="tech">
+          <summary>Technical details</summary>
+          <table class="tbl">
+            <tr><td>Method / path</td><td><code>PATCH /api/v1/companies/&lt;company_id&gt;/formula-approval-policy/</code></td></tr>
+            <tr><td>First-time body</td><td><code>{"expected_version": 0, "allow_self_approval": true}</code> (or <code>false</code>) — <code>0</code> only on the very first time</td></tr>
+          </table>
+        </details>
+      </article>
+    </section>
+
+    <!-- ============================ C. CUSTOMERS & PRODUCTS ============================ -->
+    <section class="guide-section" id="sec-c" data-role="admin">
+      <h2>C. Customers &amp; Products</h2>
+      <p class="section-sub">Daily master data for Business Admin, once setup (Section B) is complete.</p>
+
+      <article class="step" data-role="admin">
+        <div class="step-head"><h3>C1. Create a customer</h3><span class="badge website">Website available</span></div>
+        <dl class="step-grid">
+          <dt>Who performs it</dt><dd>Business Admin (needs <code>customers.view</code> and <code>customers.create</code>)</dd>
+          <dt>Where to go</dt><dd>Workspace switcher → Company A (or B) → sidebar → <strong>Customer Management</strong></dd>
+          <dt>What to enter</dt><dd>Customer code, Customer name, Contact Person, Email, Phone, and address fields. The customer
+            <strong>code</strong> is what later shows up inside the official batch number — it is not the operating company's own code.</dd>
+          <dt>Action</dt><dd><strong>+ Add customer</strong></dd>
+          <dt>Expected result</dt><dd>The customer appears in the list.</dd>
+          <dt>Save / reopen / refresh check</dt><dd>Reload the page, search by the code — the customer is still there.</dd>
+          <dt>Next step</dt><dd>C2 — create a product, or go straight to F if the product already exists.</dd>
+        </dl>
+        <div class="problem"><b>Common problem:</b> "A customer with this code already exists" — codes are unique per company. Pick a different code.</div>
+      </article>
+
+      <article class="step" data-role="admin">
+        <div class="step-head"><h3>C2. Create a product</h3><span class="badge website">Website available</span></div>
+        <dl class="step-grid">
+          <dt>Who performs it</dt><dd>Business Admin (needs <code>products.view</code> and <code>products.create</code>)</dd>
+          <dt>Where to go</dt><dd>Sidebar → <strong>Products</strong> → <strong>+ Add product</strong></dd>
+          <dt>What to enter</dt><dd>Code, Name, Product type (dropdown — shows "Not specified" only, until B8 created real types),
+            Sales unit (search box — only finds units created in B8), Description.</dd>
+          <dt>Expected result</dt><dd>The product appears in the list.</dd>
+          <dt>Save / reopen / refresh check</dt><dd>Reopen the product; all fields match what you entered. The code cannot be changed afterward.</dd>
+          <dt>Next step</dt><dd>From the product's own screen, open its <strong>Formulas</strong> tab (Section E) to draft a formula for it.</dd>
+        </dl>
+      </article>
+
+      <article class="step" data-role="admin">
+        <div class="step-head"><h3>C3. Import customers or products from a CSV file</h3><span class="badge website">Website available</span></div>
+        <dl class="step-grid">
+          <dt>Where to go</dt><dd>Customer Management → <strong>Import CSV</strong>, or Products → <strong>Import CSV</strong></dd>
+          <dt>Action</dt><dd>Choose the file, then <strong>Check file</strong> — this only validates, nothing is saved yet. Review every
+            row's result. Only once every row is valid does <strong>Import</strong> become available.</dd>
+          <dt>Expected result</dt><dd>Customer import is all-or-nothing on commit: if any row is invalid, nothing is created and you fix the file and check again.
+            Product import works the same way, but also keeps a server-side "preview" copy: if you wait too long or someone else changes
+            things, the commit is refused as stale and you simply choose the file again and re-check it.</dd>
+          <dt>Save / reopen / refresh check</dt><dd>After a successful import, reload the list — the new rows are there.</dd>
+          <dt>Next step</dt><dd>C1/C2's individual next steps.</dd>
+        </dl>
+        <div class="problem"><b>Common problem:</b> "This import changed since it was checked" (products only) — the preview expired or was
+          already used. Choose the file again and press Check file before importing.</div>
+      </article>
+    </section>
+
+    <!-- ============================ D. SHARED STORE & MATERIALS ============================ -->
+    <section class="guide-section" id="sec-d" data-role="all">
+      <h2>D. Shared Store &amp; Materials</h2>
+      <p class="section-sub">
+        One shared material catalog, used by both companies. One physical shared store. Creating or importing a material
+        <strong>never creates any stock</strong> — it only defines what the material is.
+      </p>
+
+      <article class="step" data-role="all">
+        <div class="step-head"><h3>D1. Switch to the Common Inventory workspace</h3><span class="badge website">Website available</span></div>
+        <dl class="step-grid">
+          <dt>Where to go</dt><dd>Top bar → workspace switcher → <strong>Common Inventory</strong></dd>
+          <dt>Expected result</dt><dd>Sidebar now shows <strong>Store &amp; Materials</strong> with Materials, Locations and Recorded Receipts.
+            This group is hidden under the Company A/B workspaces, and the company screens (Orders, Products…) are hidden here — switch back
+            and forth as needed.</dd>
+        </dl>
+      </article>
+
+      <article class="step" data-role="all">
+        <div class="step-head"><h3>D2. Create a material</h3><span class="badge website">Website available</span></div>
+        <dl class="step-grid">
+          <dt>Who performs it</dt><dd>Whoever holds catalog-write access (an active superuser today — see N for the exact rule)</dd>
+          <dt>Where to go</dt><dd>Store &amp; Materials → <strong>Materials</strong> → <strong>+ Add material</strong></dd>
+          <dt>What to enter</dt><dd>Material code, Material name, Type (Raw material / Packaging), Base unit (search — only finds units
+            already created in B8), Description (optional).</dd>
+          <dt>Expected result</dt><dd>The material appears in the list, Active by default.</dd>
+          <dt>Save / reopen / refresh check</dt><dd>Reload Materials, search the code — it persists. Code, Type and Base unit cannot be
+            changed afterward; only Name and Description can.</dd>
+          <dt>Next step</dt><dd>Use it in a formula (Section E) once there are enough materials.</dd>
+        </dl>
+        <div class="problem"><b>Common problem:</b> if you do not see <strong>+ Add material</strong> at all, your account does not have
+          catalog-write access — the page is read-only for you. Ask your setup administrator.</div>
+      </article>
+
+      <article class="step" data-role="all">
+        <div class="step-head"><h3>D3. Import materials from a CSV file</h3><span class="badge website">Website available</span></div>
+        <dl class="step-grid">
+          <dt>Where to go</dt><dd>Materials → <strong>Import materials</strong> → <strong>Download template</strong> first</dd>
+          <dt>What to enter</dt><dd>Columns: <code>code, name, material_type (RAW or PACKAGING), base_unit_code, description</code></dd>
+          <dt>Action</dt><dd>Choose the filled-in file → <strong>Check file</strong> (preview, writes nothing) → review every row →
+            <strong>Import N materials</strong> (all-or-nothing)</dd>
+          <dt>Expected result</dt><dd>Either every valid row is created, or nothing is, with a specific reason per invalid row.</dd>
+          <dt>Save / reopen / refresh check</dt><dd>Reload Materials and confirm the new codes are present.</dd>
+        </dl>
+        <div class="problem"><b>Common problem:</b> committing after the preview expired, or after it was already committed once —
+          the server refuses it rather than silently re-importing. Choose the file again and re-check it.</div>
+      </article>
+
+      <article class="step" data-role="all">
+        <div class="step-head"><h3>D4. Storage locations</h3><span class="badge website">Website available, read-only today</span></div>
+        <dl class="step-grid">
+          <dt>Where to go</dt><dd>Store &amp; Materials → <strong>Locations</strong></dd>
+          <dt>Current limitation</dt><dd>This screen lists locations for your store; it does not create or edit them in the website yet
+            (API only). More importantly: <strong>a goods receipt does not record which location a material was placed in</strong> —
+            do not treat anything shown here as proof of physical placement.</dd>
+        </dl>
+      </article>
+
+      <article class="step" data-role="all">
+        <div class="step-head"><h3>D5. Recorded Receipts</h3><span class="badge website">Website available, read-only</span></div>
+        <dl class="step-grid">
+          <dt>Where to go</dt><dd>Store &amp; Materials → <strong>Recorded Receipts</strong></dd>
+          <dt>What it shows</dt><dd>Quantities labelled exactly <strong>"Recorded receipt quantity"</strong>, grouped by material, unit
+            and source company. This is never "available", "released", "on-hand" or "usable" stock — none of those concepts exist in
+            this system yet.</dd>
+          <dt>Source company</dt><dd>Shown as receiving/purchasing context only — it is <strong>not</strong> a legal-ownership statement,
+            and a shared store does not establish ownership by itself.</dd>
+          <dt>Coverage notice</dt><dd>A fixed banner explains: opening stock, issues, returns and QC release are not included.</dd>
+        </dl>
+      </article>
+
+      <article class="step" data-role="setup">
+        <div class="step-head"><h3>D6. Suppliers</h3><span class="badge api">Setup team / API only</span></div>
+        <dl class="step-grid">
+          <dt>Note</dt><dd>The "Supply Chain" item you may see in the sidebar is a separate, disconnected screen — it does not read or
+            write real supplier data. Do not use it. Suppliers must be created through the API today.</dd>
+        </dl>
+        <details class="tech">
+          <summary>Technical details</summary>
+          <table class="tbl"><tr><td>Method / path</td><td><code>POST /api/v1/suppliers/</code>, body <code>{"code": "&lt;code&gt;", "legal_name": "&lt;Legal Name&gt;"}</code></td></tr></table>
+        </details>
+      </article>
+    </section>
+
+    <!-- ============================ E. FORMULAS & REVISIONS ============================ -->
+    <section class="guide-section" id="sec-e" data-role="formula">
+      <h2>E. Formulas &amp; Revisions</h2>
+      <div class="roleflow">
+        <span class="pill">Product</span><span class="arrow">→</span>
+        <span class="pill">Formula</span><span class="arrow">→</span>
+        <span class="pill">Revision</span><span class="arrow">→</span>
+        <span class="pill">Material lines</span><span class="arrow">→</span>
+        <span class="pill">Save draft</span><span class="arrow">→</span>
+        <span class="pill">Check approval</span><span class="arrow">→</span>
+        <span class="pill">Approve</span>
+      </div>
+
+      <article class="step" data-role="formula">
+        <div class="step-head"><h3>E1. Create a formula and its first (draft) revision</h3><span class="badge website">Website available</span></div>
+        <dl class="step-grid">
+          <dt>Who performs it</dt><dd>Business Admin / Formula Editor (<code>formulas.view</code>, <code>formulas.create</code>)</dd>
+          <dt>Where to go</dt><dd>Products → open a product → <strong>Formulas</strong> tab → <strong>+ New formula</strong></dd>
+          <dt>What to enter</dt><dd>Product (locked to the one you opened), Formula code, Formula name, Base output quantity, Output unit.</dd>
+          <dt>Expected result</dt><dd>A new formula with one <code>DRAFT</code> revision, and an empty material list — nothing is copied
+            from anywhere, because nothing existed yet.</dd>
+          <dt>Next step</dt><dd>E2 — add material lines to the revision.</dd>
+        </dl>
+      </article>
+
+      <article class="step" data-role="formula">
+        <div class="step-head"><h3>E2. Add material lines and save the draft</h3><span class="badge website">Website available</span></div>
+        <dl class="step-grid">
+          <dt>Where to go</dt><dd>The formula editor, open the revision, <strong>+ Add material</strong> under Raw Materials or Packaging Materials</dd>
+          <dt>What to enter</dt><dd>Base quantity per line, and optionally Special value, Label claim, AR No.</dd>
+          <dt>Action</dt><dd><strong>Save draft</strong> — saves both the raw and packaging tables together</dd>
+          <dt>Expected result</dt><dd>A visible "saved"/"unsaved" indicator; after saving it reads as saved.</dd>
+          <dt>Save / reopen / refresh check</dt><dd>Close and reopen the revision — every line and value is still there.</dd>
+          <dt>Next step</dt><dd>E3 — a new revision if you need another draft, or E4 to approve this one.</dd>
+        </dl>
+      </article>
+
+      <article class="step" data-role="formula">
+        <div class="step-head"><h3>E3. Start a new revision</h3><span class="badge website">Website available</span></div>
+        <dl class="step-grid">
+          <dt>Action</dt><dd><strong>+ New revision</strong></dd>
+          <dt>Expected result</dt><dd><strong>Always starts completely empty.</strong> Nothing is copied from the previous revision,
+            approved or not — this was verified directly in today's code. There is also no "use the latest approved revision
+            automatically" behaviour anywhere; every revision choice is explicit.</dd>
+        </dl>
+      </article>
+
+      <article class="step" data-role="formula">
+        <div class="step-head"><h3>E4. Check approval, then approve</h3><span class="badge website">Website available (needs the policy from B9)</span></div>
+        <dl class="step-grid">
+          <dt>Who performs it</dt><dd>An account with <code>formulas.approve</code></dd>
+          <dt>Where to go</dt><dd>The formula editor's Approval panel, below the material tables</dd>
+          <dt>Action</dt><dd><strong>Check approval</strong> first (shows exactly why approval would or would not succeed), then, only if
+            eligible, <strong>Approve revision N</strong></dd>
+          <dt>The self-approval rule, exactly</dt><dd>If the company policy does not allow self-approval, <strong>the approver must not
+            be a contributor to this specific revision</strong> — meaning they did not draft or edit it. This is checked by the server,
+            not just hidden in the interface.</dd>
+          <dt>Expected result</dt><dd>The revision becomes <code>APPROVED</code> and permanently read-only — not even an account with
+            <code>formulas.edit</code> can change its lines again.</dd>
+          <dt>Save / reopen / refresh check</dt><dd>Reopen the approved revision; every editing control is gone.</dd>
+        </dl>
+        <div class="problem"><b>Common problem:</b> "The company policy does not allow someone who created or changed this revision to
+          approve it" — this is expected when self-approval is disallowed. You need a second, uninvolved account with
+          <code>formulas.approve</code>.</div>
+      </article>
+
+      <article class="step" data-role="all">
+        <div class="step-head"><h3>E5. Unsaved input is kept when you open and close the formula drawer</h3><span class="badge website">Website available</span></div>
+        <dl class="step-grid">
+          <dt>Where this matters</dt><dd>While filling in an order's batch section, you can open <strong>Manage formulas</strong>
+            to check or edit a formula, then close it and return to the order.</dd>
+          <dt>Expected result</dt><dd>Whatever you had typed into the batch section, but not yet saved, is still there when you come back.</dd>
+        </dl>
+      </article>
+    </section>
+
+    <!-- ============================ F. ADMIN — CREATE ORDER ============================ -->
+    <section class="guide-section" id="sec-f" data-role="admin">
+      <h2>F. Admin — Create Order</h2>
+      <p class="section-sub">Step 1 of the three-department journey. Use one synthetic order throughout F, G and H.</p>
+
+      <article class="step" data-role="admin">
+        <div class="step-head"><h3>F1. Select the operating company</h3><span class="badge website">Website available</span></div>
+        <dl class="step-grid">
+          <dt>Where to go</dt><dd>Top bar workspace switcher → the company this order belongs to (e.g. "Company A")</dd>
+        </dl>
+      </article>
+
+      <article class="step" data-role="admin">
+        <div class="step-head"><h3>F2. Create the order</h3><span class="badge website">Website available</span></div>
+        <dl class="step-grid">
+          <dt>Who performs it</dt><dd>Business Admin (<code>sales_orders.view</code>, <code>sales_orders.create</code>)</dd>
+          <dt>Where to go</dt><dd>Sidebar → <strong>Orders</strong> → <strong>+ Add order</strong></dd>
+          <dt>What to enter</dt><dd>Customer (select an existing one, or use the existing "Add customer" link if offered), Product line
+            (product + order quantity + unit price), Order date, Planned manufacturing date, Currency.</dd>
+          <dt>Action</dt><dd><strong>Save order details</strong></dd>
+          <dt>Expected result</dt><dd>An order reference is generated, e.g. <code>SO-20261007-XXXXXXXX</code>.</dd>
+          <dt>Save / reopen / refresh check</dt><dd>Close the order, reopen it from the list, then refresh the browser page (F5) —
+            every field you entered is still there.</dd>
+          <dt>Next step</dt><dd>Write down the order reference exactly as shown, then hand off to the Store Manager (Section G).</dd>
+        </dl>
+      </article>
+    </section>
+
+    <!-- ============================ G. STORE MANAGER ============================ -->
+    <section class="guide-section" id="sec-g" data-role="store">
+      <h2>G. Store Manager — Store Preparation</h2>
+
+      <article class="step" data-role="store">
+        <div class="step-head"><h3>G1. Open the same order</h3><span class="badge website">Website available</span></div>
+        <dl class="step-grid">
+          <dt>Who performs it</dt><dd>Store Manager — sign out of the Admin account first, sign in as the Store Manager account</dd>
+          <dt>Where to go</dt><dd>Workspace switcher → the same company → Orders → open the order by its reference</dd>
+          <dt>Expected result</dt><dd>Order details are visible but <strong>read-only</strong> for this account — no Save control for
+            order fields, because this account has no <code>sales_orders.edit</code>.</dd>
+        </dl>
+      </article>
+
+      <article class="step" data-role="store">
+        <div class="step-head"><h3>G2. Choose the store and fill in preparation</h3><span class="badge website">Website available</span></div>
+        <dl class="step-grid">
+          <dt>Where to go</dt><dd>The order's Store section</dd>
+          <dt>What to enter</dt><dd>Store (if more than one is offered — only one in this guide's example), Packing Type (free text),
+            Label (free text), Box (free text), Insert — a three-way choice: <strong>Not specified / Required / Not required</strong>.</dd>
+          <dt>Action</dt><dd><strong>Save store details</strong></dd>
+          <dt>Expected result</dt><dd>Saves successfully <strong>even though no batch plan exists yet</strong> — this does not require
+            waiting for the Batch Manager.</dd>
+          <dt>Save / reopen / refresh check</dt><dd>Reopen the order; the store fields persist.</dd>
+          <dt>Next step</dt><dd>Hand off to the Batch Manager (Section H).</dd>
+        </dl>
+      </article>
+
+      <article class="step" data-role="store">
+        <div class="step-head"><h3>G3. Confirm the batch section is read-only for you</h3><span class="badge website">Website available</span></div>
+        <dl class="step-grid">
+          <dt>Expected result</dt><dd>Attempting to edit a batch field is blocked — either the controls are disabled or no Save action
+            is offered for that section, because this account has no batch-planning permission.</dd>
+        </dl>
+      </article>
+    </section>
+
+    <!-- ============================ H. BATCH MANAGER ============================ -->
+    <section class="guide-section" id="sec-h" data-role="batch">
+      <h2>H. Manager — Batch &amp; Printing</h2>
+
+      <article class="step" data-role="batch">
+        <div class="step-head"><h3>H1. Open the same order</h3><span class="badge website">Website available</span></div>
+        <dl class="step-grid">
+          <dt>Who performs it</dt><dd>Batch Manager — sign out, sign in as the Batch Manager account</dd>
+          <dt>Expected result</dt><dd>Store Preparation is visible but read-only for this account.</dd>
+        </dl>
+      </article>
+
+      <article class="step" data-role="batch">
+        <div class="step-head"><h3>H2. Select the product's approved formula revision</h3><span class="badge website">Website available</span></div>
+        <dl class="step-grid">
+          <dt>Where to go</dt><dd>The order's Batch section → revision dropdown</dd>
+          <dt>Expected result</dt><dd>Only <code>APPROVED</code> revisions of this exact order line's product are offered. If the list is
+            empty, no approved revision exists yet — go back to Section E, do not pick a different product's formula.</dd>
+        </dl>
+      </article>
+
+      <article class="step" data-role="batch">
+        <div class="step-head"><h3>H3. Enter batch output, packing relationship and printing fields</h3><span class="badge website">Website available</span></div>
+        <dl class="step-grid">
+          <dt>What to enter</dt><dd>Target output quantity and its unit (the formula's own output unit); Planned manufacturing date;
+            MRP for printing; Printing status (free text).</dd>
+          <dt>About the packing relationship</dt><dd>By default, the product's sales unit must equal the formula's output unit. If they
+            differ, you must supply <strong>all three</strong> packing fields together — planned pack quantity, packing content
+            quantity, and packing content unit — never just one or two. Supplying only part of the relationship is refused with a
+            message naming exactly which field is missing.</dd>
+          <dt>Review</dt><dd>The Material Requirements preview (Section's own calculator, same as E) shows what this target output
+            actually needs, computed by the server.</dd>
+          <dt>Action</dt><dd><strong>Save batch plan</strong></dd>
+          <dt>Save / reopen / refresh check</dt><dd>Reopen and refresh; every value persists.</dd>
+        </dl>
+      </article>
+
+      <article class="step" data-role="batch">
+        <div class="step-head"><h3>H4. Explicitly allocate the official batch number</h3><span class="badge website">Website available</span></div>
+        <dl class="step-grid">
+          <dt>Action</dt><dd><strong>Allocate batch number</strong> — a separate, deliberate button, never automatic</dd>
+          <dt>Format</dt><dd><code>CODEYY-NNN</code> — the <strong>customer's</strong> code (never the operating company's own code),
+            the two-digit allocation year, and a sequence that restarts at <code>001</code> every year, per customer.
+            Example: <code>NOVA26-001</code>.</dd>
+          <dt>Expected result</dt><dd>The number appears on the order.</dd>
+          <dt>Save / reopen / refresh check</dt><dd>Reopen the order — the same number is shown. Allocating again for the same plan
+            returns the identical number, never a new one.</dd>
+        </dl>
+      </article>
+
+      <div class="card" data-role="all">
+        <h3>What this journey does not require</h3>
+        <p>Order confirmation is a separate, optional feature. The current planning flow creates and saves batch plans directly from a
+          <code>DRAFT</code> order line — do not treat "confirm the order" as a mandatory step before Store Preparation or Batch
+          Planning, because the code does not require it.</p>
+      </div>
+    </section>
+
+    <!-- ============================ I. MATERIAL REQUISITION ============================ -->
+    <section class="guide-section" id="sec-i" data-role="store">
+      <h2>I. Material Requisition</h2>
+      <div class="card">
+        <h3>No requisition screen exists in the website</h3>
+        <p>Creating, submitting, approving, rejecting or revising a requisition is <strong>API only</strong> today — verified directly
+          against the current frontend code; there is no button anywhere in the application for it.</p>
+      </div>
+
+      <article class="step" data-role="setup">
+        <div class="step-head"><h3>I1. Create, submit and approve a requisition</h3><span class="badge api">Setup team / API only</span></div>
+        <details class="tech" open>
+          <summary>Technical details</summary>
+          <table class="tbl">
+            <tr><td>Create</td><td><code>POST /api/v1/stores/&lt;store_id&gt;/material-requisitions/</code> body <code>{"batch_plan_id": &lt;plan_id&gt;, "expected_batch_plan_version": &lt;version&gt;}</code></td></tr>
+            <tr><td>Edit a requested quantity, with a remark</td><td><code>PATCH .../material-requisitions/&lt;id&gt;/</code></td></tr>
+            <tr><td>Submit</td><td><code>POST .../material-requisitions/&lt;id&gt;/submit/</code></td></tr>
+            <tr><td>Approve</td><td><code>POST .../material-requisitions/&lt;id&gt;/approve/</code></td></tr>
+            <tr><td>Reject</td><td><code>POST .../material-requisitions/&lt;id&gt;/reject/</code></td></tr>
+            <tr><td>Revise (after rejection)</td><td><code>POST .../material-requisitions/&lt;id&gt;/revise/</code></td></tr>
+          </table>
+        </details>
+        <p style="font-size:14px;"><strong>Approval is not physical material issue.</strong> Nothing in this application issues,
+          reserves or consumes stock as a result.</p>
+      </article>
+
+      <article class="step" data-role="store">
+        <div class="step-head"><h3>I2. The Store Manager's status-only view</h3><span class="badge website">Website available</span></div>
+        <dl class="step-grid">
+          <dt>Where to go</dt><dd>The order's Store section, requisition status field</dd>
+          <dt>What it shows</dt><dd>Only the requisition's workflow status (e.g. Draft, Submitted, Approved) — never its lines,
+            quantities or the underlying formula. This is a deliberately narrow, status-only endpoint, not the same thing as full
+            requisition access.</dd>
+        </dl>
+      </article>
+    </section>
+
+    <!-- ============================ J. BMR ============================ -->
+    <section class="guide-section" id="sec-j" data-role="batch">
+      <h2>J. BMR</h2>
+      <div class="notice" style="background:var(--confirm-bg);border-color:var(--confirm-border);color:var(--confirm-text);">
+        Who is meant to hold BMR access is a business decision for your organization — <span class="badge confirm">Confirm with setup team</span>.
+        This guide does not assume a particular role (Admin, Manager, or someone else) automatically has it. The account you are using
+        must specifically be granted <code>bmr.view</code>, <code>bmr.create</code> and/or <code>bmr.edit</code> before any of the below appears.
+      </div>
+
+      <article class="step" data-role="batch">
+        <div class="step-head"><h3>J1. Create the record</h3><span class="badge website">Website available (once bmr.create is granted)</span></div>
+        <dl class="step-grid">
+          <dt>Where to go</dt><dd>Inside a saved order, the Batch section, once a batch plan has been saved</dd>
+          <dt>Action</dt><dd><strong>Create record</strong></dd>
+          <dt>Expected result</dt><dd>Raw material requisition slip and Packing slip appear, with quantities taken from the existing
+            requirement preview — the server's exact figures, nothing recalculated by the browser. No fake empty record is shown before
+            you click Create.</dd>
+        </dl>
+      </article>
+
+      <article class="step" data-role="batch">
+        <div class="step-head"><h3>J2. Edit the supported fields</h3><span class="badge website">Website available (with bmr.edit)</span></div>
+        <dl class="step-grid">
+          <dt>What to enter</dt><dd>Special value, Label claim, AR No. per line; Qty received (packing lines only).</dd>
+          <dt>Save / reopen / refresh check</dt><dd>Reopen the record; edited values persist.</dd>
+        </dl>
+      </article>
+
+      <article class="step" data-role="batch">
+        <div class="step-head"><h3>J3. Sign-offs and printing</h3><span class="badge website">Website available</span></div>
+        <dl class="step-grid">
+          <dt>What you will see</dt><dd>Four blank sign-off blocks — Prepared, Reviewed, Approved, Checked — each with a blank signature
+            line. No name is ever pre-filled.</dd>
+          <dt>Action</dt><dd><strong>Print</strong> — only the record itself is printed.</dd>
+        </dl>
+        <p style="font-size:14px;"><strong>A BMR record is not proof production happened.</strong> Its quantities are not evidence that
+          material was consumed, and blank sign-off lines are not completed approvals of anything.</p>
+      </article>
+    </section>
+
+    <!-- ============================ K. PURCHASING, RECEIVING & QC ============================ -->
+    <section class="guide-section" id="sec-k" data-role="setup">
+      <h2>K. Purchasing, Receiving &amp; QC</h2>
+      <p class="section-sub">Backend availability and website availability are tracked separately below — a backend endpoint existing
+        does not mean a screen exists for it.</p>
+      <table class="data">
+        <thead><tr><th>Stage</th><th>Website today</th><th>Backend</th><th>Alternative</th></tr></thead>
+        <tbody>
+          <tr><td>Supplier</td><td><span class="badge missing">Not in website</span></td><td>Yes</td><td>API only — see D6</td></tr>
+          <tr><td>Purchase Request</td><td><span class="badge missing">Not in website</span></td><td>Yes</td><td>API only</td></tr>
+          <tr><td>Approval of the request</td><td><span class="badge missing">Not in website</span></td><td>Yes</td><td>API only</td></tr>
+          <tr><td>Purchase Order</td><td><span class="badge missing">Not in website</span></td><td>Yes</td><td>API only</td></tr>
+          <tr><td>Issue the PO</td><td><span class="badge missing">Not in website</span></td><td>Yes</td><td>API only</td></tr>
+          <tr><td>Goods Receipt</td><td><span class="badge missing">Not in website</span></td><td>Yes</td><td>API only</td></tr>
+          <tr><td>Recorded Receipt Ledger</td><td><span class="badge website">Website available</span></td><td>Yes</td><td>Section D5</td></tr>
+          <tr><td>Incoming QC inspection / specifications</td><td><span class="badge missing">Shown on a disconnected mock screen only</span></td><td>Yes (draft/submit lifecycle)</td><td>API only</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:13px;color:var(--muted);">The "Quality Control" and "Supply Chain" sidebar pages you may see are not connected
+        to the backend endpoints above — they read and write a local, in-browser sample store only. Do not rely on them for real data.</p>
+    </section>
+
+    <!-- ============================ L. TROUBLESHOOTING ============================ -->
+    <section class="guide-section" id="sec-l" data-role="all">
+      <h2>L. Troubleshooting</h2>
+      <table class="data">
+        <thead><tr><th>Problem</th><th>What it means</th><th>What to do</th></tr></thead>
+        <tbody>
+          <tr><td>No company workspace available</td><td>Your account has no company membership yet.</td><td>Ask your setup
+            administrator to assign one (Section B6/B4). Do not ask for broader access than your role needs.</td></tr>
+          <tr><td>No store available to your account</td><td>No store membership.</td><td>Ask your setup administrator for store
+            membership (B7). This is separate from company access.</td></tr>
+          <tr><td>Access denied / 403 on an action</td><td>Your role's permission list does not include that specific action.</td>
+            <td>Ask your setup administrator to review the role's permission codes (B5). Do not try to work around it.</td></tr>
+          <tr><td>No active units found when searching</td><td>No units were created yet, or none match your search.</td><td>Ask your
+            setup administrator to create units (B8).</td></tr>
+          <tr><td>No approved formula revision to select</td><td>Nothing for this product has been approved yet.</td><td>Draft and
+            approve a revision for <em>that exact product</em> (Section E). Never substitute a different product's formula.</td></tr>
+          <tr><td>Approval always blocked, no matter who tries</td><td>The company's formula approval policy was never configured.</td>
+            <td>A setup administrator must set it explicitly (B9) — there is no safe default to fall back on.</td></tr>
+          <tr><td>Packaging quantity shows a fraction, like 12.5 pcs</td><td>The scale factor does not divide evenly into whole count
+            units. The server shows this honestly rather than rounding it for you.</td><td>This is expected behaviour, not an error —
+            review it and decide your own rounding/ordering policy outside this system.</td></tr>
+          <tr><td>Save conflict / "changed since it was last read"</td><td>Someone else saved the same record first.</td><td>Reload the
+            record to see the latest version, re-check your changes, and save again. Never assume your version should simply overwrite theirs.</td></tr>
+          <tr><td>Session expired</td><td>Your login session timed out.</td><td>Sign in again. Unsaved work on the page you were on may
+            be lost — save often.</td></tr>
+          <tr><td>Order delete is refused</td><td>The order already has store preparation or a batch plan linked to it.</td><td>This is a
+            protective rule, not a bug. Only a draft order with nothing linked to it can be deleted.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ============================ M. TESTING CHECKLIST ============================ -->
+    <section class="guide-section" id="sec-m" data-role="all">
+      <h2>M. Testing Checklist</h2>
+      <p class="section-sub">
+        Saved only on this device, in this browser's local storage — it does not sync with the ERP and nothing here changes any ERP
+        record. Use a disposable, synthetic order for any destructive test; never delete a real client record to test deletion.
+      </p>
+      <div class="toolbar no-print" style="position:static;padding:0 0 14px;">
+        <button class="btn" id="chkExport" type="button">⬇️ Export as CSV</button>
+        <button class="btn danger" id="chkReset" type="button">↺ Reset checklist</button>
+        <span id="chkSavedNote" style="font-size:13px;color:var(--muted);"></span>
+      </div>
+      <div style="overflow-x:auto;">
+      <table class="data" id="checklistTable">
+        <thead>
+          <tr>
+            <th style="width:4%;">#</th>
+            <th style="width:12%;">Account / role</th>
+            <th style="width:12%;">Company / store context</th>
+            <th>Action</th>
+            <th>Expected result</th>
+            <th style="width:11%;">Result</th>
+            <th style="width:16%;">Note / reference</th>
+          </tr>
+        </thead>
+        <tbody id="checklistBody"><!-- filled by JS --></tbody>
+      </table>
+      </div>
+    </section>
+
+    <!-- ============================ N. AVAILABLE NOW / PENDING ============================ -->
+    <section class="guide-section" id="sec-n" data-role="all">
+      <h2>N. Available Now / Pending Features</h2>
+
+      <div class="card">
+        <h3>Who can actually write to the shared catalog today</h3>
+        <p>Creating/editing/activating a material, importing materials, creating units and product types all require an
+          <strong>active superuser</strong> account specifically — this is the same, single rule across all of them. A "Business Admin"
+          role does not include this by default; it must be a superuser account. If your organization wants a non-superuser role to
+          manage the catalog, that is a deliberate access decision — <span class="badge confirm">Confirm with setup team</span>.</p>
+      </div>
+
+      <h3 style="font-size:16px;color:var(--navy);">Connected website functionality</h3>
+      <div class="matrixgrid">
+        <div class="cell"><h4>Orders</h4><p>Create, edit, store prep, batch plan, batch number allocation</p></div>
+        <div class="cell"><h4>Customers &amp; Products</h4><p>Create, edit, lifecycle, CSV import</p></div>
+        <div class="cell"><h4>Formulas</h4><p>Draft, revisions, calculator, approval</p></div>
+        <div class="cell"><h4>Materials</h4><p>Create, edit, lifecycle, CSV import (catalog-write accounts only)</p></div>
+        <div class="cell"><h4>Recorded Receipts</h4><p>Read-only ledger, correctly labelled</p></div>
+        <div class="cell"><h4>BMR</h4><p>Create, edit supported fields, print (with the right permissions)</p></div>
+        <div class="cell"><h4>User Management</h4><p>Create users, company membership and role assignment</p></div>
+      </div>
+
+      <h3 style="font-size:16px;color:var(--navy);">Backend exists, website does not use it</h3>
+      <div class="matrixgrid">
+        <div class="cell"><h4>Material requisitions</h4><p>Full lifecycle is API only</p></div>
+        <div class="cell"><h4>Formula CSV import</h4><p>API only</p></div>
+        <div class="cell"><h4>Purchase requests/orders, goods receipts</h4><p>API only</p></div>
+        <div class="cell"><h4>Incoming QC / specifications</h4><p>API only</p></div>
+        <div class="cell"><h4>Company/store roles and memberships</h4><p>Most assignment is API only, see Section B</p></div>
+      </div>
+
+      <h3 style="font-size:16px;color:var(--navy);">Mock / not connected to the backend</h3>
+      <div class="matrixgrid">
+        <div class="cell"><h4>Quality Control page</h4><p>Local sample data only</p></div>
+        <div class="cell"><h4>Supply Chain page</h4><p>Local sample data only</p></div>
+        <div class="cell"><h4>Invoicing page</h4><p>Local sample data only</p></div>
+        <div class="cell"><h4>HR module</h4><p>Local sample data only</p></div>
+      </div>
+
+      <h3 style="font-size:16px;color:var(--navy);">Not implemented anywhere yet</h3>
+      <div class="matrixgrid">
+        <div class="cell"><h4>Legal ownership transfer</h4><p>Not implemented — never infer ownership from recorded receipts</p></div>
+        <div class="cell"><h4>Opening stock</h4><p>Not implemented</p></div>
+        <div class="cell"><h4>Lot / expiry handling</h4><p>Not implemented</p></div>
+        <div class="cell"><h4>QC disposition / QA release</h4><p>Not implemented</p></div>
+        <div class="cell"><h4>Reservation, issue, consumption, returns</h4><p>Not implemented</p></div>
+        <div class="cell"><h4>Production execution / status</h4><p>Not implemented</p></div>
+        <div class="cell"><h4>Packaging completion</h4><p>Not implemented</p></div>
+        <div class="cell"><h4>Dispatch</h4><p>Not implemented</p></div>
+        <div class="cell"><h4>Invoicing &amp; Tally integration</h4><p>Not implemented</p></div>
+        <div class="cell"><h4>Reports / audit-log viewer</h4><p>No viewer; audit rows exist only in the database</p></div>
+      </div>
+    </section>
+
+    <footer class="guide-footer">
+      This guide does not report a completion percentage — "connected", "API only", "mock" and "not implemented" are kept separate on
+      purpose. Browser/visual validation of this guide file itself is pending; it has not been opened in a live browser as part of
+      producing it. Verify it opens correctly on your own machine before sending it onward.
+    </footer>
+
+  </main>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- active nav highlight on click (simple, no scrollspy deps) ---------- */
+  var navlinks = document.querySelectorAll(".navlink");
+  navlinks.forEach(function(link){
+    link.addEventListener("click", function(){
+      navlinks.forEach(function(l){ l.classList.remove("active"); });
+      link.classList.add("active");
+    });
+  });
+
+  /* ---------- search ---------- */
+  var searchBox = document.getElementById("guideSearch");
+  var searchableBlocks = document.querySelectorAll(".step, .card");
+  searchBox.addEventListener("input", function(){
+    var q = searchBox.value.trim().toLowerCase();
+    searchableBlocks.forEach(function(block){
+      if (!q) { block.classList.remove("hidden-by-search"); return; }
+      var text = block.textContent.toLowerCase();
+      if (text.indexOf(q) === -1) { block.classList.add("hidden-by-search"); }
+      else { block.classList.remove("hidden-by-search"); }
+    });
+  });
+
+  /* ---------- role filter ---------- */
+  var roleFilter = document.getElementById("roleFilter");
+  var roleScoped = document.querySelectorAll("[data-role]");
+  roleFilter.addEventListener("change", function(){
+    var role = roleFilter.value;
+    roleScoped.forEach(function(el){
+      var r = el.getAttribute("data-role");
+      if (role === "all" || r === "all" || r === role) { el.classList.remove("hidden-by-role"); }
+      else { el.classList.add("hidden-by-role"); }
+    });
+  });
+
+  /* ---------- checklist ---------- */
+  var CHECKLIST_KEY = "cmhpGuideChecklist_v1";
+  var tests = [
+    ["Setup Administrator","none","Create first superuser (command line)","Account created, can log in"],
+    ["Setup Administrator (API)","none","Create Company A and Company B","Both return 201 with distinct ids"],
+    ["Setup Administrator (API)","none","Create the shared store","201 with a store id"],
+    ["Setup Administrator (API)","Company A","Give the superuser's own account a company membership","User Management becomes visible after switching workspace"],
+    ["Business Admin","Company A","Customer Management > Add customer","Customer appears in the list and persists on reload"],
+    ["Business Admin","Company A","Products > Add product","Product appears in the list and persists on reload"],
+    ["Business Admin / Formula Editor","Company A","Formula editor > Add material lines > Save draft","Lines persist after closing and reopening the revision"],
+    ["Formula Approver","Company A","Check approval, then Approve revision","Revision becomes APPROVED and read only"],
+    ["Business Admin","Company A","Orders > Add order (customer, product line, dates)","Order saved with a reference; persists after close/reopen/refresh"],
+    ["Store Manager","Company A, shared store","Open the same order; enter Packing Type/Label/Box/Insert; Save","Saved before any batch plan exists; persists on reopen"],
+    ["Store Manager","Company A","Attempt to edit a batch field","Edit is blocked for this account"],
+    ["Batch Manager","Company A","Open the same order; select approved formula revision; enter target output","Batch plan saved as DRAFT; persists on reopen"],
+    ["Batch Manager","Company A","Allocate batch number","Number in CODEYY-NNN format appears and stays the same on reopening"],
+    ["Batch Manager","Company A","Attempt to edit a store preparation field","Edit is blocked for this account"],
+    ["Business Admin","Company A","Requirement preview: target = base output","Scale factor 1; quantities match base exactly"],
+    ["Business Admin","Company A","Requirement preview: target = half base output","Scale factor 0.5; fractional COUNT warning shown, not rounded"],
+    ["Account with bmr.create","Company A","Batch section > Create record","Raw and packing slips created from the requirement preview"],
+    ["Store Manager","Company A order screen","View requisition status","Status label only; no recipe or quantity data shown"],
+    ["Business Admin (synthetic order only)","Company A","Delete a throwaway DRAFT order with nothing linked","Deletes successfully"],
+    ["Business Admin","Company A","Attempt to delete an order with store prep or a batch plan linked","Refused with a plain-language reason; nothing changed"],
+    ["Any account","n/a","Create a customer with a duplicate code","Refused with a specific duplicate-code error"],
+    ["Any account","n/a","Let the session expire, then reload a protected page","Session restores or returns to login; no raw technical error shown"]
+  ];
+
+  function loadState(){
+    try { return JSON.parse(localStorage.getItem(CHECKLIST_KEY) || "{}"); }
+    catch (e) { return {}; }
+  }
+  function saveState(state){
+    try {
+      localStorage.setItem(CHECKLIST_KEY, JSON.stringify(state));
+      var note = document.getElementById("chkSavedNote");
+      note.textContent = "Saved to this browser just now.";
+      setTimeout(function(){ note.textContent = ""; }, 2000);
+    } catch (e) { /* storage unavailable; nothing else to do */ }
+  }
+
+  var state = loadState();
+  var tbody = document.getElementById("checklistBody");
+
+  tests.forEach(function(row, idx){
+    var id = "t" + idx;
+    var saved = state[id] || { result: "nottested", note: "" };
+    var tr = document.createElement("tr");
+    tr.className = "checklist-row";
+    tr.innerHTML =
+      "<td>" + (idx + 1) + "</td>" +
+      "<td>" + escapeHtml(row[0]) + "</td>" +
+      "<td>" + escapeHtml(row[1]) + "</td>" +
+      "<td>" + escapeHtml(row[2]) + "</td>" +
+      "<td>" + escapeHtml(row[3]) + "</td>" +
+      "<td>" +
+        "<select data-id=\"" + id + "\" class=\"chk-select\">" +
+          "<option value=\"nottested\">Not tested</option>" +
+          "<option value=\"pass\">Pass</option>" +
+          "<option value=\"fail\">Fail</option>" +
+          "<option value=\"blocked\">Blocked</option>" +
+        "</select>" +
+      "</td>" +
+      "<td><input type=\"text\" data-id=\"" + id + "\" class=\"chk-note\" placeholder=\"Order ref / note (no secrets)\" value=\"" + escapeHtml(saved.note) + "\"/></td>";
+    tbody.appendChild(tr);
+    var sel = tr.querySelector(".chk-select");
+    sel.value = saved.result;
+    applyResultClass(sel);
+  });
+
+  function applyResultClass(sel){
+    sel.className = "chk-select chk-result-" + sel.value;
+  }
+
+  tbody.addEventListener("change", function(e){
+    if (e.target.classList.contains("chk-select") || e.target.classList.contains("chk-note")){
+      var id = e.target.getAttribute("data-id");
+      var row = e.target.closest("tr");
+      var selectEl = row.querySelector(".chk-select");
+      var noteEl = row.querySelector(".chk-note");
+      applyResultClass(selectEl);
+      state[id] = { result: selectEl.value, note: noteEl.value };
+      saveState(state);
+    }
+  });
+  tbody.addEventListener("input", function(e){
+    if (e.target.classList.contains("chk-note")){
+      var id = e.target.getAttribute("data-id");
+      var row = e.target.closest("tr");
+      var selectEl = row.querySelector(".chk-select");
+      state[id] = { result: selectEl.value, note: e.target.value };
+    }
+  });
+
+  document.getElementById("chkReset").addEventListener("click", function(){
+    if (!confirm("Reset the whole checklist on this device? This cannot be undone.")) return;
+    state = {};
+    try { localStorage.removeItem(CHECKLIST_KEY); } catch(e){}
+    document.querySelectorAll(".chk-select").forEach(function(sel){ sel.value = "nottested"; applyResultClass(sel); });
+    document.querySelectorAll(".chk-note").forEach(function(inp){ inp.value = ""; });
+  });
+
+  document.getElementById("chkExport").addEventListener("click", function(){
+    var rows = [["#","Account / role","Company / store context","Action","Expected result","Result","Note / reference"]];
+    var trs = tbody.querySelectorAll("tr");
+    trs.forEach(function(tr, idx){
+      var tds = tr.querySelectorAll("td");
+      var sel = tr.querySelector(".chk-select");
+      var note = tr.querySelector(".chk-note");
+      rows.push([
+        String(idx + 1),
+        tds[1].textContent,
+        tds[2].textContent,
+        tds[3].textContent,
+        tds[4].textContent,
+        sel.options[sel.selectedIndex].text,
+        note.value
+      ]);
+    });
+    var csv = rows.map(function(r){
+      return r.map(csvEscape).join(",");
+    }).join("\r\n");
+    var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "cmhp-guide-checklist.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  function csvEscape(value){
+    var v = String(value == null ? "" : value);
+    if (/[",\r\n]/.test(v)) {
+      v = "\"" + v.replace(/"/g, "\"\"") + "\"";
+    }
+    return v;
+  }
+  function escapeHtml(s){
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+})();
+</script>
+</body>
+</html>

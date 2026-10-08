@@ -10,6 +10,7 @@ import AsyncSearchSelect from '../operations/AsyncSearchSelect'
 import { searchProducts } from '../operations/catalogLookupService'
 import { listPlanningUnits } from '../operations/unitsLookupService'
 import { getErrorMessage } from '../../utils/errors'
+import Spinner, { LoadingState } from '../../components/Spinner'
 import RequirementCalculator from './RequirementCalculator'
 import {
   approvalActionState,
@@ -186,7 +187,7 @@ export default function FormulasPage({ embedded = false, productId = null, locke
   if (permissionsLoading) {
     return (
       <section className="fm-page">
-        <p className="field-muted">Loading…</p>
+        <LoadingState label="Loading…" />
       </section>
     )
   }
@@ -268,7 +269,7 @@ export default function FormulasPage({ embedded = false, productId = null, locke
         <aside className="fm-list" aria-label="Formulas">
           {searchBox}
           {listError && <Alert type="error">{listError}</Alert>}
-          {listLoading && <p className="field-muted">Loading formulas…</p>}
+          {listLoading && <Spinner size="sm" tone="muted" label="Loading formulas…" />}
           {!listLoading && !listError && formulas.length === 0 && (
             <p className="field-muted">No formulas found{productFilter ? ' for this product' : ''}.</p>
           )}
@@ -832,7 +833,7 @@ function MaterialTable({ title, kind, rows, setRows, editable }) {
           <table className="fm-table">
             <colgroup>
               <col className="fm-c-sr" />
-              <col />
+              <col className="fm-c-material" />
               <col className="fm-c-qty" />
               <col className="fm-c-unit" />
               <col className="fm-c-text" />

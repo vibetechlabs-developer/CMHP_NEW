@@ -15,6 +15,7 @@ import {
 import { DonutChart } from './charts'
 import { inventoryService } from '../inventory/inventoryService'
 import { getErrorMessage } from '../../utils/errors'
+import { LoadingState } from '../../components/Spinner'
 
 import './Dashboard.css'
 
@@ -508,11 +509,7 @@ export default function Dashboard() {
         !error && (
           <section className="dashboard-loading">
 
-            <div className="loading-spinner" />
-
-            <span>
-              Loading your live inventory dashboard...
-            </span>
+            <LoadingState label="Loading your live inventory dashboard..." />
 
           </section>
         )}

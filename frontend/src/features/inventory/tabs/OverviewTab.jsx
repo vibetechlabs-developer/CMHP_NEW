@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { inventoryService } from '../inventoryService'
 import { getErrorMessage } from '../../../utils/errors'
 import Alert from '../../../components/Alert'
+import { LoadingState } from '../../../components/Spinner'
 
 const CARDS = [
   { key: 'total_items', label: 'Active materials' },
@@ -25,7 +26,7 @@ export default function OverviewTab() {
   return (
     <div className="inv-panel">
       <Alert type="error">{error}</Alert>
-      {!summary && !error && <p className="inv-empty">Loading overview…</p>}
+      {!summary && !error && <LoadingState label="Loading overview…" compact />}
       {summary && (
         <div className="inv-kpis">
           {CARDS.map((card) => (

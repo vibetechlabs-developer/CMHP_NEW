@@ -3,9 +3,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Alert from '../../../components/Alert'
 import Button from '../../../components/Button'
 import Input from '../../../components/Input'
+import Spinner, { LoadingState } from '../../../components/Spinner'
 import Modal from '../../inventory/components/Modal'
 import { confirmAction } from '../../../components/ConfirmProvider'
 import { getErrorMessage } from '../../../utils/errors'
+import usePermissions from '../../../hooks/usePermissions'
+import useAuth from '../../../hooks/useAuth'
 
 import {
   activateUser,
@@ -163,7 +166,7 @@ function CompanyAccessPanel({ userId, onError }) {
     run(() => deactivateUserRole(userId, membership.id, assignment.id), `Role removed in ${membership.company_code}.`)
   }
 
-  if (loading) return <p className="uf-help">Loading company access…</p>
+  if (loading) return <LoadingState label="Loading company access…" compact />
 
   return (
     <section className="uf-group">
@@ -259,6 +262,15 @@ function CompanyAccessPanel({ userId, onError }) {
 // Users are real backend accounts (apps.users). The API is superuser-only, so
 // a non-superuser sees the server's refusal rather than an empty list.
 export default function UserAccessTab() {
+  // Scopes the list to the active company workspace's own members, so this
+  // screen shows that company's employees, not every account on the whole
+  // platform. (Creating or assigning a user to a DIFFERENT company is still
+  // possible from the create/edit form below - this only scopes the list.)
+  const { loading: permissionsLoading, realCompanyId } = usePermissions()
+  const { user } = useAuth()
+  const activeCompanyName = user?.profile?.real_companies?.find((c) => c.id === realCompanyId)?.display_name
+    || user?.profile?.real_companies?.find((c) => c.id === realCompanyId)?.legal_name
+    || ''
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -284,7 +296,7 @@ export default function UserAccessTab() {
     setLoading(true)
     setError('')
     try {
-      const rows = await listUsers({ search: (term ?? '').trim() })
+      const rows = await listUsers({ search: (term ?? '').trim(), companyId: realCompanyId })
       if (requestRef.current !== id) return
       setUsers(rows)
     } catch (err) {
@@ -296,10 +308,14 @@ export default function UserAccessTab() {
   }
 
   useEffect(() => {
+    // Wait for the real company id to resolve first - fetching before that
+    // would briefly show every account on the platform, then narrow down,
+    // which is exactly the flash this is avoiding.
+    if (permissionsLoading) return
     const timer = setTimeout(() => load(search), 300)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search])
+  }, [search, realCompanyId, permissionsLoading])
 
   useEffect(() => {
     if (modal?.mode !== 'create') return
@@ -432,7 +448,10 @@ export default function UserAccessTab() {
       <div className="company-tab-header">
         <div>
           <h2>User Management</h2>
-          <p>Accounts that can sign in to this ERP, with their employee details and company access.</p>
+          <p>
+            Accounts that can sign in to this ERP, with their employee details and company access.
+            {activeCompanyName && <> Showing <strong>{activeCompanyName}</strong>&rsquo;s own members.</>}
+          </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <Button variant="secondary" onClick={() => setImporting(true)}>
@@ -470,7 +489,9 @@ export default function UserAccessTab() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan="10" className="company-empty">Loading users...</td>
+                <td colSpan="10" className="company-empty">
+                  <Spinner tone="brand" label="Loading users..." />
+                </td>
               </tr>
             )}
             {!loading &&

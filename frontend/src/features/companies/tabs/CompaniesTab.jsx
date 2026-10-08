@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { companyService } from '../companyService'
+import Spinner from '../../../components/Spinner'
 
 
 export default function CompaniesTab() {
@@ -123,13 +124,8 @@ export default function CompaniesTab() {
 
         {loading ? (
 
-          <div
-            style={{
-              color: '#8396a4',
-              fontSize: '12px',
-            }}
-          >
-            Loading companies...
+          <div style={{ padding: '10px 0' }}>
+            <Spinner tone="muted" label="Loading companies..." />
           </div>
 
         ) : companies.length === 0 ? (

@@ -7,6 +7,7 @@ import {
 } from 'react-router-dom'
 
 import useAuth from '../../hooks/useAuth'
+import useWorkspace from '../../hooks/useWorkspace'
 
 import {
   BuildingIcon,
@@ -18,7 +19,6 @@ import {
   getAvailableWorkspaces,
   getCurrentWorkspace,
   requiresWorkspaceSelection,
-  setSelectedWorkspace,
   WORKSPACES,
 } from '../../utils/workspace'
 
@@ -53,6 +53,10 @@ export default function WorkspaceSelection() {
     user,
     logout,
   } = useAuth()
+
+  const {
+    setActiveWorkspace: setActiveWorkspaceInContext,
+  } = useWorkspace()
 
 
   const navigate =
@@ -113,7 +117,19 @@ export default function WorkspaceSelection() {
     workspace
   ) {
 
-    setSelectedWorkspace(
+    // Must go through the WorkspaceContext setter, not the raw
+    // localStorage helper directly - WorkspaceProvider's own
+    // `activeWorkspace` React state only ever changes when the logged-in
+    // `user` object changes or through this setter. Writing straight to
+    // localStorage (the previous code here) left the provider's state
+    // stuck at whatever it was before this click - usually `null` right
+    // after a fresh login - so the very next screen (MainLayout's
+    // sidebar, the workspace logo, the scoped company id every real API
+    // call uses) kept reading the OLD value even though the URL had
+    // already navigated to /dashboard. This was the exact cause of
+    // "picked Company A/B, landed on /dashboard, but still see the
+    // Common Inventory sidebar and the wrong/no company logo."
+    setActiveWorkspaceInContext(
       workspace.id
     )
 

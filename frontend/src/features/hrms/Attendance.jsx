@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import useAuth from '../../hooks/useAuth'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
+import Spinner from '../../components/Spinner'
 import { getErrorMessage } from '../../utils/errors'
 
 import { hrService } from './hrService'
@@ -328,7 +329,7 @@ export default function Attendance() {
                 {rosterLoading && (
                   <tr>
                     <td colSpan="6" className="company-empty">
-                      Loading roster...
+                      <Spinner tone="brand" label="Loading roster..." />
                     </td>
                   </tr>
                 )}

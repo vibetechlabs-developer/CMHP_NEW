@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import useAuth from '../../hooks/useAuth'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
+import Spinner from '../../components/Spinner'
 import Input from '../../components/Input'
 import { getErrorMessage } from '../../utils/errors'
 
@@ -220,7 +221,7 @@ export default function Shifts() {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan="8" className="company-empty">Loading shifts...</td>
+                  <td colSpan="8" className="company-empty"><Spinner tone="brand" label="Loading shifts..." /></td>
                 </tr>
               )}
 

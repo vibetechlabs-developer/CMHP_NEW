@@ -3,6 +3,7 @@ import { NavLink, Navigate, useLocation } from 'react-router-dom'
 
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
+import Spinner, { LoadingState } from '../../components/Spinner'
 import useAuth from '../../hooks/useAuth'
 import { getErrorMessage } from '../../utils/errors'
 import MaterialsTab from './MaterialsTab'
@@ -59,7 +60,7 @@ export default function StoreMaterialsWorkspace() {
 
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', margin: '12px 0' }}>
         <label className="field-label" htmlFor="store-select" style={{ margin: 0 }}>Store</label>
-        {stores.state === 'loading' && <span className="field-muted">Loading your stores…</span>}
+        {stores.state === 'loading' && <Spinner size="sm" tone="muted" label="Loading your stores…" />}
         {stores.state === 'error' && (
           <>
             <Alert type="error">{stores.error}</Alert>
@@ -103,7 +104,7 @@ export default function StoreMaterialsWorkspace() {
 }
 
 function StoreScopedTab({ storeId, storesReady, render }) {
-  if (!storesReady) return <p className="field-muted">Loading…</p>
+  if (!storesReady) return <LoadingState label="Loading…" compact />
   if (!storeId) return <p className="field-muted">Choose a store to see its records.</p>
   return render(storeId)
 }
@@ -134,7 +135,7 @@ function LocationsTab({ storeId }) {
         Storage locations of the selected store. Material placement in a location is not recorded in this version.
       </p>
       {state.error && <Alert type="error">{state.error}</Alert>}
-      {state.loading && <p className="field-muted">Loading locations…</p>}
+      {state.loading && <LoadingState label="Loading locations…" compact />}
       {!state.loading && !state.error && (
         <div className="inv-table-scroll">
           <table className="inv-table" style={{ fontSize: 14 }}>
@@ -197,7 +198,7 @@ function ReceiptsTab({ storeId }) {
         </p>
       )}
       {state.error && <Alert type="error">{state.error}</Alert>}
-      {state.loading && <p className="field-muted">Loading recorded receipts…</p>}
+      {state.loading && <LoadingState label="Loading recorded receipts…" compact />}
 
       {!state.loading && !state.error && (
         <>

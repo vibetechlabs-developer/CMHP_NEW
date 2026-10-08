@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import Modal from '../inventory/components/Modal'
 import Button from '../../components/Button'
 import Alert from '../../components/Alert'
+import { LoadingState } from '../../components/Spinner'
 import AsyncSearchSelect from './AsyncSearchSelect'
 
 import { activateProduct, createProduct, deactivateProduct, getProduct, updateProduct } from './productsService'
@@ -204,7 +205,7 @@ export default function ProductFormModal({ realCompanyId, productId, canEdit, ca
   if (loadingDetail) {
     return (
       <Modal title={title} onClose={onClose} size="md">
-        <p className="pf-muted">Loading product…</p>
+        <LoadingState label="Loading product…" compact />
       </Modal>
     )
   }

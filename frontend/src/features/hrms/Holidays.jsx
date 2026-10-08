@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import useAuth from '../../hooks/useAuth'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
+import Spinner from '../../components/Spinner'
 import Input from '../../components/Input'
 import { getErrorMessage } from '../../utils/errors'
 
@@ -186,7 +187,7 @@ export default function Holidays() {
               {loading && (
                 <tr>
                   <td colSpan={canManage ? 4 : 3} className="company-empty">
-                    Loading holidays...
+                    <Spinner tone="brand" label="Loading holidays..." />
                   </td>
                 </tr>
               )}

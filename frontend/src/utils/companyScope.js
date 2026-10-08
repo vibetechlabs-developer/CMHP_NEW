@@ -240,45 +240,26 @@ export function getLockedCompanyIds(
 
 
 /*
- * Maps the current MOCK scoped company id (1 or 2 - see
- * src/features/auth/authService.js's own MOCK_COMPANY_SLOTS bridge) back
- * to the REAL backend company id a real API call actually needs. `user.
- * profile.real_companies` is the real, ordered {id, code, legal_name,
- * display_name} list that bridge produced at login - slot 1 is
- * real_companies[0], slot 2 is real_companies[1]. Returns null when the
- * current user/workspace has no real company behind it at all (a mock-
- * only test persona, or a mock company id outside 1/2), so a caller can
- * tell "nothing to fetch" apart from "fetch company 0".
+ * The real backend company id for the current workspace, for a real API
+ * call to use.
+ *
+ * Historical note: this used to translate a MOCK scoped id (1 or 2) back
+ * to a real id by position in `user.profile.real_companies`. That
+ * translation now happens one layer down, inside `getActiveCompanyId`
+ * itself (src/utils/workspace.js) - it already returns the real backend
+ * id directly. Doing the position lookup again here, on a value that is
+ * now already a real id, was a real bug: it indexed `real_companies` by
+ * the real id's own numeric value instead of its position, so any
+ * account whose real company id didn't happen to equal its array index
+ * (e.g. exactly one real company, real id 2, for "Company A") got `null`
+ * back - "No real company is linked to the current workspace" - even
+ * though `getScopedCompanyId` had already resolved it correctly. Kept as
+ * its own named export (rather than inlined at call sites) only because
+ * `getScopedCompanyId`'s own name still suggests "the mock id" to a
+ * reader even though it no longer is one.
  */
 export function getRealScopedCompanyId(
   user = getCurrentUser()
 ) {
-  const mockCompanyId =
-    getScopedCompanyId(user)
-
-  if (!mockCompanyId) {
-    return null
-  }
-
-  const realCompanies =
-    user?.profile?.real_companies
-
-  if (!Array.isArray(realCompanies)) {
-    return null
-  }
-
-  // [1, 2] - must match src/features/auth/authService.js's own
-  // MOCK_COMPANY_SLOTS constant exactly; duplicated as a literal here
-  // (rather than imported) only to avoid a cross-module import between
-  // the auth and workspace layers for one shared array.
-  const slotIndex =
-    [1, 2].indexOf(
-      Number(mockCompanyId)
-    )
-
-  if (slotIndex === -1) {
-    return null
-  }
-
-  return realCompanies[slotIndex]?.id || null
+  return getScopedCompanyId(user)
 }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import Button from '../../components/Button'
 import Alert from '../../components/Alert'
+import Spinner, { LoadingState } from '../../components/Spinner'
 import usePermissions from '../../hooks/usePermissions'
 import { deleteProduct, listProducts } from './productsService'
 import { confirmAction } from '../../components/ConfirmProvider'
@@ -97,7 +98,7 @@ export default function ProductsPanel() {
   if (permissionsLoading) {
     return (
       <div className="inv-panel">
-        <p>Checking your access…</p>
+        <LoadingState label="Checking your access…" />
       </div>
     )
   }
@@ -202,7 +203,7 @@ export default function ProductsPanel() {
             {listLoading ? (
               <tr>
                 <td colSpan={6} style={{ textAlign: 'center', padding: 32 }}>
-                  Loading…
+                  <Spinner tone="brand" label="Loading…" />
                 </td>
               </tr>
             ) : data.results.length === 0 ? (

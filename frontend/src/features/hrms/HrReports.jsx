@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import useAuth from '../../hooks/useAuth'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
+import Spinner from '../../components/Spinner'
 import { getErrorMessage } from '../../utils/errors'
 
 import { companyService } from '../companies/companyService'
@@ -682,7 +683,7 @@ export default function HrReports() {
               {busy && (
                 <tr>
                   <td colSpan={view.columns.length} className="company-empty">
-                    Loading report...
+                    <Spinner tone="brand" label="Loading report..." />
                   </td>
                 </tr>
               )}

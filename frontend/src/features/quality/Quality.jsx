@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
 import StatusPill from '../../components/StatusPill'
+import Spinner from '../../components/Spinner'
 import Modal from '../inventory/components/Modal'
 import { getErrorMessage } from '../../utils/errors'
 import { operationsService } from '../operations/operationsService'
@@ -335,7 +336,7 @@ export default function Quality() {
             </select>
           </div>
 
-          {traceLoading && <p className="inv-empty">Loading traceability…</p>}
+          {traceLoading && <Spinner tone="muted" label="Loading traceability…" />}
           {traceError && <Alert type="error">{traceError}</Alert>}
 
           {!traceLoading && !traceError && selectedTraceBatch && (

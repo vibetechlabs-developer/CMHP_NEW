@@ -4,10 +4,15 @@ import api from '../../api/axios'
 
 const BASE = '/v1/users/'
 
-export async function listUsers({ search = '', isActive } = {}) {
+// `companyId` scopes the list to that company's own active members only
+// (CompanyMembership, not a field on User - the same account can belong
+// to more than one company). Omit it to see every account on the
+// platform, same as before this was added.
+export async function listUsers({ search = '', isActive, companyId } = {}) {
   const params = {}
   if (search) params.search = search
   if (isActive !== undefined) params.is_active = isActive
+  if (companyId) params.company_id = companyId
   params.page_size = 100
   const response = await api.get(BASE, { params })
   return response.data.results || []

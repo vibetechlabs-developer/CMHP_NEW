@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
+import { LoadingState } from '../../components/Spinner'
 import { getErrorMessage } from '../../utils/errors'
 import { createBmrForPlan, getBmrForPlan, updateBmrLine } from './bmrService'
 import './BmrPanel.css'
@@ -83,7 +84,7 @@ export default function BmrPanel({ companyId, planId, canView = true, canCreate 
         </div>
       </div>
 
-      {state === 'loading' && <p className="bmr-muted">Loading record…</p>}
+      {state === 'loading' && <LoadingState label="Loading record…" compact />}
       {state === 'none' && (
         <p className="bmr-muted">
           {canCreate

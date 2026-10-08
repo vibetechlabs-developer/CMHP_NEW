@@ -8,6 +8,7 @@ import Modal from '../inventory/components/Modal'
 import AsyncSearchSelect from '../operations/AsyncSearchSelect'
 import { searchActiveUnits } from '../operations/unitsLookupService'
 import { getErrorMessage } from '../../utils/errors'
+import Spinner from '../../components/Spinner'
 import MaterialImportModal from './MaterialImportModal'
 import {
   activateMaterial,
@@ -91,8 +92,9 @@ export default function MaterialsTab({ canManage = false }) {
       <div className="inv-toolbar">
         <div>
           <h3>Materials</h3>
-          <p style={{ margin: '4px 0 0', fontSize: 14, color: '#6b7f95' }}>
-            Shared catalog for all stores and companies. {loading ? 'Loading…' : `${data.count} material${data.count === 1 ? '' : 's'} found.`}
+          <p style={{ margin: '4px 0 0', fontSize: 14, color: '#6b7f95', display: 'flex', alignItems: 'center', gap: 8 }}>
+            Shared catalog for all stores and companies.{' '}
+            {loading ? <Spinner size="xs" tone="muted" label="Loading…" /> : `${data.count} material${data.count === 1 ? '' : 's'} found.`}
           </p>
           {!canManage && <p className="field-muted" style={{ margin: '4px 0 0' }}>Read-only access. Only an administrator can change the material catalog.</p>}
         </div>
@@ -178,6 +180,13 @@ export default function MaterialsTab({ canManage = false }) {
                 )}
               </tr>
             ))}
+            {loading && data.results.length === 0 && (
+              <tr>
+                <td colSpan={canManage ? 6 : 5} style={{ textAlign: 'center', padding: '20px 0' }}>
+                  <Spinner tone="brand" label="Loading materials…" />
+                </td>
+              </tr>
+            )}
             {!loading && !error && data.results.length === 0 && (
               <tr>
                 <td colSpan={canManage ? 6 : 5} style={{ textAlign: 'center', color: '#6b7f95' }}>

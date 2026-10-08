@@ -1,3 +1,4 @@
+import Spinner from './Spinner'
 import './components.css'
 
 export default function Button({
@@ -16,7 +17,17 @@ export default function Button({
 
   return (
     <button type={type} className={className} disabled={disabled || loading} {...rest}>
-      {loading ? loadingText : children}
+      {loading ? (
+        <>
+          {/* `current` inherits each variant's own text colour, so one
+              spinner works on the solid primary/danger fills and the
+              light secondary/warning fills alike. */}
+          <Spinner size="sm" tone="current" />
+          {loadingText}
+        </>
+      ) : (
+        children
+      )}
     </button>
   )
 }

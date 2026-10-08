@@ -60,6 +60,21 @@ class UserListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         queryset = User.objects.all()
 
+        # Optional - the real "Users" tab of User Management calls this with
+        # the operating company workspace's own id, so it shows only that
+        # company's own people instead of every account on the whole
+        # platform. A user account itself isn't owned by one company (the
+        # same account can hold memberships in several), so this is a
+        # filter on CompanyMembership, not a field on User itself; an
+        # invalid/unknown id simply matches nothing (an empty list), not an
+        # error, the same way an unmatched search term does.
+        company_id = self.request.query_params.get("company_id")
+        if company_id:
+            queryset = queryset.filter(
+                company_memberships__company_id=company_id,
+                company_memberships__is_active=True,
+            ).distinct()
+
         search = self.request.query_params.get("search", "").strip()
         if search:
             queryset = queryset.filter(

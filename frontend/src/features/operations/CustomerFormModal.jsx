@@ -4,6 +4,7 @@ import Modal from '../inventory/components/Modal'
 import Button from '../../components/Button'
 import Input from '../../components/Input'
 import Alert from '../../components/Alert'
+import { LoadingState } from '../../components/Spinner'
 
 import { activateCustomer, createCustomer, deactivateCustomer, getCustomer, updateCustomer } from './customersService'
 import { getErrorMessage } from '../../utils/errors'
@@ -124,7 +125,7 @@ export default function CustomerFormModal({ realCompanyId, customerId, canEdit, 
   if (loadingDetail) {
     return (
       <Modal title={title} onClose={onClose}>
-        <p>Loading customer…</p>
+        <LoadingState label="Loading customer…" compact />
       </Modal>
     )
   }

@@ -472,7 +472,7 @@
 /* Fixed column grid so raw and packaging tables line up with each other. */
 .fm-table {
   width: 100%;
-  min-width: 860px;
+  min-width: 1080px;
   table-layout: fixed;
   border-collapse: collapse;
   font-size: var(--fm-size-body);
@@ -504,6 +504,15 @@
 
 .fm-table col.fm-c-sr {
   width: 56px;
+}
+
+/* Previously left as an unstyled, implicit "whatever's left" column - in
+   practice that rendered far too narrow, cutting material names off after
+   a handful of characters (e.g. "PYROGEN…") even on a wide screen. Giving
+   it its own explicit width is what actually fixes that, not relying on
+   table-layout:fixed to hand it the leftover space. */
+.fm-table col.fm-c-material {
+  width: 260px;
 }
 
 .fm-table col.fm-c-qty {

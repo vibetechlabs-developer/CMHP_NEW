@@ -97,7 +97,8 @@ export default function RequirementCalculator({ companyId, formulaId, revisionId
       </div>
 
       {error && <p className="field-error">{error}</p>}
-      {loading && <p className="field-muted">Calculating…</p>}
+      {/* The Calculate button above already shows its own spinner while
+          loading - a second "Calculating…" line here would be redundant. */}
       {result?.stale && <p className="field-muted">The target changed. Calculate again to update these figures.</p>}
 
       {result && !result.stale && (

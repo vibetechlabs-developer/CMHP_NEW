@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
 import Input from '../../components/Input'
+import { LoadingState } from '../../components/Spinner'
 import Modal from '../inventory/components/Modal'
 
 import useAuth from '../../hooks/useAuth'
@@ -932,9 +933,7 @@ export default function SalesOrdersTab({
 
         {loading && (
 
-          <p className="inv-empty">
-            Loading sales orders...
-          </p>
+          <LoadingState label="Loading sales orders..." compact />
 
         )}
 

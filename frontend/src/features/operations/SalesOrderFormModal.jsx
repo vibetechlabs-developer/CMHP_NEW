@@ -8,6 +8,7 @@ import BmrPanel from '../bmr/BmrPanel'
 import Modal from '../inventory/components/Modal'
 import Button from '../../components/Button'
 import Alert from '../../components/Alert'
+import Spinner, { LoadingState } from '../../components/Spinner'
 import AsyncSearchSelect from './AsyncSearchSelect'
 import CustomerFormModal from './CustomerFormModal'
 import './SalesOrderFormModal.css'
@@ -510,12 +511,12 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
   const storeAccessLabel = !storeId
     ? 'No active store'
     : !storeCodesLoaded || permissions.loading
-      ? 'Loading…'
+      ? <Spinner size="xs" tone="muted" label="Loading…" />
       : canStoreManage ? 'You can edit' : canReadStore ? 'View only' : 'Access unavailable'
   const batchAccessLabel = !order
     ? 'Save the order first'
     : permissions.loading
-      ? 'Loading…'
+      ? <Spinner size="xs" tone="muted" label="Loading…" />
       : !permissions.canViewBatch ? 'Access unavailable' : canEditBatch ? 'You can edit' : 'View only'
 
   // ----- Order actions -----
@@ -799,7 +800,7 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
   const currencyCode = order?.currency || orderForm.currency || ''
   const title = 'Order details'
   const orderAccessLabel = permissions.loading
-    ? 'Loading…'
+    ? <Spinner size="xs" tone="muted" label="Loading…" />
     : !order
       ? (permissions.canCreateOrder ? 'You can edit' : 'Access unavailable')
       : canEditOrder ? 'You can edit' : 'View only'
@@ -841,7 +842,7 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
       footer={footer}
     >
       {loadError && <Alert type="error">{loadError}</Alert>}
-      {loading && <p className="field-muted">Loading order…</p>}
+      {loading && <LoadingState label="Loading order…" compact />}
       {!loading && (
         <form id="company-customer-order-form" className="sof-form" onSubmit={(event) => { event.preventDefault(); saveOrder() }}>
           {order && order.status !== 'DRAFT' && (

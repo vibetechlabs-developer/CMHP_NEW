@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import Button from '../../components/Button'
 import Alert from '../../components/Alert'
+import Spinner, { LoadingState } from '../../components/Spinner'
 import usePermissions from '../../hooks/usePermissions'
 import useAuth from '../../hooks/useAuth'
 import { deleteOrderErrorMessage, deleteSalesOrder, listSalesOrders } from './salesOrdersService'
@@ -109,7 +110,7 @@ export default function SalesOrdersPanel() {
   if (permissionsLoading) {
     return (
       <div className="inv-panel">
-        <p>Checking your access…</p>
+        <LoadingState label="Checking your access…" />
       </div>
     )
   }
@@ -187,7 +188,7 @@ export default function SalesOrdersPanel() {
             {listLoading ? (
               <tr>
                 <td colSpan={8} style={{ textAlign: 'center', padding: 32 }}>
-                  Loading…
+                  <Spinner tone="brand" label="Loading…" />
                 </td>
               </tr>
             ) : data.results.length === 0 ? (

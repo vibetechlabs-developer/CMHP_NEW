@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import useAuth from '../../hooks/useAuth'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
+import Spinner from '../../components/Spinner'
 import Input from '../../components/Input'
 import { getErrorMessage } from '../../utils/errors'
 
@@ -784,7 +785,7 @@ export default function Payroll() {
                   {loading && (
                     <tr>
                       <td colSpan="9" className="company-empty">
-                        Loading salary structures...
+                        <Spinner tone="brand" label="Loading salary structures..." />
                       </td>
                     </tr>
                   )}
@@ -914,7 +915,7 @@ export default function Payroll() {
                   {payrollLoading && (
                     <tr>
                       <td colSpan="9" className="company-empty">
-                        Calculating payroll...
+                        <Spinner tone="brand" label="Calculating payroll..." />
                       </td>
                     </tr>
                   )}

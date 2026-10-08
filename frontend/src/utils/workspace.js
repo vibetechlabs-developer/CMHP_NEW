@@ -166,21 +166,60 @@ export function hasCommonInventoryAccess(user) {
    AVAILABLE WORKSPACES
    ========================================================= */
 
+// The real company behind each fixed A/B slot, read positionally from
+// `user.profile.real_companies` (authService.js's `fetchRealCompanyBridge`
+// - same ascending-real-id order the slot mapping itself was built from,
+// so index 0 is always whichever real company is standing in for "Company
+// A" and index 1 for "Company B"). Falls back to the generic slot label
+// when there is no real company at that position (e.g. a mock test
+// persona with no real backend membership at all).
+function companyWorkspaceOption(slotOption, realCompany) {
+
+  const realName =
+    (realCompany?.display_name || '').trim() ||
+    (realCompany?.legal_name || '').trim()
+
+  if (!realName) {
+    return slotOption
+  }
+
+  return {
+    ...slotOption,
+    name: realName,
+    shortName: realName,
+    label: realName,
+    description: `Access ${realName} operations and records`,
+  }
+
+}
+
+
 export function getAvailableWorkspaces(user) {
 
   const options = []
 
+  const realCompanies =
+    Array.isArray(user?.profile?.real_companies)
+      ? user.profile.real_companies
+      : []
+
 
   if (hasCompanyAAccess(user)) {
     options.push(
-      WORKSPACE_OPTIONS.COMPANY_A
+      companyWorkspaceOption(
+        WORKSPACE_OPTIONS.COMPANY_A,
+        realCompanies[0]
+      )
     )
   }
 
 
   if (hasCompanyBAccess(user)) {
     options.push(
-      WORKSPACE_OPTIONS.COMPANY_B
+      companyWorkspaceOption(
+        WORKSPACE_OPTIONS.COMPANY_B,
+        realCompanies[1]
+      )
     )
   }
 
@@ -350,10 +389,25 @@ export function getCurrentWorkspaceObject(user) {
    ACTIVE COMPANY
    ========================================================= */
 
+// IMPORTANT: this is the company id every real, backend-connected screen
+// (Dashboard, Products, Orders, permissions, ...) actually sends on its
+// API calls - it must be the REAL company id (e.g. 2, 3), never the fixed
+// mock slot number (1, 2). Read it positionally from `user.profile.
+// real_companies`, same order as the A/B slot mapping itself (see
+// companyWorkspaceOption above). Falls back to the historic mock id (1/2)
+// only when there is no real company bridge at all - the few screens that
+// still read the mock `erp` Redux slice (Quality Control, Supply Chain,
+// Invoicing, HR; see Section N of docs/client-user-guide) tag their
+// records with company id 1/2 and have no real backend company to map to.
 export function getActiveCompanyId(user) {
 
   const current =
     getCurrentWorkspace(user)
+
+  const realCompanies =
+    Array.isArray(user?.profile?.real_companies)
+      ? user.profile.real_companies
+      : []
 
 
   if (
@@ -361,7 +415,7 @@ export function getActiveCompanyId(user) {
     hasCompanyAAccess(user)
   ) {
 
-    return 1
+    return realCompanies[0]?.id ?? 1
 
   }
 
@@ -371,7 +425,7 @@ export function getActiveCompanyId(user) {
     hasCompanyBAccess(user)
   ) {
 
-    return 2
+    return realCompanies[1]?.id ?? 2
 
   }
 

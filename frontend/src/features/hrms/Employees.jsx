@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import useAuth from '../../hooks/useAuth'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
+import Spinner from '../../components/Spinner'
 import Input from '../../components/Input'
 import { getErrorMessage } from '../../utils/errors'
 
@@ -414,7 +415,7 @@ export default function Employees() {
               {loading && (
                 <tr>
                   <td colSpan="7" className="company-empty">
-                    Loading employees...
+                    <Spinner tone="brand" label="Loading employees..." />
                   </td>
                 </tr>
               )}

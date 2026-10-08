@@ -1,0 +1,56 @@
+section,step,account,company_store_context,screen_action,expected_result,save_reopen_refresh_check,result,record_reference_or_evidence
+Setup,1,(local admin),none,Create first superuser via manage.py createsuperuser,Command completes; new user exists with is_superuser=true,n/a,NOT TESTED,
+Setup,2,new superuser,none,Log in at /login,Redirected into app; name shown top-right,n/a,NOT TESTED,
+Setup,3,new superuser,none (no workspace yet),Confirm sidebar shows no company-scoped items,Only Dashboard and (if superuser) Common Inventory workspace offered in the switcher,n/a,NOT TESTED,
+Setup,4,superuser (API),none,POST /api/v1/companies/ x2 (Company A target, Company B target),Both return 201 with distinct ids,n/a,NOT TESTED,record both company ids
+Setup,5,superuser (API),none,POST /api/v1/stores/ (shared store),201 with store id,n/a,NOT TESTED,record store id
+Setup,6,superuser,Company A or B workspace,User Management > + Add user x3 (Business Admin, Store Manager, Batch Manager),Each user created 201,n/a,NOT TESTED,record 3 usernames
+Setup,7,superuser,n/a,Assign company membership to each user via User Management,Membership appears for each user,Reopen user list and confirm membership persists,NOT TESTED,
+Setup,8,superuser (API),n/a,POST stores/{id}/memberships/ for Store Manager and Batch Manager,201 for each,n/a,NOT TESTED,record membership ids
+Setup,9,superuser (API),n/a,Create company role(s) and PUT permissions per the access matrix,Role created; permissions list matches intended minimum,GET the role back and confirm permission_codes,NOT TESTED,
+Setup,10,superuser (API),n/a,Create store role(s) and PUT permissions for Store Manager,Role created with store_preparation.view/create/edit only,GET role back and confirm,NOT TESTED,
+Setup,11,superuser,n/a,Assign company role to each business user via User Management,Role shown against the user's company membership,n/a,NOT TESTED,
+Setup,12,superuser (API),n/a,Assign store role to Store Manager's store membership,201,n/a,NOT TESTED,
+Setup,13,superuser (API),n/a,"PATCH formula-approval-policy (expected_version:0, allow_self_approval decided)",200 with policy version 1,GET policy back and confirm allow_self_approval value,NOT TESTED,record the chosen value
+MasterData,14,superuser (API),n/a,POST /api/v1/units/ for KG and one COUNT unit (e.g. PCS),Both 201,n/a,NOT TESTED,record unit ids
+MasterData,15,superuser,Common Inventory workspace,Store & Materials > Materials > + Add material (one raw one packaging),Both appear in the list,Reopen Materials tab and search by code to confirm persistence,NOT TESTED,record material codes
+MasterData,16,superuser,Common Inventory workspace,Materials > Import materials > download template > fill > Check file,Preview shows valid/invalid counts; nothing imported yet,n/a,NOT TESTED,
+MasterData,17,superuser,Common Inventory workspace,Materials > Import > Import N materials (commit),Commit succeeds; list count increases by N,Reload Materials tab and confirm new rows present,NOT TESTED,
+MasterData,18,superuser,Common Inventory workspace,Store & Materials > Locations (read only),Lists locations for the store (likely empty until API-created),n/a,NOT TESTED,
+MasterData,19,superuser (API),n/a,POST /api/v1/product-types/ (one synthetic type),201,n/a,NOT TESTED,
+MasterData,20,business admin,Company A workspace,Customer Management > + Add customer,Customer appears in list,Reopen and search to confirm persistence,NOT TESTED,record customer code
+MasterData,21,business admin,Company A workspace,Products > + Add product (code/name/type/sales unit),Product appears in list,Reopen product to confirm saved fields,NOT TESTED,record product code
+MasterData,22,business admin,Company A workspace,Products > Import CSV preview then commit,Commit creates the valid rows only,Reload Products list and confirm count,NOT TESTED,
+MasterData,23,business admin,Company A workspace,Product > Formulas tab > + New formula,Formula created with empty DRAFT revision,Reopen formula and confirm base output/unit saved,NOT TESTED,record formula code
+MasterData,24,business admin,Company A workspace,Formula editor > + Add material (raw and packaging lines) > Save draft,Save succeeds; both tables persist,Close and reopen the revision; values unchanged,NOT TESTED,
+MasterData,25,formula approver (or same drafter if self-approval allowed),Company A workspace,Formula editor > Check approval > Approve revision,Revision becomes APPROVED and read-only,Reopen; lines cannot be edited anymore,NOT TESTED,
+OrderJourney,26,business admin,Company A workspace,Orders > + Add order (customer, product line, dates, currency),Order saved with a reference,"Close, reopen, refresh (F5); all fields persist",NOT TESTED,record order reference
+OrderJourney,27,store manager,Company A workspace,Open same order; view order info,Order fields are read only for this account,n/a,NOT TESTED,
+OrderJourney,28,store manager,Shared store,Store section > choose store > enter Packing Type/Label/Box/Insert > Save,Saved before any batch plan exists,"Reopen order; store fields persist",NOT TESTED,
+OrderJourney,29,store manager,n/a,Attempt to edit a batch field,Edit is blocked (read only / no save control),n/a,NOT TESTED,
+OrderJourney,30,batch manager,Company A workspace,Open same order; view store section,Store fields are read only for this account,n/a,NOT TESTED,
+OrderJourney,31,batch manager,n/a,Attempt to edit a store preparation field,Edit is blocked,n/a,NOT TESTED,
+OrderJourney,32,batch manager,Company A workspace,"Batch section > select approved formula revision, enter target output/unit, MRP, printing status > Save",Batch plan saved as DRAFT,"Reopen order; refresh; all batch fields persist",NOT TESTED,
+OrderJourney,33,batch manager,n/a,Batch section > Allocate batch number,A number in CODEYY-NNN format appears,Reopen order; number is unchanged,NOT TESTED,record batch number
+OrderJourney,34,batch manager,n/a,Click Allocate again (if available),Same number returned, not a new one,n/a,NOT TESTED,
+FormulaCalculator,35,business admin,Company A workspace,Requirement preview > target = base output > Calculate,Scale factor 1; raw/packaging match base quantities exactly,n/a,NOT TESTED,
+FormulaCalculator,36,business admin,Company A workspace,Requirement preview > target = double base > Calculate,Scale factor 2; quantities doubled,n/a,NOT TESTED,
+FormulaCalculator,37,business admin,Company A workspace,Requirement preview > target = half base > Calculate,"Scale factor 0.5; packaging COUNT line shows fractional-count warning, not rounded",n/a,NOT TESTED,
+FormulaCalculator,38,business admin,Company A workspace,Open order > Manage formulas drawer > type unsaved batch input > open formula drawer > close it,Unsaved batch input is still present after closing the drawer,n/a,NOT TESTED,
+Requisition,39,superuser or batch manager (API),Shared store,"POST material-requisitions/ for the batch plan (expected_batch_plan_version correct)",201 created in DRAFT,GET it back and confirm lines,NOT TESTED,
+Requisition,40,(API),Shared store,Submit then Approve the requisition,Status moves DRAFT -> SUBMITTED -> APPROVED,n/a,NOT TESTED,
+Requisition,41,store manager,Company A workspace (order screen),View requisition status in the store section,Status label shown; no line/quantity/material data visible,n/a,NOT TESTED,
+BMR,42,batch manager or business admin with bmr.create,Company A workspace,Batch section > Create record,BMR created with raw and packing slips from the requirement preview,Reopen order; BMR data persists,NOT TESTED,
+BMR,43,account with bmr.edit,Company A workspace,Edit Special value/Label claim/AR No./Qty received,Saved with version check,Reopen; edited values persist,NOT TESTED,
+BMR,44,any viewer with bmr.view,Company A workspace,Scroll to sign-off section,Four blank sign-off blocks, no names filled,n/a,NOT TESTED,
+Negative,45,store manager,Company A workspace,Attempt PATCH on the order itself (wrong-role edit),403 refused; order unchanged,n/a,NOT TESTED,
+Negative,46,business admin of Company A,Company B,Open a Company B order by guessing/entering its reference,404 or access denied; no cross-company data shown,n/a,NOT TESTED,
+Negative,47,a user with no store membership,n/a,Open Store & Materials > Locations/Recorded Receipts,"Clear ""no store available"" message, not a crash or empty table implying zero stock",n/a,NOT TESTED,
+Negative,48,batch manager,Company A workspace,Try to select a formula revision that is not APPROVED,Dropdown does not list it / selection refused,n/a,NOT TESTED,
+Negative,49,business admin,Company A workspace,Create a customer with a code that already exists,400 duplicate-code error shown in the form,n/a,NOT TESTED,
+Negative,50,business admin,Company A workspace,Enter an invalid/zero base quantity on a formula line and Save,Save refused with a specific field message,n/a,NOT TESTED,
+Negative,51,two browser tabs same account,Company A workspace,Edit the same order in two tabs; save the second after the first,409 stale-version conflict shown; no silent overwrite,n/a,NOT TESTED,
+Negative,52,any account,n/a,Let the access token expire (or simulate) then reload a protected page,Session is restored via refresh or the user is returned to login; no raw error shown,n/a,NOT TESTED,
+Negative,53,two different accounts in sequence,n/a,Sign in as user A, then sign out and sign in as user B in the same browser,User B never sees user A's cached permissions or workspace,n/a,NOT TESTED,
+Negative,54,business admin (disposable synthetic order only),Company A workspace,Create a throwaway DRAFT order with no store prep or batch plan; Delete it,Order deletes successfully; audit row recorded,Order no longer appears in the list,NOT TESTED,
+Negative,55,business admin,Company A workspace,Attempt to delete an order that already has store preparation or a batch plan,Refused with a plain-language reason; order and its related records unchanged,n/a,NOT TESTED,

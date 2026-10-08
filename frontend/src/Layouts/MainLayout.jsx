@@ -565,6 +565,26 @@ export default function MainLayout() {
       activeWorkspace
     )
 
+  // This used to always read "CMHP Pharma" here, no matter which company
+  // workspace was actually active - the logo image next to it already
+  // switched correctly (getCompanyLogo above), but the NAME never did.
+  // That mismatch is exactly what made a genuine, correctly-scoped Tej
+  // Biocare order look like a bug: the sidebar kept saying "CMHP Pharma"
+  // the whole time, so there was no way to tell from this header alone
+  // which company's workspace was actually open. Show the real active
+  // company's name (already resolved onto activeOption by workspace.js)
+  // while in a company workspace, and a neutral, company-agnostic label
+  // the rest of the time (Common Inventory, or before any workspace is
+  // chosen yet).
+  const isCompanyWorkspace =
+    activeWorkspace === WORKSPACES.COMPANY_A ||
+    activeWorkspace === WORKSPACES.COMPANY_B
+
+  const sidebarBrandName =
+    isCompanyWorkspace && activeOption?.name
+      ? activeOption.name
+      : 'CMHP Platform'
+
 
   const sidebarClass = [
     'layout-sidebar',
@@ -631,7 +651,7 @@ export default function MainLayout() {
             <div className="sidebar-name-row">
 
               <span className="sidebar-name">
-                CMHP Pharma
+                {sidebarBrandName}
               </span>
 
             </div>

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
+import Spinner from '../../components/Spinner'
+
 // Reuses CustomerSearchSelect.css's existing, already-polished markup/
 // class names on purpose - same visual design, different data source.
 // CustomerSearchSelect.jsx filters a fully-preloaded array in memory,
@@ -96,6 +98,26 @@ export default function AsyncSearchSelect({
     runSearch(search)
   }
 
+  // The dropdown is a fixed-position portal anchored to the input's
+  // on-screen position at the moment it opened. Without this, scrolling
+  // the page (or the panel resizing) after that leaves it stranded at its
+  // original screen coordinates while the input moves away underneath it
+  // - it then visually "detaches" and appears to sit inside whatever
+  // later section the page happened to scroll up into view. Keep it
+  // re-anchored for as long as it's open; `capture: true` also catches
+  // scrolling inside a nested scrollable panel, not just the window.
+  useEffect(() => {
+    if (!open) return
+    const reposition = () => updateDropdownPosition()
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    return () => {
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
   const selectOption = (option) => {
     if (!option) return
     onChange?.(option)
@@ -182,7 +204,10 @@ export default function AsyncSearchSelect({
             }}
           >
             <div className="customer-search-header">
-              <span>{loading ? 'Searching...' : search ? 'Search results' : 'Suggestions'}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                {loading && <Spinner size="xs" tone="muted" />}
+                {loading ? 'Searching...' : search ? 'Search results' : 'Suggestions'}
+              </span>
               <span className="customer-search-count">{options.length} shown</span>
             </div>
             <div className="customer-search-options" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
