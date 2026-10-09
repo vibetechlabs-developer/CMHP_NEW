@@ -233,33 +233,44 @@ op("receiving", "POST", "/api/v1/stores/<store_id>/goods-receipts/<receipt_id>/c
 # quantities are not formula-derived data.
 # ===========================================================================
 op("stock_movements", "GET", "/api/v1/stores/<store_id>/stock-movements/", "List recorded stock movements", "store + company",
-   ["stock.view (store)", "purchase_orders.view (company)"], "STK-01", "not applicable",
+   ["stock.view (store)", "purchase_orders.view (company)"], "STK-01, STK-02", "not applicable",
    "Lists RECEIPT_IN movements, scoped to companies the caller holds purchase_orders.view in — filtered BEFORE listing, so a total can never include an inaccessible company.",
    path_params=[{"name": "store_id", "type": "int"}],
-   query_params=[{"name": "material", "type": "int", "notes": "Filter to one material. Unknown query parameters are rejected (400), never silently ignored."}],
+   query_params=[
+       {"name": "material", "type": "int", "notes": "Filter to one material. Unknown query parameters are rejected (400), never silently ignored."},
+       {"name": "posted_from", "type": "date (YYYY-MM-DD)", "notes": "Material Register task. Inclusive lower bound on posted_at's own calendar date (the posting event, not the receipt's arrival date). 400 if posted_from > posted_to."},
+       {"name": "posted_to", "type": "date (YYYY-MM-DD)", "notes": "Material Register task. Inclusive upper bound, same field as posted_from."},
+   ],
    response_example={"count": 1, "next": None, "previous": None,
        "results": [{"id": 12, "movement_type": "RECEIPT_IN", "source_goods_receipt_id": 12, "source_goods_receipt_reference": "GR-20260210-f6a7b8c9d0",
                      "source_receipt_line_id": 60, "store_id": 4, "source_company_id": 3, "source_company_code": "CMHP-A",
+                     "source_goods_receipt_arrived_at": "2026-02-10T09:15:00Z", "supplier_id": 7, "supplier_code": "SUP-001", "supplier_name": "Acme Chemicals Pvt Ltd",
                      "material_id": 44, "material_code_snapshot": "PARA-500", "unit_code_snapshot": "KG", "quantity": "60.000",
                      "lot_reference": "LOT-A", "release_status": "Not tracked", "posted_by_id": 12, "posted_at": "2026-02-10T12:00:00Z"}],
        "coverage": {"historical_receipts_backfilled": False, "opening_stock_included": False, "issues_returns_release_tracked": False, "release_status": "Not tracked",
-                     "notice": "This total reflects only RECEIPT_IN movements recorded since this feature was installed. Historical receipts posted before this feature existed are not backfilled. Opening stock is not included. Issues, returns, reservations and QC release are not tracked anywhere in this system yet. This is NOT complete physical stock."}},
+                     "notice": "This total reflects only RECEIPT_IN movements recorded since this feature was installed. Historical receipts posted before this feature existed are not backfilled. Opening stock is not included. Issues, returns, reservations and QC release are not tracked anywhere in this system yet. This is NOT complete physical stock."},
+       "period": {"posted_from": None, "posted_to": None}},
    errors=STD_ERRORS_RW,
-   notes="No create/edit/delete endpoint exists anywhere in this app — every movement is created only as a side effect of apps.receiving.services.post_goods_receipt. A previously-POSTED receipt (from before this feature existed) is never backfilled, and repeating POST .../post/ on one never creates a movement for it (verified by test).",
-   source_files=["apps/stock_movements/views.py", "apps/stock_movements/services.py", "apps/receiving/services.py"])
+   notes="No create/edit/delete endpoint exists anywhere in this app — every movement is created only as a side effect of apps.receiving.services.post_goods_receipt. A previously-POSTED receipt (from before this feature existed) is never backfilled, and repeating POST .../post/ on one never creates a movement for it (verified by test). Material Register task (additive): source_goods_receipt_arrived_at/supplier_id/supplier_code/supplier_name and the posted_from/posted_to filters were added; every pre-existing field/param is unchanged. supplier_* is identity only (never price) and gated by the same company-access filter as everything else on this row.",
+   source_files=["apps/stock_movements/views.py", "apps/stock_movements/services.py", "apps/stock_movements/serializers.py", "apps/receiving/services.py"])
 
 op("stock_movements", "GET", "/api/v1/stores/<store_id>/stock-balances/", "Recorded receipt quantity balances", "store + company",
-   ["stock.view (store)", "purchase_orders.view (company)"], "STK-01", "not applicable",
+   ["stock.view (store)", "purchase_orders.view (company)"], "STK-01, STK-02", "not applicable",
    "Recorded-receipt totals grouped by (material, unit, source_company) — NEVER just (material), so two recorded quantities in different units, or belonging to different companies, are never summed into one number. Company filtering happens INSIDE the aggregation query, before SUM runs.",
    path_params=[{"name": "store_id", "type": "int"}],
-   query_params=[{"name": "material", "type": "int"}],
+   query_params=[
+       {"name": "material", "type": "int"},
+       {"name": "posted_from", "type": "date (YYYY-MM-DD)", "notes": "Material Register task. Applied BEFORE the SUM aggregation, so a period total and the rows it was computed from always agree."},
+       {"name": "posted_to", "type": "date (YYYY-MM-DD)"},
+   ],
    response_example={"count": 1, "next": None, "previous": None,
        "results": [{"material_id": 44, "material_code": "PARA-500", "material_name": "Paracetamol 500mg (bulk)", "unit_id": 1, "unit_code": "KG", "unit_name": "Kilogram",
                      "source_company_id": 3, "source_company_code": "CMHP-A", "recorded_receipt_quantity": "60.000", "release_status": "Not tracked"}],
-       "coverage": {"historical_receipts_backfilled": False, "opening_stock_included": False, "issues_returns_release_tracked": False, "release_status": "Not tracked", "notice": "..."}},
+       "coverage": {"historical_receipts_backfilled": False, "opening_stock_included": False, "issues_returns_release_tracked": False, "release_status": "Not tracked", "notice": "..."},
+       "period": {"posted_from": None, "posted_to": None}},
    errors=STD_ERRORS_RW,
-   notes="Deliberately never named available_stock/usable_stock/on_hand anywhere — always recorded_receipt_quantity, always paired with the coverage block above.",
-   source_files=["apps/stock_movements/views.py", "apps/stock_movements/services.py"])
+   notes="Deliberately never named available_stock/usable_stock/on_hand anywhere — always recorded_receipt_quantity, always paired with the coverage block above. No supplier field here (ever) — a balance row can sum movements from several receipts/suppliers, so a single supplier value would mislead; supplier identity is exposed only on stock-movements rows.",
+   source_files=["apps/stock_movements/views.py", "apps/stock_movements/services.py", "apps/stock_movements/serializers.py"])
 
 # ===========================================================================
 # apps.quality — Material Specifications (global, superuser-only) +

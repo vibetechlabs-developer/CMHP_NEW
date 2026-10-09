@@ -231,9 +231,14 @@ class MeEndpointTests(TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["username"], "jdoe")
-        # `capabilities` is the read-only UI hint for material catalog writes (see tests.test_material_catalog_capability).
+        # `capabilities` are read-only UI hints for material catalog writes and
+        # Organization Setup access (see tests.test_material_catalog_capability
+        # and tests.test_organization_setup_capability).
         self.assertEqual(set(data.keys()), {"id", "username", "email", "first_name", "last_name", "capabilities"})
-        self.assertEqual(set(data["capabilities"].keys()), {"can_manage_material_catalog"})
+        self.assertEqual(
+            set(data["capabilities"].keys()),
+            {"can_manage_material_catalog", "can_manage_organization_setup"},
+        )
 
     def test_invalid_token_rejected(self):
         client = Client()

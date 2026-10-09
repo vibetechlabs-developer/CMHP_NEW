@@ -5,6 +5,12 @@ Audit date: 2026-10-06. Scope: inspection and reporting only. No application cod
 
 Companion files: `client-flow-completion-checklist.md` (step-by-step client journey) and `remaining-work-priority.csv` (ranked backlog).
 
+**Latest full audit**: `docs/audits/fullstack-client-flow-audit-2026-10-09.md` (2026-10-09) — a fresh, module-by-module backend/frontend/API-integration/test/browser-evidence audit of the entire ERP, with a full status matrix (`docs/audits/remaining-work-2026-10-09.csv`). Supersedes this document's own "Still mock-only" list below for Quality/Invoicing/Supply Chain/HR — the 2026-10-09 audit verified each against fresh code reads rather than carrying this sentence forward unchecked; see that report for the current, per-feature breakdown.
+
+**Same-day update (2026-10-09, later):** that audit's own §11.7 "ONE recommended next bounded task" — wiring the Sales Order "Confirm" action into the UI — is now DONE. See the "Status update" note appended directly under §11.7 in the audit file, and `docs/frontend-api-handoff.md`'s new "Sales Order review and confirmation wired to the UI" section for the full detail (endpoints reused, test coverage, and the one reported gap: no frontend screen exists yet for the per-company confirmation policy).
+
+**Same-day update (2026-10-09, still later):** that reported gap is now closed. Organization Setup (`/organization-setup`) implements companies, shared stores, company/store roles and permissions, company/store memberships, units of measure, and the sales-order confirmation policy — all against existing, already-tested backend endpoints, gated by one new real capability (`can_manage_organization_setup`), reachable with zero company/store membership. See `docs/frontend-api-handoff.md`'s "Organization Setup wired to the UI" section and `docs/erp-screen-catalog.md`'s new Organization Setup module (OS-01–OS-06) for full detail. This also closes the audit's §1.3 "Organization setup — researched, not implemented" finding and §11.6 implementation-plan item 1.
+
 ---
 
 ## 0. Update: department order journey made demo-ready (2026-10-06, same day)

@@ -18,7 +18,10 @@ _FORMULA_CREATE = {"product_id", "code", "name", "notes", "base_output_quantity"
 _FORMULA_UPDATE = {"expected_version", "name", "notes"}
 _REVISION_CREATE = {"base_output_quantity", "notes", "output_uom_id"}
 _REVISION_UPDATE = {"expected_version", "base_output_quantity", "notes", "lines"}
-_LINE_ALLOWED = {"id", "material_id", "quantity", "notes", "label_claim", "ar_no", "special_value"}
+_LINE_ALLOWED = {
+    "id", "material_id", "quantity", "notes", "label_claim", "ar_no", "special_value",
+    "calculation_mode", "label_claim_quantity", "label_claim_uom_id",
+}
 _MAX_LINES = 200
 _APPROVE = {"expected_version"}
 _POLICY_UPDATE = {"expected_version", "allow_self_approval"}
@@ -50,6 +53,9 @@ class FormulaLineSerializer(serializers.ModelSerializer):
     unit_name = serializers.CharField(source="unit_name_snapshot", read_only=True)
     material_is_active = serializers.BooleanField(source="material.is_active", read_only=True)
     unit_is_active = serializers.BooleanField(source="unit.is_active", read_only=True)
+    label_claim_uom_id = serializers.IntegerField(read_only=True)
+    label_claim_uom_code = serializers.CharField(source="label_claim_uom.code", read_only=True, default=None)
+    label_claim_uom_name = serializers.CharField(source="label_claim_uom.name", read_only=True, default=None)
 
     class Meta:
         model = FormulaLine
@@ -70,6 +76,11 @@ class FormulaLineSerializer(serializers.ModelSerializer):
             "label_claim",
             "ar_no",
             "special_value",
+            "calculation_mode",
+            "label_claim_quantity",
+            "label_claim_uom_id",
+            "label_claim_uom_code",
+            "label_claim_uom_name",
         ]
         read_only_fields = fields
 
@@ -102,6 +113,11 @@ class FormulaRevisionSummarySerializer(_RevisionBase):
             "version",
             "created_at",
             "updated_at",
+            "submitted_by_id",
+            "submitted_at",
+            "last_rejection_reason",
+            "last_rejected_by_id",
+            "last_rejected_at",
             "approved_by_id",
             "approved_at",
             "approval_policy_version",
@@ -161,8 +177,12 @@ class FormulaSerializer(serializers.ModelSerializer):
 
 class FormulaCreateSerializer(serializers.Serializer):
     product_id = serializers.IntegerField()
-    code = serializers.CharField(max_length=32)
-    name = serializers.CharField(max_length=255)
+    # Optional (as of this task): the "New formula" form no longer asks for
+    # either - omitted, apps.formulas.services.create_formula generates
+    # both from the product. Supplying them explicitly (e.g. via the API)
+    # still works exactly as before.
+    code = serializers.CharField(max_length=32, required=False)
+    name = serializers.CharField(max_length=255, required=False)
     notes = serializers.CharField(required=False, allow_blank=True, max_length=2000, default="")
     base_output_quantity = serializers.DecimalField(**_QUANTITY)
     revision_notes = serializers.CharField(required=False, allow_blank=True, max_length=2000, default="")
@@ -211,6 +231,16 @@ class FormulaLineInputSerializer(serializers.Serializer):
     label_claim = serializers.CharField(required=False, allow_blank=True, max_length=100)
     ar_no = serializers.CharField(required=False, allow_blank=True, max_length=100)
     special_value = serializers.CharField(required=False, allow_blank=True, max_length=60)
+    # How this line's requirement is calculated (default: AS_PER_FORMULA,
+    # unchanged proportional behaviour). AS_PER_LABEL_CLAIM requires both
+    # label_claim_quantity and label_claim_uom_id together - validated in
+    # apps.formulas.services._resolve_calculation_mode, not here (needs the
+    # revision's own output unit, which this serializer has no access to).
+    calculation_mode = serializers.ChoiceField(
+        choices=FormulaLine.CalculationMode.choices, required=False, default=FormulaLine.CalculationMode.AS_PER_FORMULA
+    )
+    label_claim_quantity = serializers.DecimalField(max_digits=14, decimal_places=3, min_value=Decimal("0.001"), required=False, allow_null=True)
+    label_claim_uom_id = serializers.IntegerField(required=False, allow_null=True)
 
     def to_internal_value(self, data):
         _reject_unknown_fields(data, _LINE_ALLOWED)
@@ -233,6 +263,26 @@ class RevisionApproveSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         _reject_unknown_fields(self.initial_data, _APPROVE)
+        return attrs
+
+
+# Same body shape as approve - reused for submit (DRAFT -> SUBMITTED) too.
+RevisionSubmitSerializer = RevisionApproveSerializer
+
+_REJECT = {"expected_version", "rejection_reason"}
+
+
+class RevisionRejectSerializer(serializers.Serializer):
+    expected_version = serializers.IntegerField(min_value=1)
+    rejection_reason = serializers.CharField(max_length=1000)
+
+    def validate_rejection_reason(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("A rejection reason is required.")
+        return value
+
+    def validate(self, attrs):
+        _reject_unknown_fields(self.initial_data, _REJECT)
         return attrs
 
 

@@ -1,0 +1,266 @@
+Creating test database for alias 'default'...
+[2026-10-05 17:43:06,343] ERROR django.request: Internal Server Error: /api/v1/companies/1/batch-plans/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\generic\base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\utils\decorators.py", line 48, in _wrapper
+    return bound_method(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\cache.py", line 80, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\generics.py", line 246, in post
+    return self.create(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\batch_plans\views.py", line 174, in create
+    plan = create_batch_plan(actor=request.user, company=company, **serializer.validated_data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\contextlib.py", line 81, in inner
+    return func(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\batch_plans\services.py", line 542, in create_batch_plan
+    record(
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1198, in _execute_mock_call
+    raise effect
+RuntimeError: Audit failure
+.[2026-10-05 17:43:08,505] WARNING django.request: Bad Request: /api/v1/companies/2/sales-orders/2/
+.[2026-10-05 17:43:10,447] WARNING django.request: Unauthorized: /api/v1/companies/3/batch-plans/
+[2026-10-05 17:43:10,448] WARNING django.request: Unauthorized: /api/v1/companies/3/batch-plans/
+.[2026-10-05 17:43:13,190] WARNING django.request: Bad Request: /api/v1/companies/5/batch-plans/
+[2026-10-05 17:43:13,236] WARNING django.request: Not Found: /api/v1/companies/5/batch-plans/3/
+...[2026-10-05 17:43:21,239] WARNING django.request: Bad Request: /api/v1/companies/8/batch-plans/
+.[2026-10-05 17:43:24,128] WARNING django.request: Bad Request: /api/v1/companies/9/batch-plans/6/
+..[2026-10-05 17:43:28,046] WARNING django.request: Bad Request: /api/v1/companies/11/batch-plans/
+.....[2026-10-05 17:43:39,397] WARNING django.request: Not Found: /api/v1/companies/16/batch-plans/
+[2026-10-05 17:43:40,879] WARNING django.request: Not Found: /api/v1/companies/16/batch-plans/
+[2026-10-05 17:43:40,885] WARNING django.request: Not Found: /api/v1/companies/16/batch-plans/
+.[2026-10-05 17:43:44,284] WARNING django.request: Forbidden: /api/v1/companies/17/batch-plans/
+[2026-10-05 17:43:45,413] WARNING django.request: Forbidden: /api/v1/companies/17/batch-plans/
+.[2026-10-05 17:43:49,661] WARNING django.request: Forbidden: /api/v1/companies/18/batch-plans/16/requirement-preview/
+..[2026-10-05 17:43:53,241] WARNING django.request: Bad Request: /api/v1/companies/20/batch-plans/
+.[2026-10-05 17:43:55,065] WARNING django.request: Bad Request: /api/v1/companies/21/batch-plans/18/
+[2026-10-05 17:43:55,085] WARNING django.request: Bad Request: /api/v1/companies/21/batch-plans/18/
+[2026-10-05 17:43:55,103] WARNING django.request: Bad Request: /api/v1/companies/21/batch-plans/18/
+[2026-10-05 17:43:55,130] WARNING django.request: Bad Request: /api/v1/companies/21/batch-plans/18/
+[2026-10-05 17:43:55,149] WARNING django.request: Bad Request: /api/v1/companies/21/batch-plans/18/
+[2026-10-05 17:43:55,168] WARNING django.request: Bad Request: /api/v1/companies/21/batch-plans/18/
+.[2026-10-05 17:43:57,013] WARNING django.request: Bad Request: /api/v1/companies/22/batch-plans/
+[2026-10-05 17:43:57,023] WARNING django.request: Bad Request: /api/v1/companies/22/batch-plans/
+[2026-10-05 17:43:57,038] WARNING django.request: Bad Request: /api/v1/companies/22/batch-plans/
+..[2026-10-05 17:44:00,870] WARNING django.request: Bad Request: /api/v1/companies/24/batch-plans/20/
+.[2026-10-05 17:44:02,776] WARNING django.request: Bad Request: /api/v1/companies/25/batch-plans/
+.[2026-10-05 17:44:04,678] WARNING django.request: Method Not Allowed: /api/v1/companies/26/batch-plans/21/
+[2026-10-05 17:44:04,679] WARNING django.request: Method Not Allowed: /api/v1/companies/26/batch-plans/21/
+[2026-10-05 17:44:04,681] WARNING django.request: Method Not Allowed: /api/v1/companies/26/batch-plans/21/requirement-preview/
+[2026-10-05 17:44:04,683] WARNING django.request: Method Not Allowed: /api/v1/companies/26/batch-plans/
+.[2026-10-05 17:44:06,580] ERROR django.request: Internal Server Error: /api/v1/companies/27/batch-plans/22/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\generic\base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\utils\decorators.py", line 48, in _wrapper
+    return bound_method(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\cache.py", line 80, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\batch_plans\views.py", line 205, in patch
+    plan, _ = update_batch_plan(
+              ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\contextlib.py", line 81, in inner
+    return func(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\batch_plans\services.py", line 722, in update_batch_plan
+    record(
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1198, in _execute_mock_call
+    raise effect
+RuntimeError: Audit failure
+.[2026-10-05 17:44:09,343] WARNING django.request: Conflict: /api/v1/companies/28/batch-plans/23/
+.[2026-10-05 17:44:12,219] WARNING django.request: Forbidden: /api/v1/companies/29/batch-plans/
+[2026-10-05 17:44:12,253] WARNING django.request: Forbidden: /api/v1/companies/29/batch-plans/24/
+.[2026-10-05 17:44:14,982] WARNING django.request: Bad Request: /api/v1/companies/30/batch-plans/
+..[2026-10-05 17:44:19,741] WARNING django.request: Bad Request: /api/v1/companies/33/batch-plans/26/
+..[2026-10-05 17:44:24,527] WARNING django.request: Bad Request: /api/v1/companies/35/batch-plans/
+.[2026-10-05 17:44:27,092] WARNING django.request: Bad Request: /api/v1/companies/36/batch-plans/
+..[2026-10-05 17:44:32,277] WARNING django.request: Bad Request: /api/v1/companies/38/batch-plans/
+[2026-10-05 17:44:32,295] WARNING django.request: Bad Request: /api/v1/companies/38/batch-plans/
+[2026-10-05 17:44:32,322] WARNING django.request: Bad Request: /api/v1/companies/38/batch-plans/
+[2026-10-05 17:44:32,356] WARNING django.request: Bad Request: /api/v1/companies/38/batch-plans/
+..[2026-10-05 17:44:37,530] WARNING django.request: Bad Request: /api/v1/companies/40/batch-plans/
+..[2026-10-05 17:44:44,043] WARNING django.request: Forbidden: /api/v1/companies/42/batch-plans/31/requirement-preview/
+..[2026-10-05 17:44:49,263] WARNING django.request: Bad Request: /api/v1/companies/44/batch-plans/33/
+..[2026-10-05 17:44:54,566] WARNING django.request: Bad Request: /api/v1/companies/46/batch-plans/
+.[2026-10-05 17:44:57,153] ERROR django.request: Internal Server Error: /api/v1/companies/47/batch-plans/35/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\generic\base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\utils\decorators.py", line 48, in _wrapper
+    return bound_method(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\cache.py", line 80, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\batch_plans\views.py", line 205, in patch
+    plan, _ = update_batch_plan(
+              ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\contextlib.py", line 81, in inner
+    return func(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\batch_plans\services.py", line 722, in update_batch_plan
+    record(
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1198, in _execute_mock_call
+    raise effect
+RuntimeError: boom
+...[2026-10-05 17:45:04,914] WARNING django.request: Bad Request: /api/v1/companies/50/batch-plans/
+[2026-10-05 17:45:04,937] WARNING django.request: Bad Request: /api/v1/companies/50/batch-plans/
+[2026-10-05 17:45:04,956] WARNING django.request: Bad Request: /api/v1/companies/50/batch-plans/
+[2026-10-05 17:45:04,979] WARNING django.request: Bad Request: /api/v1/companies/50/batch-plans/
+[2026-10-05 17:45:04,998] WARNING django.request: Bad Request: /api/v1/companies/50/batch-plans/
+[2026-10-05 17:45:05,017] WARNING django.request: Bad Request: /api/v1/companies/50/batch-plans/
+.[2026-10-05 17:45:10,322] ERROR django.request: Internal Server Error: /api/v1/stores/1/preparations/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\generic\base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\utils\decorators.py", line 48, in _wrapper
+    return bound_method(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\cache.py", line 80, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\generics.py", line 246, in post
+    return self.create(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\store_preparation\views.py", line 166, in create
+    preparation = self._create(store, sales_order_line=line, data=data)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\store_preparation\views.py", line 176, in _create
+    return create_store_preparation(actor=self.request.user, store=store, **owner, **data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\contextlib.py", line 81, in inner
+    return func(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\store_preparation\services.py", line 57, in create_store_preparation
+    record(
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1198, in _execute_mock_call
+    raise effect
+RuntimeError: audit down
+.[2026-10-05 17:45:15,295] WARNING django.request: Bad Request: /api/v1/stores/3/preparations/2/
+[2026-10-05 17:45:15,307] WARNING django.request: Forbidden: /api/v1/stores/3/preparations/2/
+.[2026-10-05 17:45:19,983] WARNING django.request: Forbidden: /api/v1/companies/55/sales-orders/55/
+[2026-10-05 17:45:20,124] WARNING django.request: Forbidden: /api/v1/stores/5/preparations/3/
+.[2026-10-05 17:45:25,254] WARNING django.request: Conflict: /api/v1/stores/7/preparations/
+.....[2026-10-05 17:45:46,751] WARNING django.request: Conflict: /api/v1/stores/17/preparations/12/
+.[2026-10-05 17:45:52,036] WARNING django.request: Not Found: /api/v1/stores/19/preparations/
+.[2026-10-05 17:45:56,005] WARNING django.request: Not Found: /api/v1/stores/23/preparations/
+.[2026-10-05 17:45:59,823] WARNING django.request: Not Found: /api/v1/stores/26/preparations/
+........
+----------------------------------------------------------------------
+Ran 67 tests in 208.467s
+
+OK
+Destroying test database for alias 'default'...
+Found 67 test(s).
+System check identified no issues (0 silenced).

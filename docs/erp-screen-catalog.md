@@ -693,27 +693,32 @@ The operational role needs `customers.view` and `products.view` alongside
 - **APIs**: `GET /api/v1/companies/<id>/sales-orders/<oid>/`
 
 ### SO-04 — Order Review Panel (Task 10E, updated Task 10F)
-- **Type**: Panel/drawer opened from SO-03
+- **Type**: Panel/drawer opened from SO-03 (spec'd). **As actually built**: an inline "Order review and confirmation" section inside the existing Sales Order modal (`SalesOrderFormModal.jsx`), shown below "Order details" whenever an order is open - not a separate drawer, panel or full page
 - **Backend status**: IMPLEMENTED (`GET .../confirmation-preview/`, `POST .../confirm/`)
-- **Layout**: (1) **Order / customer summary** - reference, status badge, `order.version` kept in **frontend state** (never an editable field), customer with an "inactive" badge, currency, dates, customer order reference; (2) **Line totals** - stored snapshot code/name/unit, quantity, unit price, line amount (live master state from `lines[].current` only as badges such as "product now inactive"), pre-tax **Subtotal**; (3) **Items needing attention** - `confirmation.blocking_reasons` grouped by `category` in plain words, line-level items linking to the line; `informational_observations` as subtle notes; (4) **Actions** - "Edit draft" → SO-02 (`sales_orders.edit`), "Refresh review", and **Confirm** (below)
+- **Frontend status**: IMPLEMENTED (2026-10-09) - "Review order" button calls the preview endpoint and renders exactly what it returns; eligibility is never computed in the browser
+- **Layout**: (1) **Order / customer summary** - reference, status badge, `order.version` kept in **frontend state** (never an editable field), customer with an "inactive" badge, currency, dates, customer order reference; (2) **Line totals** - stored snapshot code/name/unit, quantity, unit price, line amount, pre-tax **Subtotal**; (3) **Items needing attention** - `confirmation.blocking_reasons` and `informational_observations` listed in plain words; (4) **Actions** - **Confirm** (below). A viewer with `sales_orders.view` only can run the review; `sales_orders.confirm` is required for the Confirm button to appear at all
 - **States**:
-  - *Policy not configured / incomplete* (`policy.status` != CONFIGURED): show `policy_message` ("Confirmation rules are not configured. Contact your administrator.") - never internal policy questions; Confirm disabled
-  - *Blocked*: list the blocking reasons; Confirm disabled
-  - *Ready*: `ready_to_attempt` true (draft, viewer holds `sales_orders.confirm`, no blocking reason found now) → Confirm enabled. A viewer without `sales_orders.confirm` sees the review but **no Confirm button**
-  - *Already confirmed*: read-only (see SO-03), Confirm hidden
-  - loading, 403/404 with retry
-- **Not a guarantee**: show `generated_at` and a "may be out of date" note; the server re-checks on confirm
+  - *Policy not configured / incomplete* (`policy.status` != CONFIGURED): shows `policy_message` ("Confirmation rules are not configured. Contact your administrator.") plus an explicit note that **no confirmation-policy settings screen exists in this application** (see SO-06 below) - Confirm disabled
+  - *Blocked*: lists the blocking reasons; Confirm disabled
+  - *Ready*: `ready_to_attempt` true → Confirm enabled. A viewer without `sales_orders.confirm` sees the review but **no Confirm button**, with a note that confirming needs additional permission
+  - *Already confirmed*: read-only (see SO-03), review section still shows "Confirmed by user #id on &lt;date&gt;"; Confirm hidden
+  - Unsaved order edits block "Review order" outright (button disabled, explicit "unsaved changes" notice) - a review must reflect what is actually saved, never form state still in the browser
+  - A late/stale preview response for an order the user has since navigated away from is discarded, never shown against the wrong order
+- **Not a guarantee**: shows the preview's own `notice` text; the server re-checks everything fresh, under lock, at confirm time
 - **APIs**: `GET /api/v1/companies/<id>/sales-orders/<oid>/confirmation-preview/`
 
 ### SO-05 — Confirm Order Dialog (Task 10F)
-- **Type**: Confirm dialog from SO-04
-- **Content**: order reference, customer, subtotal, and the text "Confirming records the order as confirmed. It does not reserve stock, start production or create an invoice." No extra fields; `expected_version` is sent from state, never typed
-- **Result**: `200` → SO-03 confirmed (read-only); repeat clicks at the new version are harmless
-- **Failure states**: `409` "This order changed since you reviewed it" → refetch order and review, show what changed, do not auto-retry; `400` with `blocking_reasons` → show the reasons (policy-not-configured shows the plain administrator message); `403` "You no longer have permission to confirm"; `404`
+- **Type**: Confirm dialog from SO-04. **As actually built**: the app's shared confirmation dialog (`ConfirmProvider`/`confirmAction`), not a separate screen
+- **Frontend status**: IMPLEMENTED (2026-10-09)
+- **Content**: the exact required text "Confirming freezes order details. It does not issue stock or start production." (supersedes the earlier draft wording shown above in this doc). No extra fields; `expected_version` sent is always the **reviewed preview's own** `order.version` - never any other locally-held version, and never silently substituted on a conflict
+- **Result**: `200` → order shown as CONFIRMED (read-only, via the same `canEditOrder`/DRAFT-only rule every other edit already uses - no separate "lock" logic); repeat clicks while a request is in flight are blocked client-side (a ref-based guard set before the dialog opens, not after)
+- **Failure states**: `409` "This order changed since you reviewed it, so it was not confirmed..." → clears the stale preview, offers "Review again", never auto-retries; `400` with `blocking_reasons` → shows the fresh structured reasons, clears the stale preview; `403` "You don't have permission to confirm this order"; `404` "This order was not found..."
 - **APIs**: `POST /api/v1/companies/<id>/sales-orders/<oid>/confirm/` `{"expected_version": n}`
 
 ### SO-06 — Sales Order Confirmation Policy (superuser administration, Task 10F)
 - **Type**: Full page in Superuser Administration, per company
+- **Backend status**: IMPLEMENTED (`GET/PATCH /api/v1/companies/<id>/sales-order-confirmation-policy/`, `IsActiveSuperuser`)
+- **Frontend status**: **NOT IMPLEMENTED.** No Superuser Administration screen exists anywhere in the frontend for this policy (confirmed via grep: zero references to the endpoint outside the backend and this review feature's own "not configured" message). Today the policy can only be set directly against the backend (API client or Django admin) - SO-04 shows the backend's refusal message and this gap plainly, it never offers a dead "Configure policy" link and never auto-configures a policy to make a test pass
 - **Fields**: three explicit yes/no answers - allow self-confirmation, allow zero-price lines, allow past requested delivery dates - each shown as Yes / No / **Not answered**; status badge (Not configured / Incomplete / Configured), version, last changed by/at
 - **Behavior**: Save sends only changed answers with `expected_version` (0 when never configured); no default answers; `409` → refetch and show. A note that configuring the rules does not grant confirmation authority (that is the separate `sales_orders.confirm` permission)
 - **Permissions**: active superuser only
@@ -970,6 +975,112 @@ availability, ownership, QC-release, reservation, issue, or return system. None 
   "available"/"usable" quantity
 - **APIs**: `GET /api/v1/stores/<store_id>/stock-movements/`, `GET /api/v1/stores/<store_id>/stock-balances/`
 
+### STK-02 — Material Register
+- **Type**: Full page, material-detail, read-only (no create/edit/delete action anywhere on this screen). Reached
+  from the Materials catalog list (STK-materials) via a clickable code/name or an explicit "View register" action;
+  a "← Back to materials" link returns to the list with its search/filter/page preserved (both live in the URL
+  query string).
+- **Header** (compact, not the large decorative banner used elsewhere): material code, name, RAW/PACKAGING, base
+  unit, active/inactive, and the currently selected authorized store (shared with the rest of this workspace -
+  there is no separate store picker on this screen).
+- **Catalog vs. register access, kept separate**: the header's material details load under the shared catalog
+  read permission (`shared_catalog.view`, any store) and render even if the signed-in user has no `stock.view` in
+  the selected store at all - the register section below fails on its own, separately, with a named 403, never a
+  blocked page.
+- **Sections**: Material details (header, above); Inward register (recorded-receipt quantity, grouped by unit and
+  source company, with an explicit posted-date range filter and a second "all-time, for comparison" table shown
+  only when a filter is active - the exact same grouping both times, never a cross-unit sum); Movement history
+  (one row per recorded receipt: posted date, the receipt's own arrival date shown separately, goods-receipt
+  reference, supplier identity (code + name only, never price), source company, quantity, unit, and the
+  "Not tracked" release-status column - same column set as STK-01, scoped to one material).
+- **Explicitly NOT present**: Outward/Returns/Physical Count tabs (no supporting API exists) - the screen states
+  plainly "Material issues and returns are not recorded in this version" instead of showing an empty or disabled
+  control; any fabricated container-count/price/lot/expiry field; any inferred supplier-invoice number (none is
+  stored anywhere - only a delivery-note reference exists on the receipt itself, and only the goods-receipt
+  reference is shown, never relabeled as an invoice number).
+- **States**: loading, empty ("No recorded receipts found for this selection" - never implied as proof of zero
+  physical stock), retryable error, and a named access-denied state (403, distinct from a 404 store problem).
+- **APIs**: `GET /api/v1/materials/<id>/` (material details); `GET /api/v1/stores/<store_id>/stock-movements/` and
+  `GET /api/v1/stores/<store_id>/stock-balances/` with `?material=<id>` and the new `?posted_from=`/`?posted_to=`
+  (both optional, inclusive, `YYYY-MM-DD`) - see `docs/frontend-api-handoff.md` §19 for the exact response shape,
+  including the new `supplier_id`/`supplier_code`/`supplier_name`, `source_goods_receipt_arrived_at` fields and the
+  `period` block every list response now carries.
+
+## Module: Organization Setup (2026-10-09 — active-superuser administration)
+
+A single entry point (`/organization-setup`) for the ERP's own setup: companies, shared stores, company/store roles
+and their permissions, who holds them, units of measure, and the sales-order confirmation policy. Every screen here
+is `IsActiveSuperuser` on the backend - the same rule as the existing material-catalog and confirmation-policy
+endpoints - surfaced through one new current-user capability, `can_manage_organization_setup`
+(`apps.authentication.serializers.CurrentUserSerializer`), never `user.profile.role`/`user.is_superuser`/a mock
+persona. **Deliberately reachable with zero company or store membership** - `ProtectedRoute.jsx` already falls
+through to any route for a user with no workspace selected; the sidebar entry and the page's own access gate use
+only the real capability flag, independent of workspace state, so the very first administrator on a fresh
+environment can reach it before any company exists at all.
+
+### OS-01 — Companies
+- **Type**: Tab inside Organization Setup
+- **Actions**: list (search, paginate), create (code/legal_name/display_name), edit (legal_name/display_name only -
+  code immutable), activate/deactivate
+- **APIs**: `GET/POST /api/v1/companies/`, `GET/PATCH /api/v1/companies/<id>/`, `.../activate/`, `.../deactivate/`
+  (all pre-existing, superuser-only)
+
+### OS-02 — Shared stores
+- **Type**: Tab inside Organization Setup
+- Mirrors OS-01 exactly, for `SharedStore` - no owning-company concept; fields code/name/description.
+- **APIs**: `GET/POST /api/v1/stores/`, `GET/PATCH /api/v1/stores/<id>/`, `.../activate/`, `.../deactivate/`
+
+### OS-03 — Company roles and memberships
+- **Type**: Tab inside Organization Setup, scoped by a company picker
+- **Roles**: list/create (code/name/description - new roles start with no permissions), activate/deactivate, and a
+  full permission editor (checkboxes grouped by module, fetched across **every** page of the permission catalog -
+  never just the first - preselected from the role's current codes, saved as one complete `PUT .../permissions/`
+  replace; a permission deactivated elsewhere while still assigned is shown as a separate warning, since resending
+  it would be rejected by the server).
+- **Memberships**: search an existing user (does not create new users - see the existing User Management screen,
+  `/companies`, for that), assign/remove company access, assign/remove a role on that membership. Reuses the exact
+  same, already-real, already-tested functions User Management's own Company-access panel uses
+  (`features/companies/usersApiService.js`) - not a rebuild.
+- If the acting administrator changes their **own** membership, the session's workspace bridge
+  (`profile.real_companies`) is refreshed immediately via `authService.refreshRealCompanyBridge`, without requiring
+  a re-login; every membership/role-assignment mutation also clears the in-memory permission cache
+  (`utils/permissionsService.clearPermissionsCache`), since nothing else in the app did that before.
+- **APIs**: `GET /api/v1/companies/<id>/roles/`, `POST .../roles/`, `.../activate/`, `.../deactivate/`,
+  `PUT .../roles/<id>/permissions/`; `GET /api/v1/permissions/?scope=COMPANY` (paginated); user/membership/role-
+  assignment endpoints as already documented under Direct Sales Orders' neighbor, `docs/frontend-api-handoff.md`.
+
+### OS-04 — Store roles and memberships
+- **Type**: Tab inside Organization Setup, scoped by a store picker
+- Mirrors OS-03 exactly, scoped to `STORE` instead of `COMPANY`. **Store membership/role-assignment had no frontend
+  screen anywhere before this** (unlike company access) - this is new, not a reuse.
+- **APIs**: `GET/POST /api/v1/stores/<id>/roles/`, `.../activate/`, `.../deactivate/`,
+  `PUT .../roles/<id>/permissions/`; `GET /api/v1/permissions/?scope=STORE`; `GET/POST /api/v1/stores/<id>/memberships/`,
+  `.../deactivate/`, `GET/POST /api/v1/stores/<id>/memberships/<id>/roles/`, `.../deactivate/`
+
+### OS-05 — Units of measure
+- **Type**: Tab inside Organization Setup
+- list/create (code/name/dimension MASS|VOLUME|COUNT/optional canonical_factor), edit (name only - dimension and
+  canonical_factor immutable once set), activate/deactivate (rejected while a material still uses it as its base
+  unit).
+- **APIs**: `GET/POST /api/v1/units/`, `GET/PATCH /api/v1/units/<id>/`, `.../activate/`, `.../deactivate/`
+
+### OS-06 — Sales order confirmation policy
+- **Type**: Tab inside Organization Setup, scoped by a company picker
+- The three policy fields (SO-06 in the Direct Sales Orders module above) as **Unanswered/Yes/No**, each with a
+  plain-language explanation; no field is ever preselected. Only the fields the administrator actually changes this
+  session are sent, together with `expected_version` (the currently-loaded `policy.version`, 0 when
+  `NOT_CONFIGURED`). A `409` shows "changed since it was last loaded here" and requires an explicit reload - it
+  never silently overwrites a newer policy. Saving states plainly that it affects every **new** order review
+  immediately and that an order review already open elsewhere must be reviewed again before confirming (the order
+  review already re-fetches fresh on every "Review order" click and the confirm command re-checks everything fresh
+  under lock regardless, so no additional cross-tab invalidation is possible or necessary).
+- Configuring this grants no confirmation authority - unchanged, that is still the separate `sales_orders.confirm`
+  permission, configured in OS-03 above.
+- SO-04's own "policy not configured" message (Direct Sales Orders module) now links directly here for a user who
+  holds `can_manage_organization_setup`, and shows a neutral "ask an administrator" line otherwise - replacing the
+  former "no settings screen exists" wording now that this screen exists.
+- **APIs**: `GET/PATCH /api/v1/companies/<id>/sales-order-confirmation-policy/` (pre-existing, unchanged)
+
 ## Module: Planned (no backend work started — proposed screens only)
 
 These are listed so frontend architecture can leave room for them, **not**
@@ -1000,7 +1111,7 @@ anywhere in the frontend yet.
 
 ## Screen count summary
 
-- **Full pages backed by implemented APIs**: 44 (AUTH-01, NAV-01–03, ADM-01, ADM-03, ADM-05, ADM-07–09, ADM-11–12, CAT-01–04, SUP-01–02, PR-01–03, PO-01–03, GR-01–03, QC-01–03, SPEC-01–03, CUST-01, CUST-03, PROD-01, PROD-03, QUOT-01–03, SO-01–03, FRM-01, FRM-02, FRM-04, FRM-06 panel) plus SO-06 (Task 10F) and the SO-04 panel (Task 10E/10F) — corrected from the earlier count of 30, which had omitted CUST-01/CUST-03 (Task 10A); now also includes PROD-01/PROD-03 (Task 10B) QUOT-01–03 (Task 10C) SO-01–03 (Task 10D) and FRM-01–05 (Task 11A) Now also includes BATCH-01–04 (Task 12A), PREP-01 (Task 12C) and MREQ-01/MREQ-03 (Task 13A) — total **48**. Now also includes STK-01 (Task 13C) — total **49**.
+- **Full pages backed by implemented APIs**: 44 (AUTH-01, NAV-01–03, ADM-01, ADM-03, ADM-05, ADM-07–09, ADM-11–12, CAT-01–04, SUP-01–02, PR-01–03, PO-01–03, GR-01–03, QC-01–03, SPEC-01–03, CUST-01, CUST-03, PROD-01, PROD-03, QUOT-01–03, SO-01–03, FRM-01, FRM-02, FRM-04, FRM-06 panel) plus SO-06 (Task 10F) and the SO-04 panel (Task 10E/10F) — corrected from the earlier count of 30, which had omitted CUST-01/CUST-03 (Task 10A); now also includes PROD-01/PROD-03 (Task 10B) QUOT-01–03 (Task 10C) SO-01–03 (Task 10D) and FRM-01–05 (Task 11A) Now also includes BATCH-01–04 (Task 12A), PREP-01 (Task 12C) and MREQ-01/MREQ-03 (Task 13A) — total **48**. Now also includes STK-01 (Task 13C) — total **49**. Now also includes STK-02 (Material Register) — total **50**.
 - **Modals/tabs/confirm dialogs backed by implemented APIs**: 26 (ADM-02, ADM-04, ADM-06, ADM-10, ADM-13–14, PR-04–05, PO-04–05, GR-04–07, QC-04–05, SPEC-04–05, CUST-02, CUST-04, PROD-02, PROD-04, FRM-03, FRM-05, SO-05) — corrected from the earlier count of 19, which had omitted CUST-02/CUST-04 (Task 10A); now also includes PROD-02/PROD-04 (Task 10B) Now also includes BATCH-05 (Task 12D) and MREQ-02 (Task 13A) — total **28**.
 - **Proposed screens for planned, unbuilt modules**: 16 (PLAN-01–16, with PLAN-05 narrowed to disposition/release only now that drafting is implemented)
 
@@ -1011,5 +1122,6 @@ anywhere in the frontend yet.
 | Materials (shared catalog) | `/inventory/materials` | yes (`/api/v1/materials/`) | create/edit/activate/deactivate and import: active superuser only (server) | Connected in code; browser pending |
 | Locations (store) | `/inventory/locations` | yes (`/api/v1/stores/<id>/locations/`) | none in this screen | Connected in code; browser pending |
 | Recorded Receipts | `/inventory/receipts` | yes (stock-movements, stock-balances) | none (read-only) | Connected in code; browser pending |
+| Material Register (STK-02) | `/inventory/materials/<id>` | yes (`/api/v1/materials/<id>/`, stock-movements, stock-balances, all existing) | none (read-only) | Connected in code; browser pending |
 
 Mock inventory screens (Overview, Stock & Lots, Issue / Return, Consumption Ledger) are removed from the sidebar. The old `features/inventory/Inventory.jsx` is no longer routed.

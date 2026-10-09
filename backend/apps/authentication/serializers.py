@@ -31,4 +31,14 @@ class CurrentUserSerializer(serializers.ModelSerializer):
         # Never accepted from client input. Not an access grant.
         from apps.common.permissions import is_active_superuser
 
-        return {"can_manage_material_catalog": is_active_superuser(obj)}
+        # Organization Setup (companies, shared stores, company/store roles
+        # and memberships, units of measure, sales-order confirmation
+        # policy) is gated by the same active-superuser rule as every one
+        # of those endpoints (IsActiveSuperuser) - a single capability flag
+        # covers the whole area, exactly as can_manage_material_catalog
+        # already does for the material catalog.
+        can_manage = is_active_superuser(obj)
+        return {
+            "can_manage_material_catalog": can_manage,
+            "can_manage_organization_setup": can_manage,
+        }

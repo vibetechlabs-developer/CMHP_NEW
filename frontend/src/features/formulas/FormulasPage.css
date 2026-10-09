@@ -472,7 +472,7 @@
 /* Fixed column grid so raw and packaging tables line up with each other. */
 .fm-table {
   width: 100%;
-  min-width: 1080px;
+  min-width: 1480px;
   table-layout: fixed;
   border-collapse: collapse;
   font-size: var(--fm-size-body);
@@ -517,6 +517,10 @@
 
 .fm-table col.fm-c-qty {
   width: 150px;
+}
+
+.fm-table col.fm-c-calc {
+  width: 170px;
 }
 
 .fm-table col.fm-c-unit {
@@ -565,6 +569,10 @@
 .fm-num,
 .fm-qty-input {
   font-variant-numeric: tabular-nums;
+}
+
+.fm-num.is-muted {
+  color: var(--fm-muted);
 }
 
 .fm-qty-input {

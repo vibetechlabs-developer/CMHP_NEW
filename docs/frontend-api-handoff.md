@@ -1263,6 +1263,16 @@ pre-tax sum in the quotation's currency. Label it "Subtotal", never
 
 ## 13. Direct Sales Orders (Task 10D) — screens SO-01–03
 
+**Frontend integration status (2026-10-09):** SO-01–03 (list/create/edit/
+detail) and now SO-04/SO-05 (review and confirm, §13.6–13.7) are wired to
+the real endpoints below inside `SalesOrderFormModal.jsx` — no mock data,
+no client-side eligibility computation. **SO-06 (§13.8, confirmation policy
+management) has no frontend screen at all** — confirmed via grep, zero
+references to that endpoint anywhere in `frontend/src`. Today the policy
+can only be set directly against the backend; the review screen shows the
+backend's own `policy_message` when it is missing rather than offering any
+"configure" action.
+
 Base path: `/api/v1/companies/<company_id>/sales-orders/` — company-scoped,
 mirroring §12 (Quotations). **A draft authorizes nothing**, and so does a CONFIRMED order (Task 10F): neither authorizes
 manufacturing, reserves stock or generates an invoice. The only transition is DRAFT -> CONFIRMED
@@ -2246,6 +2256,20 @@ filtered **before** both listing and aggregation — a caller who lacks `purchas
 never sees that company's rows or quantities, in the list or in any total; there is no separate 403 at the list
 level for this axis (mirrors §7's own goods-receipt company-access behavior).
 
+**Material Register task (added, additive — every field/param above still works unchanged):**
+`?posted_from=YYYY-MM-DD` and `?posted_to=YYYY-MM-DD` (both optional, inclusive) filter either endpoint by the
+movement's own `posted_at` calendar date — the POSTING event, never the receipt's physical arrival date (see
+`source_goods_receipt_arrived_at` below). Supplying both requires `posted_from <= posted_to` (400 otherwise, same
+convention as every other date-range filter in this codebase, e.g. `?order_date_from=`/`?order_date_to=` on sales
+orders). On `stock-balances`, the filter is applied **before** the `SUM` aggregation — a period total and the
+movement rows it was computed from always agree. Every response (both endpoints) now also carries a `period`
+block stating exactly which window produced it:
+```json
+"period": { "posted_from": "2026-02-01", "posted_to": "2026-02-28" }
+```
+`{"posted_from": null, "posted_to": null}` means "all recorded history" — never left ambiguous. Render this next
+to any total so a period subtotal can never be mistaken for the all-time figure.
+
 ### 19.3 Representative responses
 
 ```json
@@ -2260,6 +2284,8 @@ level for this axis (mirrors §7's own goods-receipt company-access behavior).
       "source_company_id": 3, "source_company_code": "CMHP-A",
       "material_id": 44, "material_code_snapshot": "PARA-500", "material_name_snapshot": "Paracetamol 500mg (bulk)",
       "unit_id": 1, "unit_code_snapshot": "KG", "unit_name_snapshot": "Kilogram",
+      "source_goods_receipt_arrived_at": "2026-02-10T09:15:00Z",
+      "supplier_id": 7, "supplier_code": "SUP-001", "supplier_name": "Acme Chemicals Pvt Ltd",
       "quantity": "60.000", "lot_reference": "LOT-A", "release_status": "Not tracked",
       "posted_by_id": 12, "posted_at": "2026-02-10T12:00:00Z", "created_at": "2026-02-10T12:00:00Z"
     }
@@ -2268,9 +2294,19 @@ level for this axis (mirrors §7's own goods-receipt company-access behavior).
     "historical_receipts_backfilled": false, "opening_stock_included": false,
     "issues_returns_release_tracked": false, "release_status": "Not tracked",
     "notice": "This total reflects only RECEIPT_IN movements recorded since this feature was installed. Historical receipts posted before this feature existed are not backfilled. Opening stock is not included. Issues, returns, reservations and QC release are not tracked anywhere in this system yet. This is NOT complete physical stock — see 'recorded_receipt_quantity' below, not an available or usable balance."
-  }
+  },
+  "period": { "posted_from": null, "posted_to": null }
 }
 ```
+
+`source_goods_receipt_arrived_at` (Material Register task, added) is the receipt's own physical-arrival
+timestamp — distinct from `posted_at` above (the posting event; they can differ by days). `supplier_id`/
+`supplier_code`/`supplier_name` (also added) expose the receipt's purchase order's supplier **identity only**
+(never price/amount/currency — same restraint already applied to `GET .../eligible-purchase-orders/` in §7) and
+are gated by the exact same company-access filter every movement already passes through — never a separate or
+looser check. These three fields exist **only** on `stock-movements` rows, never on `stock-balances` rows (a
+balance row can sum movements from several receipts/suppliers, so a single supplier value there would be
+misleading, not just incomplete — it is omitted outright, not shown as null).
 
 ```json
 // GET /api/v1/stores/4/stock-balances/
@@ -2284,7 +2320,8 @@ level for this axis (mirrors §7's own goods-receipt company-access behavior).
       "recorded_receipt_quantity": "60.000", "release_status": "Not tracked"
     }
   ],
-  "coverage": { "...": "same shape as above" }
+  "coverage": { "...": "same shape as above" },
+  "period": { "posted_from": null, "posted_to": null }
 }
 ```
 
@@ -2302,6 +2339,19 @@ any quantity; never show a bare material-level total.
 | `lot_reference` | Copied verbatim from the receipt line's own supplier-supplied text; blank stays blank, never invented. Two receipts with the *same* `lot_reference` text are **not** known to be the same physical lot — this field does not resolve that. |
 | `release_status` | Always `"Not tracked"`. Do not compute or imply a value. |
 | `coverage` | Present on every response; render its `notice` (or an equivalent short caption) anywhere this data is shown, so nobody mistakes it for a complete stock position. |
+| `period` | Present on every response (Material Register task). States which `posted_from`/`posted_to` window produced the rows/total below it; both `null` means all recorded history. Render next to any total. |
+| `source_goods_receipt_arrived_at` | The receipt's physical arrival date (movements only). Always show it labeled distinctly from `posted_at` — they answer different questions ("when did it arrive" vs. "when was it posted into this system"). |
+| `supplier_id`/`code`/`name` | Supplier identity only (movements only, never on balances). No supplier **invoice** reference exists anywhere in this system — do not infer one from `source_goods_receipt_reference` or `lot_reference`; if an invoice number is ever needed, that is a new, unbuilt field, not a relabeling of an existing one. |
+
+### 19.5 Material Register (screen STK-02, added)
+
+A per-material detail screen reached from the Materials catalog list — see `docs/erp-screen-catalog.md`, STK-02,
+for the full screen spec. It adds no new backend endpoint: it is `GET /api/v1/materials/<id>/` (existing, §4 —
+the shared-catalog read, independent of any store) plus the two endpoints above, both called with `?material=<id>`
+and, optionally, the new `?posted_from=`/`?posted_to=`. The one frontend-only pattern worth naming: when a date
+filter is active, the screen issues a **second**, unfiltered call to `stock-balances` so it can show an "all-time,
+for comparison" table alongside the period total — grouped identically `(unit, source_company)`, never collapsed
+into a single cross-unit number. This is a client-side convenience (two calls), not a new server capability.
 
 
 ## 20. Product CSV Import (Task 14A) — backend only, no screen built yet
@@ -2688,3 +2738,115 @@ Write controls are shown to everyone with read access; the server decides. A 403
 - It is not `is_superuser`, and a business Admin role does not set it.
 - The session restore refreshes it from `/auth/me/`, so a stored user never keeps a stale value.
 - The frontend hides the Materials write controls unless this is true, and shows "Read-only access" otherwise.
+
+---
+
+## Organization Setup wired to the UI (2026-10-09)
+
+Screen: `/organization-setup` (`frontend/src/features/organizationSetup/`), a tabbed admin console covering
+companies, shared stores, company/store roles and their permissions, company/store memberships and role
+assignments, units of measure, and the sales-order confirmation policy. **No new backend endpoints** - every call
+reuses existing, already-tested `IsActiveSuperuser` endpoints (companies, stores, company/store roles and their
+`PUT .../permissions/` full-replace, company/store memberships and role assignments, `GET /v1/permissions/`, units,
+and the confirmation policy's `GET/PATCH`).
+
+**One new current-user capability**: `capabilities.can_manage_organization_setup`
+(`apps/authentication/serializers.py::CurrentUserSerializer.get_capabilities`), derived from the identical
+`is_active_superuser(user)` rule `can_manage_material_catalog` already uses - the two always agree, but are kept as
+separate named flags since they gate conceptually different areas. Covered by
+`backend/tests/test_organization_setup_capability.py` (mirrors `test_material_catalog_capability.py`); the existing
+`test_auth.py` assertion on the capabilities key set was updated to include it.
+
+- **Reachable with zero company/store membership, by design.** `ProtectedRoute.jsx` already falls through to any
+  route for a user with no workspace selected (confirmed by reading it directly - no change needed there); the new
+  sidebar entry (`MainLayout.jsx`'s `NAV_SECTIONS`, a new "Setup" section, `requiresOrgSetupAccess`) and the page's
+  own access gate (`OrganizationSetupPage.jsx`) both condition purely on the real capability flag above, never on
+  `user.profile.role`/`user.is_superuser`/a mock-persona match (the same anti-pattern the existing `/companies`
+  screen's `permissions.js` `MATRIX` still has, left unchanged here since fixing that screen was out of this
+  task's scope).
+- **Full permission catalog, every page.** `organizationSetupService.listAllPermissions(scope)` walks every
+  paginated page (`page_size=100`) until the server stops returning a `next` link, for `scope=COMPANY` and
+  `scope=STORE` separately - a permission on page 2+ is never silently missing from a role's editable set.
+- **Full-replace permission payloads, never a delta.** The permission editor
+  (`RolePermissionEditor.jsx`) preselects exactly the role's current codes and always sends the server's
+  `PUT .../roles/<id>/permissions/` the **complete** desired set on save - matching the backend's actual
+  full-replace semantics (`apps.permissions.services.replace_role_permissions`/`replace_store_role_permissions`,
+  which call `.set()`). A permission that is still assigned but has since been deactivated elsewhere is shown
+  separately as "will be removed if you save" rather than silently resent (the server rejects an inactive code
+  outright).
+- **Scope separation enforced client-side too**, not just relied on server-side: company-role permission edits only
+  ever fetch/send `scope=COMPANY` catalog codes against `/v1/companies/.../roles/.../permissions/`; store-role edits
+  only ever use `scope=STORE` against `/v1/stores/.../roles/.../permissions/`. Covered by
+  `organizationSetupService.test.js`.
+- **Company membership/role-assignment reuses, not rebuilds**, the existing real functions from
+  `features/companies/usersApiService.js` (already used, in production, by the `/companies` → Users →
+  "Company access and roles" panel) - only thin-wrapped to also clear the permission cache. Store
+  membership/role-assignment had no frontend screen anywhere before this; it is newly built, mirroring the company
+  pattern exactly.
+- **Workspace/permission cache refresh.** Every membership/role-assignment mutation (company or store) now calls
+  `utils/permissionsService.clearPermissionsCache()` - nothing in the app did this for an admin action before (it
+  was previously only cleared on logout or a failed session restore, confirmed by reading `AuthProvider.jsx`
+  directly). If the acting administrator assigns or removes **their own** company membership, a new
+  `authService.refreshRealCompanyBridge(token)` re-runs the login-time real-company bridge and
+  `updateCurrentUser()` applies the refreshed `profile.real_companies`/`companies`/`primary_company` immediately,
+  without requiring a re-login.
+- **Confirmation policy**: Unanswered/Yes/No per field, no preselected answers, only changed fields sent together
+  with `expected_version` (0 when `NOT_CONFIGURED` - the backend's own creation convention), and a `409` requires an
+  explicit reload rather than silently overwriting a newer policy. See §13.8 above for the unchanged backend
+  contract.
+- **SO-04's "policy not configured" message** (§13.6 above) now links to this screen for a viewer who holds the new
+  capability, and shows a neutral "ask an administrator" line otherwise - the former "no settings screen exists"
+  wording is gone now that one does.
+- Tests: `organizationSetupService.test.js` (11), `OrganizationSetupPage.test.jsx` (4, access gating),
+  `RolePermissionEditor.test.jsx` (6, preselection + full-replace-not-delta), plus 2 new `SalesOrderFormModal.test.jsx`
+  cases for the link-vs-text branch. Full frontend suite: 163/163 passing, 30 files. `vite build` and lint both
+  clean (only pre-existing warning patterns). Backend: 63/63 in the touched test modules.
+- Browser verification: NOT VERIFIED - no browser/screenshot tool was available in this session.
+
+---
+
+## Sales Order review and confirmation wired to the UI (2026-10-09)
+
+Screen: inline "Order review and confirmation" section inside the existing
+Sales Order modal (`frontend/src/features/operations/SalesOrderFormModal.jsx`),
+shown below "Order details" whenever an order is open — see §13.6–13.7 for
+the endpoints and §19's updated SO-04/SO-05 entries in `erp-screen-catalog.md`
+for the full screen-level spec. No new backend code: this reuses the
+`confirmation-preview`/`confirm` endpoints and `assess_confirmation` already
+implemented and tested.
+
+- "Review order" calls `GET .../confirmation-preview/` and renders exactly
+  what it returns (lines, subtotal, policy state, `blocking_reasons`,
+  `informational_observations`); eligibility is never computed in the
+  browser. Disabled while the order itself has unsaved edits (an explicit
+  notice is shown) so a review always reflects what is actually saved.
+- "Confirm order" only appears when the viewer holds `sales_orders.confirm`
+  and shows the required text verbatim: "Confirming freezes order details.
+  It does not issue stock or start production." It posts the **reviewed
+  preview's own** `order.version` as `expected_version` — never any other
+  locally-held version, and never silently substituted on a `409`.
+- A `409` clears the stale preview and requires an explicit "Review again"
+  (never auto-retried); a `400` with `blocking_reasons` shows the fresh
+  structured reasons and also clears the stale preview; `403`/`404` show
+  plain messages. A client-side guard (set before the confirmation dialog
+  opens, not after) blocks a second submission while one is already in
+  flight. A late preview response for an order the user has since navigated
+  away from is discarded.
+- Confirming an order does **not** lock the store-preparation or batch-plan
+  sections of the same modal — those already gate only on their own
+  permissions, never on `order.status`, and that was not changed.
+- **Known gap, reported rather than worked around:** the confirmation
+  policy (§13.8, `sales-order-confirmation-policy/`) has no administration
+  screen anywhere in the frontend. When a company's policy is not
+  configured, the review section shows the backend's own refusal message
+  and states plainly that no settings screen exists — it never offers a
+  dead "Configure policy" link and never auto-configures a policy.
+- Frontend tests: 13 new cases in `SalesOrderFormModal.test.jsx` covering a
+  viewer-only review (no Confirm button), an authorized ready-to-confirm
+  state, a missing-policy block, an eligibility block, unsaved-edits
+  blocking review, confirming with the preview's own version, a successful
+  confirmation making the order read-only, 403/400/409 handling, duplicate-
+  submission prevention, and a stale preview response being ignored after
+  the order is switched away from. 21/21 tests pass in this file; the full
+  frontend suite (141 tests, 27 files) passes with no regressions; `vite
+  build` and lint are both clean.

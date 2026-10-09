@@ -90,15 +90,27 @@ export function buildRevisionLinesPayload({ allLines = [], kind, rows = [] }) {
   const other = allLines
     .filter((line) => line.material_type !== kind)
     .map((line) => ({ id: line.id, material_id: line.material_id, quantity: line.quantity, notes: line.notes || '' }))
-  const mine = rows.map((row) => ({
-    ...(row.id ? { id: row.id } : {}),
-    material_id: Number(row.material.id),
-    quantity: String(row.quantity).trim(),
-    notes: row.notes || '',
-    label_claim: row.label_claim || '',
-    special_value: row.special_value || '',
-    ar_no: row.ar_no || '',
-  }))
+  const mine = rows.map((row) => {
+    const isLabelClaim = row.calculation_mode === 'AS_PER_LABEL_CLAIM'
+    return {
+      ...(row.id ? { id: row.id } : {}),
+      material_id: Number(row.material.id),
+      quantity: String(row.quantity).trim(),
+      notes: row.notes || '',
+      label_claim: row.label_claim || '',
+      special_value: row.special_value || '',
+      ar_no: row.ar_no || '',
+      calculation_mode: row.calculation_mode || 'AS_PER_FORMULA',
+      // Only sent in label-claim mode - the server rejects them outright if
+      // present under AS_PER_FORMULA (apps.formulas.services._resolve_calculation_mode).
+      ...(isLabelClaim
+        ? {
+            label_claim_quantity: String(row.label_claim_quantity || '').trim(),
+            label_claim_uom_id: row.label_claim_uom ? Number(row.label_claim_uom.id) : undefined,
+          }
+        : {}),
+    }
+  })
   return [...other, ...mine]
 }
 

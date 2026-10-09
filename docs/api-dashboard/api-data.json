@@ -4475,7 +4475,7 @@
         "active superuser",
         "or shared_catalog.view in any active store (read)"
       ],
-      "screen": "CAT-03",
+      "screen": "CAT-03, STK-02",
       "version_requirement": "not applicable",
       "status": "code-verified",
       "detail": {
@@ -4525,7 +4525,7 @@
           "apps/catalog/views.py"
         ]
       },
-      "notes": "This entire module (units, categories, materials) has no expected_version field or 'version' response key anywhere — confirmed by direct code search of apps/catalog/serializers.py, which contains zero references to 'version'. Unlike every core business-transaction module, edits here are unconditional overwrites with no optimistic-concurrency conflict detection."
+      "notes": "This entire module (units, categories, materials) has no expected_version field or 'version' response key anywhere — confirmed by direct code search of apps/catalog/serializers.py, which contains zero references to 'version'. Unlike every core business-transaction module, edits here are unconditional overwrites with no optimistic-concurrency conflict detection. Material Register task: also reused, unchanged, as the header data source for STK-02 — catalog read access (shared_catalog.view, any store) is a deliberately SEPARATE permission axis from a store's own stock.view, so a material can be visible on STK-02 while its register (stock-movements/stock-balances) is not authorized for the same user at all."
     },
     {
       "id": "op-065",
@@ -7332,7 +7332,7 @@
         "stock.view (store)",
         "purchase_orders.view (company)"
       ],
-      "screen": "STK-01",
+      "screen": "STK-01, STK-02",
       "version_requirement": "not applicable",
       "status": "code-verified",
       "detail": {
@@ -7348,6 +7348,16 @@
             "name": "material",
             "type": "int",
             "notes": "Filter to one material. Unknown query parameters are rejected (400), never silently ignored."
+          },
+          {
+            "name": "posted_from",
+            "type": "date (YYYY-MM-DD)",
+            "notes": "Material Register task. Inclusive lower bound on posted_at's own calendar date (the posting event, not the receipt's arrival date). 400 if posted_from > posted_to."
+          },
+          {
+            "name": "posted_to",
+            "type": "date (YYYY-MM-DD)",
+            "notes": "Material Register task. Inclusive upper bound, same field as posted_from."
           }
         ],
         "auth": "Bearer access token required (Authorization header). Membership/permission re-checked server-side on every call.",
@@ -7368,6 +7378,10 @@
               "store_id": 4,
               "source_company_id": 3,
               "source_company_code": "CMHP-A",
+              "source_goods_receipt_arrived_at": "2026-02-10T09:15:00Z",
+              "supplier_id": 7,
+              "supplier_code": "SUP-001",
+              "supplier_name": "Acme Chemicals Pvt Ltd",
               "material_id": 44,
               "material_code_snapshot": "PARA-500",
               "unit_code_snapshot": "KG",
@@ -7384,6 +7398,10 @@
             "issues_returns_release_tracked": false,
             "release_status": "Not tracked",
             "notice": "This total reflects only RECEIPT_IN movements recorded since this feature was installed. Historical receipts posted before this feature existed are not backfilled. Opening stock is not included. Issues, returns, reservations and QC release are not tracked anywhere in this system yet. This is NOT complete physical stock."
+          },
+          "period": {
+            "posted_from": null,
+            "posted_to": null
           }
         },
         "response_status": 200,
@@ -7410,10 +7428,11 @@
         "source_files": [
           "apps/stock_movements/views.py",
           "apps/stock_movements/services.py",
+          "apps/stock_movements/serializers.py",
           "apps/receiving/services.py"
         ]
       },
-      "notes": "No create/edit/delete endpoint exists anywhere in this app — every movement is created only as a side effect of apps.receiving.services.post_goods_receipt. A previously-POSTED receipt (from before this feature existed) is never backfilled, and repeating POST .../post/ on one never creates a movement for it (verified by test)."
+      "notes": "No create/edit/delete endpoint exists anywhere in this app — every movement is created only as a side effect of apps.receiving.services.post_goods_receipt. A previously-POSTED receipt (from before this feature existed) is never backfilled, and repeating POST .../post/ on one never creates a movement for it (verified by test). Material Register task (additive): source_goods_receipt_arrived_at/supplier_id/supplier_code/supplier_name and the posted_from/posted_to filters were added; every pre-existing field/param is unchanged. supplier_* is identity only (never price) and gated by the same company-access filter as everything else on this row."
     },
     {
       "id": "op-103",
@@ -7426,7 +7445,7 @@
         "stock.view (store)",
         "purchase_orders.view (company)"
       ],
-      "screen": "STK-01",
+      "screen": "STK-01, STK-02",
       "version_requirement": "not applicable",
       "status": "code-verified",
       "detail": {
@@ -7441,6 +7460,15 @@
           {
             "name": "material",
             "type": "int"
+          },
+          {
+            "name": "posted_from",
+            "type": "date (YYYY-MM-DD)",
+            "notes": "Material Register task. Applied BEFORE the SUM aggregation, so a period total and the rows it was computed from always agree."
+          },
+          {
+            "name": "posted_to",
+            "type": "date (YYYY-MM-DD)"
           }
         ],
         "auth": "Bearer access token required (Authorization header). Membership/permission re-checked server-side on every call.",
@@ -7471,6 +7499,10 @@
             "issues_returns_release_tracked": false,
             "release_status": "Not tracked",
             "notice": "..."
+          },
+          "period": {
+            "posted_from": null,
+            "posted_to": null
           }
         },
         "response_status": 200,
@@ -7496,10 +7528,11 @@
         "frontend_usage": "",
         "source_files": [
           "apps/stock_movements/views.py",
-          "apps/stock_movements/services.py"
+          "apps/stock_movements/services.py",
+          "apps/stock_movements/serializers.py"
         ]
       },
-      "notes": "Deliberately never named available_stock/usable_stock/on_hand anywhere — always recorded_receipt_quantity, always paired with the coverage block above."
+      "notes": "Deliberately never named available_stock/usable_stock/on_hand anywhere — always recorded_receipt_quantity, always paired with the coverage block above. No supplier field here (ever) — a balance row can sum movements from several receipts/suppliers, so a single supplier value would mislead; supplier identity is exposed only on stock-movements rows."
     },
     {
       "id": "op-104",

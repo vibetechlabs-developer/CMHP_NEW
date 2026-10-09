@@ -17,13 +17,19 @@ from django.core.exceptions import ValidationError
 from django.db import connection
 from django.db.models import F
 from django.test import RequestFactory, TransactionTestCase
+from django.utils import timezone
 
 from apps.audit.models import AuditLog
 from apps.catalog.models import Material, UnitOfMeasure
 from apps.common.errors import Conflict
 from apps.formulas import approval, services
 from apps.formulas.admin import FormulaApprovalPolicyAdmin, FormulaRevisionAdmin, FormulaRevisionContributorAdmin
-from apps.formulas.approval import ApprovalBlocked, approve_formula_revision, update_approval_policy
+from apps.formulas.approval import (
+    ApprovalBlocked,
+    approve_formula_revision,
+    submit_formula_revision,
+    update_approval_policy,
+)
 from apps.formulas.models import (
     Formula,
     FormulaApprovalPolicy,
@@ -80,9 +86,17 @@ class ApprovalBase(tf.Base):
         return tf.get_json(self.client_, self.rev_url(formula, revision, ""), self.token).json()
 
     def ready_formula(self, **kw):
+        """A formula with lines, submitted for QA review (SUBMITTED) and
+        the company policy set - i.e. actually ready for an approve/reject
+        attempt, not just a draft with content. Submitted by self.user (tf.
+        Base's ALL_PERMS now includes formulas.submit), mirroring the real
+        workflow where the creator submits their own work.
+        """
         formula, revision = self.formula_with_lines()
         self.set_policy(**kw)
-        return formula, revision
+        submitted = self.submit_rev(formula, revision)
+        self.assertEqual(submitted.status_code, 200, submitted.content)
+        return formula, submitted.json()
 
     def codes(self, response):
         return [r["code"] for r in response.json()["blocking_reasons"]]
@@ -188,7 +202,7 @@ class ApprovalAccessTests(ApprovalBase):
         response = self.approve(formula, revision, token=tf.token_for(approve_only))
         self.assertEqual(response.status_code, 403)
         self.assertIn("formulas.view", response.json()["detail"])
-        self.assertEqual(FormulaRevision.objects.get(pk=revision["id"]).status, "DRAFT")
+        self.assertEqual(FormulaRevision.objects.get(pk=revision["id"]).status, "SUBMITTED")
 
     def test_no_superuser_bypass_and_company_scoping(self):
         formula, revision = self.ready_formula()
@@ -233,7 +247,7 @@ class ApprovalAccessTests(ApprovalBase):
         for extra in ("status", "approved_by", "approved_at", "policy", "lines", "version", "company"):
             response = self.approve(formula, revision, payload={"expected_version": revision["version"], extra: 1})
             self.assertEqual(response.status_code, 400, extra)
-        self.assertEqual(FormulaRevision.objects.get(pk=revision["id"]).status, "DRAFT")
+        self.assertEqual(FormulaRevision.objects.get(pk=revision["id"]).status, "SUBMITTED")
 
 
 class ApprovalCommandTests(ApprovalBase):
@@ -264,7 +278,7 @@ class ApprovalCommandTests(ApprovalBase):
         formula, revision = self.ready_formula()
         response = self.approve(formula, revision, version=revision["version"] - 1)
         self.assertEqual(response.status_code, 409)
-        self.assertEqual(FormulaRevision.objects.get(pk=revision["id"]).status, "DRAFT")
+        self.assertEqual(FormulaRevision.objects.get(pk=revision["id"]).status, "SUBMITTED")
         self.assertEqual(self.audit_count("formula_revision.approved"), 0)
 
     def test_repeat_at_the_current_version_is_a_noop(self):
@@ -296,13 +310,14 @@ class ApprovalCommandTests(ApprovalBase):
 
     def test_policy_missing_or_unanswered_blocks_with_the_named_code(self):
         formula, revision = self.formula_with_lines()
+        revision = self.submit_rev(formula, revision).json()
         for setup in (lambda: None, lambda: self.set_policy(allow_self_approval=None)):
             setup()
             response = self.approve(formula, revision)
             self.assertEqual(response.status_code, 400, response.content)
             self.assertEqual(response.json()["code"], "formula_approval_policy_not_configured")
             self.assertEqual(response.json()["blocking_reasons"][0]["category"], "POLICY_NOT_CONFIGURED")
-        self.assertEqual(FormulaRevision.objects.get(pk=revision["id"]).status, "DRAFT")
+        self.assertEqual(FormulaRevision.objects.get(pk=revision["id"]).status, "SUBMITTED")
         self.assertEqual(self.audit_count("formula_revision.approved"), 0)
 
     def test_self_approval_prohibited_by_policy(self):
@@ -354,16 +369,21 @@ class ApprovalCommandTests(ApprovalBase):
         new_version = response.json()["version"]
         contributors = set(FormulaRevisionContributor.objects.filter(revision_id=revision["id"]).values_list("user__username", flat=True))
         self.assertEqual(contributors, {self.user.username, "substantive"})
+        submitted = self.submit_rev(formula, revision, version=new_version)
+        self.assertEqual(submitted.status_code, 200, submitted.content)
+        new_version = submitted.json()["version"]
         for user in (meta_only, noop_editor):
             ok = self.approve(formula, revision, version=new_version, token=tf.token_for(user))
             self.assertEqual(ok.status_code, 200, ok.content)
             break
         formula2, revision2 = self.formula_with_lines_named("g-002")
-        tf.patch_json(
+        edited2 = tf.patch_json(
             self.client_, tf.revision_url(self.company.id, formula2["id"], revision2["id"]),
             {"expected_version": revision2["version"], "notes": "x"}, tf.token_for(editor),
         )
-        blocked = self.approve(formula2, revision2, version=revision2["version"] + 1, token=tf.token_for(editor))
+        submitted2 = self.submit_rev(formula2, revision2, version=edited2.json()["version"])
+        self.assertEqual(submitted2.status_code, 200, submitted2.content)
+        blocked = self.approve(formula2, revision2, version=submitted2.json()["version"], token=tf.token_for(editor))
         self.assertEqual(self.codes(blocked), ["SELF_APPROVAL_NOT_ALLOWED"])
 
     def formula_with_lines_named(self, code):
@@ -407,6 +427,7 @@ class ApprovalCommandTests(ApprovalBase):
 
     def test_legacy_incomplete_history_fails_closed_only_when_self_approval_is_prohibited(self):
         formula, revision = self.formula_with_lines()
+        revision = self.submit_rev(formula, revision).json()
         FormulaRevision.objects.filter(pk=revision["id"]).update(contributor_history_complete=False)
         self.set_policy(allow_self_approval=False)
         response = self.approve(formula, revision)
@@ -418,11 +439,18 @@ class ApprovalCommandTests(ApprovalBase):
     def test_eligibility_blockers(self):
         self.set_policy()
         empty = self.make_formula(code="empty")
+        # An empty revision can never even be submitted (submit_formula_revision
+        # itself requires at least one line), so it always also carries
+        # REVISION_NOT_SUBMITTED alongside EMPTY_REVISION - there is no way to
+        # isolate EMPTY_REVISION on its own anymore.
         response = self.approve(empty, empty["revisions"][0])
-        self.assertEqual(self.codes(response), ["EMPTY_REVISION"])
-        self.assertEqual(response.json()["blocking_reasons"][0]["category"], "ELIGIBILITY")
+        self.assertEqual(sorted(self.codes(response)), ["EMPTY_REVISION", "REVISION_NOT_SUBMITTED"])
+        self.assertEqual(
+            {r["code"]: r["category"] for r in response.json()["blocking_reasons"]}["EMPTY_REVISION"], "ELIGIBILITY"
+        )
 
         formula, revision = self.formula_with_lines()
+        revision = self.submit_rev(formula, revision).json()
         Material.objects.filter(pk=self.raw.pk).update(is_active=False)
         self.assertEqual(self.codes(self.approve(formula, revision)), ["INACTIVE_MATERIAL"])
         Material.objects.filter(pk=self.raw.pk).update(is_active=True)
@@ -448,6 +476,7 @@ class ApprovalCommandTests(ApprovalBase):
             formula, formula["revisions"][0], {"expected_version": 1, "lines": [self.line(self.raw, "4")]}
         ).json()
         self.assertNotEqual(revision["output_uom_id"], self.product.sales_uom_id)
+        revision = self.submit_rev(formula, revision).json()
         response = self.approve(formula, revision)
         self.assertEqual(response.status_code, 200, response.content)
         self.assertEqual(response.json()["output_uom_id"], self.mass_unit.id)
@@ -457,6 +486,7 @@ class ApprovalCommandTests(ApprovalBase):
         company consistency - is unaffected by the unit relaxation.
         """
         formula, revision = self.formula_with_lines()
+        revision = self.submit_rev(formula, revision).json()
         self.set_policy()
         other_company_product = tf.make_product(self.other_company, "OTHERCO", self.count_unit, self.superuser)
         # Force an inconsistent state directly (never reachable through the
@@ -473,6 +503,7 @@ class ApprovalCommandTests(ApprovalBase):
         for code, lines in (("rawonly", [self.line(self.raw, "4")]), ("packonly", [self.line(self.pack, "3")])):
             formula = self.make_formula(code=code)
             revision = self.edit_rev(formula, formula["revisions"][0], {"expected_version": 1, "lines": lines}).json()
+            revision = self.submit_rev(formula, revision).json()
             self.assertEqual(self.approve(formula, revision).status_code, 200, code)
 
     def test_fractional_count_or_nonpositive_rows_are_blocked_by_the_shared_assessment(self):
@@ -484,6 +515,10 @@ class ApprovalCommandTests(ApprovalBase):
         lines[1].quantity = Decimal("2.5")  # COUNT unit
         lines[0].quantity = Decimal("0")
         policy = self.set_policy()
+        # In-memory only (not saved) - assess_approval is a pure function over
+        # whatever status it's handed, and this test is specifically about the
+        # quantity-eligibility checks, isolated from the submission gate.
+        stored.status = FormulaRevision.Status.SUBMITTED
         result = approval.assess_approval(
             stored, stored.formula, stored.formula.product, stored.output_uom, lines, policy,
             actor_is_contributor=False, actor_known=True,
@@ -502,6 +537,7 @@ class ApprovalCommandTests(ApprovalBase):
         new = tf.post_json(self.client_, tf.revisions_url(self.company.id, formula["id"]), {"base_output_quantity": "50"}, self.token).json()
         self.assertEqual(new["status"], "DRAFT")
         edited = self.edit_rev(formula, new, {"expected_version": new["version"], "lines": [self.line(self.raw, "1")]}).json()
+        edited = self.submit_rev(formula, edited).json()
         self.assertEqual(self.approve(formula, edited).status_code, 200)
         statuses = list(FormulaRevision.objects.filter(formula_id=formula["id"]).order_by("revision_number").values_list("status", flat=True))
         self.assertEqual(statuses, ["APPROVED", "APPROVED"])
@@ -518,7 +554,7 @@ class ApprovalCommandTests(ApprovalBase):
                     revision_id=revision["id"], expected_version=revision["version"],
                 )
         stored = FormulaRevision.objects.get(pk=revision["id"])
-        self.assertEqual((stored.status, stored.version, stored.approved_by_id, stored.approved_at), ("DRAFT", revision["version"], None, None))
+        self.assertEqual((stored.status, stored.version, stored.approved_by_id, stored.approved_at), ("SUBMITTED", revision["version"], None, None))
         self.assertEqual(stored.approved_identity_snapshot, None)
 
 
@@ -642,6 +678,7 @@ class ApprovalPreviewTests(ApprovalBase):
 
     def test_preview_uses_the_same_reasons_as_the_command(self):
         formula, revision = self.formula_with_lines()
+        revision = self.submit_rev(formula, revision).json()
         body = self.review(formula, revision).json()
         self.assertFalse(body["eligibility"]["ready_to_attempt"])
         self.assertEqual(body["eligibility"]["policy"]["status"], "NOT_CONFIGURED")
@@ -773,7 +810,7 @@ class ApprovalConcurrencyTests(TransactionTestCase):
         mass_unit = tf.make_unit(f"APK{suffix}", "MASS")
         product = tf.make_product(company, "P1", count_unit, superuser)
         raw = tf.make_material(f"APR{suffix}", "RAW_MATERIAL", mass_unit)
-        tf.grant(superuser, creator, company, "formulas.view", "formulas.create", "formulas.edit")
+        tf.grant(superuser, creator, company, "formulas.view", "formulas.create", "formulas.edit", "formulas.submit")
         tf.grant(superuser, approver, company, "formulas.view", "formulas.approve")
         FormulaApprovalPolicy.objects.create(company=company, allow_self_approval=False, created_by=superuser, updated_by=superuser)
         formula = services.create_formula(
@@ -784,8 +821,36 @@ class ApprovalConcurrencyTests(TransactionTestCase):
             actor=creator, revision_id=revision.id, expected_version=1,
             data={"lines": [{"material_id": raw.id, "quantity": Decimal("2")}]},
         )
+        # Direct ORM shortcut straight to SUBMITTED (skips the real submit
+        # endpoint/permission on purpose) - these tests are about locking/
+        # race behaviour around approve_formula_revision itself, not the
+        # submit step, and every test in this class already hardcodes
+        # expected_version=2 (the version right after the line update
+        # above); going through the real submit call would bump it to 3
+        # and require rewriting every one of those. Deliberately does NOT
+        # bump version, so expected_version=2 stays correct everywhere.
+        FormulaRevision.objects.filter(pk=revision.id).update(
+            status=FormulaRevision.Status.SUBMITTED, submitted_by=creator, submitted_at=timezone.now()
+        )
         return dict(superuser=superuser, creator=creator, approver=approver, company=company, product=product,
                     raw=raw, mass_unit=mass_unit, count_unit=count_unit, formula=formula, revision_id=revision.id)
+
+    def _submit_call(self, ctx, results, key="submit", version=2):
+        def run():
+            try:
+                submit_formula_revision(
+                    actor=ctx["creator"], company_id=ctx["company"].id, formula_id=ctx["formula"].id,
+                    revision_id=ctx["revision_id"], expected_version=version,
+                )
+                results[key] = "ok"
+            except Conflict:
+                results[key] = "conflict"
+            except Exception as exc:  # noqa: BLE001 - reported through the assertion
+                results[key] = exc
+            finally:
+                connection.close()
+
+        return run
 
     def _approve_call(self, ctx, results, key="approve", version=2):
         def run():
@@ -845,11 +910,21 @@ class ApprovalConcurrencyTests(TransactionTestCase):
         stored = FormulaRevision.objects.get(pk=ctx["revision_id"])
         self.assertEqual((stored.status, stored.version), ("APPROVED", 3))
 
-    def test_approval_versus_edit_race_has_one_winner_and_no_partial_update(self):
+    def test_submit_versus_edit_race_has_one_winner_and_no_partial_update(self):
+        # _setup() pre-submits the revision (SUBMITTED) so every other
+        # ApprovalConcurrencyTests method can call approve_formula_revision
+        # directly at expected_version=2. This test is about the EARLIER
+        # race - an edit versus a submit, both still against a DRAFT
+        # revision at version 2 - so it reverts that one setup step
+        # without touching the version, keeping expected_version=2 valid
+        # for both sides of the race below.
         ctx = self._setup("B")
+        FormulaRevision.objects.filter(pk=ctx["revision_id"]).update(
+            status=FormulaRevision.Status.DRAFT, submitted_by=None, submitted_at=None
+        )
         results = {}
         barrier = threading.Barrier(2)
-        approve = self._approve_call(ctx, results)
+        submit = self._submit_call(ctx, results, key="submit")
 
         def edit():
             try:
@@ -865,11 +940,11 @@ class ApprovalConcurrencyTests(TransactionTestCase):
             finally:
                 connection.close()
 
-        def approve_after_barrier():
+        def submit_after_barrier():
             barrier.wait(timeout=5)
-            approve()
+            submit()
 
-        threads = [threading.Thread(target=edit), threading.Thread(target=approve_after_barrier)]
+        threads = [threading.Thread(target=edit), threading.Thread(target=submit_after_barrier)]
         for t in threads:
             t.start()
         for t in threads:
@@ -877,11 +952,11 @@ class ApprovalConcurrencyTests(TransactionTestCase):
         self.assertEqual(sorted(results.values(), key=str), ["conflict", "ok"], results)
         stored = FormulaRevision.objects.get(pk=ctx["revision_id"])
         self.assertEqual(stored.version, 3)
-        if results["approve"] == "ok":
-            self.assertEqual((stored.status, stored.notes), ("APPROVED", ""))
+        if results["submit"] == "ok":
+            self.assertEqual((stored.status, stored.notes), ("SUBMITTED", ""))
         else:
             self.assertEqual((stored.status, stored.notes), ("DRAFT", "edited"))
-            self.assertIsNone(stored.approved_by_id)
+            self.assertIsNone(stored.submitted_by_id)
 
     def test_product_deactivation_waits_for_an_in_flight_approval(self):
         ctx = self._setup("C")

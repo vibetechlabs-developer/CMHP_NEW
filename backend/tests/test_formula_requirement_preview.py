@@ -290,6 +290,107 @@ class CalculationTests(PreviewBase):
         self.assertEqual([l["quantity"] for l in stored["lines"]][:3], ["10.000", "5.000", "8.000"])
 
 
+class LabelClaimCalculationTests(PreviewBase):
+    """calculation_mode=AS_PER_LABEL_CLAIM: required = target_output_quantity
+    / label_claim_quantity, converted into the formula's own output unit via
+    canonical_factor (the same conversion apps.batch_plans.validation.
+    compute_expected_packed_content uses for an identical same-dimension
+    conversion). This line's own stored quantity/unit are not used.
+    """
+
+    def setUp(self):
+        super().setUp()
+        n = next(_n)
+        self.ml = UnitOfMeasure.objects.create(code=f"PML{n}", name="Millilitre", dimension="VOLUME", canonical_factor=Decimal("1"))
+        self.liter = UnitOfMeasure.objects.create(code=f"PL{n}", name="Litre", dimension="VOLUME", canonical_factor=Decimal("1000"))
+        self.liquid_product = tf.make_product(self.company, f"PLQ{n}", self.liter, self.superuser)
+        self.bottle = tf.make_material(f"PBTL{n}", "PACKAGING_MATERIAL", self.count_unit)
+
+    def liquid_formula(self, base="5"):
+        body = self.create(product_id=self.liquid_product.id, code="LQF", name="Liquid", base_output_quantity=base)
+        self.assertEqual(body.status_code, 201, body.content)
+        return body.json()
+
+    def test_same_unit_division(self):
+        # Output unit is Litre (factor 1000); label claim is 100 ml/bottle
+        # (same unit as the claim itself) - target 5000 ml worth of output
+        # (5 L) needs 50 bottles.
+        formula = self.liquid_formula(base="5")
+        revision = formula["revisions"][0]
+        line = self.line(
+            self.bottle, "1", calculation_mode="AS_PER_LABEL_CLAIM", label_claim_quantity="100", label_claim_uom_id=self.ml.id
+        )
+        self.edit_rev(formula, revision, {"expected_version": 1, "lines": [line]})
+        body = self.preview(formula, revision, "5").json()
+        row = self.by_code(body)[self.bottle.code]
+        self.assertEqual(row["required_quantity"]["value"], "50")
+        self.assertTrue(row["required_quantity"]["is_exact"])
+        self.assertTrue(row["required_quantity"]["is_whole_number"])
+        self.assertEqual(row["calculation_mode"], "AS_PER_LABEL_CLAIM")
+        self.assertEqual(row["label_claim_quantity"], "100.000")
+        self.assertEqual(row["label_claim_uom_code"], self.ml.code)
+        self.assertEqual(body["warnings"], [])
+
+    def test_cross_unit_conversion_target_in_liters_claim_in_ml(self):
+        # Target output quantity is ALWAYS in the formula's own output unit
+        # (Litre here). The label claim is in ml - converted via
+        # canonical_factor before dividing: 5 L = 5000 ml; 5000 / 100 = 50.
+        formula = self.liquid_formula(base="5")
+        revision = formula["revisions"][0]
+        line = self.line(
+            self.bottle, "1", calculation_mode="AS_PER_LABEL_CLAIM", label_claim_quantity="100", label_claim_uom_id=self.ml.id
+        )
+        self.edit_rev(formula, revision, {"expected_version": 1, "lines": [line]})
+        body = self.preview(formula, revision, "5").json()
+        self.assertEqual(self.by_code(body)[self.bottle.code]["required_quantity"]["value"], "50")
+
+    def test_fractional_result_is_shown_unrounded_with_its_own_warning(self):
+        formula = self.liquid_formula(base="5")
+        revision = formula["revisions"][0]
+        line = self.line(
+            self.bottle, "1", calculation_mode="AS_PER_LABEL_CLAIM", label_claim_quantity="150", label_claim_uom_id=self.ml.id
+        )
+        self.edit_rev(formula, revision, {"expected_version": 1, "lines": [line]})
+        # 5 L = 5000 ml; 5000 / 150 = 33.333...
+        body = self.preview(formula, revision, "5").json()
+        row = self.by_code(body)[self.bottle.code]
+        self.assertFalse(row["required_quantity"]["is_exact"])
+        self.assertFalse(row["required_quantity"]["is_whole_number"])
+        warnings = [w for w in body["warnings"] if w["code"] == "FRACTIONAL_LABEL_CLAIM_REQUIREMENT"]
+        self.assertEqual(len(warnings), 1)
+        self.assertNotIn("FRACTIONAL_COUNT_REQUIREMENT", [w["code"] for w in body["warnings"]])
+
+    def test_the_lines_own_stored_quantity_is_not_used_in_the_calculation(self):
+        # The line's own quantity ("999", nonsense relative to base output 5)
+        # must be completely ignored in AS_PER_LABEL_CLAIM mode.
+        formula = self.liquid_formula(base="5")
+        revision = formula["revisions"][0]
+        line = self.line(
+            self.bottle, "999", calculation_mode="AS_PER_LABEL_CLAIM", label_claim_quantity="100", label_claim_uom_id=self.ml.id
+        )
+        self.edit_rev(formula, revision, {"expected_version": 1, "lines": [line]})
+        body = self.preview(formula, revision, "5").json()
+        self.assertEqual(self.by_code(body)[self.bottle.code]["required_quantity"]["value"], "50")
+
+    def test_mixed_formula_and_label_claim_lines_in_one_preview(self):
+        formula = self.liquid_formula(base="5")
+        revision = formula["revisions"][0]
+        raw = tf.make_material(f"PRAW{next(_n)}", "RAW_MATERIAL", self.mass_unit)
+        lines = [
+            self.line(raw, "2"),  # AS_PER_FORMULA - scales with target/base = 2
+            self.line(
+                self.bottle, "1", calculation_mode="AS_PER_LABEL_CLAIM", label_claim_quantity="100", label_claim_uom_id=self.ml.id
+            ),
+        ]
+        self.edit_rev(formula, revision, {"expected_version": 1, "lines": lines})
+        body = self.preview(formula, revision, "5").json()
+        by = self.by_code(body)
+        self.assertEqual(by[raw.code]["calculation_mode"], "AS_PER_FORMULA")
+        self.assertEqual(by[raw.code]["required_quantity"]["value"], "2")
+        self.assertEqual(by[self.bottle.code]["calculation_mode"], "AS_PER_LABEL_CLAIM")
+        self.assertEqual(by[self.bottle.code]["required_quantity"]["value"], "50")
+
+
 class TargetValidationTests(PreviewBase):
     def setUp(self):
         super().setUp()

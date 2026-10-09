@@ -22,6 +22,16 @@ export async function listMaterials({ search = '', kind = '', isActive = '', pag
   return { count: response.data.count || 0, results: rows(response.data) }
 }
 
+// One material's own identity (code/name/type/base unit/status) - the
+// same read the catalog list already shows, just for a single id. Access
+// is the shared-catalog read permission, independent of any store's
+// stock.view - a material can be visible here while its register (below)
+// is not authorized for the signed-in user at all.
+export async function getMaterial(materialId) {
+  const response = await api.get(`/v1/materials/${materialId}/`)
+  return response.data
+}
+
 export async function createMaterial(payload) {
   const response = await api.post('/v1/materials/', payload)
   return response.data
@@ -69,16 +79,33 @@ export async function listLocations(storeId, { page = 1, pageSize = 50 } = {}) {
 }
 
 // Recorded receipts only. Read-only; coverage notice comes from the server.
-export async function listRecordedReceipts(storeId, { material = '', page = 1, pageSize = 50 } = {}) {
+// `postedFrom`/`postedTo` (YYYY-MM-DD, inclusive) filter by the movement's
+// own posting date - the server echoes back exactly which window was
+// applied in `period`, so callers never have to guess.
+export async function listRecordedReceipts(storeId, { material = '', postedFrom = '', postedTo = '', page = 1, pageSize = 50 } = {}) {
   const params = { page, page_size: pageSize }
   if (material) params.material = material
+  if (postedFrom) params.posted_from = postedFrom
+  if (postedTo) params.posted_to = postedTo
   const response = await api.get(`/v1/stores/${storeId}/stock-movements/`, { params })
-  return { count: response.data.count || 0, results: rows(response.data), coverage: response.data.coverage || null }
+  return {
+    count: response.data.count || 0,
+    results: rows(response.data),
+    coverage: response.data.coverage || null,
+    period: response.data.period || null,
+  }
 }
 
-export async function listRecordedReceiptBalances(storeId, { material = '', page = 1, pageSize = 50 } = {}) {
+export async function listRecordedReceiptBalances(storeId, { material = '', postedFrom = '', postedTo = '', page = 1, pageSize = 50 } = {}) {
   const params = { page, page_size: pageSize }
   if (material) params.material = material
+  if (postedFrom) params.posted_from = postedFrom
+  if (postedTo) params.posted_to = postedTo
   const response = await api.get(`/v1/stores/${storeId}/stock-balances/`, { params })
-  return { count: response.data.count || 0, results: rows(response.data), coverage: response.data.coverage || null }
+  return {
+    count: response.data.count || 0,
+    results: rows(response.data),
+    coverage: response.data.coverage || null,
+    period: response.data.period || null,
+  }
 }

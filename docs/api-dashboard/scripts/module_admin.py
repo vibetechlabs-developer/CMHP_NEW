@@ -428,11 +428,18 @@ for kind, seg, screen, code_ex, name_ex, extra_fields, extra_ex in [
        response_example=dict({"id": 1, "code": code_ex, "name": name_ex, "is_active": True}, **extra_ex),
        response_status=201, errors=STD_ERRORS_RW, notes=CATALOG_NOTE, source_files=["apps/catalog/views.py", "apps/catalog/serializers.py"])
     id_param = "unit_id" if kind == "units" else ("category_id" if kind == "material-categories" else "material_id")
+    detail_screen = f"{screen}, STK-02" if kind == "materials" else screen
+    detail_notes = (
+        CATALOG_NOTE + " Material Register task: also reused, unchanged, as the header data source for STK-02 — "
+        "catalog read access (shared_catalog.view, any store) is a deliberately SEPARATE permission axis from a "
+        "store's own stock.view, so a material can be visible on STK-02 while its register (stock-movements/"
+        "stock-balances) is not authorized for the same user at all."
+    ) if kind == "materials" else CATALOG_NOTE
     op("catalog", "GET", f"/api/v1/{seg}/<{id_param}>/", f"{kind[:-1].capitalize()} detail", "shared (cross-company)",
-       read_perm, screen, "not applicable", f"Detail of one {kind[:-1]}.",
+       read_perm, detail_screen, "not applicable", f"Detail of one {kind[:-1]}.",
        path_params=[{"name": id_param, "type": "int"}],
        response_example=dict({"id": 1, "code": code_ex, "name": name_ex, "is_active": True}, **extra_ex),
-       errors=STD_ERRORS_RW, notes=CATALOG_NOTE, source_files=["apps/catalog/views.py"])
+       errors=STD_ERRORS_RW, notes=detail_notes, source_files=["apps/catalog/views.py"])
     op("catalog", "PATCH", f"/api/v1/{seg}/<{id_param}>/", f"Edit {kind[:-1]} name", "shared (cross-company)",
        ["active superuser"], screen, "no (no version concept in this module)", "Edits name (and description for materials). code and other immutable fields cannot change.",
        path_params=[{"name": id_param, "type": "int"}],

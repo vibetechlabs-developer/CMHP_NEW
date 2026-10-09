@@ -148,9 +148,29 @@ describe('revision editor payload', () => {
     const payload = buildRevisionLinesPayload({ allLines, kind: 'RAW_MATERIAL', rows })
     expect(payload).toEqual([
       { id: 12, material_id: 200, quantity: '25.000', notes: '' },
-      { id: 11, material_id: 100, quantity: '12.000', notes: 'raw one', label_claim: '', special_value: '', ar_no: '' },
-      { material_id: 300, quantity: '5.000', notes: '', label_claim: '', special_value: '', ar_no: '' },
+      {
+        id: 11, material_id: 100, quantity: '12.000', notes: 'raw one',
+        label_claim: '', special_value: '', ar_no: '', calculation_mode: 'AS_PER_FORMULA',
+      },
+      {
+        material_id: 300, quantity: '5.000', notes: '',
+        label_claim: '', special_value: '', ar_no: '', calculation_mode: 'AS_PER_FORMULA',
+      },
     ])
+  })
+
+  it('sends label_claim_quantity/label_claim_uom_id only for an AS_PER_LABEL_CLAIM row, never for AS_PER_FORMULA', () => {
+    const rows = [
+      {
+        id: 20, material: { id: 400 }, quantity: '1.000', notes: '',
+        calculation_mode: 'AS_PER_LABEL_CLAIM', label_claim_quantity: '100', label_claim_uom: { id: 7 },
+      },
+      { id: 21, material: { id: 401 }, quantity: '2.000', notes: '', calculation_mode: 'AS_PER_FORMULA' },
+    ]
+    const payload = buildRevisionLinesPayload({ allLines: [], kind: 'PACKAGING_MATERIAL', rows })
+    expect(payload[0]).toMatchObject({ calculation_mode: 'AS_PER_LABEL_CLAIM', label_claim_quantity: '100', label_claim_uom_id: 7 })
+    expect(payload[1]).not.toHaveProperty('label_claim_quantity')
+    expect(payload[1]).not.toHaveProperty('label_claim_uom_id')
   })
 })
 

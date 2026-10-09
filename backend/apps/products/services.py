@@ -1,14 +1,46 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import ProtectedError
+from django.db.models import Count, ProtectedError
 from rest_framework import exceptions
 
 from apps.audit.services import record
+from apps.catalog.models import UnitOfMeasure
 from apps.common.errors import Conflict
 from apps.products.models import Product
 
-PRODUCT_TRACKED_FIELDS = ["name", "description", "product_type"]
+PRODUCT_TRACKED_FIELDS = ["name", "description", "product_type", "bmr_no"]
+
+
+def resolve_default_sales_uom(company):
+    """Picks a sales unit automatically when the caller (the "Create
+    product" form, as of this task) does not supply one - the form no
+    longer asks for it, but `Product.sales_uom` itself is still required
+    and immutable (see Product's own docstring on why: batch planning's
+    unit-relationship check depends on every product having one). Never
+    arbitrary: prefers whichever ACTIVE unit this company's own existing
+    products already use most, falling back to the most-used active unit
+    across every company only when this company has no products yet, so
+    a brand-new company's very first product still gets a sensible
+    starting point instead of an error. Returns None only when no active
+    unit exists anywhere yet - the caller must surface that clearly
+    rather than create a product that silently has no usable unit.
+    """
+    for scope in (
+        Product.objects.filter(company=company, sales_uom__is_active=True),
+        Product.objects.filter(sales_uom__is_active=True),
+    ):
+        uom_id = (
+            scope.values("sales_uom_id")
+            .annotate(n=Count("id"))
+            .order_by("-n", "sales_uom_id")
+            .values_list("sales_uom_id", flat=True)
+            .first()
+        )
+        if uom_id is not None:
+            return UnitOfMeasure.objects.get(pk=uom_id)
+
+    return None
 
 
 def _product_snapshot(product):
@@ -29,7 +61,7 @@ def _duplicate_product_code_error():
 
 
 @transaction.atomic
-def create_product(*, actor, company, code, name, sales_uom, description="", product_type=""):
+def create_product(*, actor, company, code, name, sales_uom, description="", product_type="", bmr_no=""):
     """`company` is always the URL's resolved company (see
     apps.products.views) - never accepted from the request body.
     `sales_uom` must be active at creation (mirrors apps.catalog.
@@ -37,8 +69,9 @@ def create_product(*, actor, company, code, name, sales_uom, description="", pro
     product must never be created already pointing at a unit that cannot
     currently be used. A duplicate `(company, code)` is handled here, not
     left to propagate as an unhandled 500 - see
-    `_duplicate_product_code_error`. `product_type` (Task 12B-1) is plain
-    optional metadata, same treatment as `description`.
+    `_duplicate_product_code_error`. `product_type` (Task 12B-1) and
+    `bmr_no` are both plain optional metadata, same treatment as
+    `description`.
     """
     if not sales_uom.is_active:
         raise DjangoValidationError({"sales_uom": "Sales unit of measure is inactive."})
@@ -46,7 +79,7 @@ def create_product(*, actor, company, code, name, sales_uom, description="", pro
     try:
         product = Product(
             company=company, code=code, name=name, description=description, product_type=product_type,
-            sales_uom=sales_uom, created_by=actor,
+            bmr_no=bmr_no, sales_uom=sales_uom, created_by=actor,
         )
         product.save()
     except IntegrityError as exc:

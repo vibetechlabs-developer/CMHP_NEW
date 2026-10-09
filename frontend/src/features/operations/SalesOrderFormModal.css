@@ -237,6 +237,59 @@
   line-height: 1.5;
 }
 
+.sof-reasons-blocking {
+  color: #b42318;
+}
+
+.sof-reasons-info {
+  color: #6b7f95;
+}
+
+.sof-status-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.sof-status-draft {
+  background: #fff8ec;
+  color: #8a5a00;
+  border: 1px solid #f2d3a2;
+}
+
+.sof-status-confirmed {
+  background: #eaf7ef;
+  color: #1d7a3d;
+  border: 1px solid #bfe3cb;
+}
+
+.sof-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sof-review {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #e3ebf1;
+  border-radius: 8px;
+  background: #f8fbfd;
+}
+
+.sof-subtotal {
+  margin: 0;
+  font-size: 13px;
+  color: #163b59;
+}
+
 .sof-group {
   display: flex;
   flex-direction: column;

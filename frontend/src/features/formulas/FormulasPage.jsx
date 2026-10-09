@@ -28,6 +28,18 @@ import {
 } from './formulasService'
 import './FormulasPage.css'
 
+// A formula's output unit is only ever a mass or volume quantity in this
+// business (never a count) - offer just these four real units instead of
+// the full shared catalog (which also holds unrelated packaging/demo
+// units). Falls back to the full list if none of these happen to exist
+// yet, so the dropdown is never silently empty.
+const OUTPUT_UNIT_CODES = ['GM', 'KG', 'ML', 'L']
+
+function filterToOutputUnitChoices(units) {
+  const filtered = units.filter((u) => OUTPUT_UNIT_CODES.includes((u.code || '').toUpperCase()))
+  return filtered.length ? filtered : units
+}
+
 const PAGE_SIZE = 20
 const RAW = 'RAW_MATERIAL'
 const PACKAGING = 'PACKAGING_MATERIAL'
@@ -427,8 +439,6 @@ function RevisionBadge({ status }) {
 
 function FormulaCreateForm({ companyId, lockedProduct = null, onCancel, onCreated }) {
   const [product, setProduct] = useState(lockedProduct)
-  const [code, setCode] = useState('')
-  const [name, setName] = useState('')
   const [quantity, setQuantity] = useState('')
   const [unit, setUnit] = useState(null)
   const [units, setUnits] = useState([])
@@ -438,7 +448,7 @@ function FormulaCreateForm({ companyId, lockedProduct = null, onCancel, onCreate
   useEffect(() => {
     let cancelled = false
     listPlanningUnits(companyId)
-      .then((rows) => !cancelled && setUnits(rows))
+      .then((rows) => !cancelled && setUnits(filterToOutputUnitChoices(rows)))
       .catch(() => !cancelled && setUnits([]))
     return () => {
       cancelled = true
@@ -447,17 +457,17 @@ function FormulaCreateForm({ companyId, lockedProduct = null, onCancel, onCreate
 
   const submit = async () => {
     if (saving) return
-    if (!product || !code.trim() || !name.trim() || !quantity.trim() || !unit) {
-      setError('Choose a product, enter a code and name, the base output quantity and its output unit.')
+    if (!product || !quantity.trim() || !unit) {
+      setError('Choose a product, the batch no. and its output unit.')
       return
     }
     setSaving(true)
     setError('')
     try {
+      // No code/name - the server generates both from the product
+      // (apps.formulas.services.create_formula / _generate_formula_code_and_name).
       const created = await createFormula(companyId, {
         product_id: Number(product.id),
-        code: code.trim(),
-        name: name.trim(),
         base_output_quantity: quantity.trim(),
         output_uom_id: Number(unit.id),
       })
@@ -494,15 +504,7 @@ function FormulaCreateForm({ companyId, lockedProduct = null, onCancel, onCreate
           )}
         </div>
         <div className="field">
-          <label className="fm-field-label" htmlFor="fm-code">Formula code</label>
-          <input id="fm-code" className="field-input" value={code} onChange={(e) => setCode(e.target.value)} />
-        </div>
-        <div className="field">
-          <label className="fm-field-label" htmlFor="fm-name">Formula name</label>
-          <input id="fm-name" className="field-input" value={name} onChange={(e) => setName(e.target.value)} />
-        </div>
-        <div className="field">
-          <label className="fm-field-label" htmlFor="fm-qty">Base output quantity</label>
+          <label className="fm-field-label" htmlFor="fm-qty">Batch No.</label>
           <input id="fm-qty" className="field-input" inputMode="decimal" value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="e.g. 100" />
         </div>
         <div className="field">
@@ -541,7 +543,7 @@ function NewRevisionDialog({ companyId, formulaId, onCancel, onCreated }) {
   useEffect(() => {
     let cancelled = false
     listPlanningUnits(companyId)
-      .then((rows) => !cancelled && setUnits(rows))
+      .then((rows) => !cancelled && setUnits(filterToOutputUnitChoices(rows)))
       .catch(() => !cancelled && setUnits([]))
     return () => {
       cancelled = true
@@ -551,7 +553,7 @@ function NewRevisionDialog({ companyId, formulaId, onCancel, onCreated }) {
   const submit = async () => {
     if (saving) return
     if (!quantity.trim() || !unitId) {
-      setError('Enter the base output quantity and choose its output unit.')
+      setError('Enter the batch no. and choose its output unit.')
       return
     }
     setSaving(true)
@@ -588,7 +590,7 @@ function NewRevisionDialog({ companyId, formulaId, onCancel, onCreated }) {
       <p className="field-muted">A new revision starts with an empty material list.</p>
       <div className="fm-form-grid fm-form-grid-single">
         <div className="field">
-          <label className="fm-field-label" htmlFor="fm-rev-qty">Base output quantity</label>
+          <label className="fm-field-label" htmlFor="fm-rev-qty">Batch No.</label>
           <input id="fm-rev-qty" className="field-input" inputMode="decimal" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
         </div>
         <div className="field">
@@ -627,6 +629,11 @@ function RevisionView({ companyId, formulaId, revision, canEdit, canApprove, onD
         label_claim: line.label_claim || '',
         special_value: line.special_value || '',
         ar_no: line.ar_no || '',
+        calculation_mode: line.calculation_mode || 'AS_PER_FORMULA',
+        label_claim_quantity: line.label_claim_quantity || '',
+        label_claim_uom: line.label_claim_uom_id
+          ? { id: line.label_claim_uom_id, code: line.label_claim_uom_code, label: `${line.label_claim_uom_name} (${line.label_claim_uom_code})` }
+          : null,
       }))
 
   const initialSnapshot = JSON.stringify({ [RAW]: initialRows(RAW), [PACKAGING]: initialRows(PACKAGING) })
@@ -655,6 +662,16 @@ function RevisionView({ companyId, formulaId, revision, canEdit, canApprove, onD
     const notPositive = allRows.filter((row) => !(Number(String(row.quantity).trim()) > 0))
     if (notPositive.length) {
       setError(`The base quantity must be more than zero for: ${notPositive.map((row) => row.material.name).join(', ')}.`)
+      return
+    }
+    const labelClaimRows = allRows.filter((row) => row.calculation_mode === 'AS_PER_LABEL_CLAIM')
+    const missingClaim = labelClaimRows.filter(
+      (row) => !String(row.label_claim_quantity || '').trim() || !row.label_claim_uom
+    )
+    if (missingClaim.length) {
+      setError(
+        `"As per label claim" needs a claim quantity and unit for: ${missingClaim.map((row) => row.material.name).join(', ')}.`
+      )
       return
     }
     setSaving(true)
@@ -712,6 +729,7 @@ function RevisionView({ companyId, formulaId, revision, canEdit, canApprove, onD
           rows={rowsByKind[RAW]}
           setRows={(next) => setRowsByKind((prev) => ({ ...prev, [RAW]: next }))}
           editable={editable}
+          companyId={companyId}
         />
       </section>
 
@@ -722,6 +740,7 @@ function RevisionView({ companyId, formulaId, revision, canEdit, canApprove, onD
           rows={rowsByKind[PACKAGING]}
           setRows={(next) => setRowsByKind((prev) => ({ ...prev, [PACKAGING]: next }))}
           editable={editable}
+          companyId={companyId}
         />
       </section>
 
@@ -754,8 +773,22 @@ function RevisionView({ companyId, formulaId, revision, canEdit, canApprove, onD
   )
 }
 
-function MaterialTable({ title, kind, rows, setRows, editable }) {
+function MaterialTable({ title, kind, rows, setRows, editable, companyId }) {
   const [pickerOpen, setPickerOpen] = useState(false)
+  // Same restricted GM/KG/ML/L set as the formula's own output unit - a
+  // label claim unit must share the output unit's dimension (checked
+  // server-side), so there is never a reason to offer anything wider here.
+  const [claimUnits, setClaimUnits] = useState([])
+
+  useEffect(() => {
+    let cancelled = false
+    listPlanningUnits(companyId)
+      .then((rows) => !cancelled && setClaimUnits(filterToOutputUnitChoices(rows)))
+      .catch(() => !cancelled && setClaimUnits([]))
+    return () => {
+      cancelled = true
+    }
+  }, [companyId])
 
   const addRow = (material) => {
     setRows([
@@ -769,6 +802,9 @@ function MaterialTable({ title, kind, rows, setRows, editable }) {
         label_claim: '',
         special_value: '',
         ar_no: '',
+        calculation_mode: 'AS_PER_FORMULA',
+        label_claim_quantity: '',
+        label_claim_uom: null,
       },
     ])
     setPickerOpen(false)
@@ -834,6 +870,9 @@ function MaterialTable({ title, kind, rows, setRows, editable }) {
             <colgroup>
               <col className="fm-c-sr" />
               <col className="fm-c-material" />
+              <col className="fm-c-calc" />
+              <col className="fm-c-qty" />
+              <col className="fm-c-unit" />
               <col className="fm-c-qty" />
               <col className="fm-c-unit" />
               <col className="fm-c-text" />
@@ -845,8 +884,11 @@ function MaterialTable({ title, kind, rows, setRows, editable }) {
               <tr>
                 <th scope="col">Sr.</th>
                 <th scope="col">Material</th>
+                <th scope="col">Requisite</th>
                 <th scope="col" className="num">Base quantity</th>
                 <th scope="col">Unit</th>
+                <th scope="col" className="num">Label claim qty</th>
+                <th scope="col">Label claim unit</th>
                 <th scope="col">Special value</th>
                 <th scope="col">Label claim</th>
                 <th scope="col">AR No.</th>
@@ -863,6 +905,40 @@ function MaterialTable({ title, kind, rows, setRows, editable }) {
                     </span>
                     <span className="fm-cell-code">{row.material.code}</span>
                   </td>
+                  <td data-label="Requisite">
+                    {editable ? (
+                      <select
+                        className="field-input"
+                        aria-label={`Requisite for ${row.material.name}`}
+                        value={row.calculation_mode || 'AS_PER_FORMULA'}
+                        onChange={(e) =>
+                          setRows(
+                            rows.map((r, i) =>
+                              i === index
+                                ? {
+                                    ...r,
+                                    calculation_mode: e.target.value,
+                                    // Clear the claim fields when switching back to
+                                    // As per formula - the server rejects them
+                                    // outright if still present in that mode.
+                                    ...(e.target.value === 'AS_PER_FORMULA'
+                                      ? { label_claim_quantity: '', label_claim_uom: null }
+                                      : {}),
+                                  }
+                                : r
+                            )
+                          )
+                        }
+                      >
+                        <option value="AS_PER_FORMULA">As per formula</option>
+                        <option value="AS_PER_LABEL_CLAIM">As per label claim</option>
+                      </select>
+                    ) : (
+                      <span className="fm-num">
+                        {row.calculation_mode === 'AS_PER_LABEL_CLAIM' ? 'As per label claim' : 'As per formula'}
+                      </span>
+                    )}
+                  </td>
                   <td className="num" data-label="Base quantity">
                     {editable ? (
                       <input
@@ -877,6 +953,55 @@ function MaterialTable({ title, kind, rows, setRows, editable }) {
                     )}
                   </td>
                   <td data-label="Unit">{row.unit || '—'}</td>
+                  <td className="num" data-label="Label claim qty">
+                    {row.calculation_mode === 'AS_PER_LABEL_CLAIM' ? (
+                      editable ? (
+                        <input
+                          className="field-input fm-qty-input"
+                          inputMode="decimal"
+                          aria-label={`Label claim quantity for ${row.material.name}`}
+                          placeholder="e.g. 100"
+                          value={row.label_claim_quantity}
+                          onChange={(e) => setRows(rows.map((r, i) => (i === index ? { ...r, label_claim_quantity: e.target.value } : r)))}
+                        />
+                      ) : (
+                        <span className="fm-num">{row.label_claim_quantity || '—'}</span>
+                      )
+                    ) : (
+                      <span className="fm-num is-muted">—</span>
+                    )}
+                  </td>
+                  <td data-label="Label claim unit">
+                    {row.calculation_mode === 'AS_PER_LABEL_CLAIM' ? (
+                      editable ? (
+                        <select
+                          className="field-input"
+                          aria-label={`Label claim unit for ${row.material.name}`}
+                          value={row.label_claim_uom?.id || ''}
+                          onChange={(e) =>
+                            setRows(
+                              rows.map((r, i) =>
+                                i === index
+                                  ? { ...r, label_claim_uom: claimUnits.find((u) => String(u.id) === e.target.value) || null }
+                                  : r
+                              )
+                            )
+                          }
+                        >
+                          <option value="">Choose a unit</option>
+                          {claimUnits.map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        row.label_claim_uom?.code || '—'
+                      )
+                    ) : (
+                      '—'
+                    )}
+                  </td>
                   <td data-label="Special value">
                     <FieldText value={row.special_value} label={`Special value for ${row.material.name}`} editable={editable} placeholder="e.g. Q.S."
                       onChange={(v) => setRows(rows.map((r, i) => (i === index ? { ...r, special_value: v } : r)))} />

@@ -50,8 +50,8 @@ describe('formula created from the product workspace', () => {
     fireEvent.click(await screen.findByText('+ New Formula'))
     expect(await screen.findByText('P-7 · Demo Product')).toBeTruthy()
 
-    fireEvent.change(document.getElementById('fm-code'), { target: { value: 'F-T' } })
-    fireEvent.change(document.getElementById('fm-name'), { target: { value: 'Test formula' } })
+    // No code/name inputs anymore - the server generates both from the
+    // product (see apps.formulas.services.create_formula).
     fireEvent.change(document.getElementById('fm-qty'), { target: { value: '100' } })
     await waitFor(() => expect(screen.getByText('Bottle (BTL)')).toBeTruthy())
     fireEvent.change(document.getElementById('fm-unit'), { target: { value: '5' } })
@@ -61,8 +61,6 @@ describe('formula created from the product workspace', () => {
     await waitFor(() => expect(createFormula).toHaveBeenCalledTimes(1))
     expect(createFormula).toHaveBeenCalledWith(2, {
       product_id: 7,
-      code: 'F-T',
-      name: 'Test formula',
       base_output_quantity: '100',
       output_uom_id: 5,
     })

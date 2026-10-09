@@ -8,11 +8,23 @@ from apps.formulas.views import (
     RevisionApproveView,
     RevisionDetailView,
     RevisionListCreateView,
+    RevisionRejectView,
     RevisionRequirementPreviewView,
+    RevisionSubmitView,
 )
 
 urlpatterns = [
     path("<int:company_id>/formula-approval-policy/", ApprovalPolicyView.as_view(), name="formula-approval-policy"),
+    path(
+        "<int:company_id>/formulas/<int:formula_id>/revisions/<int:revision_id>/submit/",
+        RevisionSubmitView.as_view(),
+        name="formula-revision-submit",
+    ),
+    path(
+        "<int:company_id>/formulas/<int:formula_id>/revisions/<int:revision_id>/reject/",
+        RevisionRejectView.as_view(),
+        name="formula-revision-reject",
+    ),
     path(
         "<int:company_id>/formulas/<int:formula_id>/revisions/<int:revision_id>/approve/",
         RevisionApproveView.as_view(),

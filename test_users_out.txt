@@ -1,0 +1,411 @@
+Creating test database for alias 'default'...
+Got an error creating the test database: database "test_cmhp_new_dev" already exists
+Destroying old test database for alias 'default'...
+....[2026-10-05 15:27:22,103] WARNING django.request: Unauthorized: /api/v1/auth/me/
+.[2026-10-05 15:27:24,018] WARNING django.request: Unauthorized: /api/v1/auth/refresh/
+.[2026-10-05 15:27:26,612] WARNING django.request: Forbidden: /api/v1/users/15/activate/
+.[2026-10-05 15:27:29,247] WARNING django.request: Forbidden: /api/v1/users/18/deactivate/
+.[2026-10-05 15:27:31,042] WARNING django.request: Bad Request: /api/v1/users/19/deactivate/
+.[2026-10-05 15:27:33,029] ERROR django.request: Internal Server Error: /api/v1/users/22/memberships/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\generic\base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\utils\decorators.py", line 48, in _wrapper
+    return bound_method(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\cache.py", line 80, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\users\views.py", line 183, in post
+    membership, created = assign_company_membership(actor=request.user, user=user, company=company)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\contextlib.py", line 81, in inner
+    return func(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\users\services.py", line 150, in assign_company_membership
+    record(
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1198, in _execute_mock_call
+    raise effect
+RuntimeError: boom
+.[2026-10-05 15:27:34,931] ERROR django.request: Internal Server Error: /api/v1/users/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\generic\base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\utils\decorators.py", line 48, in _wrapper
+    return bound_method(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\cache.py", line 80, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\generics.py", line 246, in post
+    return self.create(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\users\views.py", line 89, in create
+    user = create_user(actor=request.user, **serializer.validated_data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\contextlib.py", line 81, in inner
+    return func(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\users\services.py", line 63, in create_user
+    record(
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1198, in _execute_mock_call
+    raise effect
+RuntimeError: boom
+..[2026-10-05 15:27:36,712] WARNING django.request: Unauthorized: /api/v1/users/
+.[2026-10-05 15:27:38,455] WARNING django.request: Method Not Allowed: /api/v1/users/28/
+.[2026-10-05 15:27:39,332] WARNING django.request: Method Not Allowed: /api/v1/users/
+.[2026-10-05 15:27:40,174] WARNING django.request: Unauthorized: /api/v1/users/
+.[2026-10-05 15:27:41,087] WARNING django.request: Unauthorized: /api/v1/users/
+.[2026-10-05 15:27:42,808] WARNING django.request: Forbidden: /api/v1/users/
+.[2026-10-05 15:27:44,598] WARNING django.request: Forbidden: /api/v1/users/
+..[2026-10-05 15:27:48,109] WARNING django.request: Forbidden: /api/v1/users/38/memberships/
+.[2026-10-05 15:27:51,055] WARNING django.request: Forbidden: /api/v1/users/41/memberships/
+.[2026-10-05 15:27:53,940] WARNING django.request: Forbidden: /api/v1/users/44/memberships/6/deactivate/
+.[2026-10-05 15:27:57,208] WARNING django.request: Forbidden: /api/v1/users/47/memberships/7/roles/3/deactivate/
+.[2026-10-05 15:28:01,322] WARNING django.request: Forbidden: /api/v1/users/50/memberships/
+[2026-10-05 15:28:01,325] WARNING django.request: Forbidden: /api/v1/users/50/memberships/
+.[2026-10-05 15:28:04,924] WARNING django.request: Forbidden: /api/v1/users/53/memberships/9/roles/
+[2026-10-05 15:28:04,927] WARNING django.request: Forbidden: /api/v1/users/53/memberships/9/roles/
+.....[2026-10-05 15:28:17,153] WARNING django.request: Bad Request: /api/v1/users/64/memberships/
+.[2026-10-05 15:28:19,548] WARNING django.request: Bad Request: /api/v1/users/66/memberships/
+.[2026-10-05 15:28:22,182] WARNING django.request: Not Found: /api/v1/users/68/memberships/
+....[2026-10-05 15:28:33,846] WARNING django.request: Not Found: /api/v1/users/76/memberships/17/deactivate/
+...[2026-10-05 15:28:40,724] WARNING django.request: Bad Request: /api/v1/users/
+.[2026-10-05 15:28:43,444] ERROR django.request: Internal Server Error: /api/v1/users/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\generic\base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\utils\decorators.py", line 48, in _wrapper
+    return bound_method(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\cache.py", line 80, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\generics.py", line 246, in post
+    return self.create(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\users\views.py", line 89, in create
+    user = create_user(actor=request.user, **serializer.validated_data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\contextlib.py", line 81, in inner
+    return func(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\users\services.py", line 63, in create_user
+    record(
+  File "D:\CMHP_NEW\backend\apps\audit\services.py", line 28, in record
+    return AuditLog.objects.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\query.py", line 665, in create
+    obj.save(force_insert=True, using=self.db)
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\base.py", line 902, in save
+    self.save_base(
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\base.py", line 1008, in save_base
+    updated = self._save_table(
+              ^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\base.py", line 1169, in _save_table
+    results = self._do_insert(
+              ^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\base.py", line 1210, in _do_insert
+    return manager._insert(
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\query.py", line 1873, in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\compiler.py", line 1882, in execute_sql
+    cursor.execute(sql, params)
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\psycopg\cursor.py", line 93, in execute
+    self._conn.wait(
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\psycopg\connection.py", line 453, in wait
+    return waiting.wait(gen, self.pgconn.socket, interval=interval)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\psycopg\waiting.py", line 260, in wait_select
+    s = next(gen)
+        ^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\psycopg\_cursor_base.py", line 194, in _execute_gen
+    pgq = self._convert_query(query, params)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\psycopg\_cursor_base.py", line 453, in _convert_query
+    pgq.convert(query, params)
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\psycopg\_queries.py", line 268, in convert
+    self.dump(vars)
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\psycopg\_queries.py", line 278, in dump
+    self.params = tuple(
+                  ^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\psycopg\_queries.py", line 279, in <genexpr>
+    self._tx.as_literal(p) if p is not None else b"NULL" for p in params
+    ^^^^^^^^^^^^^^^^^^^^^^
+  File "psycopg_binary/_psycopg/transform.pyx", line 206, in psycopg_binary._psycopg.Transformer.as_literal
+  File "psycopg_binary/_psycopg/transform.pyx", line 215, in psycopg_binary._psycopg.Transformer.as_literal
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\psycopg\adapt.py", line 59, in quote
+    if (value := self.dump(obj)) is None:
+                 ^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\psycopg\types\json.py", line 218, in dump
+    if isinstance((data := dumps(obj)), str):
+                           ^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\json\__init__.py", line 231, in dumps
+    return _default_encoder.encode(obj)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\json\encoder.py", line 200, in encode
+    chunks = self.iterencode(o, _one_shot=True)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\json\encoder.py", line 258, in iterencode
+    return _iterencode(o, 0)
+           ^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\json\encoder.py", line 180, in default
+    raise TypeError(f'Object of type {o.__class__.__name__} '
+TypeError: Object of type date is not JSON serializable
+E....[2026-10-05 15:28:56,648] WARNING django.request: Bad Request: /api/v1/users/94/memberships/24/roles/
+.[2026-10-05 15:28:59,169] WARNING django.request: Bad Request: /api/v1/users/96/memberships/25/roles/
+..[2026-10-05 15:29:03,692] WARNING django.request: Not Found: /api/v1/users/100/memberships/27/roles/
+.[2026-10-05 15:29:06,008] WARNING django.request: Bad Request: /api/v1/users/102/memberships/28/roles/
+...[2026-10-05 15:29:14,126] WARNING django.request: Not Found: /api/v1/users/108/memberships/31/roles/12/deactivate/
+...[2026-10-05 15:29:22,308] WARNING django.request: Not Found: /api/v1/users/115/memberships/36/roles/
+.....[2026-10-05 15:29:34,946] WARNING django.request: Bad Request: /api/v1/users/
+.[2026-10-05 15:29:37,247] WARNING django.request: Bad Request: /api/v1/users/
+.[2026-10-05 15:29:38,352] WARNING django.request: Bad Request: /api/v1/users/
+.[2026-10-05 15:29:39,600] WARNING django.request: Bad Request: /api/v1/users/
+.[2026-10-05 15:29:40,784] WARNING django.request: Bad Request: /api/v1/users/
+.[2026-10-05 15:29:41,893] WARNING django.request: Bad Request: /api/v1/users/
+.[2026-10-05 15:29:43,041] WARNING django.request: Not Found: /api/v1/users/999999/
+...[2026-10-05 15:30:16,224] WARNING django.request: Bad Request: /api/v1/users/
+...[2026-10-05 15:30:33,264] WARNING django.request: Bad Request: /api/v1/users/
+......[2026-10-05 15:31:17,949] WARNING django.request: Bad Request: /api/v1/users/215/
+..[2026-10-05 15:31:23,167] WARNING django.request: Bad Request: /api/v1/users/220/
+.[2026-10-05 15:31:25,368] WARNING django.request: Bad Request: /api/v1/users/222/
+.[2026-10-05 15:31:27,607] WARNING django.request: Bad Request: /api/v1/users/224/
+..
+======================================================================
+ERROR: test_create_stores_profile_fields (tests.test_user_management.ProfileFieldTests.test_create_stores_profile_fields)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\CMHP_NEW\backend\tests\test_user_management.py", line 937, in test_create_stores_profile_fields
+    response = post_json(
+               ^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\tests\test_user_management.py", line 94, in post_json
+    return client.post(url, data=json.dumps(payload), content_type="application/json", **headers)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\test\client.py", line 1156, in post
+    response = super().post(
+               ^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\test\client.py", line 499, in post
+    return self.generic(
+           ^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\test\client.py", line 671, in generic
+    return self.request(**r)
+           ^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\test\client.py", line 1090, in request
+    self.check_exception(response)
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\test\client.py", line 805, in check_exception
+    raise exc_value
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\generic\base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\utils\decorators.py", line 48, in _wrapper
+    return bound_method(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\cache.py", line 80, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\generics.py", line 246, in post
+    return self.create(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\users\views.py", line 89, in create
+    user = create_user(actor=request.user, **serializer.validated_data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\contextlib.py", line 81, in inner
+    return func(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\users\services.py", line 63, in create_user
+    record(
+  File "D:\CMHP_NEW\backend\apps\audit\services.py", line 28, in record
+    return AuditLog.objects.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\query.py", line 665, in create
+    obj.save(force_insert=True, using=self.db)
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\base.py", line 902, in save
+    self.save_base(
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\base.py", line 1008, in save_base
+    updated = self._save_table(
+              ^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\base.py", line 1169, in _save_table
+    results = self._do_insert(
+              ^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\base.py", line 1210, in _do_insert
+    return manager._insert(
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\query.py", line 1873, in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\models\sql\compiler.py", line 1882, in execute_sql
+    cursor.execute(sql, params)
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\psycopg\cursor.py", line 93, in execute
+    self._conn.wait(
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\psycopg\connection.py", line 453, in wait
+    return waiting.wait(gen, self.pgconn.socket, interval=interval)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\psycopg\waiting.py", line 260, in wait_select
+    s = next(gen)
+        ^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\psycopg\_cursor_base.py", line 194, in _execute_gen
+    pgq = self._convert_query(query, params)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\psycopg\_cursor_base.py", line 453, in _convert_query
+    pgq.convert(query, params)
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\psycopg\_queries.py", line 268, in convert
+    self.dump(vars)
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\psycopg\_queries.py", line 278, in dump
+    self.params = tuple(
+                  ^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\psycopg\_queries.py", line 279, in <genexpr>
+    self._tx.as_literal(p) if p is not None else b"NULL" for p in params
+    ^^^^^^^^^^^^^^^^^^^^^^
+  File "psycopg_binary/_psycopg/transform.pyx", line 206, in psycopg_binary._psycopg.Transformer.as_literal
+  File "psycopg_binary/_psycopg/transform.pyx", line 215, in psycopg_binary._psycopg.Transformer.as_literal
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\psycopg\adapt.py", line 59, in quote
+    if (value := self.dump(obj)) is None:
+                 ^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\psycopg\types\json.py", line 218, in dump
+    if isinstance((data := dumps(obj)), str):
+                           ^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\json\__init__.py", line 231, in dumps
+    return _default_encoder.encode(obj)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\json\encoder.py", line 200, in encode
+    chunks = self.iterencode(o, _one_shot=True)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\json\encoder.py", line 258, in iterencode
+    return _iterencode(o, 0)
+           ^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\json\encoder.py", line 180, in default
+    raise TypeError(f'Object of type {o.__class__.__name__} '
+TypeError: Object of type date is not JSON serializable
+
+----------------------------------------------------------------------
+Ran 84 tests in 257.442s
+
+FAILED (errors=1)
+Destroying test database for alias 'default'...
+Found 84 test(s).
+System check identified no issues (0 silenced).
+EXIT 1

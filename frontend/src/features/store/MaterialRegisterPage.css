@@ -1,0 +1,361 @@
+/* Material Register detail screen. Scoped to .reg-page only - nothing
+   outside this screen is affected. Same palette as the rest of the app
+   (cmhp-reference.css / FormulasPage.css's own --fm-* tokens), given its
+   own scoped copy so this feature stays independent of the formulas page. */
+.reg-page {
+  --reg-font: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --reg-text: #405b70;
+  --reg-heading: #163b59;
+  --reg-muted: #8297a8;
+  --reg-border: #dce7ee;
+  --reg-border-strong: #c9d6e2;
+  --reg-surface: #ffffff;
+  --reg-subtle: #f8fbfd;
+  --reg-accent: #1478c9;
+  --reg-accent-soft: #eaf5fc;
+  --reg-accent-soft-strong: #dbeefc;
+  --reg-ok-bg: #eaf7ef;
+  --reg-ok-border: #bfe3cb;
+  --reg-ok-text: #1d7a3d;
+  --reg-warn-bg: #fff8ec;
+  --reg-warn-border: #f2d3a2;
+  --reg-warn-text: #8a5a00;
+  --reg-danger-bg: #fdecea;
+  --reg-danger-border: #f3c2bc;
+  --reg-danger-text: #b42318;
+  --reg-radius: 10px;
+  --reg-radius-lg: 14px;
+  font-family: var(--reg-font);
+  color: var(--reg-text);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.reg-page h1, .reg-page h2, .reg-page h3, .reg-page h4, .reg-page p {
+  margin: 0;
+  font-family: inherit;
+}
+
+.reg-page table, .reg-page input, .reg-page select, .reg-page button {
+  font-family: inherit;
+}
+
+/* Back link */
+.reg-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--reg-accent);
+  text-decoration: none;
+  width: fit-content;
+}
+.reg-back:hover { text-decoration: underline; }
+
+/* Header card */
+.reg-header-card {
+  border: 1px solid var(--reg-border);
+  border-radius: var(--reg-radius-lg);
+  background: linear-gradient(135deg, var(--reg-accent-soft) 0%, var(--reg-surface) 70%);
+  box-shadow: 0 1px 2px rgba(27, 72, 104, 0.05);
+  padding: 20px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+}
+
+.reg-header-icon {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--reg-surface);
+  border: 1px solid var(--reg-border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--reg-accent);
+}
+
+.reg-header-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.reg-header-code {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--reg-accent);
+}
+
+.reg-header-name {
+  font-size: 21px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--reg-heading);
+}
+
+.reg-header-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-left: auto;
+  align-items: center;
+}
+
+.reg-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 90px;
+}
+
+.reg-meta-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--reg-muted);
+}
+
+.reg-meta-value {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--reg-heading);
+}
+
+/* Pill badges */
+.reg-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.reg-badge.ok { background: var(--reg-ok-bg); color: var(--reg-ok-text); border: 1px solid var(--reg-ok-border); }
+.reg-badge.muted { background: var(--reg-subtle); color: var(--reg-muted); border: 1px solid var(--reg-border); }
+.reg-badge.accent { background: var(--reg-accent-soft-strong); color: var(--reg-accent); border: 1px solid var(--reg-border-strong); }
+.reg-badge.warn { background: var(--reg-warn-bg); color: var(--reg-warn-text); border: 1px solid var(--reg-warn-border); }
+.reg-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+
+/* Body card */
+.reg-card {
+  border: 1px solid var(--reg-border);
+  border-radius: var(--reg-radius-lg);
+  background: var(--reg-surface);
+  box-shadow: 0 1px 2px rgba(27, 72, 104, 0.04);
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.reg-card-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 16.5px;
+  font-weight: 800;
+  color: var(--reg-heading);
+}
+.reg-card-title .reg-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: var(--reg-accent);
+  flex: none;
+}
+
+/* Date filter toolbar */
+.reg-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--reg-subtle);
+  border: 1px solid var(--reg-border);
+  border-radius: var(--reg-radius);
+}
+
+.reg-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.reg-filter-field label {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--reg-muted);
+}
+
+.reg-filter-field input {
+  border: 1px solid var(--reg-border-strong);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13.5px;
+  background: var(--reg-surface);
+  color: var(--reg-text);
+  min-height: 38px;
+}
+.reg-filter-field input:focus {
+  outline: 2px solid var(--reg-accent-soft-strong);
+  outline-offset: 1px;
+  border-color: var(--reg-accent);
+}
+
+.reg-filter-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.reg-hint {
+  font-size: 12.5px;
+  color: var(--reg-muted);
+  line-height: 1.5;
+}
+
+/* Notices */
+.reg-notice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 11px 14px;
+  border-radius: var(--reg-radius);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.reg-notice.info { background: var(--reg-accent-soft); color: var(--reg-heading); border: 1px solid var(--reg-accent-soft-strong); }
+.reg-notice.coverage { background: var(--reg-subtle); color: var(--reg-muted); border: 1px solid var(--reg-border); font-size: 12.5px; }
+
+/* Section heading within a card */
+.reg-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.reg-section-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--reg-heading);
+}
+.reg-section-sub {
+  font-size: 12px;
+  color: var(--reg-muted);
+}
+
+/* Tables */
+.reg-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--reg-border);
+  border-radius: var(--reg-radius);
+}
+
+.reg-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 480px;
+  font-size: 13px;
+}
+
+.reg-table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--reg-muted);
+  background: var(--reg-subtle);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--reg-border);
+  white-space: nowrap;
+}
+
+.reg-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--reg-border);
+  color: var(--reg-text);
+  vertical-align: middle;
+}
+
+.reg-table tbody tr:last-child td { border-bottom: none; }
+.reg-table tbody tr:hover td { background: var(--reg-subtle); }
+
+.reg-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--reg-heading);
+}
+
+.reg-table .reg-muted-cell { color: var(--reg-muted); }
+
+.reg-table.reg-table-compact th,
+.reg-table.reg-table-compact td {
+  padding: 8px 12px;
+  font-size: 12.5px;
+}
+
+/* Empty state */
+.reg-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  padding: 28px 16px;
+  border: 1px dashed var(--reg-border-strong);
+  border-radius: var(--reg-radius);
+  color: var(--reg-muted);
+  background: var(--reg-subtle);
+}
+.reg-empty strong { color: var(--reg-heading); font-size: 13.5px; }
+.reg-empty span { font-size: 12.5px; }
+
+/* Pagination */
+.reg-pagination {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 2px;
+}
+.reg-pagination .reg-page-count {
+  font-size: 12.5px;
+  color: var(--reg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.reg-footnote {
+  font-size: 12px;
+  color: var(--reg-muted);
+  border-top: 1px dashed var(--reg-border);
+  padding-top: 14px;
+}
+
+@media (max-width: 640px) {
+  .reg-header-card { padding: 16px; }
+  .reg-header-meta { margin-left: 0; width: 100%; }
+  .reg-filter-actions { margin-left: 0; width: 100%; }
+  .reg-card { padding: 16px; }
+}

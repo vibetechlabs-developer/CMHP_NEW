@@ -26,6 +26,9 @@ import StoreMaterialsWorkspace from '../features/store/StoreMaterialsWorkspace'
 import Companies
   from '../features/companies/Companies'
 
+import OrganizationSetupPage
+  from '../features/organizationSetup/OrganizationSetupPage'
+
 import Operations
   from '../features/operations/Operations'
 
@@ -161,6 +164,20 @@ export default function AppRoutes() {
             path="/companies"
             element={
               <Companies />
+            }
+          />
+
+
+          {/* ORGANIZATION SETUP - reachable with zero company/store
+              membership; the page itself gates on the real
+              can_manage_organization_setup capability, not on workspace
+              state (see ProtectedRoute.jsx, which already lets a
+              zero-membership user reach any route). */}
+
+          <Route
+            path="/organization-setup"
+            element={
+              <OrganizationSetupPage />
             }
           />
 

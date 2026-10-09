@@ -89,8 +89,10 @@ class Formula(models.Model):
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        if self.revisions.filter(status=FormulaRevision.Status.APPROVED).exists():
-            raise ValidationError({"detail": "A formula with an approved revision cannot be deleted."})
+        if self.revisions.exclude(status=FormulaRevision.Status.DRAFT).exists():
+            raise ValidationError(
+                {"detail": "A formula with an approved or submitted (pending QA) revision cannot be deleted."}
+            )
         return super().delete(*args, **kwargs)
 
 
@@ -133,6 +135,14 @@ class FormulaRevision(models.Model):
 
     class Status(models.TextChoices):
         DRAFT = "DRAFT", "Draft"
+        # A frozen request pending QA review - apps.formulas.approval.
+        # submit_formula_revision. Lines/header cannot be edited while
+        # SUBMITTED (FormulaLine.clean()/.delete() and update_formula_
+        # revision both already block anything other than DRAFT). The only
+        # two things that can happen from here: approve_formula_revision
+        # (-> APPROVED) or reject_formula_revision (-> back to DRAFT, same
+        # revision number, editable again).
+        SUBMITTED = "SUBMITTED", "Submitted"
         APPROVED = "APPROVED", "Approved"
 
     formula = models.ForeignKey(Formula, on_delete=models.CASCADE, related_name="revisions")
@@ -148,6 +158,30 @@ class FormulaRevision(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     contributor_history_complete = models.BooleanField(default=False)
+    # Who last moved this revision to SUBMITTED, and when. Cleared (set back
+    # to null) whenever it is rejected back to DRAFT - these describe the
+    # CURRENT pending submission only, never a historical one (the audit
+    # trail, not this row, is the historical record).
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="formula_revisions_submitted",
+    )
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    # The most recent QA rejection, kept visible until the next submit
+    # attempt overwrites or clears it (apps.formulas.approval.
+    # submit_formula_revision clears all three on every fresh submission).
+    last_rejection_reason = models.CharField(max_length=1000, blank=True, default="")
+    last_rejected_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="formula_revisions_rejected",
+    )
+    last_rejected_at = models.DateTimeField(null=True, blank=True)
     approved_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
@@ -212,8 +246,8 @@ class FormulaRevision(models.Model):
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        if self.status == self.Status.APPROVED:
-            raise ValidationError({"detail": "An approved revision cannot be deleted."})
+        if self.status != self.Status.DRAFT:
+            raise ValidationError({"detail": f"A revision with status '{self.status}' cannot be deleted."})
         return super().delete(*args, **kwargs)
 
 
@@ -287,15 +321,40 @@ class FormulaLine(models.Model):
     assigned sequence across both material types.
     """
 
+    class CalculationMode(models.TextChoices):
+        AS_PER_FORMULA = "AS_PER_FORMULA", "As per formula"
+        AS_PER_LABEL_CLAIM = "AS_PER_LABEL_CLAIM", "As per label claim"
+
     revision = models.ForeignKey(FormulaRevision, on_delete=models.CASCADE, related_name="lines")
     line_number = models.PositiveIntegerField()
     material = models.ForeignKey(Material, on_delete=models.PROTECT, related_name="formula_lines")
     quantity = models.DecimalField(max_digits=14, decimal_places=3)
     unit = models.ForeignKey(UnitOfMeasure, on_delete=models.PROTECT, related_name="formula_lines")
     notes = models.CharField(max_length=500, blank=True)
-    # Client-defined free text, entered per formula line. Not used in any calculation.
+    # Client-defined free text, entered per formula line. Not used in any calculation -
+    # unrelated to label_claim_quantity/label_claim_uom below, which ARE used (only
+    # in AS_PER_LABEL_CLAIM mode). This free-text field still holds things like
+    # "45% V/V" that are not a per-pack amount at all, so it is left exactly as is.
     label_claim = models.CharField(max_length=100, blank=True, default="")
     ar_no = models.CharField(max_length=100, blank=True, default="")
+    # How apps.formulas.requirement_preview computes this line's required quantity.
+    # AS_PER_FORMULA (default, unchanged behaviour): proportional to the target
+    # output, same as every line always worked before this field existed.
+    # AS_PER_LABEL_CLAIM: required = target_output_quantity / label_claim_quantity
+    # (converted into the formula's own output unit via canonical_factor, the
+    # same mechanism apps.batch_plans.validation.compute_expected_packed_content
+    # already uses for an identical same-dimension conversion) - e.g. producing
+    # 5000 ml total, each pack's label claims "100 ml" -> 50 packs needed. This
+    # line's own `quantity`/`unit` above are NOT used in that calculation; they
+    # stay required (the usual positive-quantity rule) but are informational only
+    # for a label-claim line.
+    calculation_mode = models.CharField(
+        max_length=20, choices=CalculationMode.choices, default=CalculationMode.AS_PER_FORMULA
+    )
+    label_claim_quantity = models.DecimalField(max_digits=14, decimal_places=3, null=True, blank=True)
+    label_claim_uom = models.ForeignKey(
+        UnitOfMeasure, on_delete=models.PROTECT, related_name="formula_line_label_claims", null=True, blank=True
+    )
     # Non-numeric value such as "Q.S." or "45% V/V". Shown instead of a number when set.
     special_value = models.CharField(max_length=60, blank=True, default="")
     material_code_snapshot = models.CharField(max_length=32, blank=True)
@@ -318,14 +377,62 @@ class FormulaLine(models.Model):
         self.notes = (self.notes or "").strip()
         if self.quantity is not None and self.quantity <= 0:
             raise ValidationError({"quantity": "Quantity must be greater than zero."})
-        if self.revision_id and self.revision.status == FormulaRevision.Status.APPROVED:
-            raise ValidationError({"detail": "The lines of an approved revision cannot be changed."})
+        if self.revision_id and self.revision.status != FormulaRevision.Status.DRAFT:
+            raise ValidationError(
+                {"detail": f"The lines of a revision with status '{self.revision.status}' cannot be changed."}
+            )
+
+        if self.calculation_mode == self.CalculationMode.AS_PER_LABEL_CLAIM:
+            errors = {}
+            if self.label_claim_quantity is None or self.label_claim_quantity <= 0:
+                errors["label_claim_quantity"] = "Required and must be greater than zero for 'As per label claim'."
+            if self.label_claim_uom_id is None:
+                errors["label_claim_uom"] = "Required for 'As per label claim'."
+            if errors:
+                raise ValidationError(errors)
+            output_uom = self.revision.output_uom if self.revision_id else None
+            if output_uom is not None:
+                if self.label_claim_uom.dimension != output_uom.dimension:
+                    raise ValidationError(
+                        {
+                            "label_claim_uom": (
+                                f"'{self.label_claim_uom.code}' ({self.label_claim_uom.dimension}) is not "
+                                f"compatible with the formula's output unit '{output_uom.code}' "
+                                f"({output_uom.dimension}). Mass is never converted to volume, or volume to mass."
+                            )
+                        }
+                    )
+                if self.label_claim_uom.canonical_factor is None or output_uom.canonical_factor is None:
+                    raise ValidationError(
+                        {
+                            "label_claim_uom": (
+                                f"No conversion is defined between '{self.label_claim_uom.code}' and "
+                                f"'{output_uom.code}'. An administrator must set a canonical conversion factor "
+                                "for both units before this combination can be used."
+                            )
+                        }
+                    )
+        else:
+            # Deliberately rejected, not silently ignored, when supplied for the
+            # default mode - same "explicit, never inferred" convention this
+            # project uses everywhere (e.g. apps.products.serializers).
+            if self.label_claim_quantity is not None or self.label_claim_uom_id is not None:
+                raise ValidationError(
+                    {
+                        "calculation_mode": (
+                            "label_claim_quantity/label_claim_uom can only be set when calculation_mode is "
+                            "'AS_PER_LABEL_CLAIM'."
+                        )
+                    }
+                )
 
     def save(self, *args, **kwargs):
         self.clean()
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        if self.revision.status == FormulaRevision.Status.APPROVED:
-            raise ValidationError({"detail": "The lines of an approved revision cannot be deleted."})
+        if self.revision.status != FormulaRevision.Status.DRAFT:
+            raise ValidationError(
+                {"detail": f"The lines of a revision with status '{self.revision.status}' cannot be deleted."}
+            )
         return super().delete(*args, **kwargs)

@@ -250,12 +250,18 @@ class ProductAccessTests(ProductAccessTestCase):
         response = get_json(self.client_, product_url(self.company.id, product.id), token)
         self.assertEqual(response.status_code, 404)
 
-    def test_delete_method_not_allowed(self):
+    def test_delete_without_delete_permission_is_403(self):
+        """DELETE is a real, implemented endpoint now (products.delete) -
+        this used to be 405 back when no DELETE method existed at all.
+        ALL_PERMS here deliberately does not include products.delete, so
+        the right response is 403 (forbidden), not 405 (method not
+        allowed) - the method itself is allowed, just gated.
+        """
         grant_company_permission(self.superuser, self.user, self.company, *ALL_PERMS)
         product = make_product(self.company, "NODEL", self.unit, name="X")
         token = access_token_for(self.user)
         response = self.client_.delete(product_url(self.company.id, product.id), **bearer(token))
-        self.assertEqual(response.status_code, 405)
+        self.assertEqual(response.status_code, 403)
 
 
 # ---------------------------------------------------------------------------
@@ -310,6 +316,29 @@ class ProductCreateTests(ProductAccessTestCase):
         )
         self.assertEqual(response2.status_code, 201, response2.content)
         self.assertEqual(response2.json()["product_type"], "Homeopathic Globules")
+
+    def test_create_with_bmr_no(self):
+        """`bmr_no` (optional, free text - a product-master reference
+        string, distinct from apps.bmr's own per-batch BatchManufacturingRecord).
+        """
+        response = post_json(
+            self.client_,
+            products_url(self.company.id),
+            {"code": "BMR1", "name": "Mother Tincture X", "bmr_no": "BMR-0042", "sales_uom_id": self.unit.id},
+            self.token,
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(response.json()["bmr_no"], "BMR-0042")
+
+    def test_create_without_bmr_no_defaults_to_blank(self):
+        response = post_json(
+            self.client_,
+            products_url(self.company.id),
+            {"code": "BMR2", "name": "No BMR Ref", "sales_uom_id": self.unit.id},
+            self.token,
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(response.json()["bmr_no"], "")
 
     def test_create_records_audit_entry(self):
         response = post_json(
@@ -409,6 +438,89 @@ class ProductCreateTests(ProductAccessTestCase):
         self.assertEqual(Product.objects.filter(company=self.company, code="RB1").count(), 0)
 
 
+class ProductDefaultSalesUomTests(ProductAccessTestCase):
+    """The "Create product" form no longer asks for a sales unit -
+    omitting sales_uom_id must still produce a product with a real,
+    active unit attached (apps.products.services.resolve_default_sales_uom),
+    never a null/missing one.
+    """
+
+    def setUp(self):
+        super().setUp()
+        grant_company_permission(self.superuser, self.user, self.company, *ALL_PERMS)
+        self.token = access_token_for(self.user)
+
+    def test_omitting_sales_uom_id_uses_this_companys_most_used_active_unit(self):
+        bottles = make_unit("BTL")
+        grams = make_unit("GM")
+        make_product(self.company, "EXIST1", bottles, name="X")
+        make_product(self.company, "EXIST2", bottles, name="Y")
+        make_product(self.company, "EXIST3", grams, name="Z")
+
+        response = post_json(
+            self.client_, products_url(self.company.id), {"code": "NEWP", "name": "New Product"}, self.token
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(response.json()["sales_uom_id"], bottles.id)
+
+    def test_ignores_inactive_units_when_picking_the_default(self):
+        popular_but_inactive = make_unit("OLD", is_active=False)
+        make_product(self.company, "EXIST1", popular_but_inactive, name="X")
+        make_product(self.company, "EXIST2", popular_but_inactive, name="Y")
+        less_used_active = make_unit("NEW")
+        make_product(self.company, "EXIST3", less_used_active, name="Z")
+
+        response = post_json(
+            self.client_, products_url(self.company.id), {"code": "NEWP", "name": "New Product"}, self.token
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(response.json()["sales_uom_id"], less_used_active.id)
+
+    def test_a_different_companys_products_do_not_affect_this_companys_default(self):
+        this_companys_unit = make_unit("THIS")
+        make_product(self.company, "EXIST1", this_companys_unit, name="X")
+        other_companys_unit = make_unit("OTHER")
+        make_product(self.other_company, "OEXIST1", other_companys_unit, name="Y")
+        make_product(self.other_company, "OEXIST2", other_companys_unit, name="Z")
+
+        response = post_json(
+            self.client_, products_url(self.company.id), {"code": "NEWP", "name": "New Product"}, self.token
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(response.json()["sales_uom_id"], this_companys_unit.id)
+
+    def test_falls_back_to_the_global_most_used_unit_for_a_companys_first_ever_product(self):
+        widely_used = make_unit("GLOBAL")
+        make_product(self.other_company, "OEXIST1", widely_used, name="X")
+        make_product(self.other_company, "OEXIST2", widely_used, name="Y")
+
+        response = post_json(
+            self.client_, products_url(self.company.id), {"code": "FIRST", "name": "First Product"}, self.token
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(response.json()["sales_uom_id"], widely_used.id)
+
+    def test_explicit_sales_uom_id_still_wins_over_the_default(self):
+        make_unit("COMMON")  # exists, but never used by any product - irrelevant here
+        chosen = make_unit("CHOSEN")
+        response = post_json(
+            self.client_,
+            products_url(self.company.id),
+            {"code": "EXPLICIT", "name": "X", "sales_uom_id": chosen.id},
+            self.token,
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(response.json()["sales_uom_id"], chosen.id)
+
+    def test_clear_error_when_no_active_unit_exists_anywhere_yet(self):
+        UnitOfMeasure.objects.all().delete()
+        response = post_json(
+            self.client_, products_url(self.company.id), {"code": "NOUNIT", "name": "X"}, self.token
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("sales_uom_id", response.json())
+
+
 # ---------------------------------------------------------------------------
 # List / search / filter
 # ---------------------------------------------------------------------------
@@ -497,6 +609,17 @@ class ProductUpdateTests(ProductAccessTestCase):
             self.client_, product_url(self.company.id, self.product.id), {"expected_version": 1, "name": "Second"}, self.token
         )
         self.assertEqual(response.status_code, 409)
+
+    def test_update_bmr_no(self):
+        response = patch_json(
+            self.client_,
+            product_url(self.company.id, self.product.id),
+            {"expected_version": 1, "bmr_no": "BMR-0099"},
+            self.token,
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["bmr_no"], "BMR-0099")
+        self.assertEqual(response.json()["version"], 2)
 
     def test_update_rejects_code(self):
         response = patch_json(

@@ -1,0 +1,27 @@
+/* Receiving tab only - mirrors the field-readonly/section-label pattern
+   already established in SalesOrderFormModal.css, scoped here instead of
+   duplicated into a shared file. */
+
+.field-readonly {
+  display: flex;
+  align-items: center;
+  min-height: 39px;
+  padding: 8px 11px;
+  color: #405b70 !important;
+  background: #f3f6f8 !important;
+  border: 1px solid #dde6ed !important;
+  border-radius: 8px;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inv-section-label {
+  margin: 10px 0 0;
+  color: #496277;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}

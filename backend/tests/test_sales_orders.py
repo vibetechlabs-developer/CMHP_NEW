@@ -211,6 +211,34 @@ class CreateTests(SalesOrderBase):
         self.assertEqual(zero["lines"][0]["line_amount"], "0.00")
         self.assertEqual(zero["subtotal"], "0.00")
 
+    def test_unit_price_omitted_defaults_to_zero(self):
+        """The order line form no longer collects unit_price - omitting it
+        entirely must default to 0, same as explicitly sending "0".
+        """
+        line_without_price = {"product_id": self.p_count.id, "quantity": "5"}
+        body = self.make_sales_order(lines=[line_without_price])
+        self.assertEqual(body["lines"][0]["unit_price"], "0.0000")
+        self.assertEqual(body["lines"][0]["line_amount"], "0.00")
+        self.assertEqual(body["subtotal"], "0.00")
+
+    def test_update_omitting_unit_price_on_an_existing_line_resets_it_to_zero(self):
+        """Lines are fully replaced on update (not a per-field PATCH) - once
+        the caller stops sending unit_price at all, an existing line's
+        price settles to 0 on the next save, same as any other omitted
+        line field under this replace-the-whole-set model.
+        """
+        order = self.make_sales_order(lines=[self.line(unit_price="15.00")])
+        line = order["lines"][0]
+        response = self.patch(
+            order,
+            {
+                "expected_version": 1,
+                "lines": [{"id": line["id"], "product_id": self.p_count.id, "quantity": line["quantity"]}],
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["lines"][0]["unit_price"], "0.0000")
+
     def test_lines_omitted(self):
         body = post_json(
             self.client_,

@@ -42,6 +42,15 @@ _LINE_TYPE_FIELD = "product_type_snapshot"
 
 
 class SalesOrderLineCreateInputSerializer(_LineInputBase):
+    # Optional here (as of this task) - the order line form no longer asks
+    # for it. _LineInputBase itself stays required=True unchanged, since
+    # apps.quotations still requires it; overridden only on this subclass,
+    # not the shared base, so Quotations is untouched. `default=` (not just
+    # required=False) so apps.sales_orders.services's plain `item["unit_
+    # price"]` dict access keeps working whether or not the caller sent it.
+    unit_price = serializers.DecimalField(
+        max_digits=14, decimal_places=4, min_value=Decimal("0"), required=False, default=Decimal("0")
+    )
     product_type_snapshot = serializers.CharField(required=False, allow_blank=True, max_length=100)
 
     def to_internal_value(self, data):
@@ -51,6 +60,11 @@ class SalesOrderLineCreateInputSerializer(_LineInputBase):
 
 class SalesOrderLineUpdateInputSerializer(_LineInputBase):
     id = serializers.IntegerField(required=False)
+    # See SalesOrderLineCreateInputSerializer above for why this is
+    # overridden here rather than on the shared _LineInputBase.
+    unit_price = serializers.DecimalField(
+        max_digits=14, decimal_places=4, min_value=Decimal("0"), required=False, default=Decimal("0")
+    )
     product_type_snapshot = serializers.CharField(required=False, allow_blank=True, max_length=100)
 
     def to_internal_value(self, data):

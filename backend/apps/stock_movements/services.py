@@ -71,14 +71,23 @@ def stock_movements_queryset(*, store, accessible_companies):
     filtering to accessible companies happens HERE, before any
     aggregation runs, so a total can never include a company the caller
     cannot see (never filter the aggregate result afterward).
+
+    `select_related` reaches all the way to the source purchase order's
+    supplier (material-register task): the register shows the supplier
+    behind a receipt, gated by the exact same `accessible_companies`
+    filter already applied above (never a separate, looser permission
+    check) - this is purely an N+1 guard, not a new access decision.
     """
     return (
         StockMovement.objects.filter(store=store, source_company__in=accessible_companies)
-        .select_related("material", "unit", "source_company", "source_goods_receipt", "posted_by")
+        .select_related(
+            "material", "unit", "source_company", "posted_by",
+            "source_goods_receipt", "source_goods_receipt__source_purchase_order__supplier",
+        )
     )
 
 
-def compute_stock_balances(*, store, accessible_companies, material_id=None):
+def compute_stock_balances(*, store, accessible_companies, material_id=None, posted_from=None, posted_to=None):
     """Recorded-receipt totals, grouped by (material, unit, source_company)
     - NEVER just (material), so two lines for the same material recorded
     in different units are never summed together as if they were the
@@ -88,6 +97,12 @@ def compute_stock_balances(*, store, accessible_companies, material_id=None):
     aggregation itself never blends two companies' recorded receipts into
     one number, on top of the access-filtering already applied above).
 
+    `posted_from`/`posted_to` (inclusive `date` objects, or `None` for no
+    bound) restrict the aggregation to that posting-date window - the
+    SAME filter the caller applied to the movement list, so a period
+    total and the rows it was computed from always agree. Omitting both
+    aggregates the complete authorized history (never just a page).
+
     This is deliberately labeled "recorded receipt quantity" wherever it
     is surfaced (never available_stock/usable_stock/on_hand) - see
     apps.stock_movements.views for the coverage metadata every response
@@ -96,6 +111,10 @@ def compute_stock_balances(*, store, accessible_companies, material_id=None):
     queryset = stock_movements_queryset(store=store, accessible_companies=accessible_companies)
     if material_id is not None:
         queryset = queryset.filter(material_id=material_id)
+    if posted_from is not None:
+        queryset = queryset.filter(posted_at__date__gte=posted_from)
+    if posted_to is not None:
+        queryset = queryset.filter(posted_at__date__lte=posted_to)
 
     return (
         queryset.values(

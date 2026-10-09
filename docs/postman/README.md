@@ -1476,11 +1476,28 @@ least one receipt so a movement exists to list.
 1. **List recorded stock movements (RECEIPT_IN only)** — every response includes a `coverage` block confirming
    historical receipts are not backfilled, opening stock is not included, and issues/returns/release are not
    tracked; `release_status` is always the literal string `"Not tracked"`.
-2. **Filter recorded stock movements by material** — `?material=<id>`.
+2. **Filter recorded stock movements by material** — `?material=<id>`. Material Register task (additive):
+   each row's request description now also documents `supplier_id`/`supplier_code`/`supplier_name` (the
+   receipt's purchase order's supplier — identity only, never price) and `source_goods_receipt_arrived_at`
+   (the receipt's own physical arrival date — distinct from `posted_at`, the posting event; they can differ
+   by days). Every response also carries a `period` block (see request 5 below).
 3. **Recorded receipt quantity balances (not available stock)** — grouped by `(material, unit, source_company)`;
    never merges different units or companies into one number; labeled `recorded_receipt_quantity`, never
-   `available_stock`/`usable_stock`/`on_hand`.
+   `available_stock`/`usable_stock`/`on_hand`. Material Register task (additive): also accepts
+   `posted_from`/`posted_to` (applied before the `SUM`) and returns the same `period` block as the movements
+   list; **never** carries a supplier field — a balance row can sum movements from several receipts/suppliers,
+   so a single supplier value would mislead, not just be incomplete.
 4. **Unknown query parameter rejected (expect 400)**.
+5. **Posted-date range on stock movements (posted_from/posted_to)** *(added, Material Register task)* —
+   `?posted_from=2026-01-01&posted_to=2026-01-31` (synthetic placeholder dates; replace with a real window to
+   see non-empty results against your own data). The response's `period` block always echoes back exactly the
+   window applied (`null`/`null` means "all recorded history") — a period subtotal can never be mistaken for
+   the all-time total.
+6. **Invalid posted_from format (expect 400)** *(added, Material Register task)* — `?posted_from=not-a-date`,
+   strict `YYYY-MM-DD` only, same convention as `order_date_from`/`quotation_date_from` elsewhere in this
+   collection.
+7. **posted_from after posted_to (expect 400)** *(added, Material Register task)* — a reversed range is a
+   structured 400 (field `posted_from`), never silently swapped or ignored.
 
 No create/edit/delete request exists in this folder - there is no mutation endpoint anywhere in this app.
 

@@ -1,0 +1,927 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shared Store Material Register — Prototype</title>
+<style>
+  :root{
+    --ref-blue:#1478c9;
+    --ref-blue-dark:#0c5fa5;
+    --ref-blue-soft:#eaf5fc;
+    --ref-teal:#17a99f;
+    --ref-teal-soft:#eaf8f6;
+    --ref-navy:#163b59;
+    --ref-text:#405b70;
+    --ref-muted:#8297a8;
+    --ref-bg:#f4f8fb;
+    --ref-panel:#ffffff;
+    --ref-soft:#f8fbfd;
+    --ref-border:#dce7ee;
+    --ref-border-strong:#c3d4e0;
+    --ref-shadow:0 8px 25px rgba(27,72,104,0.065);
+    --ref-warn-bg:#fff6e8;
+    --ref-warn-border:#f0d9a8;
+    --ref-warn-text:#8a6116;
+    --ref-ok-bg:#eaf8f0;
+    --ref-ok-border:#bfe6cf;
+    --ref-ok-text:#1f7a4d;
+    --ref-danger:#c0392b;
+    --ref-radius:10px;
+    --ref-radius-lg:14px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ref-bg:#0f1720;
+      --ref-panel:#162230;
+      --ref-soft:#121c27;
+      --ref-text:#c6d4e0;
+      --ref-muted:#8297a8;
+      --ref-navy:#eaf2f8;
+      --ref-border:#243244;
+      --ref-border-strong:#32445a;
+      --ref-blue-soft:#17304a;
+      --ref-teal-soft:#123632;
+      --ref-warn-bg:#3a2d12;
+      --ref-warn-border:#6b5523;
+      --ref-warn-text:#f0c66b;
+      --ref-ok-bg:#103522;
+      --ref-ok-border:#215c3c;
+      --ref-ok-text:#6fd79d;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ref-bg:#0f1720;
+    --ref-panel:#162230;
+    --ref-soft:#121c27;
+    --ref-text:#c6d4e0;
+    --ref-muted:#8297a8;
+    --ref-navy:#eaf2f8;
+    --ref-border:#243244;
+    --ref-border-strong:#32445a;
+    --ref-blue-soft:#17304a;
+    --ref-teal-soft:#123632;
+    --ref-warn-bg:#3a2d12;
+    --ref-warn-border:#6b5523;
+    --ref-warn-text:#f0c66b;
+    --ref-ok-bg:#103522;
+    --ref-ok-border:#215c3c;
+    --ref-ok-text:#6fd79d;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--ref-bg);
+    color:var(--ref-text);
+    font-family:Inter,"Segoe UI",Roboto,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    max-width:1200px;
+    margin:0 auto;
+    padding:20px 16px 60px;
+  }
+  a{color:var(--ref-blue);}
+
+  .banner{
+    background:linear-gradient(120deg,#0d5fa8 0%,#1479ca 55%,#2fa2d5 100%);
+    color:#fff;
+    border-radius:var(--ref-radius-lg);
+    padding:14px 18px;
+    font-size:13.5px;
+    font-weight:600;
+    letter-spacing:.2px;
+    margin-bottom:16px;
+    box-shadow:var(--ref-shadow);
+  }
+  .banner small{
+    display:block;
+    font-weight:400;
+    opacity:.92;
+    margin-top:3px;
+    font-size:12.3px;
+  }
+
+  header.top{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:16px;
+    margin-bottom:18px;
+    flex-wrap:wrap;
+  }
+  header.top h1{
+    font-size:22px;
+    color:var(--ref-navy);
+    margin:0 0 4px;
+  }
+  header.top p{
+    margin:0;
+    color:var(--ref-muted);
+    font-size:13px;
+    max-width:620px;
+  }
+  .top-actions{display:flex;gap:8px;flex-wrap:wrap;}
+
+  button.btn{
+    font-family:inherit;
+    font-size:13px;
+    font-weight:600;
+    border-radius:8px;
+    border:1px solid var(--ref-border-strong);
+    background:var(--ref-panel);
+    color:var(--ref-navy);
+    padding:8px 14px;
+    cursor:pointer;
+    transition:background .15s,border-color .15s;
+  }
+  button.btn:hover{border-color:var(--ref-blue);}
+  button.btn.primary{
+    background:var(--ref-blue);
+    border-color:var(--ref-blue);
+    color:#fff;
+  }
+  button.btn.primary:hover{background:var(--ref-blue-dark);}
+  button.btn.sim{
+    background:var(--ref-teal-soft);
+    border-color:var(--ref-teal);
+    color:#0c6b63;
+  }
+  button.btn:disabled{opacity:.5;cursor:not-allowed;}
+  button.btn.small{padding:5px 10px;font-size:12px;}
+
+  .tabs{
+    display:flex;
+    gap:4px;
+    border-bottom:1px solid var(--ref-border);
+    margin-bottom:16px;
+    flex-wrap:wrap;
+  }
+  .tab{
+    padding:9px 16px;
+    font-size:13px;
+    font-weight:600;
+    color:var(--ref-muted);
+    background:none;
+    border:none;
+    border-bottom:2px solid transparent;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .tab.active{color:var(--ref-blue-dark);border-bottom-color:var(--ref-blue);}
+  .tab:hover{color:var(--ref-navy);}
+
+  .panel{display:none;}
+  .panel.active{display:block;}
+
+  .card{
+    background:var(--ref-panel);
+    border:1px solid var(--ref-border);
+    border-radius:var(--ref-radius-lg);
+    box-shadow:var(--ref-shadow);
+    padding:18px 20px;
+    margin-bottom:16px;
+  }
+  .card h2{
+    font-size:15px;
+    color:var(--ref-navy);
+    margin:0 0 12px;
+  }
+  .card h3{
+    font-size:13.5px;
+    color:var(--ref-navy);
+    margin:18px 0 8px;
+  }
+  .muted{color:var(--ref-muted);font-size:12.5px;}
+
+  .toolbar{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-bottom:14px;
+    align-items:center;
+  }
+  .toolbar input[type="search"],
+  .toolbar select{
+    font-family:inherit;
+    font-size:13px;
+    border:1px solid var(--ref-border-strong);
+    border-radius:7px;
+    padding:7px 10px;
+    background:var(--ref-soft);
+    color:var(--ref-text);
+  }
+  .toolbar input[type="search"]{min-width:220px;}
+
+  table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:13px;
+  }
+  table.compact th, table.compact td{padding:7px 10px;}
+  th,td{
+    text-align:left;
+    padding:9px 12px;
+    border-bottom:1px solid var(--ref-border);
+    white-space:nowrap;
+  }
+  th{
+    font-size:11.5px;
+    text-transform:uppercase;
+    letter-spacing:.4px;
+    color:var(--ref-muted);
+    font-weight:700;
+    background:var(--ref-soft);
+  }
+  tbody tr:hover{background:var(--ref-blue-soft);}
+  .table-wrap{overflow-x:auto;border:1px solid var(--ref-border);border-radius:var(--ref-radius);}
+  .table-wrap table{border:none;}
+  .table-wrap tr:last-child td{border-bottom:none;}
+
+  .mat-row{cursor:pointer;}
+  .mat-row.selected{background:var(--ref-blue-soft);}
+
+  .badge{
+    display:inline-block;
+    font-size:11px;
+    font-weight:700;
+    padding:2px 8px;
+    border-radius:999px;
+    letter-spacing:.3px;
+  }
+  .badge.rm{background:var(--ref-teal-soft);color:#0c6b63;}
+  .badge.pm{background:var(--ref-blue-soft);color:var(--ref-blue-dark);}
+  .badge.inactive{background:#eceff1;color:var(--ref-muted);}
+  .badge.active{background:var(--ref-ok-bg);color:var(--ref-ok-text);}
+
+  .kpis{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:10px;
+    margin-bottom:4px;
+  }
+  .kpi{
+    background:var(--ref-soft);
+    border:1px solid var(--ref-border);
+    border-radius:var(--ref-radius);
+    padding:12px 14px;
+  }
+  .kpi .label{font-size:11px;color:var(--ref-muted);text-transform:uppercase;letter-spacing:.4px;}
+  .kpi .value{font-size:19px;font-weight:700;color:var(--ref-navy);margin-top:3px;}
+  .kpi .note{font-size:11px;color:var(--ref-muted);margin-top:3px;}
+  .kpi.warn{background:var(--ref-warn-bg);border-color:var(--ref-warn-border);}
+  .kpi.warn .value{color:var(--ref-warn-text);}
+  .kpi.proposed{opacity:.6;}
+  .kpi.proposed .value{font-size:13px;font-style:italic;color:var(--ref-muted);}
+
+  .notice{
+    border-radius:var(--ref-radius);
+    padding:10px 14px;
+    font-size:12.5px;
+    margin:10px 0;
+    border:1px solid var(--ref-border);
+    background:var(--ref-soft);
+  }
+  .notice.warn{background:var(--ref-warn-bg);border-color:var(--ref-warn-border);color:var(--ref-warn-text);}
+  .notice.info{background:var(--ref-blue-soft);border-color:#bcdcf2;color:var(--ref-blue-dark);}
+  .notice.ok{background:var(--ref-ok-bg);border-color:var(--ref-ok-border);color:var(--ref-ok-text);}
+
+  .section-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
+  .section-tab{
+    padding:6px 12px;
+    font-size:12.3px;
+    font-weight:600;
+    border:1px solid var(--ref-border-strong);
+    border-radius:999px;
+    background:var(--ref-panel);
+    color:var(--ref-text);
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .section-tab.active{background:var(--ref-blue);border-color:var(--ref-blue);color:#fff;}
+
+  .reg-section{display:none;}
+  .reg-section.active{display:block;}
+
+  .help{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:15px;height:15px;
+    border-radius:50%;
+    background:var(--ref-border-strong);
+    color:#fff;
+    font-size:10px;
+    font-weight:700;
+    cursor:help;
+    margin-left:4px;
+    position:relative;
+  }
+  .help .tip{
+    display:none;
+    position:absolute;
+    bottom:140%;
+    left:50%;
+    transform:translateX(-50%);
+    width:230px;
+    background:var(--ref-navy);
+    color:#fff;
+    font-size:11.3px;
+    font-weight:400;
+    line-height:1.4;
+    padding:8px 10px;
+    border-radius:8px;
+    z-index:5;
+    white-space:normal;
+    box-shadow:var(--ref-shadow);
+  }
+  .help:hover .tip,.help:focus .tip{display:block;}
+
+  .glossary{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+    gap:10px;
+  }
+  .gloss-item{
+    background:var(--ref-soft);
+    border:1px solid var(--ref-border);
+    border-radius:var(--ref-radius);
+    padding:10px 12px;
+  }
+  .gloss-item dt{font-size:12.5px;font-weight:700;color:var(--ref-navy);}
+  .gloss-item dd{margin:3px 0 0;font-size:12px;color:var(--ref-text);}
+
+  .qtable td:nth-child(3){white-space:normal;max-width:260px;}
+  .qtable td:nth-child(2){white-space:normal;max-width:220px;}
+  .status-pill{
+    font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;
+    background:var(--ref-warn-bg);color:var(--ref-warn-text);border:1px solid var(--ref-warn-border);
+  }
+
+  .empty-state{
+    text-align:center;
+    padding:30px 10px;
+    color:var(--ref-muted);
+    font-size:13px;
+  }
+
+  .material-detail-header{
+    display:flex;
+    justify-content:space-between;
+    gap:16px;
+    flex-wrap:wrap;
+    align-items:flex-start;
+  }
+  .mdh-left h2{margin-bottom:2px;}
+  .mdh-left .sub{font-size:12.5px;color:var(--ref-muted);}
+  .mdh-right{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .mdh-right select, .mdh-right input{
+    font-family:inherit;font-size:12.5px;border:1px solid var(--ref-border-strong);
+    border-radius:7px;padding:6px 9px;background:var(--ref-soft);color:var(--ref-text);
+  }
+
+  .adj-history{font-size:12px;color:var(--ref-muted);margin-top:8px;}
+
+  footer.page-footer{
+    text-align:center;
+    font-size:11.5px;
+    color:var(--ref-muted);
+    margin-top:30px;
+  }
+
+  @media (max-width:720px){
+    .material-detail-header{flex-direction:column;}
+    th,td{white-space:normal;}
+  }
+
+  @media print{
+    body *{visibility:hidden;}
+    .print-area, .print-area *{visibility:visible;}
+    .print-area{
+      position:absolute;top:0;left:0;width:100%;
+      padding:0;margin:0;
+    }
+    .no-print{display:none !important;}
+    table{font-size:11px;}
+    .card{box-shadow:none;border:1px solid #999;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="banner no-print">
+    Proposed interface — synthetic demonstration data.
+    <small>Every material, quantity, date and name on this page is fabricated for illustration only. Nothing on this page reads from or writes to any real system. Every posting-style action below is explicitly labelled "Simulate".</small>
+  </div>
+
+  <header class="top no-print">
+    <div>
+      <h1>Shared Store Material Register — Prototype</h1>
+      <p>A proposed replacement for the manual paper material register, read against what this ERP's receipt ledger (Task 13C) already supports today. See <code>docs/material-register-design.md</code> for the full design.</p>
+    </div>
+    <div class="top-actions">
+      <button class="btn" id="themeToggle" type="button">Toggle theme</button>
+      <button class="btn primary" id="printBtn" type="button">Print / Save as PDF</button>
+    </div>
+  </header>
+
+  <nav class="tabs no-print">
+    <button class="tab active" data-tab="list">Material list</button>
+    <button class="tab" data-tab="detail">Material register</button>
+    <button class="tab" data-tab="questions">Client questions</button>
+  </nav>
+
+  <!-- ===================== MATERIAL LIST ===================== -->
+  <section class="panel active" id="panel-list">
+    <div class="card no-print">
+      <h2>Materials (synthetic catalog)</h2>
+      <p class="muted">Search, type and status filters mirror the existing <code>GET /v1/materials/</code> query parameters already used by the real Materials tab. This list is static demonstration data, not a live, paginated API call.</p>
+      <div class="toolbar">
+        <input type="search" id="searchBox" placeholder="Search code or name…">
+        <select id="kindFilter">
+          <option value="">All types</option>
+          <option value="RAW_MATERIAL">Raw material</option>
+          <option value="PACKAGING_MATERIAL">Packaging material</option>
+        </select>
+        <select id="activeFilter">
+          <option value="">Active + inactive</option>
+          <option value="true">Active only</option>
+          <option value="false">Inactive only</option>
+        </select>
+        <select id="sortOrder">
+          <option value="">Default order</option>
+          <option value="az">A–Z (optional)</option>
+        </select>
+        <span class="muted" id="resultCount"></span>
+      </div>
+      <div class="table-wrap">
+        <table id="materialTable">
+          <thead>
+            <tr><th>Code</th><th>Name</th><th>Type</th><th>Base unit</th><th>Status</th><th>Register</th></tr>
+          </thead>
+          <tbody id="materialTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== MATERIAL DETAIL / REGISTER ===================== -->
+  <section class="panel" id="panel-detail">
+    <div class="card">
+      <div class="material-detail-header">
+        <div class="mdh-left">
+          <h2 id="detailTitle">Select a material</h2>
+          <div class="sub" id="detailSub"></div>
+        </div>
+        <div class="mdh-right no-print">
+          <label class="muted" style="font-size:12px;">Store
+            <select id="storeSelect">
+              <option>Main Shared Store (DEMO)</option>
+            </select>
+          </label>
+          <label class="muted" style="font-size:12px;">Period start
+            <input type="date" id="periodStart" value="2025-01-01">
+          </label>
+          <label class="muted" style="font-size:12px;">Period end
+            <input type="date" id="periodEnd" value="2025-01-31">
+          </label>
+        </div>
+      </div>
+      <div class="notice info" id="noDataNotice" style="display:none;">
+        No synthetic register data is loaded for this material in this prototype — full inward/outward/returns/physical-count
+        detail is only built out for <strong>RM-DEMO-01</strong>, to keep this demonstration honest about its own scope.
+        Use the list tab to select RM-DEMO-01.
+      </div>
+
+      <div id="registerBody" class="print-area">
+        <!-- Summary KPIs -->
+        <h3>Period summary <span class="help" tabindex="0">?<span class="tip">Figures marked "proposed" have no supporting backend model yet — see §3.C and §11 of the design document. Only "Receipts (RECEIPT_IN)" is computable from real code today.</span></span></h3>
+        <div class="kpis" id="kpiRow"></div>
+        <div class="notice warn" id="diffNotice"></div>
+
+        <div class="no-print" style="margin:14px 0;">
+          <button class="btn sim" id="simulateBtn" type="button">Simulate −0.1 kg adjustment (bring book balance to match physical count)</button>
+          <span class="muted adj-history" id="adjStatus"></span>
+        </div>
+
+        <!-- Section tabs -->
+        <div class="section-tabs no-print">
+          <button class="section-tab active" data-sec="inward">Inward</button>
+          <button class="section-tab" data-sec="outward">Outward</button>
+          <button class="section-tab" data-sec="returns">Returns &amp; defective</button>
+          <button class="section-tab" data-sec="physical">Physical counts &amp; adjustments</button>
+          <button class="section-tab" data-sec="history">Movement history</button>
+          <button class="section-tab" data-sec="glossary">Plain-English guide</button>
+        </div>
+
+        <div class="reg-section active" id="sec-inward">
+          <h3>Inward</h3>
+          <p class="muted">Reuses the existing goods-receipt posting path (<code>apps.receiving.services.post_goods_receipt</code>) — this design proposes no second, parallel "receive material" action. See §4 of the design document.</p>
+          <div class="table-wrap">
+            <table class="compact" id="inwardTable"><thead><tr>
+              <th>Date</th><th>Source document</th><th>Supplier</th><th>Qty</th><th>Unit</th><th>Lot ref.</th><th>Notes</th>
+            </tr></thead><tbody></tbody></table>
+          </div>
+        </div>
+
+        <div class="reg-section" id="sec-outward">
+          <h3>Outward <span class="status-pill">Proposed — not built</span></h3>
+          <p class="muted">No issue API exists today. Rows below illustrate the proposed shape only (§5) — each line has one unambiguous destination batch, never a guessed split across several batches.</p>
+          <div class="table-wrap">
+            <table class="compact" id="outwardTable"><thead><tr>
+              <th>Date</th><th>Batch</th><th>Product</th><th>Qty</th><th>Unit</th><th>Remark</th>
+            </tr></thead><tbody></tbody></table>
+          </div>
+        </div>
+
+        <div class="reg-section" id="sec-returns">
+          <h3>Returns &amp; defective material <span class="status-pill">Proposed — not built</span></h3>
+          <p class="muted">No return/defective-classification movement type exists today (§6, §11). Classifying material as defective never itself removes physical stock.</p>
+          <div class="table-wrap">
+            <table class="compact" id="returnsTable"><thead><tr>
+              <th>Date</th><th>Type</th><th>Qty</th><th>Unit</th><th>Notes</th>
+            </tr></thead><tbody><tr><td colspan="5" class="empty-state">No synthetic return entries for this worked example.</td></tr></tbody></table>
+          </div>
+        </div>
+
+        <div class="reg-section" id="sec-physical">
+          <h3>Physical counts &amp; adjustments</h3>
+          <p class="muted">A physical count never changes the book balance by itself. A difference is shown as "awaiting review" — never auto-labelled wastage, theft, or process loss (§7).</p>
+          <div class="table-wrap">
+            <table class="compact" id="physicalTable"><thead><tr>
+              <th>Count date</th><th>Physical count</th><th>Book balance at cutoff</th><th>Difference</th><th>Status</th>
+            </tr></thead><tbody></tbody></table>
+          </div>
+        </div>
+
+        <div class="reg-section" id="sec-history">
+          <h3>Movement history <span class="muted" style="font-weight:400;">(unified, dated)</span></h3>
+          <p class="muted">Every section above, merged into one dated list — nothing here is deleted or overwritten; a correction is always a new, linked row (§6).</p>
+          <div class="table-wrap">
+            <table class="compact" id="historyTable"><thead><tr>
+              <th>Date</th><th>Movement</th><th>Reference</th><th>Qty</th><th>Running book balance</th>
+            </tr></thead><tbody></tbody></table>
+          </div>
+        </div>
+
+        <div class="reg-section" id="sec-glossary">
+          <h3>Plain-English guide to every figure on this page</h3>
+          <dl class="glossary">
+            <div class="gloss-item"><dt>Opening book balance</dt><dd>What the records say we had at the very start of the chosen period. For this worked example, a fixed starting figure (5 kg) — not computed, simply the period's starting point.</dd></div>
+            <div class="gloss-item"><dt>Receipts (RECEIPT_IN)</dt><dd>Everything physically delivered and posted against this material in the period. This is the one figure this ERP can already compute for real today.</dd></div>
+            <div class="gloss-item"><dt>Issues</dt><dd>Material handed out of the store for use (e.g. to a manufacturing batch). Proposed only — no issue feature exists yet.</dd></div>
+            <div class="gloss-item"><dt>Returns</dt><dd>Unused material physically brought back to the store. Proposed only — no return feature exists yet.</dd></div>
+            <div class="gloss-item"><dt>Closing book balance</dt><dd>Opening + Receipts − Issues + Returns ± Adjustments, for the chosen period. What the paper records say should be there right now.</dd></div>
+            <div class="gloss-item"><dt>Physical count</dt><dd>What someone actually counted, by hand, on a specific date. Always tied to the date it was counted — never averaged with a count from a different date.</dd></div>
+            <div class="gloss-item"><dt>Difference awaiting review</dt><dd>Physical count minus book balance. Shown as a plain number needing a human look — never automatically called wastage, theft, or process loss.</dd></div>
+            <div class="gloss-item"><dt>Simulated adjustment</dt><dd>A demonstration-only, clearly labelled correction that would bring the book balance in line with a physical count, were this a real system — original count and the adjustment both stay visible, nothing is erased.</dd></div>
+          </dl>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== CLIENT QUESTIONS ===================== -->
+  <section class="panel" id="panel-questions">
+    <div class="card">
+      <h2>Client questions — answer sheet</h2>
+      <p class="muted">Every row is deliberately left unanswered in this prototype and in the design document. Nothing here is guessed or defaulted.</p>
+      <div class="table-wrap">
+        <table class="qtable">
+          <thead><tr><th>Question</th><th>Why it matters</th><th>Answer</th><th>Status</th></tr></thead>
+          <tbody id="questionsTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <footer class="page-footer no-print">
+    Shared Store Material Register — offline design prototype. Synthetic data only. See <code>docs/material-register-design.md</code>.
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Synthetic data (fabricated for illustration only) ----------
+  var MATERIALS = [
+    {code:"RM-DEMO-01", name:"Herbal Extract Demo A", kind:"RAW_MATERIAL", unit:"kg", active:true, hasRegister:true},
+    {code:"RM-DEMO-02", name:"Herbal Extract Demo B", kind:"RAW_MATERIAL", unit:"kg", active:true, hasRegister:false},
+    {code:"RM-DEMO-03", name:"Binder Demo C", kind:"RAW_MATERIAL", unit:"kg", active:false, hasRegister:false},
+    {code:"RM-DEMO-04", name:"Solvent Demo D", kind:"RAW_MATERIAL", unit:"ltr", active:true, hasRegister:false},
+    {code:"RM-DEMO-05", name:"Mineral Demo E", kind:"RAW_MATERIAL", unit:"kg", active:true, hasRegister:false},
+    {code:"PM-DEMO-01", name:"Bottle Cap Demo", kind:"PACKAGING_MATERIAL", unit:"pcs", active:true, hasRegister:false},
+    {code:"PM-DEMO-02", name:"Carton Box Demo", kind:"PACKAGING_MATERIAL", unit:"pcs", active:true, hasRegister:false},
+    {code:"PM-DEMO-03", name:"Label Demo", kind:"PACKAGING_MATERIAL", unit:"pcs", active:false, hasRegister:false}
+  ];
+
+  // Worked example, exactly matching the design document §7.
+  // Opening 5 kg -> Receipt +2 kg -> Issue -3 kg -> book balance 4 kg.
+  // Physical count 3.9 kg -> difference -0.1 kg "awaiting review".
+  var REGISTER = {
+    "RM-DEMO-01": {
+      openingBalance: 5,
+      openingDate: "2025-01-01",
+      inward: [
+        {date:"2025-01-10", doc:"GR-DEMO-0100 (PO-DEMO-0040)", supplier:"Demo Botanicals Supplier Co.", qty:2, unit:"kg", lot:"DEMOLOT-7", notes:""}
+      ],
+      outward: [
+        {date:"2025-01-18", batch:"DEMO-001", product:"Demo Product Alpha", qty:3, unit:"kg", remark:"Issued to manufacturing"}
+      ],
+      physical: [
+        {date:"2025-01-31", counted:3.9, bookAtCutoff:4}
+      ]
+    }
+  };
+
+  var QUESTIONS = [
+    ["What units are receipts and issues recorded in, and which conversions are permitted?", "Determines whether canonical-factor conversions are ever needed inside the register itself, or only at batch-planning time as today.", "", "Open"],
+    ["Are there material grades/specifications needing their own unique codes, or does one material code always mean one grade?", "Affects whether the material master needs splitting for some items.", "", "Open"],
+    ["What does the \"Container/pack description\" field mean (e.g. \"25 Gm G2\")?", "Needed before it can be structured as anything beyond free text.", "", "Open"],
+    ["What do the manually written \"Physical\" quantities mean, and on what date were they counted?", "Required before any historical physical-count data can be imported or trusted.", "", "Open"],
+    ["What does the abbreviation \"T.W.\" (or any other unexplained shorthand) mean?", "Cannot be mapped to any field without a definition; must not be guessed.", "", "Open"],
+    ["What is the Price field's basis — per kg, per container, or a line total?", "Required before any valuation feature could be designed; kept separate from quantity tracking until answered.", "", "Open"],
+    ["When one issue covers more than one batch, how should the quantity be allocated?", "This design refuses to guess an equal split or any other inferred rule.", "", "Open"],
+    ["Why do some historical issue entries have no batch number at all?", "Determines whether these are legitimate exceptions (sample/testing/maintenance/delayed entry) or data-entry gaps.", "", "Open"],
+    ["Can a receipt exist without a purchase order or without a supplier invoice?", "Today's GoodsReceipt requires a purchase order — relaxing this is a schema change, not a UI tweak.", "", "Open"],
+    ["What exact opening-stock detail is available (per-lot vs. rolled-up totals), and how will it be verified?", "Determines whether the opening-stock import needs per-lot columns or accepts totals.", "", "Open"],
+    ["Does the client need supplier lot numbers and expiry dates tracked, and from where (supplier declaration vs. QC measurement)?", "Today's lot reference is optional free text only; a real lot/expiry model is a separate build.", "", "Open"],
+    ["Does stock location need to be tracked at the shelf/bin level, or is store-level sufficient?", "Storage locations exist, but nothing populates one from a receipt today.", "", "Open"],
+    ["How should material ownership and cross-company use be handled at this shared store?", "The single most consequential open question — almost every \"by company\" figure depends on the answer.", "", "Open"],
+    ["Who has authority to decide QC release, and at what point in the flow?", "No release/disposition action exists anywhere yet; gates whether a released/usable figure can ever be shown.", "", "Open"],
+    ["What are the rules for partial issues and for issuing more than was requisitioned?", "No issue model exists yet; needed before one can be designed.", "", "Open"],
+    ["What inspection and release process applies to returned material?", "Determines whether a return should ever be counted as usable automatically, or always re-enters a QC-held state.", "", "Open"],
+    ["Who approves classifying material as defective, a supplier return, or a disposal?", "No defective/return/disposal workflow exists yet; authority is unassigned.", "", "Open"],
+    ["What is the authorized cutoff and adjustment-approval process for physical counts?", "Needed before any count-driven adjustment can be posted for real.", "", "Open"]
+  ];
+
+  // ---------- State ----------
+  var state = { selectedMaterial: null, adjustmentApplied: false };
+
+  // ---------- Tabs (top-level) ----------
+  var tabs = document.querySelectorAll(".tab");
+  var panels = { list: document.getElementById("panel-list"), detail: document.getElementById("panel-detail"), questions: document.getElementById("panel-questions") };
+  tabs.forEach(function(btn){
+    btn.addEventListener("click", function(){
+      tabs.forEach(function(b){ b.classList.remove("active"); });
+      btn.classList.add("active");
+      Object.keys(panels).forEach(function(k){ panels[k].classList.remove("active"); });
+      panels[btn.getAttribute("data-tab")].classList.add("active");
+    });
+  });
+
+  // ---------- Section tabs (inside register) ----------
+  var secTabs = document.querySelectorAll(".section-tab");
+  var secPanels = {};
+  ["inward","outward","returns","physical","history","glossary"].forEach(function(k){
+    secPanels[k] = document.getElementById("sec-" + k);
+  });
+  secTabs.forEach(function(btn){
+    btn.addEventListener("click", function(){
+      secTabs.forEach(function(b){ b.classList.remove("active"); });
+      btn.classList.add("active");
+      Object.keys(secPanels).forEach(function(k){ secPanels[k].classList.remove("active"); });
+      secPanels[btn.getAttribute("data-sec")].classList.add("active");
+    });
+  });
+
+  // ---------- Theme toggle (per-viewer convenience only; not persisted state the app relies on) ----------
+  var themeBtn = document.getElementById("themeToggle");
+  themeBtn.addEventListener("click", function(){
+    var root = document.documentElement;
+    var current = root.getAttribute("data-theme");
+    if (current === "dark") { root.setAttribute("data-theme", "light"); }
+    else if (current === "light") { root.removeAttribute("data-theme"); }
+    else { root.setAttribute("data-theme", "dark"); }
+    try { localStorage.setItem("mrd_theme", root.getAttribute("data-theme") || ""); } catch(e){}
+  });
+  try {
+    var savedTheme = localStorage.getItem("mrd_theme");
+    if (savedTheme) document.documentElement.setAttribute("data-theme", savedTheme);
+  } catch(e){}
+
+  // ---------- Print ----------
+  document.getElementById("printBtn").addEventListener("click", function(){ window.print(); });
+
+  // ---------- Material list rendering ----------
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[c];
+    });
+  }
+
+  function kindLabel(k){ return k === "RAW_MATERIAL" ? "Raw material" : "Packaging material"; }
+  function kindBadgeClass(k){ return k === "RAW_MATERIAL" ? "rm" : "pm"; }
+
+  function renderMaterialList(){
+    var search = document.getElementById("searchBox").value.trim().toLowerCase();
+    var kind = document.getElementById("kindFilter").value;
+    var activeF = document.getElementById("activeFilter").value;
+    var sort = document.getElementById("sortOrder").value;
+
+    var rows = MATERIALS.filter(function(m){
+      if (search && m.code.toLowerCase().indexOf(search) === -1 && m.name.toLowerCase().indexOf(search) === -1) return false;
+      if (kind && m.kind !== kind) return false;
+      if (activeF === "true" && !m.active) return false;
+      if (activeF === "false" && m.active) return false;
+      return true;
+    });
+
+    if (sort === "az") {
+      rows = rows.slice().sort(function(a,b){ return a.name.localeCompare(b.name); });
+    }
+
+    var tbody = document.getElementById("materialTbody");
+    tbody.innerHTML = "";
+
+    if (rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No materials match these filters.</td></tr>';
+    } else {
+      rows.forEach(function(m){
+        var tr = document.createElement("tr");
+        tr.className = "mat-row" + (state.selectedMaterial === m.code ? " selected" : "");
+        tr.innerHTML =
+          "<td><strong>" + escapeHtml(m.code) + "</strong></td>" +
+          "<td>" + escapeHtml(m.name) + "</td>" +
+          "<td><span class='badge " + kindBadgeClass(m.kind) + "'>" + kindLabel(m.kind) + "</span></td>" +
+          "<td>" + escapeHtml(m.unit) + "</td>" +
+          "<td><span class='badge " + (m.active ? "active" : "inactive") + "'>" + (m.active ? "Active" : "Inactive") + "</span></td>" +
+          "<td>" + (m.hasRegister ? "<button class='btn small primary' data-open='" + m.code + "' type='button'>Open register</button>" : "<span class='muted'>No demo detail</span>") + "</td>";
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.getElementById("resultCount").textContent = rows.length + " of " + MATERIALS.length + " materials shown";
+
+    tbody.querySelectorAll("[data-open]").forEach(function(btn){
+      btn.addEventListener("click", function(){ openMaterial(btn.getAttribute("data-open")); });
+    });
+    tbody.querySelectorAll(".mat-row").forEach(function(tr, idx){
+      tr.addEventListener("click", function(ev){
+        if (ev.target && ev.target.tagName === "BUTTON") return;
+        var code = rows[idx].code;
+        if (rows[idx].hasRegister) openMaterial(code);
+      });
+    });
+  }
+
+  ["searchBox","kindFilter","activeFilter","sortOrder"].forEach(function(id){
+    var el = document.getElementById(id);
+    el.addEventListener(id === "searchBox" ? "input" : "change", renderMaterialList);
+  });
+
+  // ---------- Material register rendering ----------
+  function openMaterial(code){
+    state.selectedMaterial = code;
+    document.querySelector('.tab[data-tab="detail"]').click();
+    renderMaterialList();
+    renderRegister();
+  }
+
+  function fmtQty(n){
+    // Always show 1 decimal place for this worked example's own figures,
+    // matching the design document's own stated precision (kg, 3dp max upstream).
+    return (Math.round(n * 1000) / 1000).toString();
+  }
+
+  function renderRegister(){
+    var code = state.selectedMaterial;
+    var mat = MATERIALS.filter(function(m){ return m.code === code; })[0];
+    var noData = document.getElementById("noDataNotice");
+    var body = document.getElementById("registerBody");
+
+    if (!mat) {
+      document.getElementById("detailTitle").textContent = "Select a material";
+      document.getElementById("detailSub").textContent = "Use the Material list tab, then click \"Open register\".";
+      noData.style.display = "none";
+      body.style.display = "none";
+      return;
+    }
+
+    document.getElementById("detailTitle").textContent = mat.code + " — " + mat.name;
+    document.getElementById("detailSub").textContent =
+      kindLabel(mat.kind) + " · base unit " + mat.unit + " · " + (mat.active ? "Active" : "Inactive") +
+      " · physical location: Main Shared Store (DEMO) — legal ownership of material at this shared store is unresolved (see Client questions)";
+
+    if (!mat.hasRegister) {
+      noData.style.display = "block";
+      body.style.display = "none";
+      return;
+    }
+    noData.style.display = "none";
+    body.style.display = "block";
+
+    var reg = REGISTER[code];
+    var opening = reg.openingBalance;
+    var receipts = reg.inward.reduce(function(s,r){ return s + r.qty; }, 0);
+    var issues = reg.outward.reduce(function(s,r){ return s + r.qty; }, 0);
+    var closing = opening + receipts - issues; // returns/adjustments folded in below once simulated
+
+    var adjustmentTotal = state.adjustmentApplied ? -0.1 : 0;
+    var closingWithAdj = closing + adjustmentTotal;
+
+    var latestPhysical = reg.physical[reg.physical.length - 1];
+    var diff = latestPhysical.counted - latestPhysical.bookAtCutoff;
+
+    // ---- KPI row ----
+    var kpiRow = document.getElementById("kpiRow");
+    kpiRow.innerHTML = "";
+    function kpi(label, value, note, cls){
+      var d = document.createElement("div");
+      d.className = "kpi" + (cls ? " " + cls : "");
+      d.innerHTML = "<div class='label'>" + label + "</div><div class='value'>" + value + "</div>" + (note ? "<div class='note'>" + note + "</div>" : "");
+      kpiRow.appendChild(d);
+    }
+    kpi("Opening book balance", fmtQty(opening) + " " + mat.unit, "as of " + reg.openingDate);
+    kpi("Receipts (RECEIPT_IN)", "+" + fmtQty(receipts) + " " + mat.unit, "computable today");
+    kpi("Issues", "proposed", "no issue model exists yet", "proposed");
+    kpi("Returns", "proposed", "no return model exists yet", "proposed");
+    kpi("Other adjustments", state.adjustmentApplied ? ("−" + fmtQty(-adjustmentTotal) + " " + mat.unit) : "none posted", state.adjustmentApplied ? "simulated only" : "");
+    kpi("Closing book balance", fmtQty(closingWithAdj) + " " + mat.unit, state.adjustmentApplied ? "after simulated adjustment" : "", "ok");
+    kpi("Latest physical count", fmtQty(latestPhysical.counted) + " " + mat.unit, "counted " + latestPhysical.date);
+
+    var diffNotice = document.getElementById("diffNotice");
+    if (state.adjustmentApplied) {
+      diffNotice.className = "notice ok";
+      diffNotice.innerHTML = "<strong>Adjustment simulated.</strong> Book balance now matches the " + latestPhysical.date + " physical count (" + fmtQty(closingWithAdj) + " " + mat.unit + "). The original count and this adjustment both remain visible below — nothing was overwritten.";
+    } else {
+      diffNotice.className = "notice warn";
+      diffNotice.innerHTML = "<strong>Difference awaiting review:</strong> " + (diff >= 0 ? "+" : "") + fmtQty(diff) + " " + mat.unit +
+        " (physical count " + fmtQty(latestPhysical.counted) + " " + mat.unit + " − book balance " + fmtQty(latestPhysical.bookAtCutoff) + " " + mat.unit + "). " +
+        "This is not automatically wastage, theft, or process loss — it is simply recorded for human review.";
+    }
+
+    // ---- Simulate button ----
+    var simBtn = document.getElementById("simulateBtn");
+    var simStatus = document.getElementById("adjStatus");
+    simBtn.disabled = state.adjustmentApplied;
+    simStatus.textContent = state.adjustmentApplied ? "Adjustment already simulated for this session — repeated clicks never duplicate it." : "";
+
+    // ---- Inward table ----
+    var inTbody = document.querySelector("#inwardTable tbody");
+    inTbody.innerHTML = reg.inward.map(function(r){
+      return "<tr><td>" + r.date + "</td><td>" + escapeHtml(r.doc) + "</td><td>" + escapeHtml(r.supplier) + "</td><td>+" + fmtQty(r.qty) + "</td><td>" + mat.unit + "</td><td>" + escapeHtml(r.lot) + "</td><td>" + escapeHtml(r.notes || "—") + "</td></tr>";
+    }).join("") || "<tr><td colspan='7' class='empty-state'>No inward entries in this worked example.</td></tr>";
+
+    // ---- Outward table ----
+    var outTbody = document.querySelector("#outwardTable tbody");
+    outTbody.innerHTML = reg.outward.map(function(r){
+      return "<tr><td>" + r.date + "</td><td>" + escapeHtml(r.batch) + "</td><td>" + escapeHtml(r.product) + "</td><td>−" + fmtQty(r.qty) + "</td><td>" + mat.unit + "</td><td>" + escapeHtml(r.remark) + "</td></tr>";
+    }).join("") || "<tr><td colspan='6' class='empty-state'>No outward entries in this worked example.</td></tr>";
+
+    // ---- Physical table ----
+    var physTbody = document.querySelector("#physicalTable tbody");
+    var physRows = reg.physical.slice();
+    physTbody.innerHTML = physRows.map(function(p){
+      var d = p.counted - p.bookAtCutoff;
+      return "<tr><td>" + p.date + "</td><td>" + fmtQty(p.counted) + " " + mat.unit + "</td><td>" + fmtQty(p.bookAtCutoff) + " " + mat.unit + "</td><td>" + (d >= 0 ? "+" : "") + fmtQty(d) + " " + mat.unit + "</td><td><span class='status-pill'>Awaiting review</span></td></tr>";
+    }).join("");
+    if (state.adjustmentApplied) {
+      physTbody.innerHTML += "<tr><td>" + latestPhysical.date + " (adjustment)</td><td>—</td><td>—</td><td>−0.1 " + mat.unit + "</td><td><span class='badge active'>Simulated adjustment posted</span></td></tr>";
+    }
+
+    // ---- Unified history ----
+    var histTbody = document.querySelector("#historyTable tbody");
+    var running = opening;
+    var histRows = [];
+    histRows.push({date: reg.openingDate, type: "Opening", ref: "Period start (illustrative)", qty: null, running: running});
+    reg.inward.forEach(function(r){ running += r.qty; histRows.push({date:r.date, type:"Receipt (RECEIPT_IN)", ref:r.doc, qty: "+" + fmtQty(r.qty), running: running}); });
+    reg.outward.forEach(function(r){ running -= r.qty; histRows.push({date:r.date, type:"Issue (proposed)", ref:"Batch " + r.batch, qty: "−" + fmtQty(r.qty), running: running}); });
+    if (state.adjustmentApplied) {
+      running += adjustmentTotal;
+      histRows.push({date: latestPhysical.date, type: "Adjustment (simulated)", ref: "Physical count review", qty: fmtQty(adjustmentTotal), running: running});
+    }
+    histRows.sort(function(a,b){ return a.date.localeCompare(b.date); });
+    histTbody.innerHTML = histRows.map(function(h){
+      return "<tr><td>" + h.date + "</td><td>" + h.type + "</td><td>" + escapeHtml(h.ref) + "</td><td>" + (h.qty === null ? "—" : h.qty + " " + mat.unit) + "</td><td>" + fmtQty(h.running) + " " + mat.unit + "</td></tr>";
+    }).join("");
+  }
+
+  document.getElementById("simulateBtn").addEventListener("click", function(){
+    if (state.adjustmentApplied) return; // deterministic: a second click is a no-op
+    state.adjustmentApplied = true;
+    renderRegister();
+  });
+
+  ["storeSelect","periodStart","periodEnd"].forEach(function(id){
+    document.getElementById(id).addEventListener("change", renderRegister);
+  });
+
+  // ---------- Client questions ----------
+  function renderQuestions(){
+    var tbody = document.getElementById("questionsTbody");
+    tbody.innerHTML = QUESTIONS.map(function(q){
+      return "<tr><td>" + escapeHtml(q[0]) + "</td><td>" + escapeHtml(q[1]) + "</td><td class='muted'>" + (q[2] || "—") + "</td><td><span class='status-pill'>" + q[3] + "</span></td></tr>";
+    }).join("");
+  }
+
+  // ---------- Init ----------
+  renderMaterialList();
+  renderRegister();
+  renderQuestions();
+})();
+</script>
+</body>
+</html>

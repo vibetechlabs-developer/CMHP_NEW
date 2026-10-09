@@ -55,6 +55,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "code",
             "name",
             "product_type",
+            "bmr_no",
             "description",
             "sales_uom_id",
             "sales_uom_code",
@@ -70,20 +71,27 @@ class ProductSerializer(serializers.ModelSerializer):
 
 class ProductCreateSerializer(serializers.ModelSerializer):
     """`company` is never accepted here - it always comes from the URL
-    (see apps.products.views). `sales_uom_id` is required and writable
-    only at create; PATCH cannot change it (see ProductUpdateSerializer
-    below) - the view resolves it to a `UnitOfMeasure` instance and the
-    service checks it is active before creating.
+    (see apps.products.views). `sales_uom_id` is writable only at
+    create; PATCH cannot change it (see ProductUpdateSerializer below).
+    Optional (as of this task): the "Create product" form no longer asks
+    for it, so when it's omitted the view resolves a sensible default via
+    apps.products.services.resolve_default_sales_uom instead - the
+    underlying `Product.sales_uom` itself is still required and still
+    immutable, this only changes who picks the value when the caller
+    doesn't name one explicitly. When it IS supplied, the view resolves
+    it to a `UnitOfMeasure` instance and the service checks it is active
+    before creating, exactly as before.
     """
 
-    sales_uom_id = serializers.IntegerField()
+    sales_uom_id = serializers.IntegerField(required=False)
 
     class Meta:
         model = Product
-        fields = ["code", "name", "product_type", "description", "sales_uom_id"]
+        fields = ["code", "name", "product_type", "bmr_no", "description", "sales_uom_id"]
         extra_kwargs = {
             "description": {"required": False, "allow_blank": True},
             "product_type": {"required": False, "allow_blank": True},
+            "bmr_no": {"required": False, "allow_blank": True},
         }
 
     def validate(self, attrs):
@@ -106,6 +114,7 @@ class ProductUpdateSerializer(serializers.Serializer):
     expected_version = serializers.IntegerField()
     name = serializers.CharField(required=False)
     product_type = serializers.CharField(required=False, allow_blank=True)
+    bmr_no = serializers.CharField(required=False, allow_blank=True)
     description = serializers.CharField(required=False, allow_blank=True)
 
     def validate_name(self, value):

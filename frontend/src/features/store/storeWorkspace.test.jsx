@@ -11,6 +11,7 @@ import {
   commitMaterialImport,
   createMaterial,
   deactivateMaterial,
+  getMaterial,
   getMyStores,
   listLocations,
   listMaterials,
@@ -31,6 +32,7 @@ vi.mock('../operations/unitsLookupService', () => ({
 }))
 vi.mock('./storeService', () => ({
   getMyStores: vi.fn(),
+  getMaterial: vi.fn(),
   listMaterials: vi.fn(),
   createMaterial: vi.fn(),
   updateMaterial: vi.fn(),
@@ -62,10 +64,11 @@ beforeEach(() => {
   vi.clearAllMocks()
   auth.user = CAPABLE
   getMyStores.mockResolvedValue([STORE_ONE])
+  getMaterial.mockResolvedValue(MATERIAL)
   listMaterials.mockResolvedValue({ count: 1, results: [MATERIAL] })
   listLocations.mockResolvedValue({ count: 0, results: [] })
-  listRecordedReceiptBalances.mockResolvedValue({ count: 0, results: [], coverage: null })
-  listRecordedReceipts.mockResolvedValue({ count: 0, results: [], coverage: { release_status: 'Not tracked', historical_receipts_backfilled: false } })
+  listRecordedReceiptBalances.mockResolvedValue({ count: 0, results: [], coverage: null, period: { posted_from: null, posted_to: null } })
+  listRecordedReceipts.mockResolvedValue({ count: 0, results: [], coverage: { release_status: 'Not tracked', historical_receipts_backfilled: false }, period: { posted_from: null, posted_to: null } })
 })
 
 afterEach(() => {
@@ -212,6 +215,83 @@ describe('Locations and Recorded Receipts', () => {
     expect(screen.getByText('Recorded receipts only. Opening stock, issues, returns and QC release are not included.')).toBeTruthy()
     const page = document.body.textContent || ''
     for (const forbidden of ['Available stock', 'Usable stock', 'Released stock', 'On-hand stock', 'Issue', 'Reserve', 'Transfer']) {
+      expect(page).not.toMatch(new RegExp(forbidden))
+    }
+  })
+})
+
+describe('Material register', () => {
+  it('clicking a material code navigates to its register and loads material + store-scoped data', async () => {
+    renderAt()
+    await screen.findByText('Synthetic raw A')
+    fireEvent.click(screen.getByRole('link', { name: 'SYN-RAW-1' }))
+
+    expect(await screen.findByText('Inward register')).toBeTruthy()
+    await waitFor(() => expect(getMaterial).toHaveBeenCalledWith(10))
+    await waitFor(() =>
+      expect(listRecordedReceipts).toHaveBeenCalledWith(5, expect.objectContaining({ material: 10 }))
+    )
+    expect(screen.getByText('← Back to materials')).toBeTruthy()
+  })
+
+  it('"View register" is a separate, always-visible action leading to the same register', async () => {
+    renderAt()
+    await screen.findByText('Synthetic raw A')
+    fireEvent.click(screen.getByRole('link', { name: 'View register' }))
+    expect(await screen.findByText('Inward register')).toBeTruthy()
+  })
+
+  it('the Back link returns to the materials list', async () => {
+    renderAt()
+    await screen.findByText('Synthetic raw A')
+    fireEvent.click(screen.getByRole('link', { name: 'View register' }))
+    await screen.findByText('Inward register')
+    fireEvent.click(screen.getByRole('link', { name: /Back to materials/ }))
+    expect(await screen.findByText('Synthetic raw A')).toBeTruthy()
+  })
+
+  it('shows a clear message for a material that does not exist or is not visible', async () => {
+    getMaterial.mockRejectedValue({ response: { status: 404, headers: {}, data: {} } })
+    renderAt('/inventory/materials/999')
+    expect(await screen.findByText(/does not exist, or is not visible/)).toBeTruthy()
+  })
+
+  it('distinguishes no register access (403) from a store problem, never claiming a stock figure', async () => {
+    listRecordedReceipts.mockRejectedValue({ response: { status: 403, headers: {}, data: { detail: 'The following permission(s) are required: stock.view.' } } })
+    listRecordedReceiptBalances.mockRejectedValue({ response: { status: 403, headers: {}, data: { detail: 'The following permission(s) are required: stock.view.' } } })
+    renderAt('/inventory/materials/10')
+    expect(await screen.findByText(/You do not have register access for this store/)).toBeTruthy()
+  })
+
+  it('applies a posted-date filter as posted_from/posted_to and shows which window produced the total', async () => {
+    listRecordedReceiptBalances.mockResolvedValue({
+      count: 1,
+      results: [{ unit_id: 2, unit_code: 'KG', source_company_id: 2, source_company_code: 'DEMOA', recorded_receipt_quantity: '5.000' }],
+      coverage: null,
+      period: { posted_from: '2026-01-01', posted_to: '2026-01-31' },
+    })
+    listRecordedReceipts.mockResolvedValue({ count: 0, results: [], coverage: null, period: { posted_from: '2026-01-01', posted_to: '2026-01-31' } })
+    renderAt('/inventory/materials/10')
+    await screen.findByText('Inward register')
+
+    fireEvent.change(screen.getByLabelText('Posted from'), { target: { value: '2026-01-01' } })
+    fireEvent.change(screen.getByLabelText('Posted to'), { target: { value: '2026-01-31' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+
+    await waitFor(() =>
+      expect(listRecordedReceipts).toHaveBeenLastCalledWith(
+        5,
+        expect.objectContaining({ material: 10, postedFrom: '2026-01-01', postedTo: '2026-01-31' })
+      )
+    )
+    expect(await screen.findByText(/2026-01-01.*2026-01-31/)).toBeTruthy()
+  })
+
+  it('never shows available/usable/on-hand stock language on the register', async () => {
+    renderAt('/inventory/materials/10')
+    await screen.findByText('Inward register')
+    const page = document.body.textContent || ''
+    for (const forbidden of ['Available stock', 'Usable stock', 'On-hand stock', 'Closing balance']) {
       expect(page).not.toMatch(new RegExp(forbidden))
     }
   })

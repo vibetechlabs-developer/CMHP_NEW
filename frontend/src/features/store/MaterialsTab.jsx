@@ -1,5 +1,6 @@
 import './store.css'
 import { useEffect, useRef, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
@@ -27,10 +28,29 @@ const WRITE_DENIED = 'Only an administrator can change the material catalog. You
 // `canManage` comes from the server's capability (`can_manage_material_catalog`).
 // Without it, every write control is hidden and the list is read-only.
 export default function MaterialsTab({ canManage = false }) {
-  const [search, setSearch] = useState('')
-  const [kind, setKind] = useState('')
-  const [status, setStatus] = useState('')
-  const [page, setPage] = useState(1)
+  // Search/type/status/page live in the URL (not local-only state) so that
+  // leaving for a material's register and coming back - browser Back, or
+  // the register page's own "Back to materials" link, both just pop one
+  // history entry - lands on the exact same filtered/paginated list, not a
+  // reset one. See setFilter() below.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const search = searchParams.get('search') || ''
+  const kind = searchParams.get('kind') || ''
+  const status = searchParams.get('status') || ''
+  const page = Math.max(1, Number(searchParams.get('page') || '1') || 1)
+  const setFilter = (patch) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        Object.entries(patch).forEach(([key, value]) => {
+          if (value === null || value === '' || value === undefined) next.delete(key)
+          else next.set(key, String(value))
+        })
+        return next
+      },
+      { replace: true }
+    )
+  }
   const [data, setData] = useState({ count: 0, results: [] })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -115,17 +135,14 @@ export default function MaterialsTab({ canManage = false }) {
           placeholder="Search by code or name"
           aria-label="Search materials"
           value={search}
-          onChange={(event) => {
-            setSearch(event.target.value)
-            setPage(1)
-          }}
+          onChange={(event) => setFilter({ search: event.target.value, page: null })}
         />
-        <select className="field-input store-filter" aria-label="Material type" value={kind} onChange={(e) => { setKind(e.target.value); setPage(1) }}>
+        <select className="field-input store-filter" aria-label="Material type" value={kind} onChange={(e) => setFilter({ kind: e.target.value, page: null })}>
           <option value="">All types</option>
           <option value="RAW_MATERIAL">Raw material</option>
           <option value="PACKAGING_MATERIAL">Packaging</option>
         </select>
-        <select className="field-input store-filter" aria-label="Status" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }}>
+        <select className="field-input store-filter" aria-label="Status" value={status} onChange={(e) => setFilter({ status: e.target.value, page: null })}>
           <option value="">All statuses</option>
           <option value="true">Active</option>
           <option value="false">Inactive</option>
@@ -151,17 +168,31 @@ export default function MaterialsTab({ canManage = false }) {
               <th>Type</th>
               <th>Base unit</th>
               <th>Status</th>
+              <th>Register</th>
               {canManage && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
             {data.results.map((material) => (
               <tr key={material.id}>
-                <td className="cell-strong">{material.code}</td>
-                <td>{material.name}</td>
+                <td className="cell-strong">
+                  <Link to={`/inventory/materials/${material.id}`} state={{ returnSearch: searchParams.toString() }}>
+                    {material.code}
+                  </Link>
+                </td>
+                <td>
+                  <Link to={`/inventory/materials/${material.id}`} state={{ returnSearch: searchParams.toString() }}>
+                    {material.name}
+                  </Link>
+                </td>
                 <td>{KIND_LABEL[material.kind] || material.kind}</td>
                 <td>{material.base_unit_code}</td>
                 <td>{material.is_active ? 'Active' : 'Inactive'}</td>
+                <td>
+                  <Link className="table-edit" to={`/inventory/materials/${material.id}`} state={{ returnSearch: searchParams.toString() }}>
+                    View register
+                  </Link>
+                </td>
                 {canManage && (
                   <td>
                     <button type="button" className="table-edit" onClick={() => setEditing({ mode: 'edit', material })}>
@@ -182,14 +213,14 @@ export default function MaterialsTab({ canManage = false }) {
             ))}
             {loading && data.results.length === 0 && (
               <tr>
-                <td colSpan={canManage ? 6 : 5} style={{ textAlign: 'center', padding: '20px 0' }}>
+                <td colSpan={canManage ? 7 : 6} style={{ textAlign: 'center', padding: '20px 0' }}>
                   <Spinner tone="brand" label="Loading materials…" />
                 </td>
               </tr>
             )}
             {!loading && !error && data.results.length === 0 && (
               <tr>
-                <td colSpan={canManage ? 6 : 5} style={{ textAlign: 'center', color: '#6b7f95' }}>
+                <td colSpan={canManage ? 7 : 6} style={{ textAlign: 'center', color: '#6b7f95' }}>
                   No materials match these filters.
                 </td>
               </tr>
@@ -200,13 +231,13 @@ export default function MaterialsTab({ canManage = false }) {
 
       {data.count > PAGE_SIZE && (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end', marginTop: 10 }}>
-          <Button variant="secondary" disabled={page <= 1 || loading} onClick={() => setPage((p) => p - 1)}>
+          <Button variant="secondary" disabled={page <= 1 || loading} onClick={() => setFilter({ page: page - 1 })}>
             Previous
           </Button>
           <span className="field-muted">
             Page {page} of {totalPages}
           </span>
-          <Button variant="secondary" disabled={page >= totalPages || loading} onClick={() => setPage((p) => p + 1)}>
+          <Button variant="secondary" disabled={page >= totalPages || loading} onClick={() => setFilter({ page: page + 1 })}>
             Next
           </Button>
         </div>

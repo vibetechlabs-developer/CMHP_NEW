@@ -53,6 +53,27 @@ export async function updateSalesOrder(companyId, orderId, payload) {
   return response.data
 }
 
+// Read-only confirmation-preview - apps.sales_orders.views.
+// SalesOrderConfirmationPreviewView. Calls the SAME assess_confirmation
+// the real confirm command uses, so this screen never computes
+// eligibility itself; it only ever displays what the server returns.
+// Requires sales_orders.view only (not .confirm) - a viewer can review
+// without being able to confirm.
+export async function getConfirmationPreview(companyId, orderId) {
+  const response = await api.get(`${basePath(companyId)}/${orderId}/confirmation-preview/`)
+  return response.data
+}
+
+// DRAFT -> CONFIRMED. `expectedVersion` must be the `order.version` the
+// caller actually reviewed (from the confirmation-preview response),
+// never a locally-held, possibly-stale value - see apps.sales_orders.
+// services.confirm_sales_order. A stale version is a real 409 from the
+// server, never silently retried here.
+export async function confirmSalesOrder(companyId, orderId, expectedVersion) {
+  const response = await api.post(`${basePath(companyId)}/${orderId}/confirm/`, { expected_version: expectedVersion })
+  return response.data
+}
+
 // Deletes a DRAFT sales order that has no batch plans. The backend requires
 // sales_orders.delete and a current expected_version; a conflict or refusal is
 // returned to the caller as an error, never retried silently.

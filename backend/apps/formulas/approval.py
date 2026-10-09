@@ -40,6 +40,7 @@ from apps.products.models import Product
 
 FORMULAS_VIEW = "formulas.view"
 FORMULAS_APPROVE = "formulas.approve"
+FORMULAS_SUBMIT = "formulas.submit"
 
 POLICY_NOT_CONFIGURED_MESSAGE = "Approval rules are not configured. Contact your administrator."
 
@@ -132,9 +133,17 @@ def assess_approval(revision, formula, product, output_unit, lines, policy, *, a
 
     if revision.status == FormulaRevision.Status.APPROVED:
         blocking.append(_block("REVISION_ALREADY_APPROVED", CATEGORY_ELIGIBILITY, "This revision is already approved."))
-    elif revision.status != FormulaRevision.Status.DRAFT:
+    elif revision.status != FormulaRevision.Status.SUBMITTED:
+        # A DRAFT revision must be submitted for QA review first (apps.
+        # formulas.approval.submit_formula_revision) - approval is no
+        # longer reachable directly from DRAFT.
         blocking.append(
-            _block("REVISION_NOT_DRAFT", CATEGORY_ELIGIBILITY, f"A revision with status '{revision.status}' cannot be approved.")
+            _block(
+                "REVISION_NOT_SUBMITTED",
+                CATEGORY_ELIGIBILITY,
+                f"A revision with status '{revision.status}' cannot be approved. It must be submitted for QA "
+                "review first.",
+            )
         )
 
     state = policy_status(policy)
@@ -348,6 +357,161 @@ def lock_and_load_approval_context(revision, formula):
         line.material = materials[line.material_id]
         line.unit = units[line.unit_id]
     return policy, product, units[revision.output_uom_id], lines
+
+
+@transaction.atomic
+def submit_formula_revision(*, actor, company_id, formula_id, revision_id, expected_version):
+    """DRAFT -> SUBMITTED, atomically. Freezes the revision's header/lines
+    for QA review (FormulaLine.clean()/.delete() and update_formula_revision
+    already block anything other than DRAFT, so SUBMITTED is automatically
+    covered by that same existing rule). This is NOT approval and confers no
+    approval authority - see approve_formula_revision/reject_formula_revision
+    for what QA can then do with it.
+
+    Same lock order as approve_formula_revision: revision -> formula.
+
+    1. Lock the revision; stale `expected_version` -> 409 (first, as always).
+    2. Re-check access under the lock (active membership, formulas.view,
+       formulas.submit): authority is decided under the lock.
+    3. An already-SUBMITTED revision at its CURRENT version is an idempotent
+       no-op for a still-authorized caller: returns unchanged, no new
+       timestamp/version/audit entry. APPROVED -> 400 (cannot be
+       re-submitted). Only DRAFT proceeds past this point.
+    4. Requires at least one material line - submitting an empty revision
+       for review is refused outright, the same minimal structural gate
+       apps.material_requisitions.services.submit_material_requisition
+       applies. Deeper eligibility (active references, quantity rules,
+       self-approval policy, ...) is NOT re-checked here - that is entirely
+       assess_approval's job, run when QA actually attempts the decision,
+       exactly as before. A structurally-broken submission simply cannot be
+       approved and QA rejects it back to DRAFT for fixing.
+    5. Records submitted_by/submitted_at, clears any previous rejection
+       note (a fresh submission supersedes it), increments version, writes
+       one audit event.
+    """
+    get_object_or_404(Formula, pk=formula_id, company_id=company_id)
+    revision = get_object_or_404(FormulaRevision.objects.select_for_update(), pk=revision_id, formula_id=formula_id)
+    formula = Formula.objects.select_for_update().select_related("company").get(pk=formula_id)
+    company = formula.company
+
+    if not active_companies_for_user(actor).filter(pk=company.id).exists():
+        raise exceptions.NotFound("Company not found.")
+    missing = [code for code in (FORMULAS_VIEW, FORMULAS_SUBMIT) if not user_has_permission(actor, company, code)]
+    if missing:
+        raise Forbidden(f"The following permission(s) are required: {', '.join(missing)}.")
+
+    if revision.version != expected_version:
+        raise Conflict("This formula revision has changed since it was last read. Refetch and retry.")
+    if revision.status == FormulaRevision.Status.SUBMITTED:
+        return revision
+    if revision.status != FormulaRevision.Status.DRAFT:
+        raise DjangoValidationError(
+            {"detail": f"A revision with status '{revision.status}' cannot be submitted for QA review."}
+        )
+    if not FormulaLine.objects.filter(revision_id=revision.id).exists():
+        raise DjangoValidationError({"detail": "A revision with no material lines cannot be submitted for QA review."})
+
+    before = {"status": revision.status}
+    revision.status = FormulaRevision.Status.SUBMITTED
+    revision.submitted_by = actor
+    revision.submitted_at = timezone.now()
+    revision.last_rejection_reason = ""
+    revision.last_rejected_by = None
+    revision.last_rejected_at = None
+    revision.version += 1
+    revision.save(
+        update_fields=[
+            "status", "submitted_by", "submitted_at",
+            "last_rejection_reason", "last_rejected_by", "last_rejected_at",
+            "version", "updated_at",
+        ]
+    )
+    record(
+        actor=actor,
+        action="formula_revision.submitted",
+        target_type="formula_revision",
+        target_id=revision.id,
+        company=company,
+        before=before,
+        after={"status": revision.status, "submitted_by_id": actor.id, "submitted_at": revision.submitted_at.isoformat()},
+    )
+    return revision
+
+
+@transaction.atomic
+def reject_formula_revision(*, actor, company_id, formula_id, revision_id, expected_version, rejection_reason):
+    """SUBMITTED -> DRAFT (back to the SAME revision, editable again, never
+    a new one) - the other half of the QA decision alongside
+    approve_formula_revision. Uses the SAME formulas.approve permission as
+    approval (rejecting is not a lesser or different authority - it is the
+    "no" half of the same decision formulas.approve already grants). Unlike
+    approval, rejection does NOT check self/contributor status: sending a
+    submission back for more work creates no false assurance the way
+    self-approval would, so a contributor (even the submitter) may reject
+    their own submission.
+
+    Same lock order as approve_formula_revision: revision -> formula.
+
+    1. Lock the revision; stale `expected_version` -> 409.
+    2. Re-check access under the lock (active membership, formulas.view,
+       formulas.approve).
+    3. Only SUBMITTED can be rejected - APPROVED or DRAFT -> 400 (no
+       idempotent no-op here, unlike approve/submit: once back at DRAFT a
+       repeated reject attempt has nothing left to reject).
+    4. `rejection_reason` is required (non-blank) - QA must say why.
+    5. status -> DRAFT (same revision_number; lines/header become editable
+       again through the ordinary update_formula_revision path), records
+       last_rejected_by/at and the reason, increments version, one audit
+       event. submitted_by/submitted_at are left as a historical record of
+       the submission that was just decided on, not cleared.
+    """
+    get_object_or_404(Formula, pk=formula_id, company_id=company_id)
+    revision = get_object_or_404(FormulaRevision.objects.select_for_update(), pk=revision_id, formula_id=formula_id)
+    formula = Formula.objects.select_for_update().select_related("company").get(pk=formula_id)
+    company = formula.company
+
+    if not active_companies_for_user(actor).filter(pk=company.id).exists():
+        raise exceptions.NotFound("Company not found.")
+    missing = [code for code in (FORMULAS_VIEW, FORMULAS_APPROVE) if not user_has_permission(actor, company, code)]
+    if missing:
+        raise Forbidden(f"The following permission(s) are required: {', '.join(missing)}.")
+
+    if revision.version != expected_version:
+        raise Conflict("This formula revision has changed since it was last read. Refetch and retry.")
+    if revision.status != FormulaRevision.Status.SUBMITTED:
+        raise DjangoValidationError(
+            {"detail": f"A revision with status '{revision.status}' cannot be rejected. Only a SUBMITTED revision can be."}
+        )
+    reason = (rejection_reason or "").strip()
+    if not reason:
+        raise DjangoValidationError({"rejection_reason": "A rejection reason is required."})
+
+    before = {"status": revision.status}
+    revision.status = FormulaRevision.Status.DRAFT
+    revision.last_rejection_reason = reason
+    revision.last_rejected_by = actor
+    revision.last_rejected_at = timezone.now()
+    revision.version += 1
+    revision.save(
+        update_fields=[
+            "status", "last_rejection_reason", "last_rejected_by", "last_rejected_at", "version", "updated_at",
+        ]
+    )
+    record(
+        actor=actor,
+        action="formula_revision.rejected",
+        target_type="formula_revision",
+        target_id=revision.id,
+        company=company,
+        before=before,
+        after={
+            "status": revision.status,
+            "rejected_by_id": actor.id,
+            "rejected_at": revision.last_rejected_at.isoformat(),
+            "rejection_reason": reason,
+        },
+    )
+    return revision
 
 
 @transaction.atomic

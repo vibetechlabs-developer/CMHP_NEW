@@ -221,3 +221,14 @@ export async function fetchCurrentCapabilities() {
   const response = await api.get('/v1/auth/me/')
   return response.data.capabilities || {}
 }
+
+// Re-runs the real-company bridge for the CURRENT session's own token,
+// without a full re-login. Used by Organization Setup after the acting
+// administrator changes their OWN company membership, so the mock-slot
+// workspace mapping and `profile.real_companies` reflect it immediately
+// instead of only after the next sign-in. Returns null on failure, same
+// as the bridge itself - a failed refresh must never block the screen
+// that triggered it.
+export async function refreshRealCompanyBridge(accessToken) {
+  return fetchRealCompanyBridge(accessToken)
+}

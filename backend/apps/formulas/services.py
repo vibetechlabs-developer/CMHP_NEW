@@ -49,6 +49,9 @@ def _line_snapshot_list(lines):
             "quantity": str(line.quantity),
             "unit_code_snapshot": line.unit_code_snapshot,
             "notes": line.notes,
+            "calculation_mode": line.calculation_mode,
+            "label_claim_quantity": str(line.label_claim_quantity) if line.label_claim_quantity is not None else None,
+            "label_claim_uom_id": line.label_claim_uom_id,
         }
         for line in sorted(lines, key=lambda line: (line.line_number, line.id))
     ]
@@ -101,6 +104,61 @@ def _resolve_line_material(material_id, index):
     return material
 
 
+def _resolve_calculation_mode(item, output_uom, index):
+    """`bulk_create`/`bulk_update` bypass `FormulaLine.clean()` entirely
+    (see that model's own documented limitation) - this is the one place
+    that validation actually runs for calculation_mode/label_claim_quantity/
+    label_claim_uom on this write path, mirroring FormulaLine.clean()'s own
+    rules exactly so the two can never silently drift apart. Returns
+    (calculation_mode, label_claim_quantity, label_claim_uom_or_None).
+    """
+    mode = item.get("calculation_mode") or FormulaLine.CalculationMode.AS_PER_FORMULA
+    quantity = item.get("label_claim_quantity")
+    uom_id = item.get("label_claim_uom_id")
+
+    if mode == FormulaLine.CalculationMode.AS_PER_FORMULA:
+        if quantity is not None or uom_id is not None:
+            raise DjangoValidationError(
+                {
+                    "lines": (
+                        f"Line {index}: label_claim_quantity/label_claim_uom_id can only be set when "
+                        "calculation_mode is 'AS_PER_LABEL_CLAIM'."
+                    )
+                }
+            )
+        return mode, None, None
+
+    if quantity is None or quantity <= 0:
+        raise DjangoValidationError(
+            {"lines": f"Line {index}: label_claim_quantity is required and must be greater than zero."}
+        )
+    if uom_id is None:
+        raise DjangoValidationError({"lines": f"Line {index}: label_claim_uom_id is required."})
+
+    uom = get_object_or_404(UnitOfMeasure, pk=uom_id)
+    if uom.dimension != output_uom.dimension:
+        raise DjangoValidationError(
+            {
+                "lines": (
+                    f"Line {index}: label claim unit '{uom.code}' ({uom.dimension}) is not compatible with the "
+                    f"formula's output unit '{output_uom.code}' ({output_uom.dimension}). Mass is never converted "
+                    "to volume, or volume to mass."
+                )
+            }
+        )
+    if uom.canonical_factor is None or output_uom.canonical_factor is None:
+        raise DjangoValidationError(
+            {
+                "lines": (
+                    f"Line {index}: no conversion is defined between '{uom.code}' and '{output_uom.code}'. An "
+                    "administrator must set a canonical conversion factor for both units before this combination "
+                    "can be used."
+                )
+            }
+        )
+    return mode, quantity, uom
+
+
 def _material_snapshot_fields(material):
     return {
         "material_code_snapshot": material.code,
@@ -111,19 +169,52 @@ def _material_snapshot_fields(material):
     }
 
 
+def _generate_formula_code_and_name(company, product):
+    """Auto-generates a formula's code/name for when the caller (the "New
+    formula" form, as of this task) does not supply them. `code`/`name`
+    are still required, immutable, unique-per-company fields on Formula
+    itself (see Formula's own docstring/clean()) - this only changes who
+    picks them when the caller doesn't name them explicitly, same
+    reasoning as apps.products.services.resolve_default_sales_uom.
+
+    Locks the product row first, so two concurrent "New formula"
+    submissions for the same product can never be handed the same
+    sequence number - every caller for this product serialises on that
+    lock before counting its existing formulas, so the count it sees is
+    always accurate. The while-loop below is just a backstop for the
+    extremely unlikely case where a DIFFERENT, non-generated formula
+    already happens to occupy that exact generated code.
+    """
+    locked_product = Product.objects.select_for_update().get(pk=product.pk)
+    sequence = Formula.objects.filter(company=company, product=locked_product).count() + 1
+    while True:
+        code = f"{locked_product.code}-F{sequence}"
+        if not Formula.objects.filter(company=company, code=code).exists():
+            name = f"{locked_product.name} — Formula {sequence}"
+            return code, name
+        sequence += 1
+
+
 @transaction.atomic
-def create_formula(*, actor, company, product_id, code, name, base_output_quantity, notes="", revision_notes="",
-                   output_uom_id=None):
+def create_formula(*, actor, company, product_id, code=None, name=None, base_output_quantity, notes="",
+                   revision_notes="", output_uom_id=None):
     """Creates the Formula and its EMPTY revision 1 (`DRAFT`) atomically.
     The product must belong to `company` and be active with an active
     sales unit; `base_output_quantity` must be positive (whole for a COUNT
     output unit). A duplicate `(company, code)` is a 409, like Customer/
     Product. Lines are only ever written through `update_formula_revision`.
     `output_uom_id` (Task 12B-2, optional) - see `_resolve_revision_output_uom`.
+    `code`/`name` (as of this task) are also optional - the "New formula"
+    form no longer asks for them; see `_generate_formula_code_and_name`.
     """
     product = _resolve_active_product_for_new_revision(company, product_id)
     output_uom = _resolve_revision_output_uom(product, output_uom_id)
     _check_whole_for_count(output_uom, base_output_quantity, ("base_output_quantity", "Base output"))
+
+    if not code or not name:
+        generated_code, generated_name = _generate_formula_code_and_name(company, product)
+        code = code or generated_code
+        name = name or generated_name
 
     try:
         formula = Formula(
@@ -299,6 +390,9 @@ def update_formula_revision(*, actor, revision_id, expected_version, data):
             label_claim = (item.get("label_claim") or "").strip()
             ar_no = (item.get("ar_no") or "").strip()
             special_value = (item.get("special_value") or "").strip()
+            calc_mode, label_claim_quantity, label_claim_uom = _resolve_calculation_mode(
+                item, revision.output_uom, index
+            )
             line_id = item.get("id")
             if line_id is None:
                 material = _resolve_line_material(item["material_id"], index)
@@ -314,6 +408,9 @@ def update_formula_revision(*, actor, revision_id, expected_version, data):
                         label_claim=label_claim,
                         ar_no=ar_no,
                         special_value=special_value,
+                        calculation_mode=calc_mode,
+                        label_claim_quantity=label_claim_quantity,
+                        label_claim_uom=label_claim_uom,
                         **_material_snapshot_fields(material),
                     )
                 )
@@ -331,6 +428,9 @@ def update_formula_revision(*, actor, revision_id, expected_version, data):
                 and label_claim == line.label_claim
                 and ar_no == line.ar_no
                 and special_value == line.special_value
+                and calc_mode == line.calculation_mode
+                and label_claim_quantity == line.label_claim_quantity
+                and (label_claim_uom.id if label_claim_uom else None) == line.label_claim_uom_id
             )
             if not unchanged:
                 material = _resolve_line_material(item["material_id"], index)
@@ -341,6 +441,9 @@ def update_formula_revision(*, actor, revision_id, expected_version, data):
                     for field, value in _material_snapshot_fields(material).items():
                         setattr(line, field, value)
                 line.quantity = item["quantity"]
+                line.calculation_mode = calc_mode
+                line.label_claim_quantity = label_claim_quantity
+                line.label_claim_uom = label_claim_uom
                 line.notes = notes
                 line.label_claim = label_claim
                 line.ar_no = ar_no
@@ -377,6 +480,18 @@ def update_formula_revision(*, actor, revision_id, expected_version, data):
                     "quantity",
                     "unit",
                     "notes",
+                    # Pre-existing bug fixed here: these three were being set
+                    # on the in-memory `line` object above (so a same-request
+                    # response looked correct) but were never in this list, so
+                    # bulk_update never actually wrote them - any edit to an
+                    # EXISTING line's Special value/Label claim/AR No. was
+                    # silently lost the moment the revision was reloaded.
+                    "label_claim",
+                    "ar_no",
+                    "special_value",
+                    "calculation_mode",
+                    "label_claim_quantity",
+                    "label_claim_uom",
                     "material_code_snapshot",
                     "material_name_snapshot",
                     "material_kind_snapshot",

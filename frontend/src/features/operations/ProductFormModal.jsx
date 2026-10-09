@@ -5,16 +5,14 @@ import Modal from '../inventory/components/Modal'
 import Button from '../../components/Button'
 import Alert from '../../components/Alert'
 import { LoadingState } from '../../components/Spinner'
-import AsyncSearchSelect from './AsyncSearchSelect'
 
 import { activateProduct, createProduct, deactivateProduct, getProduct, updateProduct } from './productsService'
-import { searchActiveUnits } from './unitsLookupService'
 import { listProductTypes } from './productTypesService'
 import { getErrorMessage } from '../../utils/errors'
 import './ProductFormModal.css'
 
 function emptyForm() {
-  return { code: '', name: '', product_type: '', description: '' }
+  return { code: '', name: '', product_type: '', bmr_no: '', description: '' }
 }
 
 function parseFieldErrors(error) {
@@ -34,7 +32,9 @@ export default function ProductFormModal({ realCompanyId, productId, canEdit, ca
   const [loadingDetail, setLoadingDetail] = useState(isEditMode)
   const [loadError, setLoadError] = useState('')
   const [form, setForm] = useState(emptyForm)
-  const [salesUom, setSalesUom] = useState(null)
+  // Only ever populated in edit mode, from the server's own response - the
+  // create form no longer asks for a sales unit at all (the server picks
+  // one automatically; see apps.products.services.resolve_default_sales_uom).
   const [salesUomLabel, setSalesUomLabel] = useState('')
   const [expectedVersion, setExpectedVersion] = useState(null)
   const [isActive, setIsActive] = useState(true)
@@ -43,11 +43,6 @@ export default function ProductFormModal({ realCompanyId, productId, canEdit, ca
   const [formError, setFormError] = useState('')
   const [conflict, setConflict] = useState(false)
   const [typeOptions, setTypeOptions] = useState([])
-  // The sales unit is only needed to create a product (it is immutable after
-  // creation). The lookup is probed up front so a blocked unit list is shown
-  // clearly instead of appearing as an empty dropdown.
-  const [unitsChecked, setUnitsChecked] = useState(isEditMode)
-  const [unitsBlockedMessage, setUnitsBlockedMessage] = useState('')
 
   const typeChoices = (current) => {
     const names = typeOptions.map((item) => item.name)
@@ -65,32 +60,6 @@ export default function ProductFormModal({ realCompanyId, productId, canEdit, ca
   }, [])
 
   useEffect(() => {
-    if (isEditMode) return
-    let cancelled = false
-    searchActiveUnits('')
-      .then(() => {
-        if (cancelled) return
-        setUnitsChecked(true)
-      })
-      .catch((error) => {
-        if (cancelled) return
-        const status = error?.response?.status
-        if (status === 403) {
-          setUnitsBlockedMessage(
-            error.response?.data?.detail ||
-              "The 'shared_catalog.view' permission (in at least one active store) is required."
-          )
-        } else {
-          setUnitsBlockedMessage(getErrorMessage(error))
-        }
-        setUnitsChecked(true)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [isEditMode])
-
-  useEffect(() => {
     if (!isEditMode) return
     let cancelled = false
     setLoadingDetail(true)
@@ -101,6 +70,7 @@ export default function ProductFormModal({ realCompanyId, productId, canEdit, ca
           code: product.code,
           name: product.name,
           product_type: product.product_type || '',
+          bmr_no: product.bmr_no || '',
           description: product.description || '',
         })
         setSalesUomLabel(product.sales_uom_name ? `${product.sales_uom_name} (${product.sales_uom_code || ''})` : product.sales_uom_code || '')
@@ -135,15 +105,18 @@ export default function ProductFormModal({ realCompanyId, productId, canEdit, ca
           expected_version: expectedVersion,
           name: form.name,
           product_type: form.product_type,
+          bmr_no: form.bmr_no,
           description: form.description,
         })
       } else {
+        // No sales_uom_id - the form no longer asks for one. The server
+        // picks it automatically (resolve_default_sales_uom).
         saved = await createProduct(realCompanyId, {
           code: form.code,
           name: form.name,
           product_type: form.product_type,
+          bmr_no: form.bmr_no,
           description: form.description,
-          sales_uom_id: salesUom ? Number(salesUom.id) : undefined,
         })
       }
       onSaved(saved)
@@ -182,7 +155,6 @@ export default function ProductFormModal({ realCompanyId, productId, canEdit, ca
 
   const title = isEditMode ? 'Edit product' : 'Create product'
   const readOnly = isEditMode && !canEdit
-  const unitsBlocked = !isEditMode && unitsChecked && Boolean(unitsBlockedMessage)
 
   const footer = (
     <>
@@ -195,7 +167,7 @@ export default function ProductFormModal({ realCompanyId, productId, canEdit, ca
         Cancel
       </Button>
       {!readOnly && (
-        <Button onClick={handleSubmit} loading={saving} disabled={saving || unitsBlocked || (!isEditMode && !unitsChecked)}>
+        <Button onClick={handleSubmit} loading={saving} disabled={saving}>
           {isEditMode ? 'Save product' : 'Create product'}
         </Button>
       )}
@@ -220,11 +192,6 @@ export default function ProductFormModal({ realCompanyId, productId, canEdit, ca
   return (
     <Modal title={title} onClose={onClose} size="lg" footer={footer}>
       {readOnly && <Alert type="error">View only. You can see this product but not change it.</Alert>}
-      {unitsBlocked && (
-        <Alert type="error">
-          Sales units cannot be loaded for your account, so a product cannot be created here. Needed: shared_catalog.view in an active store. Server message: {unitsBlockedMessage}
-        </Alert>
-      )}
       {formError && <Alert type="error">{formError}</Alert>}
       {conflict && (
         <Button variant="secondary" onClick={() => window.location.reload()}>
@@ -285,34 +252,31 @@ export default function ProductFormModal({ realCompanyId, productId, canEdit, ca
             {fieldErrors.product_type && <span className="field-error">{fieldErrors.product_type}</span>}
           </div>
 
-          {isEditMode ? (
+          {/* Sales unit is no longer asked for on create - the server picks
+              one automatically (see createProduct's call site above). It is
+              still shown, read only, once a product exists: it's real,
+              immutable data on the record, just not something this form
+              collects itself. */}
+          {isEditMode && (
             <div className="field">
               <span className="field-label">Sales unit</span>
               <div className="field-input field-readonly">{salesUomLabel || '—'}</div>
               <span className="pf-hint">Fixed after the product is created.</span>
             </div>
-          ) : (
-            <div className="field">
-              <label className="field-label" htmlFor="pf-unit">Sales unit *</label>
-              {unitsBlocked ? (
-                <div className="field-input field-readonly is-muted">Unavailable</div>
-              ) : (
-                <AsyncSearchSelect
-                  id="pf-unit"
-                  value={salesUom?.id || ''}
-                  selected={salesUom}
-                  onChange={setSalesUom}
-                  fetchOptions={searchActiveUnits}
-                  getOptionLabel={(o) => o.label}
-                  getOptionMeta={(o) => o.meta}
-                  placeholder="Search unit by code or name…"
-                  disabled={readOnly || !unitsChecked}
-                  required
-                />
-              )}
-              {fieldErrors.sales_uom_id && <span className="field-error">{fieldErrors.sales_uom_id}</span>}
-            </div>
           )}
+
+          <div className="field">
+            <label className="field-label" htmlFor="pf-bmr-no">BMR No.</label>
+            <input
+              id="pf-bmr-no"
+              className="field-input"
+              value={form.bmr_no}
+              onChange={(event) => updateField('bmr_no', event.target.value)}
+              disabled={readOnly}
+              placeholder="e.g. BMR-0042"
+            />
+            {fieldErrors.bmr_no && <span className="field-error">{fieldErrors.bmr_no}</span>}
+          </div>
 
           <div className="field field-full">
             <label className="field-label" htmlFor="pf-description">Description</label>

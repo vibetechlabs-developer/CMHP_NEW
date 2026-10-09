@@ -1,0 +1,28 @@
+
+[1m[46m RUN [49m[22m [36mv3.2.7 [39m[90mD:/CMHP_NEW/frontend[39m
+
+ [32m✓[39m src/utils/permissionsService.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+[90mstderr[2m | src/api/axios.test.js[2m > [22m[2m401 recovery[2m > [22m[2mends the session once with a message when refresh fails
+[22m[39mError: Not implemented: navigation (except hash changes)
+    at module.exports (D:\CMHP_NEW\frontend\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at navigateFetch (D:\CMHP_NEW\frontend\node_modules\jsdom\lib\jsdom\living\window\navigation.js:77:3)
+    at exports.navigate (D:\CMHP_NEW\frontend\node_modules\jsdom\lib\jsdom\living\window\navigation.js:55:3)
+    at LocationImpl._locationObjectNavigate (D:\CMHP_NEW\frontend\node_modules\jsdom\lib\jsdom\living\window\Location-impl.js:31:5)
+    at LocationImpl._locationObjectSetterNavigate (D:\CMHP_NEW\frontend\node_modules\jsdom\lib\jsdom\living\window\Location-impl.js:25:17)
+    at LocationImpl.set href [as href] (D:\CMHP_NEW\frontend\node_modules\jsdom\lib\jsdom\living\window\Location-impl.js:47:10)
+    at Location.set href [as href] (D:\CMHP_NEW\frontend\node_modules\jsdom\lib\jsdom\living\generated\Location.js:125:37)
+    at endSession (D:\CMHP_NEW\frontend\src\api\axios.js:86:24)
+    at D:\CMHP_NEW\frontend\src\api\axios.js:113:7
+    at processTicksAndRejections (node:internal/process/task_queues:103:5) [90mundefined[39m
+
+ [32m✓[39m src/api/axios.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 72[2mms[22m[39m
+ [32m✓[39m src/hooks/usePermissions.test.jsx [2m([22m[2m1 test[22m[2m)[22m[32m 39[2mms[22m[39m
+ [32m✓[39m src/context/AuthProvider.test.jsx [2m([22m[2m4 tests[22m[2m)[22m[32m 184[2mms[22m[39m
+ [32m✓[39m src/features/formulas/formulas.test.jsx [2m([22m[2m10 tests[22m[2m)[22m[32m 294[2mms[22m[39m
+ [32m✓[39m src/features/operations/SalesOrderFormModal.test.jsx [2m([22m[2m8 tests[22m[2m)[22m[33m 956[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m6 passed[39m[22m[90m (6)[39m
+[2m      Tests [22m [1m[32m34 passed[39m[22m[90m (34)[39m
+[2m   Start at [22m 12:06:01
+[2m   Duration [22m 4.05s[2m (transform 846ms, setup 0ms, collect 3.53s, tests 1.56s, environment 9.13s, prepare 1.50s)[22m
+

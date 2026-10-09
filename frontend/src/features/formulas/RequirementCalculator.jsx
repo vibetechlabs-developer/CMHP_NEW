@@ -160,6 +160,7 @@ function RequirementTable({ title, rows, warningFor }) {
             <tr>
               <th>Material</th>
               <th>Unit</th>
+              <th>Requisite</th>
               <th>Base quantity</th>
               <th>Calculated requirement</th>
               <th>Warning</th>
@@ -168,13 +169,19 @@ function RequirementTable({ title, rows, warningFor }) {
           <tbody>
             {rows.map((row) => {
               const messages = warningFor(row)
+              const isLabelClaim = row.calculation_mode === 'AS_PER_LABEL_CLAIM'
               return (
                 <tr key={row.id}>
                   <td>
                     {row.material_code} · {row.material_name}
                   </td>
                   <td>{row.unit_code}</td>
-                  <td>{row.base_line_quantity || '—'}</td>
+                  <td>
+                    {isLabelClaim
+                      ? `As per label claim (${row.label_claim_quantity} ${row.label_claim_uom_code})`
+                      : 'As per formula'}
+                  </td>
+                  <td>{isLabelClaim ? '—' : row.base_line_quantity || '—'}</td>
                   <td>
                     {row.required_quantity?.value ? (
                       <>

@@ -133,6 +133,28 @@ const NAV_SECTIONS = [
 
 
   {
+    title: 'Setup',
+
+    items: [
+
+      {
+        label: 'Organization Setup',
+        path: '/organization-setup',
+        icon: BuildingIcon,
+        accent: '#6366f1',
+        // Deliberately NOT companyOnly/requiresCompanyAccess - this must
+        // stay visible (and the route itself stays reachable, see
+        // ProtectedRoute.jsx) for an authorized administrator who has no
+        // company or store membership at all, since setting those up is
+        // this screen's own purpose.
+        requiresOrgSetupAccess: true,
+      },
+
+    ],
+  },
+
+
+  {
     title: 'Store & Materials',
 
     items: [
@@ -300,6 +322,14 @@ function visibleSections(
     role === 'HR_ADMINISTRATOR'
 
 
+  // Real, server-derived capability - never the mock `role` label above.
+  // This is deliberately independent of `companyWorkspace`/`commonInventory`
+  // so it survives the two early-return branches below for a user with no
+  // workspace selected at all.
+  const orgSetupAccess =
+    user?.capabilities?.can_manage_organization_setup === true
+
+
   return NAV_SECTIONS
 
     .map(
@@ -310,6 +340,22 @@ function visibleSections(
         items:
           section.items.filter(
             (item) => {
+
+              /*
+               * Organization Setup stays visible to an authorized
+               * administrator in every workspace state, including Common
+               * Inventory and no workspace at all - it is not scoped to
+               * any one company/store workspace by design.
+               */
+
+              if (
+                item.requiresOrgSetupAccess
+              ) {
+
+                return orgSetupAccess
+
+              }
+
 
               /*
                * Common Inventory:

@@ -1,0 +1,399 @@
+Creating test database for alias 'default'...
+[2026-10-06 14:05:15,961] WARNING django.request: Unauthorized: /api/v1/companies/1/formulas/
+.[2026-10-06 14:05:17,929] WARNING django.request: Not Found: /api/v1/companies/4/formulas/1/
+[2026-10-06 14:05:17,935] WARNING django.request: Not Found: /api/v1/companies/4/formulas/1/revisions/
+[2026-10-06 14:05:17,941] WARNING django.request: Not Found: /api/v1/companies/4/formulas/1/revisions/1/
+.[2026-10-06 14:05:20,533] WARNING django.request: Forbidden: /api/v1/companies/5/formulas/2/
+[2026-10-06 14:05:21,458] WARNING django.request: Forbidden: /api/v1/companies/5/formulas/2/revisions/
+.[2026-10-06 14:05:23,372] WARNING django.request: Method Not Allowed: /api/v1/companies/7/formulas/3/
+[2026-10-06 14:05:23,375] WARNING django.request: Method Not Allowed: /api/v1/companies/7/formulas/3/revisions/3/
+.[2026-10-06 14:05:25,906] WARNING django.request: Forbidden: /api/v1/companies/9/formulas/
+.[2026-10-06 14:05:28,614] WARNING django.request: Not Found: /api/v1/companies/11/formulas/
+.[2026-10-06 14:05:30,425] WARNING django.request: Not Found: /api/v1/companies/13/formulas/
+.[2026-10-06 14:05:35,542] WARNING django.request: Forbidden: /api/v1/companies/15/formulas/
+[2026-10-06 14:05:35,564] WARNING django.request: Forbidden: /api/v1/companies/15/formulas/4/revisions/
+[2026-10-06 14:05:35,585] WARNING django.request: Forbidden: /api/v1/companies/15/formulas/4/
+[2026-10-06 14:05:35,602] WARNING django.request: Forbidden: /api/v1/companies/15/formulas/4/revisions/4/
+...[2026-10-06 14:06:24,047] ERROR django.request: Internal Server Error: /api/v1/companies/19/formulas/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\generic\base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\utils\decorators.py", line 48, in _wrapper
+    return bound_method(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\cache.py", line 80, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\generics.py", line 246, in post
+    return self.create(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\formulas\views.py", line 116, in create
+    formula = create_formula(actor=request.user, company=company, **serializer.validated_data)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\contextlib.py", line 81, in inner
+    return func(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\formulas\services.py", line 150, in create_formula
+    record(
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1198, in _execute_mock_call
+    raise effect
+RuntimeError: boom
+.[2026-10-06 14:06:26,520] WARNING django.request: Bad Request: /api/v1/companies/21/formulas/
+[2026-10-06 14:06:26,534] WARNING django.request: Bad Request: /api/v1/companies/21/formulas/
+[2026-10-06 14:06:26,553] WARNING django.request: Bad Request: /api/v1/companies/21/formulas/
+[2026-10-06 14:06:26,570] WARNING django.request: Bad Request: /api/v1/companies/21/formulas/
+[2026-10-06 14:06:26,589] WARNING django.request: Bad Request: /api/v1/companies/21/formulas/
+[2026-10-06 14:06:26,647] WARNING django.request: Bad Request: /api/v1/companies/21/formulas/
+.[2026-10-06 14:06:28,287] WARNING django.request: Bad Request: /api/v1/companies/23/formulas/
+[2026-10-06 14:06:28,310] WARNING django.request: Bad Request: /api/v1/companies/23/formulas/
+..[2026-10-06 14:06:31,772] WARNING django.request: Conflict: /api/v1/companies/27/formulas/
+.[2026-10-06 14:06:34,280] WARNING django.request: Bad Request: /api/v1/companies/29/formulas/
+[2026-10-06 14:06:34,303] WARNING django.request: Not Found: /api/v1/companies/29/formulas/
+[2026-10-06 14:06:34,330] WARNING django.request: Bad Request: /api/v1/companies/29/formulas/
+.[2026-10-06 14:06:36,371] WARNING django.request: Bad Request: /api/v1/companies/31/formulas/
+[2026-10-06 14:06:36,379] WARNING django.request: Bad Request: /api/v1/companies/31/formulas/
+[2026-10-06 14:06:36,390] WARNING django.request: Bad Request: /api/v1/companies/31/formulas/
+[2026-10-06 14:06:36,400] WARNING django.request: Bad Request: /api/v1/companies/31/formulas/
+[2026-10-06 14:06:36,409] WARNING django.request: Bad Request: /api/v1/companies/31/formulas/
+[2026-10-06 14:06:36,417] WARNING django.request: Bad Request: /api/v1/companies/31/formulas/
+[2026-10-06 14:06:36,427] WARNING django.request: Bad Request: /api/v1/companies/31/formulas/
+[2026-10-06 14:06:36,436] WARNING django.request: Bad Request: /api/v1/companies/31/formulas/
+.[2026-10-06 14:06:38,829] WARNING django.request: Bad Request: /api/v1/companies/33/formulas/
+..[2026-10-06 14:06:43,092] WARNING django.request: Not Found: /api/v1/companies/37/formulas/
+[2026-10-06 14:06:43,106] WARNING django.request: Not Found: /api/v1/companies/37/formulas/
+[2026-10-06 14:06:43,119] WARNING django.request: Bad Request: /api/v1/companies/37/formulas/
+[2026-10-06 14:06:43,131] WARNING django.request: Bad Request: /api/v1/companies/37/formulas/
+.[2026-10-06 14:06:45,328] ERROR django.request: Internal Server Error: /api/v1/companies/39/formulas/19/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\generic\base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\utils\decorators.py", line 48, in _wrapper
+    return bound_method(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\cache.py", line 80, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\formulas\views.py", line 143, in patch
+    update_formula(actor=request.user, formula_id=formula.id, expected_version=expected_version, data=data)
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\contextlib.py", line 81, in inner
+    return func(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\formulas\services.py", line 190, in update_formula
+    record(
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1198, in _execute_mock_call
+    raise effect
+RuntimeError: boom
+..[2026-10-06 14:06:49,069] WARNING django.request: Bad Request: /api/v1/companies/43/formulas/21/
+[2026-10-06 14:06:49,087] WARNING django.request: Bad Request: /api/v1/companies/43/formulas/21/
+[2026-10-06 14:06:49,094] WARNING django.request: Bad Request: /api/v1/companies/43/formulas/21/
+[2026-10-06 14:06:49,111] WARNING django.request: Bad Request: /api/v1/companies/43/formulas/21/
+[2026-10-06 14:06:49,114] WARNING django.request: Bad Request: /api/v1/companies/43/formulas/21/
+[2026-10-06 14:06:49,129] WARNING django.request: Bad Request: /api/v1/companies/43/formulas/21/
+.[2026-10-06 14:06:52,354] WARNING django.request: Bad Request: /api/v1/companies/45/formulas/22/
+.[2026-10-06 14:06:56,080] WARNING django.request: Bad Request: /api/v1/companies/47/formulas/23/
+[2026-10-06 14:06:56,145] WARNING django.request: Conflict: /api/v1/companies/47/formulas/23/
+.[2026-10-06 14:07:00,573] ERROR django.request: Internal Server Error: /api/v1/companies/49/formulas/24/revisions/23/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\generic\base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\utils\decorators.py", line 48, in _wrapper
+    return bound_method(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\cache.py", line 80, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\formulas\views.py", line 201, in patch
+    update_formula_revision(
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\contextlib.py", line 81, in inner
+    return func(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\formulas\services.py", line 399, in update_formula_revision
+    record(
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1198, in _execute_mock_call
+    raise effect
+RuntimeError: boom
+[2026-10-06 14:07:00,621] WARNING django.request: Bad Request: /api/v1/companies/49/formulas/24/revisions/23/
+..[2026-10-06 14:07:05,857] WARNING django.request: Bad Request: /api/v1/companies/53/formulas/26/revisions/25/
+[2026-10-06 14:07:05,872] WARNING django.request: Bad Request: /api/v1/companies/53/formulas/26/revisions/25/
+[2026-10-06 14:07:05,886] WARNING django.request: Bad Request: /api/v1/companies/53/formulas/26/revisions/25/
+.[2026-10-06 14:07:07,988] WARNING django.request: Bad Request: /api/v1/companies/55/formulas/28/revisions/27/
+[2026-10-06 14:07:08,000] WARNING django.request: Bad Request: /api/v1/companies/55/formulas/28/revisions/27/
+[2026-10-06 14:07:08,011] WARNING django.request: Bad Request: /api/v1/companies/55/formulas/28/revisions/27/
+[2026-10-06 14:07:08,014] WARNING django.request: Bad Request: /api/v1/companies/55/formulas/28/revisions/27/
+[2026-10-06 14:07:08,030] WARNING django.request: Bad Request: /api/v1/companies/55/formulas/28/revisions/27/
+[2026-10-06 14:07:08,033] WARNING django.request: Bad Request: /api/v1/companies/55/formulas/28/revisions/27/
+[2026-10-06 14:07:08,050] WARNING django.request: Bad Request: /api/v1/companies/55/formulas/28/revisions/27/
+[2026-10-06 14:07:08,051] WARNING django.request: Bad Request: /api/v1/companies/55/formulas/28/revisions/27/
+[2026-10-06 14:07:08,072] WARNING django.request: Bad Request: /api/v1/companies/55/formulas/28/revisions/27/
+.[2026-10-06 14:07:10,068] WARNING django.request: Bad Request: /api/v1/companies/57/formulas/29/revisions/28/
+[2026-10-06 14:07:10,090] WARNING django.request: Bad Request: /api/v1/companies/57/formulas/29/revisions/28/
+..[2026-10-06 14:07:13,956] WARNING django.request: Bad Request: /api/v1/companies/61/formulas/31/revisions/30/
+[2026-10-06 14:07:13,956] WARNING django.request: Bad Request: /api/v1/companies/61/formulas/31/revisions/30/
+[2026-10-06 14:07:13,975] WARNING django.request: Bad Request: /api/v1/companies/61/formulas/31/revisions/30/
+[2026-10-06 14:07:13,988] WARNING django.request: Bad Request: /api/v1/companies/61/formulas/31/revisions/30/
+[2026-10-06 14:07:14,001] WARNING django.request: Not Found: /api/v1/companies/61/formulas/31/revisions/30/
+......[2026-10-06 14:07:27,548] WARNING django.request: Conflict: /api/v1/companies/73/formulas/37/revisions/36/
+.[2026-10-06 14:07:29,428] WARNING django.request: Bad Request: /api/v1/companies/75/formulas/38/revisions/37/
+[2026-10-06 14:07:29,437] WARNING django.request: Bad Request: /api/v1/companies/75/formulas/38/revisions/37/
+[2026-10-06 14:07:29,441] WARNING django.request: Bad Request: /api/v1/companies/75/formulas/38/revisions/37/
+[2026-10-06 14:07:29,458] WARNING django.request: Bad Request: /api/v1/companies/75/formulas/38/revisions/37/
+[2026-10-06 14:07:29,461] WARNING django.request: Bad Request: /api/v1/companies/75/formulas/38/revisions/37/
+[2026-10-06 14:07:29,477] WARNING django.request: Bad Request: /api/v1/companies/75/formulas/38/revisions/37/
+[2026-10-06 14:07:29,486] WARNING django.request: Bad Request: /api/v1/companies/75/formulas/38/revisions/37/
+.[2026-10-06 14:07:31,397] WARNING django.request: Bad Request: /api/v1/companies/77/formulas/39/revisions/38/
+[2026-10-06 14:07:31,409] WARNING django.request: Bad Request: /api/v1/companies/77/formulas/39/revisions/38/
+...[2026-10-06 14:07:37,017] WARNING django.request: Not Found: /api/v1/companies/83/formulas/42/revisions/45/
+[2026-10-06 14:07:37,017] WARNING django.request: Not Found: /api/v1/companies/83/formulas/42/revisions/45/
+.[2026-10-06 14:07:38,745] WARNING django.request: Bad Request: /api/v1/companies/85/formulas/44/revisions/
+..[2026-10-06 14:07:42,320] ERROR django.request: Internal Server Error: /api/v1/companies/89/formulas/46/revisions/
+Traceback (most recent call last):
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\generic\base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\utils\decorators.py", line 48, in _wrapper
+    return bound_method(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\django\views\decorators\cache.py", line 80, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\site-packages\rest_framework\views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\formulas\views.py", line 169, in post
+    revision = create_formula_revision(actor=request.user, formula_id=formula.id, **serializer.validated_data)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\contextlib.py", line 81, in inner
+    return func(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^
+  File "D:\CMHP_NEW\backend\apps\formulas\services.py", line 236, in create_formula_revision
+    record(
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1198, in _execute_mock_call
+    raise effect
+RuntimeError: boom
+.[2026-10-06 14:07:44,029] WARNING django.request: Bad Request: /api/v1/companies/91/formulas/47/revisions/
+[2026-10-06 14:07:44,037] WARNING django.request: Bad Request: /api/v1/companies/91/formulas/47/revisions/
+[2026-10-06 14:07:44,049] WARNING django.request: Bad Request: /api/v1/companies/91/formulas/47/revisions/
+[2026-10-06 14:07:44,058] WARNING django.request: Bad Request: /api/v1/companies/91/formulas/47/revisions/
+[2026-10-06 14:07:44,065] WARNING django.request: Bad Request: /api/v1/companies/91/formulas/47/revisions/
+[2026-10-06 14:07:44,072] WARNING django.request: Bad Request: /api/v1/companies/91/formulas/47/revisions/
+[2026-10-06 14:07:44,072] WARNING django.request: Bad Request: /api/v1/companies/91/formulas/47/revisions/
+[2026-10-06 14:07:44,090] WARNING django.request: Bad Request: /api/v1/companies/91/formulas/47/revisions/
+[2026-10-06 14:07:44,103] WARNING django.request: Bad Request: /api/v1/companies/91/formulas/47/revisions/
+.[2026-10-06 14:07:46,799] WARNING django.request: Unauthorized: /api/v1/companies/93/formulas/48/revisions/55/approve/
+[2026-10-06 14:07:47,635] WARNING django.request: Not Found: /api/v1/companies/93/formulas/48/revisions/55/approve/
+[2026-10-06 14:07:47,644] WARNING django.request: Forbidden: /api/v1/companies/93/formulas/48/revisions/55/approve/
+[2026-10-06 14:07:48,481] WARNING django.request: Forbidden: /api/v1/companies/93/formulas/48/revisions/55/approve/
+.[2026-10-06 14:07:51,090] WARNING django.request: Unauthorized: /api/v1/companies/95/formulas/49/revisions/56/approve/
+.[2026-10-06 14:07:53,766] WARNING django.request: Method Not Allowed: /api/v1/companies/97/formulas/50/revisions/57/approve/
+[2026-10-06 14:07:53,774] WARNING django.request: Bad Request: /api/v1/companies/97/formulas/50/revisions/57/approve/
+[2026-10-06 14:07:53,783] WARNING django.request: Bad Request: /api/v1/companies/97/formulas/50/revisions/57/approve/
+[2026-10-06 14:07:53,784] WARNING django.request: Bad Request: /api/v1/companies/97/formulas/50/revisions/57/approve/
+[2026-10-06 14:07:53,798] WARNING django.request: Bad Request: /api/v1/companies/97/formulas/50/revisions/57/approve/
+[2026-10-06 14:07:53,804] WARNING django.request: Bad Request: /api/v1/companies/97/formulas/50/revisions/57/approve/
+[2026-10-06 14:07:53,814] WARNING django.request: Bad Request: /api/v1/companies/97/formulas/50/revisions/57/approve/
+[2026-10-06 14:07:53,814] WARNING django.request: Bad Request: /api/v1/companies/97/formulas/50/revisions/57/approve/
+[2026-10-06 14:07:53,832] WARNING django.request: Bad Request: /api/v1/companies/97/formulas/50/revisions/57/approve/
+[2026-10-06 14:07:53,835] WARNING django.request: Bad Request: /api/v1/companies/97/formulas/50/revisions/57/approve/
+[2026-10-06 14:07:53,846] WARNING django.request: Bad Request: /api/v1/companies/97/formulas/50/revisions/57/approve/
+.[2026-10-06 14:07:56,377] WARNING django.request: Not Found: /api/v1/companies/99/formulas/51/revisions/58/approve/
+[2026-10-06 14:07:56,392] WARNING django.request: Not Found: /api/v1/companies/100/formulas/51/revisions/58/approve/
+[2026-10-06 14:07:56,419] WARNING django.request: Not Found: /api/v1/companies/99/formulas/51/revisions/59/approve/
+[2026-10-06 14:07:56,419] WARNING django.request: Not Found: /api/v1/companies/99/formulas/51/revisions/58/approve/
+..[2026-10-06 14:08:04,465] WARNING django.request: Bad Request: /api/v1/companies/103/formulas/54/revisions/61/approve/
+..[2026-10-06 14:08:09,548] WARNING django.request: Bad Request: /api/v1/companies/107/formulas/56/revisions/63/approve/
+[2026-10-06 14:08:09,615] WARNING django.request: Bad Request: /api/v1/companies/107/formulas/57/revisions/64/approve/
+[2026-10-06 14:08:09,626] WARNING django.request: Bad Request: /api/v1/companies/107/formulas/57/revisions/64/approve/
+[2026-10-06 14:08:09,656] WARNING django.request: Bad Request: /api/v1/companies/107/formulas/57/revisions/64/approve/
+...[2026-10-06 14:08:19,928] WARNING django.request: Bad Request: /api/v1/companies/113/formulas/62/revisions/69/approve/
+.[2026-10-06 14:08:22,497] WARNING django.request: Bad Request: /api/v1/companies/115/formulas/63/revisions/70/approve/
+....[2026-10-06 14:08:33,738] WARNING django.request: Bad Request: /api/v1/companies/123/formulas/67/revisions/76/approve/
+[2026-10-06 14:08:33,768] WARNING django.request: Bad Request: /api/v1/companies/123/formulas/67/revisions/76/approve/
+..[2026-10-06 14:08:39,040] WARNING django.request: Conflict: /api/v1/companies/127/formulas/70/revisions/79/approve/
+..[2026-10-06 14:08:44,202] WARNING django.request: Forbidden: /api/v1/companies/131/formulas/72/revisions/81/approve/
+..[2026-10-06 14:08:49,358] WARNING django.request: Bad Request: /api/v1/companies/135/formulas/74/revisions/83/approve/
+.[2026-10-06 14:08:51,882] WARNING django.request: Conflict: /api/v1/companies/137/formulas/75/revisions/84/approve/
+..[2026-10-06 14:08:57,092] WARNING django.request: Unauthorized: /api/v1/companies/141/formulas/77/revisions/86/approval-preview/
+[2026-10-06 14:08:57,894] WARNING django.request: Not Found: /api/v1/companies/141/formulas/77/revisions/86/approval-preview/
+[2026-10-06 14:08:58,697] WARNING django.request: Forbidden: /api/v1/companies/141/formulas/77/revisions/86/approval-preview/
+[2026-10-06 14:08:58,699] WARNING django.request: Not Found: /api/v1/companies/141/formulas/77/revisions/86/approval-preview/
+[2026-10-06 14:08:58,702] WARNING django.request: Not Found: /api/v1/companies/142/formulas/77/revisions/86/approval-preview/
+[2026-10-06 14:08:58,702] WARNING django.request: Method Not Allowed: /api/v1/companies/141/formulas/77/revisions/86/approval-preview/
+..[2026-10-06 14:09:03,827] WARNING django.request: Conflict: /api/v1/companies/145/formulas/79/revisions/88/approval-preview/
+.[2026-10-06 14:09:06,468] WARNING django.request: Bad Request: /api/v1/companies/147/formulas/80/revisions/89/approve/
+[2026-10-06 14:09:06,511] WARNING django.request: Bad Request: /api/v1/companies/147/formulas/80/revisions/89/approve/
+.......[2026-10-06 14:09:25,636] WARNING django.request: Bad Request: /api/v1/companies/161/formulas/87/revisions/96/
+[2026-10-06 14:09:25,646] WARNING django.request: Bad Request: /api/v1/companies/161/formulas/87/revisions/96/
+[2026-10-06 14:09:25,657] WARNING django.request: Bad Request: /api/v1/companies/161/formulas/87/revisions/96/
+[2026-10-06 14:09:25,668] WARNING django.request: Bad Request: /api/v1/companies/161/formulas/87/revisions/96/
+[2026-10-06 14:09:25,677] WARNING django.request: Bad Request: /api/v1/companies/161/formulas/87/revisions/96/
+[2026-10-06 14:09:25,687] WARNING django.request: Bad Request: /api/v1/companies/161/formulas/87/revisions/96/
+[2026-10-06 14:09:25,695] WARNING django.request: Bad Request: /api/v1/companies/161/formulas/87/revisions/96/
+[2026-10-06 14:09:25,703] WARNING django.request: Bad Request: /api/v1/companies/161/formulas/87/revisions/96/
+.....[2026-10-06 14:09:38,609] WARNING django.request: Not Found: /api/v1/companies/171/formulas/91/revisions/100/approve/
+.[2026-10-06 14:09:41,180] WARNING django.request: Bad Request: /api/v1/companies/173/formula-approval-policy/
+[2026-10-06 14:09:41,180] WARNING django.request: Bad Request: /api/v1/companies/173/formula-approval-policy/
+[2026-10-06 14:09:41,180] WARNING django.request: Bad Request: /api/v1/companies/173/formula-approval-policy/
+[2026-10-06 14:09:41,180] WARNING django.request: Bad Request: /api/v1/companies/173/formula-approval-policy/
+.[2026-10-06 14:09:43,656] WARNING django.request: Unauthorized: /api/v1/companies/175/formula-approval-policy/
+[2026-10-06 14:09:43,669] WARNING django.request: Forbidden: /api/v1/companies/175/formula-approval-policy/
+[2026-10-06 14:09:43,672] WARNING django.request: Forbidden: /api/v1/companies/175/formula-approval-policy/
+..[2026-10-06 14:09:48,600] WARNING django.request: Conflict: /api/v1/companies/179/formula-approval-policy/
+[2026-10-06 14:09:48,604] WARNING django.request: Conflict: /api/v1/companies/179/formula-approval-policy/
+..[2026-10-06 14:09:53,687] WARNING django.request: Not Found: /api/v1/companies/999999/formula-approval-policy/
+..[2026-10-06 14:09:58,224] WARNING django.request: Unauthorized: /api/v1/companies/187/formulas/93/revisions/102/requirement-preview/
+[2026-10-06 14:09:59,040] WARNING django.request: Not Found: /api/v1/companies/187/formulas/93/revisions/102/requirement-preview/
+[2026-10-06 14:09:59,040] WARNING django.request: Not Found: /api/v1/companies/187/formulas/93/revisions/102/requirement-preview/
+[2026-10-06 14:09:59,844] WARNING django.request: Forbidden: /api/v1/companies/187/formulas/93/revisions/102/requirement-preview/
+..[2026-10-06 14:10:03,389] WARNING django.request: Not Found: /api/v1/companies/192/formulas/95/revisions/104/requirement-preview/
+[2026-10-06 14:10:03,421] WARNING django.request: Not Found: /api/v1/companies/191/formulas/95/revisions/105/requirement-preview/
+[2026-10-06 14:10:03,421] WARNING django.request: Not Found: /api/v1/companies/191/formulas/95/revisions/999999/requirement-preview/
+[2026-10-06 14:10:03,421] WARNING django.request: Not Found: /api/v1/companies/191/formulas/95/revisions/104/requirement-preview/
+.[2026-10-06 14:10:06,017] WARNING django.request: Forbidden: /api/v1/companies/193/formulas/97/revisions/106/requirement-preview/
+.[2026-10-06 14:10:07,759] WARNING django.request: Method Not Allowed: /api/v1/companies/195/formulas/98/revisions/107/requirement-preview/
+[2026-10-06 14:10:07,759] WARNING django.request: Method Not Allowed: /api/v1/companies/195/formulas/98/revisions/107/requirement-preview/
+[2026-10-06 14:10:07,759] WARNING django.request: Method Not Allowed: /api/v1/companies/195/formulas/98/revisions/107/requirement-preview/
+[2026-10-06 14:10:07,759] WARNING django.request: Method Not Allowed: /api/v1/companies/195/formulas/98/revisions/107/requirement-preview/
+................[2026-10-06 14:10:41,356] WARNING django.request: Conflict: /api/v1/companies/227/formulas/115/revisions/124/requirement-preview/
+....[2026-10-06 14:10:49,901] WARNING django.request: Bad Request: /api/v1/companies/235/formulas/119/revisions/128/requirement-preview/
+.....[2026-10-06 14:10:59,909] WARNING django.request: Bad Request: /api/v1/companies/245/formulas/125/revisions/134/requirement-preview/
+[2026-10-06 14:10:59,915] WARNING django.request: Bad Request: /api/v1/companies/245/formulas/125/revisions/134/requirement-preview/
+.[2026-10-06 14:11:01,731] WARNING django.request: Bad Request: /api/v1/companies/247/formulas/126/revisions/135/requirement-preview/
+[2026-10-06 14:11:01,740] WARNING django.request: Bad Request: /api/v1/companies/247/formulas/126/revisions/135/requirement-preview/
+[2026-10-06 14:11:01,742] WARNING django.request: Bad Request: /api/v1/companies/247/formulas/126/revisions/135/requirement-preview/
+[2026-10-06 14:11:01,742] WARNING django.request: Bad Request: /api/v1/companies/247/formulas/126/revisions/135/requirement-preview/
+[2026-10-06 14:11:01,762] WARNING django.request: Bad Request: /api/v1/companies/247/formulas/126/revisions/135/requirement-preview/
+[2026-10-06 14:11:01,768] WARNING django.request: Bad Request: /api/v1/companies/247/formulas/126/revisions/135/requirement-preview/
+[2026-10-06 14:11:01,775] WARNING django.request: Bad Request: /api/v1/companies/247/formulas/126/revisions/135/requirement-preview/
+[2026-10-06 14:11:01,782] WARNING django.request: Bad Request: /api/v1/companies/247/formulas/126/revisions/135/requirement-preview/
+[2026-10-06 14:11:01,788] WARNING django.request: Bad Request: /api/v1/companies/247/formulas/126/revisions/135/requirement-preview/
+[2026-10-06 14:11:01,792] WARNING django.request: Bad Request: /api/v1/companies/247/formulas/126/revisions/135/requirement-preview/
+[2026-10-06 14:11:01,792] WARNING django.request: Bad Request: /api/v1/companies/247/formulas/126/revisions/135/requirement-preview/
+[2026-10-06 14:11:01,811] WARNING django.request: Bad Request: /api/v1/companies/247/formulas/126/revisions/135/requirement-preview/
+[2026-10-06 14:11:01,820] WARNING django.request: Bad Request: /api/v1/companies/247/formulas/126/revisions/135/requirement-preview/
+[2026-10-06 14:11:01,826] WARNING django.request: Bad Request: /api/v1/companies/247/formulas/126/revisions/135/requirement-preview/
+[2026-10-06 14:11:01,833] WARNING django.request: Bad Request: /api/v1/companies/247/formulas/126/revisions/135/requirement-preview/
+.[2026-10-06 14:11:03,652] WARNING django.request: Bad Request: /api/v1/companies/249/formulas/127/revisions/136/requirement-preview/
+[2026-10-06 14:11:03,652] WARNING django.request: Bad Request: /api/v1/companies/249/formulas/127/revisions/136/requirement-preview/
+[2026-10-06 14:11:03,667] WARNING django.request: Bad Request: /api/v1/companies/249/formulas/127/revisions/136/requirement-preview/
+.[2026-10-06 14:11:05,464] WARNING django.request: Bad Request: /api/v1/companies/251/formulas/128/revisions/137/requirement-preview/
+[2026-10-06 14:11:05,464] WARNING django.request: Bad Request: /api/v1/companies/251/formulas/128/revisions/137/requirement-preview/
+[2026-10-06 14:11:05,481] WARNING django.request: Bad Request: /api/v1/companies/251/formulas/128/revisions/137/requirement-preview/
+[2026-10-06 14:11:05,484] WARNING django.request: Bad Request: /api/v1/companies/251/formulas/128/revisions/137/requirement-preview/
+.[2026-10-06 14:11:07,255] WARNING django.request: Bad Request: /api/v1/companies/253/formulas/129/revisions/138/requirement-preview/
+[2026-10-06 14:11:07,270] WARNING django.request: Bad Request: /api/v1/companies/253/formulas/129/revisions/138/requirement-preview/
+[2026-10-06 14:11:07,272] WARNING django.request: Bad Request: /api/v1/companies/253/formulas/129/revisions/138/requirement-preview/
+.[2026-10-06 14:11:09,909] WARNING django.request: Not Found: /api/v1/companies/255/formulas/130/revisions/139/requirement-preview/
+.[2026-10-06 14:11:11,690] WARNING django.request: Bad Request: /api/v1/companies/257/formulas/131/revisions/140/requirement-preview/
+[2026-10-06 14:11:11,708] WARNING django.request: Bad Request: /api/v1/companies/257/formulas/131/revisions/140/requirement-preview/
+[2026-10-06 14:11:11,708] WARNING django.request: Bad Request: /api/v1/companies/257/formulas/131/revisions/140/requirement-preview/
+[2026-10-06 14:11:11,708] WARNING django.request: Bad Request: /api/v1/companies/257/formulas/131/revisions/140/requirement-preview/
+[2026-10-06 14:11:11,729] WARNING django.request: Bad Request: /api/v1/companies/257/formulas/131/revisions/140/requirement-preview/
+[2026-10-06 14:11:11,729] WARNING django.request: Bad Request: /api/v1/companies/257/formulas/131/revisions/140/requirement-preview/
+...........
+----------------------------------------------------------------------
+Ran 140 tests in 411.399s
+
+OK
+Destroying test database for alias 'default'...
+Found 140 test(s).
+System check identified no issues (0 silenced).

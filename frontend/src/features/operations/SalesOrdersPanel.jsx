@@ -277,6 +277,7 @@ export default function SalesOrdersPanel() {
             loading: permissionsLoading,
             canCreateOrder: hasPermission('sales_orders.create'),
             canEditOrder: hasPermission('sales_orders.edit'),
+            canConfirmOrder: hasPermission('sales_orders.confirm'),
             canAddCustomer: hasPermission('customers.create'),
             canEditProduct: hasPermission('products.edit'),
             canViewFormulas: hasPermission('formulas.view'),

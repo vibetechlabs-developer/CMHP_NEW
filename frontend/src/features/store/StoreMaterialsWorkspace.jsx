@@ -6,11 +6,22 @@ import Button from '../../components/Button'
 import Spinner, { LoadingState } from '../../components/Spinner'
 import useAuth from '../../hooks/useAuth'
 import { getErrorMessage } from '../../utils/errors'
+import MaterialRegisterPage from './MaterialRegisterPage'
 import MaterialsTab from './MaterialsTab'
+import ReceivingTab from './ReceivingTab'
 import { getMyStores, listLocations, listRecordedReceiptBalances, listRecordedReceipts } from './storeService'
+
+// /inventory/materials/<numeric id> and /inventory/receiving/<numeric id> -
+// the only detail routes in this workspace today. Matched by hand (this
+// component has no nested <Route>/<Outlet> of its own - see
+// AppRoutes.jsx's single /inventory/* catch-all), same manual-pathname-
+// matching style TABS already uses.
+const MATERIAL_DETAIL_PATTERN = /^\/inventory\/materials\/(\d+)\/?$/
+const RECEIVING_DETAIL_PATTERN = /^\/inventory\/receiving\/(\d+)\/?$/
 
 const TABS = [
   { to: '/inventory/materials', label: 'Materials', key: 'materials' },
+  { to: '/inventory/receiving', label: 'Receiving', key: 'receiving' },
   { to: '/inventory/locations', label: 'Locations', key: 'locations' },
   { to: '/inventory/receipts', label: 'Recorded Receipts', key: 'receipts' },
 ]
@@ -48,6 +59,8 @@ export default function StoreMaterialsWorkspace() {
 
   const active = TABS.find((tab) => location.pathname.startsWith(tab.to)) || TABS[0]
   if (!location.pathname.startsWith('/inventory/')) return <Navigate to="/inventory/materials" replace />
+  const materialDetailMatch = location.pathname.match(MATERIAL_DETAIL_PATTERN)
+  const receivingDetailMatch = location.pathname.match(RECEIVING_DETAIL_PATTERN)
 
   return (
     <section className="inv-page" aria-label="Store and materials">
@@ -96,7 +109,23 @@ export default function StoreMaterialsWorkspace() {
         ))}
       </nav>
 
-      {active.key === 'materials' && <MaterialsTab canManage={user?.capabilities?.can_manage_material_catalog === true} />}
+      {active.key === 'materials' && materialDetailMatch && (
+        <MaterialRegisterPage
+          materialId={Number(materialDetailMatch[1])}
+          storeId={storeId}
+          storesReady={stores.state === 'ready'}
+        />
+      )}
+      {active.key === 'materials' && !materialDetailMatch && (
+        <MaterialsTab canManage={user?.capabilities?.can_manage_material_catalog === true} />
+      )}
+      {active.key === 'receiving' && (
+        <StoreScopedTab
+          storeId={storeId}
+          storesReady={stores.state === 'ready'}
+          render={(id) => <ReceivingTab storeId={id} receiptId={receivingDetailMatch ? Number(receivingDetailMatch[1]) : null} />}
+        />
+      )}
       {active.key === 'locations' && <StoreScopedTab storeId={storeId} storesReady={stores.state === 'ready'} render={(id) => <LocationsTab storeId={id} />} />}
       {active.key === 'receipts' && <StoreScopedTab storeId={storeId} storesReady={stores.state === 'ready'} render={(id) => <ReceiptsTab storeId={id} />} />}
     </section>

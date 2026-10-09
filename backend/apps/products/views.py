@@ -26,6 +26,7 @@ from apps.products.services import (
     delete_product,
     create_product,
     deactivate_product,
+    resolve_default_sales_uom,
     update_product,
 )
 
@@ -98,7 +99,15 @@ class ProductListCreateView(generics.ListCreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = dict(serializer.validated_data)
-        sales_uom = get_object_or_404(UnitOfMeasure, pk=data.pop("sales_uom_id"))
+        sales_uom_id = data.pop("sales_uom_id", None)
+        if sales_uom_id is not None:
+            sales_uom = get_object_or_404(UnitOfMeasure, pk=sales_uom_id)
+        else:
+            sales_uom = resolve_default_sales_uom(company)
+            if sales_uom is None:
+                raise exceptions.ValidationError(
+                    {"sales_uom_id": "No sales unit is available yet. Ask a superuser to create one."}
+                )
         try:
             product = create_product(actor=request.user, company=company, sales_uom=sales_uom, **data)
         except DjangoValidationError as exc:

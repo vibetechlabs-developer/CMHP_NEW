@@ -704,3 +704,110 @@ class EndToEndReceiptLedgerIntegrationTest(StockMovementTestCase):
         self.assertEqual(balances_final.json()["count"], 1)
         self.assertEqual(balances_final.json()["results"][0]["source_company_id"], self.company.id)
         self.assertEqual(balances_final.json()["results"][0]["recorded_receipt_quantity"], "60.000")
+
+
+# ---------------------------------------------------------------------------
+# Material register task — additive passthrough fields (supplier identity,
+# the receipt's own physical arrival date) and posted-date range filtering,
+# on both endpoints. Nothing above this point needed to change for these
+# tests to pass - every new field/param is additive.
+# ---------------------------------------------------------------------------
+
+
+class MaterialRegisterExtensionTests(StockMovementTestCase):
+    def test_supplier_and_arrived_at_are_exposed_on_movements(self):
+        po = self._issued_po(quantity=Decimal("100"))
+        receipt = self._create_and_post_receipt(po, quantity=Decimal("60"), actor=self.receiver)
+
+        res = get_json(self.client_, stock_movements_url(self.store.id), self.token)
+        row = res.json()["results"][0]
+        self.assertEqual(row["supplier_id"], self.supplier.id)
+        self.assertEqual(row["supplier_code"], self.supplier.code)
+        self.assertEqual(row["supplier_name"], self.supplier.display_name or self.supplier.legal_name)
+        # Distinct from posted_at - the receipt's own physical arrival time,
+        # never conflated with the posting event.
+        from django.utils.dateparse import parse_datetime
+
+        self.assertEqual(parse_datetime(row["source_goods_receipt_arrived_at"]), receipt.arrived_at)
+        self.assertNotEqual(row["source_goods_receipt_arrived_at"], row["posted_at"])
+
+    def test_supplier_never_exposed_on_balances(self):
+        """Balances are grouped by (material, unit, source_company) - a
+        supplier field would be meaningless there (one balance row can sum
+        movements from several receipts/suppliers), so it is deliberately
+        absent, never a misleading single value."""
+        po = self._issued_po(quantity=Decimal("100"))
+        self._create_and_post_receipt(po, quantity=Decimal("60"), actor=self.receiver)
+        res = get_json(self.client_, stock_balances_url(self.store.id), self.token)
+        row = res.json()["results"][0]
+        self.assertNotIn("supplier_id", row)
+        self.assertNotIn("supplier_code", row)
+        self.assertNotIn("supplier_name", row)
+
+    def test_posted_date_range_filters_movements(self):
+        po = self._issued_po(quantity=Decimal("100"))
+        receipt = self._create_and_post_receipt(po, quantity=Decimal("60"), actor=self.receiver)
+        today = receipt.posted_at.date()
+        yesterday = today - timedelta(days=1)
+        tomorrow = today + timedelta(days=1)
+
+        in_range = get_json(
+            self.client_, stock_movements_url(self.store.id) + f"?posted_from={today.isoformat()}&posted_to={today.isoformat()}", self.token,
+        )
+        self.assertEqual(in_range.json()["count"], 1)
+        self.assertEqual(in_range.json()["period"], {"posted_from": today.isoformat(), "posted_to": today.isoformat()})
+
+        before_range = get_json(
+            self.client_, stock_movements_url(self.store.id) + f"?posted_to={yesterday.isoformat()}", self.token,
+        )
+        self.assertEqual(before_range.json()["count"], 0)
+
+        after_range = get_json(
+            self.client_, stock_movements_url(self.store.id) + f"?posted_from={tomorrow.isoformat()}", self.token,
+        )
+        self.assertEqual(after_range.json()["count"], 0)
+
+        no_filter = get_json(self.client_, stock_movements_url(self.store.id), self.token)
+        self.assertEqual(no_filter.json()["count"], 1)
+        self.assertEqual(no_filter.json()["period"], {"posted_from": None, "posted_to": None})
+
+    def test_posted_date_range_filters_balances_before_aggregation(self):
+        po = self._issued_po(quantity=Decimal("100"))
+        receipt = self._create_and_post_receipt(po, quantity=Decimal("60"), actor=self.receiver)
+        yesterday = (receipt.posted_at.date() - timedelta(days=1)).isoformat()
+
+        out_of_range = get_json(
+            self.client_, stock_balances_url(self.store.id) + f"?posted_to={yesterday}", self.token,
+        )
+        self.assertEqual(out_of_range.json()["count"], 0)
+        self.assertEqual(out_of_range.json()["period"], {"posted_from": None, "posted_to": yesterday})
+
+        all_history = get_json(self.client_, stock_balances_url(self.store.id), self.token)
+        self.assertEqual(all_history.json()["results"][0]["recorded_receipt_quantity"], "60.000")
+        self.assertEqual(all_history.json()["period"], {"posted_from": None, "posted_to": None})
+
+    def test_malformed_posted_date_rejected(self):
+        for param in ("posted_from", "posted_to"):
+            res = get_json(self.client_, stock_movements_url(self.store.id) + f"?{param}=not-a-date", self.token)
+            self.assertEqual(res.status_code, 400)
+            self.assertIn(param, res.json())
+
+    def test_posted_from_after_posted_to_rejected(self):
+        res = get_json(
+            self.client_,
+            stock_movements_url(self.store.id) + "?posted_from=2030-01-02&posted_to=2030-01-01",
+            self.token,
+        )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("posted_from", res.json())
+
+    def test_posted_date_filters_are_rejected_on_unknown_param_check_too(self):
+        # A bogus param alongside valid date params is still rejected -
+        # ALLOWED_LIST_PARAMS must include posted_from/posted_to without
+        # accidentally widening what else is accepted.
+        res = get_json(
+            self.client_,
+            stock_movements_url(self.store.id) + "?posted_from=2030-01-01&bogus=1",
+            self.token,
+        )
+        self.assertEqual(res.status_code, 400)

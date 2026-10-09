@@ -195,6 +195,7 @@ export default function ProductsPanel() {
               <th>Name</th>
               <th>Type</th>
               <th>Sales Unit</th>
+              <th>BMR No.</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
@@ -202,13 +203,13 @@ export default function ProductsPanel() {
           <tbody>
             {listLoading ? (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: 32 }}>
+                <td colSpan={7} style={{ textAlign: 'center', padding: 32 }}>
                   <Spinner tone="brand" label="Loading…" />
                 </td>
               </tr>
             ) : data.results.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: 32 }}>
+                <td colSpan={7} style={{ textAlign: 'center', padding: 32 }}>
                   No products found.
                 </td>
               </tr>
@@ -222,6 +223,7 @@ export default function ProductsPanel() {
                     {product.sales_uom_code}
                     {!product.sales_uom_is_active && ' (unit inactive)'}
                   </td>
+                  <td>{product.bmr_no || '—'}</td>
                   <td>{product.is_active ? 'Active' : 'Inactive'}</td>
                   <td>
                     {canFormulas && (
@@ -361,6 +363,10 @@ function ProductWorkspace({
             <div>
               <dt>Sales unit</dt>
               <dd>{product.sales_uom_code || '—'}</dd>
+            </div>
+            <div>
+              <dt>BMR No.</dt>
+              <dd>{product.bmr_no || '—'}</dd>
             </div>
             <div>
               <dt>Status</dt>

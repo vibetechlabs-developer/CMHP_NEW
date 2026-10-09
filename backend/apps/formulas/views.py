@@ -19,6 +19,8 @@ from apps.formulas.approval import (
     build_approval_preview,
     load_consistent_for_preview,
     policy_status,
+    reject_formula_revision,
+    submit_formula_revision,
     update_approval_policy,
 )
 from apps.formulas.models import Formula, FormulaApprovalPolicy, FormulaLine, FormulaRevision
@@ -36,6 +38,8 @@ from apps.formulas.serializers import (
     FormulaUpdateSerializer,
     RevisionApproveSerializer,
     RevisionCreateSerializer,
+    RevisionRejectSerializer,
+    RevisionSubmitSerializer,
     RevisionUpdateSerializer,
 )
 from apps.formulas.services import (
@@ -50,6 +54,7 @@ FORMULAS_VIEW = "formulas.view"
 FORMULAS_CREATE = "formulas.create"
 FORMULAS_EDIT = "formulas.edit"
 FORMULAS_APPROVE = "formulas.approve"
+FORMULAS_SUBMIT = "formulas.submit"
 
 
 def _get_company_for_action(request, company_id, *required_permissions):
@@ -278,6 +283,62 @@ class RevisionApproveView(APIView):
                 formula_id=formula.id,
                 revision_id=revision_id,
                 expected_version=serializer.validated_data["expected_version"],
+            )
+        except DjangoValidationError as exc:
+            raise translate_django_validation_error(exc) from exc
+        return Response(FormulaRevisionSerializer(_revision_queryset().get(pk=revision_id)).data)
+
+
+class RevisionSubmitView(APIView):
+    """POST `{"expected_version": n}`. Requires `formulas.view` +
+    `formulas.submit`. DRAFT -> SUBMITTED - freezes the revision for QA
+    review. Authority is checked again under the row lock in the service.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, company_id, formula_id, revision_id):
+        company = _get_company_for_action(request, company_id, FORMULAS_VIEW, FORMULAS_SUBMIT)
+        formula = get_object_or_404(Formula, pk=formula_id, company=company)
+        get_object_or_404(FormulaRevision, pk=revision_id, formula=formula)
+        serializer = RevisionSubmitSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            submit_formula_revision(
+                actor=request.user,
+                company_id=company.id,
+                formula_id=formula.id,
+                revision_id=revision_id,
+                expected_version=serializer.validated_data["expected_version"],
+            )
+        except DjangoValidationError as exc:
+            raise translate_django_validation_error(exc) from exc
+        return Response(FormulaRevisionSerializer(_revision_queryset().get(pk=revision_id)).data)
+
+
+class RevisionRejectView(APIView):
+    """POST `{"expected_version": n, "rejection_reason": "..."}`. Requires
+    `formulas.view` + `formulas.approve` (the same permission as approval -
+    rejection is the other half of the same QA decision, not a separate
+    authority). SUBMITTED -> DRAFT, same revision, editable again.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, company_id, formula_id, revision_id):
+        company = _get_company_for_action(request, company_id, FORMULAS_VIEW, FORMULAS_APPROVE)
+        formula = get_object_or_404(Formula, pk=formula_id, company=company)
+        get_object_or_404(FormulaRevision, pk=revision_id, formula=formula)
+        serializer = RevisionRejectSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            reject_formula_revision(
+                actor=request.user,
+                company_id=company.id,
+                formula_id=formula.id,
+                revision_id=revision_id,
+                expected_version=serializer.validated_data["expected_version"],
+                rejection_reason=serializer.validated_data["rejection_reason"],
             )
         except DjangoValidationError as exc:
             raise translate_django_validation_error(exc) from exc

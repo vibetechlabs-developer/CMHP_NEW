@@ -42,22 +42,38 @@ class MaterialCatalogCapabilityTests(TestCase):
     def test_active_superuser_gets_the_capability(self):
         res = self.me(self.superuser)
         self.assertEqual(res.status_code, 200, res.content[:200])
-        self.assertEqual(res.json()["capabilities"], {"can_manage_material_catalog": True})
+        # can_manage_organization_setup is a separate task's capability (see
+        # tests.test_organization_setup_capability) but is derived from the
+        # identical is_active_superuser rule, so it is always present and
+        # always agrees with can_manage_material_catalog here.
+        self.assertEqual(
+            res.json()["capabilities"],
+            {"can_manage_material_catalog": True, "can_manage_organization_setup": True},
+        )
 
     def test_business_admin_does_not_gain_catalog_authority(self):
         res = self.me(self.business_admin)
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.json()["capabilities"], {"can_manage_material_catalog": False})
+        self.assertEqual(
+            res.json()["capabilities"],
+            {"can_manage_material_catalog": False, "can_manage_organization_setup": False},
+        )
 
     def test_ordinary_user_gets_false(self):
-        self.assertEqual(self.me(self.plain).json()["capabilities"], {"can_manage_material_catalog": False})
+        self.assertEqual(
+            self.me(self.plain).json()["capabilities"],
+            {"can_manage_material_catalog": False, "can_manage_organization_setup": False},
+        )
 
     def test_anonymous_access_is_blocked(self):
         self.assertEqual(self.client_.get(ME_URL).status_code, 401)
 
     def test_client_cannot_set_the_capability(self):
         res = self.me(self.business_admin, query="?capabilities=%7B%22can_manage_material_catalog%22%3Atrue%7D&can_manage_material_catalog=true")
-        self.assertEqual(res.json()["capabilities"], {"can_manage_material_catalog": False})
+        self.assertEqual(
+            res.json()["capabilities"],
+            {"can_manage_material_catalog": False, "can_manage_organization_setup": False},
+        )
 
     def test_capability_matches_the_server_write_rule_for_every_account(self):
         for user in (self.superuser, self.business_admin, self.plain):

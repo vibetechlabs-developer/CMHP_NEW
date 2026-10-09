@@ -1,6 +1,7 @@
 import { confirmAction } from '../../components/ConfirmProvider'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import useAuth from '../../hooks/useAuth'
 import RequirementCalculator from '../formulas/RequirementCalculator'
 import FormulasPage from '../formulas/FormulasPage'
 import BmrPanel from '../bmr/BmrPanel'
@@ -13,7 +14,7 @@ import AsyncSearchSelect from './AsyncSearchSelect'
 import CustomerFormModal from './CustomerFormModal'
 import './SalesOrderFormModal.css'
 
-import { createSalesOrder, getSalesOrder, updateSalesOrder } from './salesOrdersService'
+import { confirmSalesOrder, createSalesOrder, getConfirmationPreview, getSalesOrder, updateSalesOrder } from './salesOrdersService'
 import { searchCustomers, searchProducts } from './catalogLookupService'
 import { listProductTypes } from './productTypesService'
 import {
@@ -39,6 +40,16 @@ import { getErrorMessage } from '../../utils/errors'
 
 const NEW_PLAN = 'new'
 
+// Packing size is only ever counted in pieces or measured in these mass/
+// volume units in this business - offer just these instead of the full
+// shared catalog (which also holds unrelated formula-output/demo units).
+const PACKING_UNIT_CODES = ['PCS', 'ML', 'KG', 'GM']
+
+function filterToPackingUnitChoices(units) {
+  const filtered = units.filter((u) => PACKING_UNIT_CODES.includes((u.code || '').toUpperCase()))
+  return filtered.length ? filtered : units
+}
+
 const INSERT_OPTIONS = [
   { value: 'NOT_SPECIFIED', label: 'Not specified' },
   { value: 'REQUIRED', label: 'Required' },
@@ -60,7 +71,7 @@ const valueToInsert = (value) => {
 const todayIso = () => new Date().toISOString().slice(0, 10)
 
 function emptyLine() {
-  return { localId: `new-${Math.random().toString(36).slice(2)}`, id: null, product: null, productType: '', quantity: '', unit_price: '', description: '' }
+  return { localId: `new-${Math.random().toString(36).slice(2)}`, id: null, product: null, productType: '', quantity: '', description: '' }
 }
 
 function emptyOrderForm() {
@@ -92,7 +103,6 @@ function orderFormFromOrder(order) {
           productType: line.product_type_snapshot || '',
           product: { id: line.product_id, label: line.product_name, code: line.product_code, salesUomCode: line.sales_uom_code, meta: line.product_code },
           quantity: line.quantity,
-          unit_price: line.unit_price,
           description: line.description || '',
         }))
       : [emptyLine()],
@@ -160,11 +170,10 @@ function parseFieldErrors(error) {
 function validateLines(lines) {
   const problems = []
   lines.forEach((line, index) => {
-    const hasContent = line.product || line.quantity !== '' || line.unit_price !== ''
+    const hasContent = line.product || line.quantity !== ''
     if (!hasContent) return
     if (!line.product) problems.push(`Line ${index + 1}: choose a product.`)
     if (!/^[1-9]\d*$/.test(String(line.quantity))) problems.push(`Line ${index + 1}: order quantity must be a whole number greater than 0.`)
-    if (line.unit_price === '' || Number(line.unit_price) < 0) problems.push(`Line ${index + 1}: enter a unit price.`)
   })
   if (!lines.some((line) => line.product)) problems.push('Add at least one product line.')
   return problems
@@ -185,6 +194,23 @@ function Field({ label, htmlFor, full = false, error, action = null, children })
   )
 }
 
+// Renders exactly the server's own blocking_reasons/informational_observations
+// arrays - never a client-computed eligibility message. `reasons` items carry
+// {message, line_number?}; `tone` picks the visual treatment only.
+function ReasonsList({ reasons, tone = 'blocking' }) {
+  if (!reasons?.length) return null
+  return (
+    <ul className={`sof-reasons sof-reasons-${tone}`}>
+      {reasons.map((reason, index) => (
+        <li key={`${reason.code || index}-${reason.line_number ?? ''}`}>
+          {reason.message}
+          {reason.line_number != null && ` (line ${reason.line_number})`}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 function ReadOnly({ label, value, muted = false, title }) {
   return (
     <div className="field">
@@ -197,6 +223,8 @@ function ReadOnly({ label, value, muted = false, title }) {
 }
 
 export default function SalesOrderFormModal({ realCompanyId, companyCode, companyName, orderId, permissions, onClose, onSaved }) {
+  const { user } = useAuth()
+  const canManageOrgSetup = user?.capabilities?.can_manage_organization_setup === true
   // ----- Order (sales_orders) -----
   const [currentOrderId, setCurrentOrderId] = useState(orderId)
   const [order, setOrder] = useState(null)
@@ -217,6 +245,22 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
   const [savedPopup, setSavedPopup] = useState(null)
   const [typeOptions, setTypeOptions] = useState([])
 
+  // ----- Order confirmation (review + confirm) -----
+  // `preview` is exactly the confirmation-preview response, or null before
+  // the first review / after context changes. Nothing here is computed
+  // client-side - every quantity, blocking reason and eligibility flag is
+  // whatever the server returned.
+  const [preview, setPreview] = useState(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState('')
+  const [confirmBusy, setConfirmBusy] = useState(false)
+  // {detail, blockingReasons, status} from the most recent failed confirm
+  // attempt, or null. Kept separate from previewError/orderErrors since its
+  // shape (structured blocking reasons) is specific to the confirm outcome.
+  const [confirmResult, setConfirmResult] = useState(null)
+  const previewRequestRef = useRef(0)
+  const confirmingRef = useRef(false)
+
   // ----- Batch plan (batch_plans) -----
   const [plans, setPlans] = useState([])
   const [plansError, setPlansError] = useState('')
@@ -234,6 +278,7 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
   const [legacyPrep, setLegacyPrep] = useState(null)
   const [unitsBlocked, setUnitsBlocked] = useState('')
   const [unitsRetry, setUnitsRetry] = useState(0)
+  const [packingUnits, setPackingUnits] = useState([])
   const [batchBusy, setBatchBusy] = useState(false)
   const [allocating, setAllocating] = useState(false)
   const [batchErrors, setBatchErrors] = useState({})
@@ -292,6 +337,20 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
     return () => {
       cancelled = true
     }
+  }, [currentOrderId, realCompanyId, reloadKey])
+
+  // The review is a snapshot of one specific order version. Any context
+  // change - a different order, a different company, or a fresh reload
+  // after a save/confirm - makes it stale, so it is cleared rather than
+  // left showing stale eligibility against the new state. This also
+  // discards any in-flight preview request's eventual result (guarded
+  // again below via previewRequestRef, in case this effect and that
+  // request's own promise resolve in the same tick).
+  useEffect(() => {
+    previewRequestRef.current += 1
+    setPreview(null)
+    setPreviewError('')
+    setConfirmResult(null)
   }, [currentOrderId, realCompanyId, reloadKey])
 
   // Hydrate the order form from the server whenever the saved order changes.
@@ -355,7 +414,11 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
     if (!realCompanyId || !permissions.canViewBatch) return
     let cancelled = false
     listPlanningUnits(realCompanyId)
-      .then(() => !cancelled && setUnitsBlocked(''))
+      .then((rows) => {
+        if (cancelled) return
+        setPackingUnits(filterToPackingUnitChoices(rows))
+        setUnitsBlocked('')
+      })
       .catch(() => !cancelled && setUnitsBlocked('failed'))
     return () => {
       cancelled = true
@@ -559,7 +622,8 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
         const base = {
           product_id: Number(line.product.id),
           quantity: line.quantity,
-          unit_price: line.unit_price,
+          // No unit_price - the form no longer collects it; the server
+          // defaults it to 0 when omitted (apps.sales_orders.serializers).
           description: line.description || undefined,
           product_type_snapshot: line.productType || '',
         }
@@ -600,6 +664,93 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
       }
     } finally {
       setOrderBusy(false)
+    }
+  }
+
+  // ----- Order confirmation (review + confirm) -----
+  // Fetches the real confirmation-preview. Requires a saved order
+  // (orderDirty must be false - the caller is responsible for that
+  // guard, matching "save or discard before review"). Never computes
+  // eligibility itself; only displays the server's own assessment.
+  const reviewOrder = async () => {
+    if (!order || orderDirty || previewLoading) return
+    const requestId = ++previewRequestRef.current
+    setPreviewLoading(true)
+    setPreviewError('')
+    setConfirmResult(null)
+    try {
+      const data = await getConfirmationPreview(realCompanyId, order.id)
+      if (previewRequestRef.current !== requestId) return // stale - context changed while this was in flight
+      setPreview(data)
+    } catch (error) {
+      if (previewRequestRef.current !== requestId) return
+      setPreview(null)
+      setPreviewError(getErrorMessage(error))
+    } finally {
+      if (previewRequestRef.current === requestId) setPreviewLoading(false)
+    }
+  }
+
+  // Confirms using preview.order.version - the version actually reviewed,
+  // never order.version or any other locally-held value, so a confirm can
+  // never silently apply to a version the user never saw the eligibility
+  // assessment for.
+  const handleConfirm = async () => {
+    if (confirmingRef.current || !preview || !preview.confirmation.ready_to_attempt) return
+    // Set the guard before the (async) confirmation dialog, not after it
+    // resolves - otherwise rapid repeat clicks can all pass the check above
+    // before any of them sets it, each opening its own dialog/request.
+    confirmingRef.current = true
+    try {
+      const proceed = await confirmAction(
+        'Confirming freezes order details. It does not issue stock or start production.',
+        { confirmLabel: 'Confirm order', title: 'Confirm this order?', danger: false }
+      )
+      if (!proceed) return
+    } finally {
+      confirmingRef.current = false
+    }
+    confirmingRef.current = true
+    setConfirmBusy(true)
+    setConfirmResult(null)
+    try {
+      const confirmed = await confirmSalesOrder(realCompanyId, order.id, preview.order.version)
+      setOrder(confirmed)
+      setPreview(null)
+      setConfirmResult({ kind: 'success' })
+      setLastResult(`Order ${confirmed.reference} confirmed.`)
+      onSaved?.(confirmed)
+    } catch (error) {
+      const status = error?.response?.status
+      const data = error?.response?.data
+      if (status === 409) {
+        // Clear the stale reviewed state outright - its ready_to_attempt/
+        // version no longer apply, and leaving the old Confirm button
+        // enabled would invite another doomed attempt at the same stale
+        // version. A fresh "Review order" click is required before
+        // confirming can be attempted again.
+        setPreview(null)
+        setConfirmResult({
+          kind: 'stale',
+          message: 'This order changed since you reviewed it, so it was not confirmed. Review it again to see the current details before confirming.',
+        })
+      } else if (status === 400 && Array.isArray(data?.blocking_reasons)) {
+        // Confirm re-assessed eligibility fresh, under lock, at confirm time -
+        // that is now the authoritative answer, so the earlier preview (which
+        // may already disagree with it) is cleared rather than shown
+        // alongside a second, possibly-different reasons list.
+        setPreview(null)
+        setConfirmResult({ kind: 'blocked', message: data.detail, blockingReasons: data.blocking_reasons })
+      } else if (status === 403) {
+        setConfirmResult({ kind: 'error', message: "You don't have permission to confirm this order." })
+      } else if (status === 404) {
+        setConfirmResult({ kind: 'error', message: 'This order was not found. It may have been removed, or you may no longer have access.' })
+      } else {
+        setConfirmResult({ kind: 'error', message: getErrorMessage(error) })
+      }
+    } finally {
+      confirmingRef.current = false
+      setConfirmBusy(false)
     }
   }
 
@@ -1034,17 +1185,6 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
                         disabled={!canEditOrder}
                       />
                     </Field>
-                    <Field label="Unit price *" htmlFor={`sof-price-${index}`}>
-                      <input
-                        id={`sof-price-${index}`}
-                        className="field-input"
-                        type="text"
-                        inputMode="decimal"
-                        value={line.unit_price}
-                        onChange={(event) => updateLine(line.localId, { unit_price: event.target.value })}
-                        disabled={!canEditOrder}
-                      />
-                    </Field>
                     <Field label="Description" htmlFor={`sof-desc-${index}`} full>
                       <input
                         id={`sof-desc-${index}`}
@@ -1109,6 +1249,136 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
               </Field>
             </div>
           </section>
+
+          {order && (
+            <section className="sof-group" aria-labelledby="sof-h-confirm">
+              <div className="sof-group-head">
+                <h4 id="sof-h-confirm" className="sof-group-title">
+                  Order review and confirmation <span className="sof-group-owner">Admin</span>
+                </h4>
+                <span className={`sof-status-badge sof-status-${order.status.toLowerCase()}`}>{order.status}</span>
+              </div>
+
+              {order.status === 'CONFIRMED' && (
+                <p className="field-muted">
+                  Confirmed by user #{order.confirmed_by_id}{order.confirmed_at ? ` on ${new Date(order.confirmed_at).toLocaleString()}` : ''}.
+                </p>
+              )}
+
+              {orderDirty && (
+                <Alert type="error">
+                  This order has unsaved changes. Save them, or discard them by closing and reopening this order, before reviewing - a review must reflect what is actually saved.
+                </Alert>
+              )}
+
+              <div className="sof-actions-row">
+                <Button variant="secondary" onClick={reviewOrder} disabled={orderDirty || previewLoading} loading={previewLoading}>
+                  Review order
+                </Button>
+                {preview && (
+                  <span className="field-muted">
+                    Reviewed just now, against order version {preview.order.version}. {preview.preview.notice}
+                  </span>
+                )}
+              </div>
+
+              {previewError && (
+                <Alert type="error">
+                  {previewError}{' '}
+                  <button type="button" className="table-edit" onClick={reviewOrder}>Retry</button>
+                </Alert>
+              )}
+
+              {confirmResult?.kind === 'success' && <Alert type="success">Order confirmed.</Alert>}
+              {confirmResult?.kind === 'stale' && (
+                <Alert type="error">
+                  {confirmResult.message}{' '}
+                  <button type="button" className="table-edit" onClick={reviewOrder}>Review again</button>
+                </Alert>
+              )}
+              {confirmResult?.kind === 'blocked' && (
+                <Alert type="error">
+                  {confirmResult.message}
+                  <ReasonsList reasons={confirmResult.blockingReasons} tone="blocking" />
+                  <button type="button" className="table-edit" onClick={reviewOrder}>Review again</button>
+                </Alert>
+              )}
+              {confirmResult?.kind === 'error' && <Alert type="error">{confirmResult.message}</Alert>}
+
+              {preview && (
+                <div className="sof-review">
+                  <div className="inv-form-grid">
+                    <ReadOnly label="Reference" value={preview.order.reference} />
+                    <ReadOnly label="Customer" value={`${preview.customer.code} · ${preview.customer.name}`} />
+                    <ReadOnly label="Order date" value={preview.order.order_date} />
+                    <ReadOnly label="Requested delivery date" value={preview.order.requested_delivery_date || '—'} />
+                  </div>
+
+                  <div className="sof-section-label">Lines (from this review)</div>
+                  <div className="inv-table-scroll">
+                    <table className="inv-table">
+                      <thead>
+                        <tr>
+                          <th>Product</th>
+                          <th>Unit</th>
+                          <th>Quantity</th>
+                          <th>Unit price</th>
+                          <th>Line amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {preview.lines.map((line) => (
+                          <tr key={line.id}>
+                            <td>{line.product_code} · {line.product_name}</td>
+                            <td>{line.sales_uom_code}</td>
+                            <td>{line.quantity}</td>
+                            <td>{line.unit_price}</td>
+                            <td>{line.line_amount}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="sof-subtotal">
+                    Subtotal: <strong>{preview.subtotal} {preview.order.currency}</strong> (server-calculated)
+                  </p>
+
+                  <div className="sof-section-label">Confirmation eligibility</div>
+                  {preview.confirmation.policy.status !== 'CONFIGURED' ? (
+                    <Alert type="error">
+                      {preview.confirmation.policy_message}
+                      {' '}
+                      {canManageOrgSetup ? (
+                        <a href="/organization-setup">Configure the confirmation policy</a>
+                      ) : (
+                        'Ask an administrator to configure it in Organization Setup.'
+                      )}
+                    </Alert>
+                  ) : (
+                    <p className="field-muted">
+                      Company policy (version {preview.confirmation.policy.version}): self-confirmation{' '}
+                      {preview.confirmation.policy.allow_self_confirmation ? 'allowed' : 'not allowed'}; zero-price lines{' '}
+                      {preview.confirmation.policy.allow_zero_price_lines ? 'allowed' : 'not allowed'}; past delivery dates{' '}
+                      {preview.confirmation.policy.allow_past_requested_delivery_dates ? 'allowed' : 'not allowed'}.
+                    </p>
+                  )}
+
+                  <ReasonsList reasons={preview.confirmation.blocking_reasons} tone="blocking" />
+                  <ReasonsList reasons={preview.confirmation.informational_observations} tone="info" />
+
+                  {preview.order.status === 'DRAFT' && (
+                    permissions.canConfirmOrder ? (
+                      <Button onClick={handleConfirm} disabled={!preview.confirmation.ready_to_attempt || confirmBusy} loading={confirmBusy}>
+                        Confirm order
+                      </Button>
+                    ) : (
+                      <p className="field-muted">You can review this order, but confirming it requires additional permission.</p>
+                    )
+                  )}
+                </div>
+              )}
+            </section>
+          )}
 
           <section className="sof-group" aria-labelledby="sof-h-store">
             <div className="sof-group-head">
@@ -1314,17 +1584,25 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
                       </button>
                     </div>
                   ) : (
-                    <AsyncSearchSelect
+                    <select
                       id="sof-pack-unit"
+                      className="field-input"
                       value={batchForm.packing_content_uom?.id || ''}
-                      selected={batchForm.packing_content_uom}
-                      onChange={(option) => updateBatchField('packing_content_uom', option)}
-                      fetchOptions={(term) => listPlanningUnits(realCompanyId, term)}
-                      getOptionLabel={(o) => o.label}
-                      getOptionMeta={(o) => o.meta}
-                      placeholder="Unit"
+                      onChange={(event) =>
+                        updateBatchField(
+                          'packing_content_uom',
+                          packingUnits.find((u) => String(u.id) === event.target.value) || null
+                        )
+                      }
                       disabled={!canEditBatch}
-                    />
+                    >
+                      <option value="">Unit</option>
+                      {packingUnits.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.label}
+                        </option>
+                      ))}
+                    </select>
                   )}
                 </div>
               </div>

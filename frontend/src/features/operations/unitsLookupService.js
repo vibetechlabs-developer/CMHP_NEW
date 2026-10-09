@@ -31,6 +31,7 @@ export async function listPlanningUnits(companyId, term = '') {
     .filter((unit) => !needle || unit.code.toLowerCase().includes(needle) || unit.name.toLowerCase().includes(needle))
     .map((unit) => ({
       id: unit.id,
+      code: unit.code,
       label: `${unit.name} (${unit.code})`,
       meta: unit.dimension,
     }))

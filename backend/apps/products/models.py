@@ -111,6 +111,14 @@ class Product(models.Model):
     # (see apps.products.services.update_product) - it carries no identity
     # meaning, so it is not immutable like `code`/`sales_uom`.
     product_type = models.CharField(max_length=100, blank=True, default="")
+    # Plain optional reference text (e.g. a client-maintained BMR register
+    # number), same treatment as product_type above - free text, not an
+    # FK, carries no identity meaning, and stays editable at any time
+    # through the same PATCH as name/description/product_type. This is
+    # NOT the same thing as apps.bmr.models.BatchManufacturingRecord,
+    # which is generated per batch plan, not per product - this field is
+    # just a reference string stored on the product master itself.
+    bmr_no = models.CharField(max_length=100, blank=True, default="")
     sales_uom = models.ForeignKey(UnitOfMeasure, on_delete=models.PROTECT, related_name="products")
     is_active = models.BooleanField(default=True)
     created_by = models.ForeignKey(
@@ -134,6 +142,7 @@ class Product(models.Model):
         self.name = (self.name or "").strip()
         self.description = (self.description or "").strip()
         self.product_type = (self.product_type or "").strip()
+        self.bmr_no = (self.bmr_no or "").strip()
 
         errors = {}
         if not self.code:

@@ -178,7 +178,7 @@ def load_consistent_revision(revision_id):
 def _load_lines(revision):
     return list(
         FormulaLine.objects.filter(revision_id=revision.id)
-        .select_related("material", "unit")
+        .select_related("material", "unit", "label_claim_uom")
         .order_by("line_number", "id")
     )
 
@@ -222,12 +222,45 @@ def build_requirement_preview(revision, lines, target):
         material = line.material
         unit = line.unit
         where = {"line_id": line.id, "line_number": line.line_number}
-        if factor_fraction is None or line.quantity is None or line.quantity <= 0:
-            issues.append(
-                _issue("LINE_NOT_CALCULATED", "This line could not be calculated; the preview is incomplete.", **where)
+        is_label_claim = line.calculation_mode == FormulaLine.CalculationMode.AS_PER_LABEL_CLAIM
+
+        if is_label_claim:
+            # AS_PER_LABEL_CLAIM: required = target_output_quantity / label_claim_quantity,
+            # with label_claim_quantity converted into the revision's own output
+            # unit via canonical_factor first - same same-dimension conversion
+            # apps.batch_plans.validation.compute_expected_packed_content uses.
+            # This line's own quantity/unit are NOT used here (see FormulaLine's
+            # own docstring on calculation_mode).
+            claim_uom = line.label_claim_uom
+            if (
+                line.label_claim_quantity is None
+                or line.label_claim_quantity <= 0
+                or claim_uom is None
+                or claim_uom.canonical_factor is None
+                or output_unit.canonical_factor is None
+            ):
+                issues.append(
+                    _issue(
+                        "LINE_NOT_CALCULATED",
+                        "This line's label claim is incomplete or its unit has no conversion factor; the preview is incomplete.",
+                        **where,
+                    )
+                )
+                continue
+            claim_in_output_unit = (
+                _to_fraction(line.label_claim_quantity)
+                * _to_fraction(claim_uom.canonical_factor)
+                / _to_fraction(output_unit.canonical_factor)
             )
-            continue
-        required = _to_fraction(line.quantity) * factor_fraction
+            required = _to_fraction(target) / claim_in_output_unit
+        else:
+            if factor_fraction is None or line.quantity is None or line.quantity <= 0:
+                issues.append(
+                    _issue("LINE_NOT_CALCULATED", "This line could not be calculated; the preview is incomplete.", **where)
+                )
+                continue
+            required = _to_fraction(line.quantity) * factor_fraction
+
         text, is_exact = _display(required)
         whole = required.denominator == 1
         rows.append(
@@ -243,6 +276,9 @@ def build_requirement_preview(revision, lines, target):
                 "unit_name": line.unit_name_snapshot,
                 "notes": line.notes,
                 "base_line_quantity": str(line.quantity),
+                "calculation_mode": line.calculation_mode,
+                "label_claim_quantity": str(line.label_claim_quantity) if is_label_claim else None,
+                "label_claim_uom_code": claim_uom.code if is_label_claim else None,
                 "required_quantity": {
                     "value": text,
                     "is_exact": is_exact,
@@ -263,7 +299,17 @@ def build_requirement_preview(revision, lines, target):
             warnings.append(_issue("INACTIVE_MATERIAL", f"Material '{line.material_code_snapshot}' is currently inactive.", **where))
         if not unit.is_active:
             warnings.append(_issue("INACTIVE_UNIT", f"Unit '{line.unit_code_snapshot}' is currently inactive.", **where))
-        if unit.dimension == UnitOfMeasure.Dimension.COUNT and not whole:
+        if is_label_claim and not whole:
+            warnings.append(
+                _issue(
+                    "FRACTIONAL_LABEL_CLAIM_REQUIREMENT",
+                    f"The exact number of packs required for '{line.material_code_snapshot}' (as per label claim) "
+                    "is not a whole number. It is shown unrounded; no rounding rule has been decided.",
+                    required_quantity=text,
+                    **where,
+                )
+            )
+        elif unit.dimension == UnitOfMeasure.Dimension.COUNT and not whole:
             warnings.append(
                 _issue(
                     "FRACTIONAL_COUNT_REQUIREMENT",
@@ -293,8 +339,9 @@ def build_requirement_preview(revision, lines, target):
             "informational": True,
             "generated_at": timezone.now().isoformat(),
             "calculation": {
-                "method": "proportional",
-                "formula": "required_quantity = base_line_quantity * target_output_quantity / base_output_quantity",
+                "method": "per-line (see each line's own calculation_mode)",
+                "formula_as_per_formula": "required_quantity = base_line_quantity * target_output_quantity / base_output_quantity",
+                "formula_as_per_label_claim": "required_quantity = target_output_quantity / label_claim_quantity (converted into the output unit via canonical_factor)",
                 "arithmetic": "exact rational arithmetic (no binary floats)",
                 "display_significant_digits": DISPLAY_SIGNIFICANT_DIGITS,
                 "display_rounding": "ROUND_HALF_EVEN",
