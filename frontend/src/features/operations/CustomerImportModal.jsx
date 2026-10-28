@@ -8,7 +8,7 @@ import { getErrorMessage } from '../../utils/errors'
 import { commitCustomerImport, previewCustomerImport } from './customersService'
 
 const REQUIRED = ['code', 'name']
-const TEMPLATE = 'code,name,contact_person,email,phone,billing_address,shipping_address,notes\nEXAMPLE1,Example Customer,Contact Name,contact@example.test,9000000000,,,\n'
+const TEMPLATE = 'code,name,contact_person,email,phone,city,gst_number,billing_address,shipping_address,notes\nEXAMPLE1,Example Customer,Contact Name,contact@example.test,9000000000,Mumbai,24AAAAA0000A1Z5,,,\n'
 
 // Import customers from a CSV file. Nothing is saved until the file has been
 // checked and every row is valid; the import itself is all-or-nothing.

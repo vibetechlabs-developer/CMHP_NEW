@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ReceivingTab from './ReceivingTab'
 import * as receiving from './receivingService'
+import { listContainerTypes } from './storeService'
 import { getStorePermissionCodes } from '../operations/storePreparationService'
 import { confirmAction } from '../../components/ConfirmProvider'
 
@@ -22,6 +23,13 @@ vi.mock('./receivingService', () => ({
 }))
 vi.mock('../operations/storePreparationService', () => ({ getStorePermissionCodes: vi.fn() }))
 vi.mock('../../components/ConfirmProvider', () => ({ confirmAction: vi.fn(async () => true) }))
+vi.mock('./storeService', () => ({
+  listContainerTypes: vi.fn(async () => []),
+  listMyCompanies: vi.fn(async () => []),
+  listMaterials: vi.fn(async () => ({ count: 0, results: [] })),
+}))
+
+const BAG = { id: 1, code: 'BAG', name: 'Bag' }
 
 const FULL_CODES = ['receiving.view', 'receiving.create', 'receiving.edit', 'receiving.post', 'receiving.cancel']
 
@@ -100,10 +108,10 @@ describe('creating a draft receipt', () => {
     renderTab()
     fireEvent.click(await screen.findByText('+ New receipt'))
     fireEvent.click(await screen.findByText('Select'))
-    await screen.findByText(/Lines - enter/)
+    await screen.findByLabelText('Received quantity (KG) *')
 
-    fireEvent.change(screen.getByPlaceholderText('0'), { target: { value: '4' } })
-    const createButton = screen.getByRole('button', { name: 'Create draft' })
+    fireEvent.change(screen.getByLabelText('Received quantity (KG) *'), { target: { value: '4' } })
+    const createButton = screen.getByRole('button', { name: 'Save Draft' })
     fireEvent.click(createButton)
     fireEvent.click(createButton)
     fireEvent.click(createButton)
@@ -112,11 +120,34 @@ describe('creating a draft receipt', () => {
     const [storeId, payload] = receiving.createGoodsReceipt.mock.calls[0]
     expect(storeId).toBe(5)
     expect(payload.source_purchase_order_id).toBe(3)
-    expect(payload.lines).toEqual([{ source_po_line_id: 31, received_quantity: '4', lot_reference: '' }])
+    expect(payload.lines).toEqual([
+      { source_po_line_id: 31, received_quantity: '4', lot_reference: '', container_type_id: null, container_quantity: null },
+    ])
     expect(payload.idempotency_key).toBeTruthy()
 
     resolveCreate({ id: 77 })
     await waitFor(() => expect(receiving.createGoodsReceipt).toHaveBeenCalledTimes(1))
+  })
+
+  it('sends the supplier invoice number and per-line container details when filled in', async () => {
+    listContainerTypes.mockResolvedValue([BAG])
+    receiving.createGoodsReceipt.mockResolvedValue({ id: 77 })
+
+    renderTab()
+    fireEvent.click(await screen.findByText('+ New receipt'))
+    fireEvent.click(await screen.findByText('Select'))
+    await screen.findByLabelText('Received quantity (KG) *')
+
+    fireEvent.change(screen.getByPlaceholderText('If the invoice is already available'), { target: { value: 'INV-55' } })
+    fireEvent.change(screen.getByLabelText('Received quantity (KG) *'), { target: { value: '4' } })
+    fireEvent.change(await screen.findByDisplayValue('—'), { target: { value: String(BAG.id) } })
+    fireEvent.change(screen.getByPlaceholderText('Count'), { target: { value: '2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }))
+
+    await waitFor(() => expect(receiving.createGoodsReceipt).toHaveBeenCalledTimes(1))
+    const [, payload] = receiving.createGoodsReceipt.mock.calls[0]
+    expect(payload.supplier_invoice_reference).toBe('INV-55')
+    expect(payload.lines[0]).toMatchObject({ container_type_id: BAG.id, container_quantity: 2 })
   })
 })
 
@@ -129,16 +160,38 @@ describe('posting a receipt', () => {
     company_code: 'DEMOA',
     source_purchase_order_reference: 'PO-1',
     arrived_at: '2026-10-09T10:00:00Z',
+    supplier_invoice_reference: 'INV-77',
     delivery_note_reference: '',
     notes: '',
     lines: [
-      { id: 1, source_po_line_id: 31, material_code: 'MAT-1', material_name: 'Material One', unit_code: 'KG', received_quantity: '4.000', lot_reference: '' },
+      {
+        id: 1,
+        source_po_line_id: 31,
+        material_code: 'MAT-1',
+        material_name: 'Material One',
+        unit_code: 'KG',
+        received_quantity: '4.000',
+        lot_reference: '',
+        container_type_id: BAG.id,
+        container_type_code: 'BAG',
+        container_quantity: 2,
+      },
     ],
   }
 
   beforeEach(() => {
     getStorePermissionCodes.mockResolvedValue(FULL_CODES)
     receiving.getGoodsReceipt.mockResolvedValue(DRAFT)
+  })
+
+  it('shows the supplier invoice reference and the per-line container detail', async () => {
+    render(
+      <MemoryRouter>
+        <ReceivingTab storeId={5} receiptId={9} />
+      </MemoryRouter>
+    )
+    expect(await screen.findByText('INV-77')).toBeTruthy()
+    expect(await screen.findByText('BAG × 2')).toBeTruthy()
   })
 
   it('asks for confirmation with the exact required business meaning, then posts using the loaded version', async () => {

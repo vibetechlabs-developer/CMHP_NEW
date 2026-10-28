@@ -1,0 +1,156 @@
+/* =========================================================
+   CMHP PHARMA – THEMED CONFIRM / PROMPT DIALOGS
+   Replaces browser window.confirm / window.prompt
+   ========================================================= */
+
+.cd-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10100;  /* above inv-modal (9999) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(10, 30, 55, 0.45);
+  backdrop-filter: blur(6px);
+  animation: cd-fade-in 0.15s ease-out;
+}
+
+@keyframes cd-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.cd-box {
+  width: 100%;
+  max-width: 420px;
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow:
+    0 8px 32px rgba(15, 50, 90, 0.18),
+    0 2px 8px rgba(15, 50, 90, 0.10);
+  padding: 32px 28px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+  animation: cd-slide-in 0.18s ease-out;
+  border: 1px solid #dce7ef;
+}
+
+@keyframes cd-slide-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── variant accent stripe at top ── */
+.cd-box--primary { border-top: 4px solid #2186d9; }
+.cd-box--danger  { border-top: 4px solid #ef4444; }
+.cd-box--warning { border-top: 4px solid #f59e0b; }
+
+/* ── icon ── */
+.cd-icon {
+  font-size: 36px;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+/* ── title ── */
+.cd-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+/* ── message ── */
+.cd-message {
+  margin: 0;
+  font-size: 13.5px;
+  color: #475569;
+  line-height: 1.55;
+  max-width: 340px;
+}
+
+/* ── prompt input ── */
+.cd-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 42px;
+  padding: 0 14px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #0f172a;
+  background: #f8fafc;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+}
+.cd-input:focus {
+  border-color: #2186d9;
+  box-shadow: 0 0 0 3px rgba(33, 134, 217, 0.12);
+  background: #fff;
+}
+
+/* ── action buttons row ── */
+.cd-actions {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.cd-btn {
+  flex: 1;
+  max-width: 160px;
+  height: 40px;
+  border: none;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+  font-family: inherit;
+}
+.cd-btn:active { transform: scale(0.97); }
+
+.cd-btn--cancel {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+.cd-btn--cancel:hover { background: #e2e8f0; }
+
+.cd-btn--primary {
+  background: linear-gradient(135deg, #2186d9, #0d6bbf);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(33, 134, 217, 0.28);
+}
+.cd-btn--primary:hover { background: linear-gradient(135deg, #1a76c8, #0a5fa8); }
+.cd-btn--primary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.cd-btn--danger {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
+}
+.cd-btn--danger:hover { background: linear-gradient(135deg, #dc2626, #b91c1c); }
+.cd-btn--danger:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.cd-btn--warning {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.25);
+}
+.cd-btn--warning:hover { background: linear-gradient(135deg, #d97706, #b45309); }
+.cd-btn--warning:disabled { opacity: 0.55; cursor: not-allowed; }
+
+@media (max-width: 480px) {
+  .cd-box { padding: 24px 18px 20px; border-radius: 14px; }
+  .cd-title { font-size: 15px; }
+  .cd-btn { height: 42px; font-size: 13px; }
+}

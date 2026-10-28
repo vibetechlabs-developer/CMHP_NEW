@@ -189,9 +189,9 @@ def assess_approval(revision, formula, product, output_unit, lines, policy, *, a
             blocking.append(_block("INVALID_QUANTITY", CATEGORY_ELIGIBILITY, "The quantity must be greater than zero.", **where))
         elif unit.dimension == UnitOfMeasure.Dimension.COUNT and line.quantity % 1 != 0:
             blocking.append(_block("INVALID_QUANTITY", CATEGORY_ELIGIBILITY, "A COUNT unit needs a whole-number quantity.", **where))
-        if line.unit_id != material.base_unit_id or line.material_kind_snapshot != material.kind:
+        if line.material_kind_snapshot != material.kind:
             blocking.append(
-                _block("INCONSISTENT_LINE", CATEGORY_ELIGIBILITY, "The line's unit or material type is not consistent with its material.", **where)
+                _block("INCONSISTENT_LINE", CATEGORY_ELIGIBILITY, "The line's material type is not consistent with its material.", **where)
             )
         if not material.is_active:
             blocking.append(
@@ -515,7 +515,7 @@ def reject_formula_revision(*, actor, company_id, formula_id, revision_id, expec
 
 
 @transaction.atomic
-def approve_formula_revision(*, actor, company_id, formula_id, revision_id, expected_version):
+def approve_formula_revision(*, actor, company_id, formula_id, revision_id, expected_version, approval_remarks=""):
     """DRAFT -> APPROVED, atomically.
 
     1. Lock the revision (the same lock every content edit takes, so approval
@@ -574,12 +574,14 @@ def approve_formula_revision(*, actor, company_id, formula_id, revision_id, expe
     revision.approval_policy_version = policy.version
     revision.approval_policy_snapshot = snapshot
     revision.approved_identity_snapshot = approved_identity(formula, product, output_unit, revision)
+    revision.approval_remarks = (approval_remarks or "").strip()
     revision.version += 1
     revision.save(
         update_fields=[
             "status",
             "approved_by",
             "approved_at",
+            "approval_remarks",
             "approval_policy_version",
             "approval_policy_snapshot",
             "approved_identity_snapshot",
@@ -598,6 +600,7 @@ def approve_formula_revision(*, actor, company_id, formula_id, revision_id, expe
             "status": revision.status,
             "approved_by_id": actor.id,
             "approved_at": revision.approved_at.isoformat(),
+            "approval_remarks": revision.approval_remarks,
             "policy": snapshot,
             "identity": revision.approved_identity_snapshot,
         },

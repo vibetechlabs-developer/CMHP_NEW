@@ -137,7 +137,7 @@ export default function CustomersPanel() {
           </p>
         </div>
         {canCreate && (
-          <div className="inv-toolbar-actions">
+          <div className="inv-toolbar-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <Button variant="secondary" onClick={() => setImporting(true)}>
               Import CSV
             </Button>
@@ -149,9 +149,9 @@ export default function CustomersPanel() {
       <div className="inv-toolbar">
         <input
           className="field-input"
-          style={{ maxWidth: 320 }}
+          style={{ maxWidth: 360 }}
           type="text"
-          placeholder="Search by code, name, contact, email or phone…"
+          placeholder="Search by code, name, contact, email, phone, city or GST…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -174,6 +174,8 @@ export default function CustomersPanel() {
               <th>Contact Person</th>
               <th>Email</th>
               <th>Phone</th>
+              <th>City</th>
+              <th>GST No</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
@@ -181,13 +183,13 @@ export default function CustomersPanel() {
           <tbody>
             {listLoading ? (
               <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: 32 }}>
+                <td colSpan={9} style={{ textAlign: 'center', padding: 32 }}>
                   <Spinner tone="brand" label="Loading…" />
                 </td>
               </tr>
             ) : data.results.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: 32 }}>
+                <td colSpan={9} style={{ textAlign: 'center', padding: 32 }}>
                   No customers found.
                 </td>
               </tr>
@@ -196,28 +198,31 @@ export default function CustomersPanel() {
                 <tr key={customer.id}>
                   <td className="cell-strong">{customer.code}</td>
                   <td>{customer.name}</td>
-                  <td>{customer.contact_person}</td>
-                  <td>{customer.email}</td>
-                  <td>{customer.phone}</td>
+                  <td>{customer.contact_person || '—'}</td>
+                  <td>{customer.email || '—'}</td>
+                  <td>{customer.phone || '—'}</td>
+                  <td>{customer.city || '—'}</td>
+                  <td>{customer.gst_number || customer.gst_no || '—'}</td>
                   <td>{customer.is_active ? 'Active' : 'Inactive'}</td>
                   <td>
-                    <button
-                      type="button"
-                      className="table-edit"
-                      onClick={() => setFormState({ mode: 'edit', customerId: customer.id })}
-                    >
-                      {canEdit || canActivate || canDeactivate ? 'Edit' : 'View'}
-                    </button>
-                    {canDelete && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
                       <button
                         type="button"
                         className="table-edit"
-                        style={{ marginLeft: 12, color: '#b42318' }}
-                        onClick={() => handleDelete(customer)}
+                        onClick={() => setFormState({ mode: 'edit', customerId: customer.id })}
                       >
-                        Delete
+                        {canEdit || canActivate || canDeactivate ? 'Edit' : 'View'}
                       </button>
-                    )}
+                      {canDelete && (
+                        <button
+                          type="button"
+                          className="table-delete"
+                          onClick={() => handleDelete(customer)}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))

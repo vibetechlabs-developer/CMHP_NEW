@@ -1,7 +1,15 @@
 /* Material Register detail screen. Scoped to .reg-page only - nothing
-   outside this screen is affected. Same palette as the rest of the app
-   (cmhp-reference.css / FormulasPage.css's own --fm-* tokens), given its
-   own scoped copy so this feature stays independent of the formulas page. */
+   outside this screen is affected. Color tokens below are copied from
+   the reference project's own tabs/StockLedger.css (D:\fenilrami27-
+   CMHP-PH), not guessed, so this page's presentation matches it exactly
+   while every field/action/calculation stays this app's own real,
+   API-backed implementation.
+
+   Layout follows the reference's compact design: a thin back line, one
+   white filter+action toolbar, one material identity card with an
+   inline yellow summary dock on its right, then green Inward / orange
+   Outward tables side by side - never a large standalone identity
+   banner or a full-width summary strip. */
 .reg-page {
   --reg-font: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --reg-text: #405b70;
@@ -14,22 +22,32 @@
   --reg-accent: #1478c9;
   --reg-accent-soft: #eaf5fc;
   --reg-accent-soft-strong: #dbeefc;
-  --reg-ok-bg: #eaf7ef;
-  --reg-ok-border: #bfe3cb;
-  --reg-ok-text: #1d7a3d;
-  --reg-warn-bg: #fff8ec;
-  --reg-warn-border: #f2d3a2;
-  --reg-warn-text: #8a5a00;
   --reg-danger-bg: #fdecea;
   --reg-danger-border: #f3c2bc;
   --reg-danger-text: #b42318;
+  /* Reference tokens (StockLedger.css) - inward/green */
+  --reg-green: #059669;
+  --reg-green-dark: #047857;
+  --reg-green-bg: #ecfdf5;
+  --reg-green-border: #a7f3d0;
+  --reg-green-th-bg: #f0fdf4;
+  --reg-green-th-text: #065f46;
+  --reg-green-th-border: #bbf7d0;
+  /* outward/orange */
+  --reg-orange: #ea580c;
+  --reg-orange-dark: #c2410c;
+  --reg-orange-bg: #fff7ed;
+  --reg-orange-border: #fed7aa;
+  --reg-orange-th-bg: #fffbeb;
+  --reg-orange-th-text: #9a3412;
+  --reg-orange-th-border: #fde68a;
   --reg-radius: 10px;
   --reg-radius-lg: 14px;
   font-family: var(--reg-font);
   color: var(--reg-text);
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
   min-width: 0;
 }
 
@@ -42,7 +60,24 @@
   font-family: inherit;
 }
 
-/* Back link */
+/* The reference's hero is a plain div - its only artwork is the
+   pharma-banner.png background PageHero already shares via top-
+   banner.css. The DNA/molecule/microscope SVG overlay PageHero also
+   renders on every OTHER page is scoped off on this one page only, to
+   match the reference's clean crop without touching PageHero.jsx. */
+.reg-page .page-hero .page-hero-scene {
+  display: none;
+}
+
+/* A. Compact top line: back link only - the store itself is already
+   shown by the workspace's own store selector above this page, so a
+   second "Store: X" label here would just repeat it. */
+.reg-topline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .reg-back {
   display: inline-flex;
   align-items: center;
@@ -55,215 +90,470 @@
 }
 .reg-back:hover { text-decoration: underline; }
 
-/* Header card */
-.reg-header-card {
-  border: 1px solid var(--reg-border);
-  border-radius: var(--reg-radius-lg);
-  background: linear-gradient(135deg, var(--reg-accent-soft) 0%, var(--reg-surface) 70%);
-  box-shadow: 0 1px 2px rgba(27, 72, 104, 0.05);
-  padding: 20px 24px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 18px;
-}
-
-.reg-header-icon {
-  flex: 0 0 auto;
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: var(--reg-surface);
-  border: 1px solid var(--reg-border-strong);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--reg-accent);
-}
-
-.reg-header-main {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.reg-header-code {
-  font-size: 12.5px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--reg-accent);
-}
-
-.reg-header-name {
-  font-size: 21px;
-  font-weight: 800;
-  line-height: 1.25;
-  color: var(--reg-heading);
-}
-
-.reg-header-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-  margin-left: auto;
-  align-items: center;
-}
-
-.reg-meta-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 90px;
-}
-
-.reg-meta-label {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--reg-muted);
-}
-
-.reg-meta-value {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--reg-heading);
-}
-
-/* Pill badges */
-.reg-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 11px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.6;
-  white-space: nowrap;
-}
-.reg-badge.ok { background: var(--reg-ok-bg); color: var(--reg-ok-text); border: 1px solid var(--reg-ok-border); }
-.reg-badge.muted { background: var(--reg-subtle); color: var(--reg-muted); border: 1px solid var(--reg-border); }
-.reg-badge.accent { background: var(--reg-accent-soft-strong); color: var(--reg-accent); border: 1px solid var(--reg-border-strong); }
-.reg-badge.warn { background: var(--reg-warn-bg); color: var(--reg-warn-text); border: 1px solid var(--reg-warn-border); }
-.reg-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
-
-/* Body card */
-.reg-card {
-  border: 1px solid var(--reg-border);
+/* B. Filter / action toolbar - plain white card, subtle border, no
+   heavy top accent (the reference keeps this bar visually quiet). */
+.reg-compact-card {
+  border: 1px solid #d6e5ef;
   border-radius: var(--reg-radius-lg);
   background: var(--reg-surface);
-  box-shadow: 0 1px 2px rgba(27, 72, 104, 0.04);
-  padding: 22px 24px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  padding: 14px 18px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  min-width: 0;
+  gap: 10px;
 }
 
-.reg-card-title {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 16.5px;
-  font-weight: 800;
-  color: var(--reg-heading);
-}
-.reg-card-title .reg-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 3px;
-  background: var(--reg-accent);
-  flex: none;
-}
-
-/* Date filter toolbar */
-.reg-filter-bar {
+.reg-filter-row {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 14px;
-  padding: 14px 16px;
-  background: var(--reg-subtle);
-  border: 1px solid var(--reg-border);
-  border-radius: var(--reg-radius);
+  gap: 8px;
+}
+
+/* Read-only material identity chip at the left of row 1, in the slot
+   the reference's material-switcher dropdown occupies - static, not
+   interactive, since this register is intentionally scoped to one
+   material by its URL. */
+.reg-identity-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  background: #ffffff;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+.reg-identity-chip-code {
+  font-family: monospace;
+  font-weight: 800;
+  font-size: 12px;
+  color: #0284c7;
+  background: #e0f2fe;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex: none;
+}
+.reg-identity-chip-name {
+  font-weight: 700;
+  font-size: 13px;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.reg-identity-chip-sub {
+  color: #64748b;
+  font-size: 11.5px;
+  white-space: nowrap;
+  flex: none;
 }
 
 .reg-filter-field {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 3px;
+  min-width: 130px;
+}
+
+.reg-filter-field-grow {
+  flex: 1 1 220px;
 }
 
 .reg-filter-field label {
-  font-size: 11.5px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--reg-muted);
 }
 
-.reg-filter-field input {
+.reg-filter-field input,
+.reg-filter-field select {
   border: 1px solid var(--reg-border-strong);
   border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 13.5px;
-  background: var(--reg-surface);
+  padding: 7px 10px;
+  font-size: 13px;
+  background: var(--reg-subtle);
   color: var(--reg-text);
   min-height: 38px;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
-.reg-filter-field input:focus {
+.reg-filter-field input:disabled {
+  background: var(--reg-subtle);
+  color: var(--reg-muted);
+  cursor: not-allowed;
+}
+.reg-filter-field input:focus,
+.reg-filter-field select:focus {
   outline: 2px solid var(--reg-accent-soft-strong);
   outline-offset: 1px;
+  border-color: var(--reg-accent);
+  background: var(--reg-surface);
+}
+.reg-filter-field input:not(:disabled):hover,
+.reg-filter-field select:hover {
   border-color: var(--reg-accent);
 }
 
 .reg-filter-actions {
   display: flex;
   gap: 8px;
-  margin-left: auto;
 }
 
 .reg-hint {
-  font-size: 12.5px;
-  color: var(--reg-muted);
-  line-height: 1.5;
-}
-
-/* Notices */
-.reg-notice {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  padding: 11px 14px;
-  border-radius: var(--reg-radius);
-  font-size: 13px;
-  line-height: 1.5;
-}
-.reg-notice.info { background: var(--reg-accent-soft); color: var(--reg-heading); border: 1px solid var(--reg-accent-soft-strong); }
-.reg-notice.coverage { background: var(--reg-subtle); color: var(--reg-muted); border: 1px solid var(--reg-border); font-size: 12.5px; }
-
-/* Section heading within a card */
-.reg-section-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.reg-section-title {
-  font-size: 13.5px;
-  font-weight: 700;
-  color: var(--reg-heading);
-}
-.reg-section-sub {
   font-size: 12px;
   color: var(--reg-muted);
+  line-height: 1.5;
 }
 
-/* Tables */
+/* Action bar - Inward Stock and Issue Outward are real, working
+   actions; Opening Stock/Physical Audit stay visibly disabled with a
+   short accessible reason (title attr) rather than hidden. Sizing and
+   colors are copied from the reference's own .stock-btn-action recipe
+   so six actions fit on one row at the reference's desktop width
+   instead of wrapping. */
+.reg-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--reg-border);
+}
+
+.reg-action-bar .btn {
+  height: 38px;
+  min-height: 38px;
+  padding: 0 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+/* !important is deliberate here: Button.jsx composes "btn btn-{variant}
+   {className}" and components.css's own .btn-primary/.btn-secondary
+   colors must never win that cascade on this page's two real-action
+   buttons, regardless of CSS bundling/import order. */
+.reg-action-bar .reg-btn-inward {
+  background: #059669 !important;
+  border-color: #047857 !important;
+  color: #ffffff !important;
+  box-shadow: none;
+}
+.reg-action-bar .reg-btn-inward:hover:not(:disabled) {
+  background: #047857 !important;
+}
+
+.reg-action-bar .reg-btn-outward {
+  background: #ea580c !important;
+  border-color: #c2410c !important;
+  color: #ffffff !important;
+  box-shadow: none;
+}
+.reg-action-bar .reg-btn-outward:hover:not(:disabled) {
+  background: #c2410c !important;
+}
+
+.reg-action-bar .btn-secondary {
+  background: #ffffff !important;
+  color: #334155 !important;
+  border-color: #cbd5e1 !important;
+}
+.reg-action-bar .btn-secondary:hover:not(:disabled) {
+  background: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+
+/* C. Material identity + stock summary card - one row: identity on the
+   left, the compact yellow summary dock on the right (reference's own
+   .stock-header-card/.stock-summary-dock layout), never a full-width
+   strip underneath. */
+.reg-summary-card {
+  border: 1px solid #cbd5e1;
+  border-radius: var(--reg-radius-lg);
+  background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 50%, #fff7ed 100%);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.reg-summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.reg-item-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.reg-item-details {
+  min-width: 0;
+}
+
+.reg-code-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #38bdf8;
+  font-family: monospace;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  flex: none;
+}
+
+.reg-material-name {
+  font-size: 20px;
+  font-weight: 850;
+  color: #0f172a;
+  letter-spacing: -0.3px;
+  line-height: 1.2;
+}
+
+.reg-summary-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.reg-item-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: #e2e8f0;
+  color: #334155;
+  border-radius: 5px;
+  font-weight: 700;
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.reg-item-tag-muted { background: var(--reg-danger-bg); color: var(--reg-danger-text); }
+.reg-item-tag-accent { background: var(--reg-accent-soft-strong); color: var(--reg-accent); }
+
+.reg-coverage-line {
+  font-size: 11.5px;
+  color: var(--reg-muted);
+  cursor: help;
+  border-top: 1px dashed var(--reg-border);
+  padding-top: 8px;
+}
+
+/* Compact yellow summary dock - adapted from the reference's 3-cell
+   mock to this app's 4 real figures (Opening/Received/Issued/Closing);
+   no cell removed to match the reference's own cell count. */
+.reg-summary-dock {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 18px;
+  background: #fefce8;
+  border: 2px solid #fde047;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(202, 138, 4, 0.08);
+  flex-wrap: wrap;
+}
+
+.reg-summary-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 90px;
+}
+
+.reg-summary-stat .lbl {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #854d0e;
+  letter-spacing: 0.4px;
+}
+
+.reg-summary-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.reg-summary-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.reg-summary-stat .val {
+  font-size: 16px;
+  font-weight: 900;
+  font-family: monospace;
+  color: #713f12;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+.reg-summary-stat .val.tone-green { color: #047857; }
+.reg-summary-stat .val.tone-orange { color: #c2410c; }
+.reg-summary-stat .val.tone-brown { color: #713f12; }
+.reg-summary-stat .val.tone-neutral { color: #713f12; }
+.reg-summary-stat .unit {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #a16207;
+  margin-right: 4px;
+}
+
+.reg-summary-stat .val.muted {
+  font-family: var(--reg-font);
+  font-weight: 600;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.reg-summary-stat .sub {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #a16207;
+}
+
+.reg-summary-divider {
+  width: 1px;
+  height: 34px;
+  background: #fef08a;
+  flex: none;
+}
+
+/* FY quick-select - a convenience that only sets the SAME From/To date
+   inputs already next to it; never a separate filter the server has to
+   understand. */
+.reg-fy-select {
+  border: 1px solid var(--reg-border-strong);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  background: var(--reg-subtle);
+  color: var(--reg-text);
+  min-height: 38px;
+}
+
+/* D. Inward / Outward side-by-side layout */
+.reg-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .reg-two-col {
+    grid-template-columns: 1fr;
+  }
+}
+
+.reg-side-card {
+  border: 1px solid var(--reg-border);
+  border-radius: var(--reg-radius-lg);
+  background: var(--reg-surface);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  padding: 0 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  min-height: 420px;
+  overflow: hidden;
+}
+
+/* Strong emerald/orange top border + pale title band, matching the
+   reference's .stock-card-inward/.stock-card-outward treatment. */
+.reg-inward-card { border-top: 4px solid var(--reg-green); }
+.reg-outward-card { border-top: 4px solid var(--reg-orange); }
+
+.reg-side-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 16px;
+}
+
+.reg-inward-card .reg-side-card-header { background: var(--reg-green-bg); border-bottom: 1px solid var(--reg-green-border); }
+.reg-outward-card .reg-side-card-header { background: var(--reg-orange-bg); border-bottom: 1px solid var(--reg-orange-border); }
+
+.reg-side-card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 850;
+  letter-spacing: 0.02em;
+}
+
+.reg-inward-card .reg-side-card-title { color: var(--reg-green-th-text); }
+.reg-outward-card .reg-side-card-title { color: var(--reg-orange-th-text); }
+
+.reg-side-card-count {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--reg-muted);
+}
+
+/* The header band now owns the card's padding; its body content needs
+   its own horizontal padding since .reg-side-card's own padding was
+   removed (0 0 14px) so the band can bleed edge-to-edge. */
+.reg-side-card > .reg-table-wrap,
+.reg-side-card > .reg-pagination {
+  margin-left: 16px;
+  margin-right: 16px;
+  width: auto;
+}
+
+/* Full-bleed solid-color total bar at the bottom of each table, same
+   green/orange used by the card's own header band above - matches the
+   reference's own bottom total strip instead of a neutral chip. */
+.reg-footer-totals {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  padding: 10px 16px;
+}
+
+.reg-inward-card .reg-footer-totals { background: var(--reg-green); }
+.reg-outward-card .reg-footer-totals { background: var(--reg-orange); }
+
+.reg-footer-totals .reg-hint {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 11.5px;
+}
+
+.reg-footer-total-chip {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #ffffff;
+}
+.reg-footer-total-chip strong { font-weight: 800; }
+
+.reg-nowrap { white-space: nowrap; }
+
+/* Tables - headers always render, including with zero rows (the empty
+   state is a row inside <tbody>, never a replacement for the table). */
 .reg-table-wrap {
   width: 100%;
   overflow-x: auto;
@@ -280,19 +570,24 @@
 
 .reg-table th {
   text-align: left;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--reg-muted);
   background: var(--reg-subtle);
-  padding: 10px 14px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--reg-border);
   white-space: nowrap;
 }
 
+/* Tinted column-header rows per card, matching the reference's own
+   green/orange table headers (not just a neutral gray). */
+.reg-inward-card .reg-table th { background: var(--reg-green-th-bg); color: var(--reg-green-th-text); border-bottom-color: var(--reg-green-th-border); }
+.reg-outward-card .reg-table th { background: var(--reg-orange-th-bg); color: var(--reg-orange-th-text); border-bottom-color: var(--reg-orange-th-border); }
+
 .reg-table td {
-  padding: 10px 14px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--reg-border);
   color: var(--reg-text);
   vertical-align: middle;
@@ -306,24 +601,55 @@
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   color: var(--reg-heading);
+  white-space: nowrap;
 }
 
-.reg-table .reg-muted-cell { color: var(--reg-muted); }
+.reg-table .reg-muted-cell { color: var(--reg-muted); font-size: 11.5px; }
 
 .reg-table.reg-table-compact th,
 .reg-table.reg-table-compact td {
-  padding: 8px 12px;
-  font-size: 12.5px;
+  padding: 7px 10px;
+  font-size: 12px;
 }
 
-/* Empty state */
+/* Empty-state row, rendered inside <tbody> so the header row (and the
+   table's own tinted color theme) always stays visible. */
+.reg-empty-pane {
+  padding: 32px 16px !important;
+  text-align: center;
+  color: #94a3b8 !important;
+  background: var(--reg-surface) !important;
+  font-size: 12.5px;
+  border-bottom: none !important;
+}
+
+.reg-unavailable-panel {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  background: var(--reg-subtle);
+  border: 1px dashed var(--reg-border-strong);
+  border-radius: var(--reg-radius);
+  color: var(--reg-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.reg-unavailable-inline {
+  border: none;
+  background: none;
+  padding: 10px 2px;
+}
+
+/* Empty state used outside the tables (e.g. "choose a store") */
 .reg-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
   text-align: center;
-  padding: 28px 16px;
+  padding: 20px 14px;
   border: 1px dashed var(--reg-border-strong);
   border-radius: var(--reg-radius);
   color: var(--reg-muted);
@@ -338,7 +664,6 @@
   gap: 10px;
   align-items: center;
   justify-content: flex-end;
-  margin-top: 2px;
 }
 .reg-pagination .reg-page-count {
   font-size: 12.5px;
@@ -346,16 +671,11 @@
   font-variant-numeric: tabular-nums;
 }
 
-.reg-footnote {
-  font-size: 12px;
-  color: var(--reg-muted);
-  border-top: 1px dashed var(--reg-border);
-  padding-top: 14px;
-}
-
 @media (max-width: 640px) {
-  .reg-header-card { padding: 16px; }
-  .reg-header-meta { margin-left: 0; width: 100%; }
-  .reg-filter-actions { margin-left: 0; width: 100%; }
-  .reg-card { padding: 16px; }
+  .reg-summary-head { flex-direction: column; align-items: flex-start; }
+  .reg-summary-dock { width: 100%; }
+  .reg-filter-actions { width: 100%; }
+  .reg-compact-card { padding: 12px; }
+  .reg-summary-card { padding: 12px; }
+  .reg-identity-chip { width: 100%; }
 }

@@ -228,24 +228,27 @@ class MaterialModelTests(TestCase):
         material = make_material("MAT1", base_unit=self.unit)
         self.assertIsNone(material.category)
 
-    def test_code_immutable_after_creation(self):
+    def test_code_can_be_changed_after_creation(self):
         material = make_material("MAT1", base_unit=self.unit)
         material.code = "OTHER"
-        with self.assertRaises(Exception):
-            material.save()
+        material.save()
+        material.refresh_from_db()
+        self.assertEqual(material.code, "OTHER")
 
-    def test_kind_immutable_after_creation(self):
+    def test_kind_can_be_changed_after_creation(self):
         material = make_material("MAT1", base_unit=self.unit, kind="RAW_MATERIAL")
         material.kind = "PACKAGING_MATERIAL"
-        with self.assertRaises(Exception):
-            material.save()
+        material.save()
+        material.refresh_from_db()
+        self.assertEqual(material.kind, "PACKAGING_MATERIAL")
 
-    def test_base_unit_immutable_after_creation(self):
+    def test_base_unit_can_be_changed_after_creation(self):
         other_unit = make_unit("L", dimension="VOLUME")
         material = make_material("MAT1", base_unit=self.unit)
         material.base_unit = other_unit
-        with self.assertRaises(Exception):
-            material.save()
+        material.save()
+        material.refresh_from_db()
+        self.assertEqual(material.base_unit_id, other_unit.id)
 
     def test_category_can_be_changed(self):
         other_category = make_category("MOTHER_TINCTURE")
@@ -773,12 +776,12 @@ class MaterialApiTests(CatalogTestCase):
             )
             self.assertEqual(response.status_code, 400, field)
 
-    def test_patch_rejects_code_kind_base_unit(self):
+    def test_patch_updates_code_kind_base_unit(self):
         material = make_material("MAT1", base_unit=self.unit)
         other_unit = make_unit("L", dimension="VOLUME")
         for field, value in (("code", "OTHER"), ("kind", "PACKAGING_MATERIAL"), ("base_unit_id", other_unit.id)):
             response = patch_json(self.client_, material_url(material.id), {field: value}, self.superuser_token)
-            self.assertEqual(response.status_code, 400, field)
+            self.assertEqual(response.status_code, 200, field)
 
     def test_patch_updates_name_and_description(self):
         material = make_material("MAT1", base_unit=self.unit)

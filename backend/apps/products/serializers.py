@@ -21,7 +21,7 @@ _PRODUCT_ALWAYS_PROHIBITED = {
     "company_id",
 }
 _PRODUCT_CREATE_PROHIBITED = _PRODUCT_ALWAYS_PROHIBITED
-_PRODUCT_UPDATE_PROHIBITED = _PRODUCT_ALWAYS_PROHIBITED | {"code", "sales_uom", "sales_uom_id"}
+_PRODUCT_UPDATE_PROHIBITED = _PRODUCT_ALWAYS_PROHIBITED | {"sales_uom", "sales_uom_id"}
 
 
 def _reject_prohibited_fields(initial_data, prohibited):
@@ -45,6 +45,23 @@ class ProductSerializer(serializers.ModelSerializer):
     # rather than hidden or silently replaced - see Product's own
     # docstring and docs/backend-decisions.md, Task 10B.
     sales_uom_is_active = serializers.BooleanField(source="sales_uom.is_active", read_only=True)
+    qa_approval_status = serializers.SerializerMethodField()
+
+    def get_qa_approval_status(self, obj):
+        try:
+            revisions = [rev for formula in obj.formulas.all() for rev in formula.revisions.all()]
+            if not revisions:
+                return "NOT_SUBMITTED"
+            statuses = {rev.status for rev in revisions}
+            if "APPROVED" in statuses:
+                return "APPROVED"
+            if "SUBMITTED" in statuses:
+                return "SUBMITTED"
+            if "DRAFT" in statuses:
+                return "DRAFT"
+            return "NOT_SUBMITTED"
+        except Exception:
+            return "NOT_SUBMITTED"
 
     class Meta:
         model = Product
@@ -55,6 +72,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "code",
             "name",
             "product_type",
+            "pack_size",
             "bmr_no",
             "description",
             "sales_uom_id",
@@ -63,6 +81,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "sales_uom_is_active",
             "is_active",
             "version",
+            "qa_approval_status",
             "created_at",
             "updated_at",
         ]
@@ -87,10 +106,11 @@ class ProductCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ["code", "name", "product_type", "bmr_no", "description", "sales_uom_id"]
+        fields = ["code", "name", "product_type", "pack_size", "bmr_no", "description", "sales_uom_id"]
         extra_kwargs = {
             "description": {"required": False, "allow_blank": True},
             "product_type": {"required": False, "allow_blank": True},
+            "pack_size": {"required": False, "allow_blank": True},
             "bmr_no": {"required": False, "allow_blank": True},
         }
 
@@ -112,10 +132,17 @@ class ProductUpdateSerializer(serializers.Serializer):
     """
 
     expected_version = serializers.IntegerField()
+    code = serializers.CharField(required=False)
     name = serializers.CharField(required=False)
     product_type = serializers.CharField(required=False, allow_blank=True)
+    pack_size = serializers.CharField(required=False, allow_blank=True)
     bmr_no = serializers.CharField(required=False, allow_blank=True)
     description = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_code(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Code cannot be blank.")
+        return value.strip()
 
     def validate_name(self, value):
         if not value.strip():

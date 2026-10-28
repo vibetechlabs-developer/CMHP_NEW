@@ -12,6 +12,8 @@ CUSTOMER_TRACKED_FIELDS = [
     "contact_person",
     "email",
     "phone",
+    "city",
+    "gst_number",
     "billing_address",
     "shipping_address",
     "notes",

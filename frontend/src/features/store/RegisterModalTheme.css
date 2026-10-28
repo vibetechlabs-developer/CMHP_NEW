@@ -1,0 +1,79 @@
+/* Scoped visual theme for the register's Inward/Outward modals only -
+   applied via Modal's `className="reg-modal-themed"` prop, so this
+   never touches the other ~20 places the shared inventory Modal
+   component is used across the app. Colors/spacing copied from the
+   reference project's own features/inventory/components/Modal.css
+   (pale-blue gradient header, blurred backdrop, compact close button)
+   - only the look changes here; Modal.jsx's own focus-trap/Escape/Tab
+   behaviour is untouched. */
+
+.reg-modal-themed.inv-modal-overlay {
+  background: rgba(20, 55, 82, 0.34);
+  backdrop-filter: blur(7px);
+}
+
+.reg-modal-themed .inv-modal-head {
+  background: linear-gradient(135deg, #edf7fc, #fbfdff);
+}
+
+.reg-modal-themed .inv-modal-header h3 {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.reg-modal-themed .inv-modal-close {
+  width: 33px;
+  height: 33px;
+  font-size: 19px;
+  border-radius: 8px;
+}
+
+/* A small read-back recap box (what will actually be recorded), never
+   a computed/fabricated conversion - mirrors the reference's own
+   .stock-computed-box visual treatment. */
+.inv-computed-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.inv-computed-box strong {
+  color: #0f172a;
+  font-family: monospace;
+  font-size: 13.5px;
+}
+
+/* PO-based vs manual-entry mode toggle, Inward Stock modal only. */
+.inv-mode-toggle {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding: 3px;
+  background: #f1f5f9;
+  border-radius: 9px;
+  width: fit-content;
+}
+
+.inv-mode-toggle button {
+  border: none;
+  background: transparent;
+  color: #51677c;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 7px 14px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.inv-mode-toggle button.active {
+  background: #ffffff;
+  color: #163b59;
+  box-shadow: 0 1px 3px rgba(20, 60, 90, 0.14);
+}

@@ -155,12 +155,28 @@ const NAV_SECTIONS = [
 
 
   {
-    title: 'Store & Materials',
+    title: 'INVENTORY',
 
     items: [
 
       {
-        label: 'Materials',
+        label: 'Dashboard',
+        path: '/inventory',
+        icon: DashboardIcon,
+        accent: '#2563eb',
+        commonInventoryOnly: true,
+      },
+
+      {
+        label: 'Products',
+        path: '/products',
+        icon: FlaskIcon,
+        accent: '#22b8a6',
+        commonInventoryOnly: true,
+      },
+
+      {
+        label: 'Raw Materials',
         path: '/inventory/materials',
         icon: InventoryIcon,
         accent: '#8b7cf6',
@@ -168,23 +184,40 @@ const NAV_SECTIONS = [
       },
 
       {
-        label: 'Locations',
-        path: '/inventory/locations',
-        icon: InventoryIcon,
-        accent: '#8b7cf6',
+        label: 'Orders',
+        path: '/orders',
+        icon: ClipboardIcon,
+        accent: '#f2b84b',
         commonInventoryOnly: true,
       },
 
       {
-        label: 'Recorded Receipts',
+        label: 'Stock & Lots',
         path: '/inventory/receipts',
         icon: InventoryIcon,
-        accent: '#8b7cf6',
+        accent: '#4f8cff',
+        commonInventoryOnly: true,
+      },
+
+      {
+        label: 'Issue / Return',
+        path: '/inventory/receiving',
+        icon: ReceiptIcon,
+        accent: '#0b73df',
+        commonInventoryOnly: true,
+      },
+
+      {
+        label: 'Consumption Ledger',
+        path: '/inventory/locations',
+        icon: InventoryIcon,
+        accent: '#34d399',
         commonInventoryOnly: true,
       },
 
     ],
   },
+
 
 
   {
@@ -330,61 +363,32 @@ function visibleSections(
     user?.capabilities?.can_manage_organization_setup === true
 
 
-  return NAV_SECTIONS
+  if (commonInventory) {
+    return NAV_SECTIONS
+      .filter((section) => section.title === 'INVENTORY')
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) => Boolean(item.commonInventoryOnly)),
+      }))
+  }
 
+  return NAV_SECTIONS
     .map(
       (section) => ({
-
         ...section,
-
         items:
           section.items.filter(
             (item) => {
-
-              /*
-               * Organization Setup stays visible to an authorized
-               * administrator in every workspace state, including Common
-               * Inventory and no workspace at all - it is not scoped to
-               * any one company/store workspace by design.
-               */
-
               if (
                 item.requiresOrgSetupAccess
               ) {
-
                 return orgSetupAccess
-
               }
-
-
-              /*
-               * Common Inventory:
-               * ONLY inventory items.
-               */
-
-              if (
-                commonInventory
-              ) {
-
-                return Boolean(
-                  item.commonInventoryOnly
-                )
-
-              }
-
-
-              /*
-               * Company A / Company B:
-               * Inventory items are hidden.
-               */
-
               if (
                 companyWorkspace &&
                 item.commonInventoryOnly
               ) {
-
                 return false
-
               }
 
 
@@ -465,11 +469,27 @@ function NavItem({
   }
 
 
+  const location = useLocation()
+  const isInventoryDashboard =
+    item.path === '/inventory' &&
+    (location.pathname === '/inventory' || location.pathname === '/inventory/dashboard' || location.pathname === '/inventory/')
+
+  // The inventory section's own items (Raw Materials, Stock & Lots, ...)
+  // need prefix matching so a detail route like /inventory/materials/4
+  // still highlights its parent tab - but the section's "Dashboard" entry
+  // (path '/inventory' itself) must stay exact-only, or that same prefix
+  // match makes it "active" for every /inventory/* route, including every
+  // other inventory tab's own detail pages (isInventoryDashboard above
+  // already covers the few paths that really do mean "the dashboard").
+  // Every item outside this section keeps its original exact-match
+  // behaviour unchanged.
+  const end = item.path === '/inventory' ? true : !item.commonInventoryOnly
+
   return (
 
     <NavLink
       to={item.path}
-      end
+      end={end}
       onClick={onNavigate}
       data-label={item.label}
       title={
@@ -478,7 +498,7 @@ function NavItem({
           : undefined
       }
       className={({ isActive }) =>
-        isActive
+        isActive || isInventoryDashboard
           ? 'nav-link active'
           : 'nav-link'
       }
@@ -595,41 +615,34 @@ export default function MainLayout() {
 
   const { hasPermission } = usePermissions()
 
+  const isCommonInventory =
+    activeWorkspace === WORKSPACES.COMMON ||
+    activeWorkspace === 'common_inventory' ||
+    location.pathname.startsWith('/inventory')
+
   // Items that need a real company permission are shown only when it is held.
   const sections =
     visibleSections(
       user,
-      activeWorkspace
+      isCommonInventory ? WORKSPACES.COMMON : activeWorkspace
     ).map((section) => ({
       ...section,
       items: section.items.filter((item) => !item.permission || hasPermission(item.permission)),
     }))
 
-
   const companyLogo =
-    getCompanyLogo(
-      activeWorkspace
-    )
+    isCommonInventory ? null : getCompanyLogo(activeWorkspace)
 
-  // This used to always read "CMHP Pharma" here, no matter which company
-  // workspace was actually active - the logo image next to it already
-  // switched correctly (getCompanyLogo above), but the NAME never did.
-  // That mismatch is exactly what made a genuine, correctly-scoped Tej
-  // Biocare order look like a bug: the sidebar kept saying "CMHP Pharma"
-  // the whole time, so there was no way to tell from this header alone
-  // which company's workspace was actually open. Show the real active
-  // company's name (already resolved onto activeOption by workspace.js)
-  // while in a company workspace, and a neutral, company-agnostic label
-  // the rest of the time (Common Inventory, or before any workspace is
-  // chosen yet).
   const isCompanyWorkspace =
-    activeWorkspace === WORKSPACES.COMPANY_A ||
-    activeWorkspace === WORKSPACES.COMPANY_B
+    !isCommonInventory &&
+    (activeWorkspace === WORKSPACES.COMPANY_A || activeWorkspace === WORKSPACES.COMPANY_B)
 
   const sidebarBrandName =
-    isCompanyWorkspace && activeOption?.name
-      ? activeOption.name
-      : 'CMHP Platform'
+    isCommonInventory
+      ? 'Common Inventory'
+      : isCompanyWorkspace && activeOption?.name
+        ? activeOption.name
+        : 'CMHP Platform'
 
 
   const sidebarClass = [

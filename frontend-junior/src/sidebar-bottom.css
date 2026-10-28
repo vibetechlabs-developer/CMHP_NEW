@@ -1,0 +1,327 @@
+/* =========================================================
+   CMHP PHARMA ERP
+   SIDEBAR BOTTOM - PHARMA PHOTO CARD
+   ---------------------------------------------------------
+   Photo:
+   /public/sidebar-bottom.png
+
+   Reference:
+   - Wide photo card
+   - Fixed at bottom of sidebar
+   - Rounded corners
+   - Image fills the complete card
+   - Soft pharmaceutical/glass appearance
+   ========================================================= */
+
+
+/* =========================================================
+   1. SIDEBAR PHOTO CARD
+   ========================================================= */
+
+.layout-sidebar .sidebar-art {
+    position: relative;
+
+    /* Keep card at the bottom of the sidebar */
+    margin-top: auto;
+
+    /* Horizontal spacing */
+    margin-left: 14px;
+    margin-right: 14px;
+
+    /* Bottom spacing */
+    margin-bottom: 18px;
+
+    /* IMPORTANT:
+       Don't use aspect-ratio here.
+       We want a controlled height like the reference image.
+    */
+    width: calc(100% - 28px);
+    height: 120px;
+
+    min-height: 120px;
+    max-height: 120px;
+
+    flex-shrink: 0;
+
+    padding: 0;
+
+    overflow: hidden;
+
+    pointer-events: none;
+
+    /* Photo */
+    background-image: url('/sidebar-bottom.png');
+    background-repeat: no-repeat;
+
+    /*
+       Cover makes the image fill the complete card.
+    */
+    background-size: cover;
+
+    /*
+       Slightly lower positioning gives better visibility
+       of the pills/leaves in the bottom area.
+    */
+    background-position: center 62%;
+
+    /* Soft pharma background if image loads slowly */
+    background-color: #eaf5fc;
+
+    /* Border */
+    border: 1px solid rgba(211, 230, 245, 0.95);
+
+    /* Rounded card */
+    border-radius: 16px;
+
+    /* Soft shadow */
+    box-shadow:
+        0 6px 18px rgba(20, 120, 201, 0.10),
+        0 2px 6px rgba(20, 80, 130, 0.05);
+
+    box-sizing: border-box;
+
+    /*
+       Smooth rendering
+    */
+    transform: translateZ(0);
+}
+
+
+/* =========================================================
+   2. IMAGE OVERLAY
+   ---------------------------------------------------------
+   Very light overlay so the card integrates with the
+   white/light sidebar.
+   ========================================================= */
+
+.layout-sidebar .sidebar-art::after {
+    content: "";
+
+    position: absolute;
+
+    inset: 0;
+
+    pointer-events: none;
+
+    background:
+        linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.02) 0%,
+            rgba(255, 255, 255, 0.00) 55%,
+            rgba(225, 242, 252, 0.08) 100%
+        );
+
+    border-radius: inherit;
+}
+
+
+/* =========================================================
+   3. REMOVE OLD DRAWN ARTWORK
+   ========================================================= */
+
+.layout-sidebar .sidebar-art::before {
+    display: none !important;
+}
+
+.layout-sidebar .sidebar-art-scene,
+.layout-sidebar .sidebar-art-logo {
+    display: none !important;
+}
+
+
+/* =========================================================
+   4. TEXT LABEL
+   ---------------------------------------------------------
+   Keeps your existing "Better Health / Brighter Tomorrow"
+   text but makes it smaller and cleaner.
+   ========================================================= */
+
+.layout-sidebar .sidebar-art-text {
+    position: absolute;
+
+    top: 10px;
+    right: 10px;
+
+    z-index: 3;
+
+    display: block;
+
+    padding: 6px 10px;
+
+    background: rgba(255, 255, 255, 0.62);
+
+    border: 1px solid rgba(255, 255, 255, 0.75);
+
+    border-radius: 10px;
+
+    box-shadow:
+        0 4px 12px rgba(20, 120, 201, 0.10);
+
+    -webkit-backdrop-filter: blur(7px);
+    backdrop-filter: blur(7px);
+
+    box-sizing: border-box;
+
+    white-space: nowrap;
+}
+
+
+/* Label paragraph */
+
+.layout-sidebar .sidebar-art-text p {
+    margin: 0;
+
+    padding: 0;
+
+    line-height: 1.25;
+
+    color: #14528b;
+}
+
+
+/* Main text */
+
+.layout-sidebar .sidebar-art-text strong {
+    display: block;
+
+    font-size: 11px;
+
+    font-weight: 700;
+
+    letter-spacing: 0.1px;
+}
+
+
+/* Secondary text */
+
+.layout-sidebar .sidebar-art-text p span {
+    display: block;
+
+    margin-top: 2px;
+
+    font-size: 10px;
+
+    font-weight: 500;
+
+    color: #5181a9;
+}
+
+
+/* =========================================================
+   5. SIDEBAR SCROLLING
+   ---------------------------------------------------------
+   The menu can scroll, while the photo remains visible
+   at the bottom.
+   ========================================================= */
+
+.layout-sidebar {
+    display: flex;
+    flex-direction: column;
+
+    min-height: 100vh;
+
+    overflow: hidden;
+}
+
+
+/*
+   If your sidebar menu has one of these wrappers,
+   allow it to consume available space.
+*/
+
+.layout-sidebar .sidebar-menu,
+.layout-sidebar .sidebar-nav,
+.layout-sidebar nav {
+    min-height: 0;
+}
+
+
+/* =========================================================
+   6. MEDIUM HEIGHT SCREENS
+   ========================================================= */
+
+@media (max-height: 900px) {
+
+    .layout-sidebar .sidebar-art {
+        height: 105px;
+        min-height: 105px;
+        max-height: 105px;
+
+        margin-bottom: 14px;
+
+        background-position: center 60%;
+    }
+
+}
+
+
+/* =========================================================
+   7. SMALL HEIGHT SCREENS
+   ========================================================= */
+
+@media (max-height: 760px) {
+
+    .layout-sidebar .sidebar-art {
+        height: 82px;
+        min-height: 82px;
+        max-height: 82px;
+
+        margin-left: 12px;
+        margin-right: 12px;
+
+        width: calc(100% - 24px);
+
+        margin-bottom: 10px;
+
+        border-radius: 13px;
+
+        background-position: center 58%;
+    }
+
+
+    .layout-sidebar .sidebar-art-text {
+        top: 6px;
+        right: 6px;
+
+        padding: 4px 7px;
+
+        border-radius: 8px;
+    }
+
+
+    .layout-sidebar .sidebar-art-text strong {
+        font-size: 9px;
+    }
+
+
+    .layout-sidebar .sidebar-art-text p span {
+        font-size: 8px;
+    }
+
+}
+
+
+/* =========================================================
+   8. VERY SMALL SCREEN
+   ========================================================= */
+
+@media (max-height: 650px) {
+
+    .layout-sidebar .sidebar-art {
+        height: 68px;
+        min-height: 68px;
+        max-height: 68px;
+
+        margin-bottom: 8px;
+
+        border-radius: 11px;
+
+        background-position: center 55%;
+    }
+
+
+    .layout-sidebar .sidebar-art-text {
+        display: none;
+    }
+
+}

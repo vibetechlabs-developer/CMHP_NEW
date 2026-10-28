@@ -1,7 +1,7 @@
 import itertools
 import json
 import threading
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -16,6 +16,7 @@ from apps.audit.models import AuditLog
 from apps.catalog.models import Material, MaterialCategory, UnitOfMeasure
 from apps.common.errors import Conflict
 from apps.companies.models import Company
+from apps.permissions.models import PermissionDefinition
 from apps.permissions.services import (
     create_company_role,
     create_store_role,
@@ -69,6 +70,10 @@ def goods_receipt_post_url(store_id, receipt_id):
     return f"/api/v1/stores/{store_id}/goods-receipts/{receipt_id}/post/"
 
 
+def material_register_url(store_id, material_id):
+    return f"/api/v1/stores/{store_id}/materials/{material_id}/register/"
+
+
 def make_user(username, password=PASSWORD, **kwargs):
     return User.objects.create_user(username=username, email=f"{username}@example.com", password=password, **kwargs)
 
@@ -117,7 +122,31 @@ def post_json(client, url, payload, token):
     return client.post(url, data=json.dumps(payload), content_type="application/json", **bearer(token))
 
 
+def _ensure_permissions_seeded(codes, scope):
+    """Defensive, idempotent re-seed: a TransactionTestCase elsewhere in
+    this suite (e.g. ConcurrentPostingMovementTests below) flushes ALL
+    tables on teardown, including PermissionDefinition rows a normal
+    TestCase expects to already exist from the real seed migrations.
+    Django's test runner reorders TestCase before TransactionTestCase
+    within one `manage.py test` invocation specifically to avoid this,
+    but that protection does not extend across separate invocations that
+    reuse the same database via `--keepdb` - confirmed empirically
+    (`test_cmhp_new_claude_isolation_check` showed 0 PermissionDefinition
+    rows immediately after a lone TransactionTestCase run with --keepdb).
+    get_or_create makes this a true no-op whenever the real seed data is
+    already present (the normal case), so it never masks a genuine
+    missing-permission bug in the application code itself - only the
+    fixture-ordering one.
+    """
+    for code in codes:
+        PermissionDefinition.objects.get_or_create(
+            code=code,
+            defaults={"name": code, "module": code.split(".")[0], "scope": scope, "is_active": True},
+        )
+
+
 def grant_company_permission(actor, user, company, *permission_codes):
+    _ensure_permissions_seeded(permission_codes, PermissionDefinition.Scope.COMPANY)
     membership, _ = assign_company_membership(actor=actor, user=user, company=company)
     role = create_company_role(actor=actor, company=company, code=_unique(f"CROLE{user.id}{company.id}"), name="Role")
     replace_role_permissions(actor=actor, role=role, permission_codes=list(permission_codes))
@@ -126,6 +155,7 @@ def grant_company_permission(actor, user, company, *permission_codes):
 
 
 def grant_store_permission(actor, user, store, *permission_codes):
+    _ensure_permissions_seeded(permission_codes, PermissionDefinition.Scope.STORE)
     membership, _ = assign_store_membership(actor=actor, user=user, store=store)
     role = create_store_role(actor=actor, store=store, code=_unique(f"SROLE{user.id}{store.id}"), name="Role")
     replace_store_role_permissions(actor=actor, role=role, permission_codes=list(permission_codes))
@@ -560,7 +590,7 @@ class ReadOnlySurfaceTests(StockMovementTestCase):
             self.assertEqual(body["coverage"]["release_status"], "Not tracked")
             self.assertFalse(body["coverage"]["historical_receipts_backfilled"])
             self.assertFalse(body["coverage"]["opening_stock_included"])
-            self.assertFalse(body["coverage"]["issues_returns_release_tracked"])
+            self.assertFalse(body["coverage"]["returns_reservations_release_tracked"])
 
         movement_res = get_json(self.client_, stock_movements_url(self.store.id), self.token)
         self.assertEqual(movement_res.json()["results"][0]["release_status"], "Not tracked")
@@ -811,3 +841,153 @@ class MaterialRegisterExtensionTests(StockMovementTestCase):
             self.token,
         )
         self.assertEqual(res.status_code, 400)
+
+
+# ---------------------------------------------------------------------------
+# Material register - opening/period/closing, container/source references
+# ---------------------------------------------------------------------------
+
+
+class MaterialRegisterViewTests(StockMovementTestCase):
+    def _movement_on(self, *, receipt, line, quantity, posted_date, company=None):
+        """Directly constructs a movement with a controlled posted_at
+        date - mirrors BalanceAggregationTests' own technique for
+        isolating the aggregation query from real posting timestamps.
+        """
+        return StockMovement.objects.create(
+            movement_type=StockMovement.MovementType.RECEIPT_IN,
+            source_goods_receipt=receipt, source_receipt_line=line, store=self.store,
+            source_company=company or self.company, material=self.material, unit=self.unit, quantity=quantity,
+            material_code_snapshot=self.material.code, material_name_snapshot=self.material.name,
+            unit_code_snapshot=self.unit.code, unit_name_snapshot=self.unit.name,
+            posted_by=self.receiver, posted_at=timezone.make_aware(datetime(*posted_date)),
+        )
+
+    def _receipt_and_line(self, po, quantity=Decimal("1")):
+        receipt = create_goods_receipt(
+            actor=self.receiver, store=self.store, source_purchase_order_id=po.id,
+            arrived_at=timezone.now() - timedelta(hours=1),
+            lines=[{"source_po_line_id": po.issue_snapshot.lines.get().id, "received_quantity": quantity}],
+        )
+        return receipt, receipt.lines.get()
+
+    def test_opening_period_and_closing_are_split_correctly(self):
+        po = self._issued_po(quantity=Decimal("1000"))
+        r1, l1 = self._receipt_and_line(po, Decimal("1"))
+        self._movement_on(receipt=r1, line=l1, quantity=Decimal("10"), posted_date=(2026, 1, 1))
+        r2, l2 = self._receipt_and_line(po, Decimal("1"))
+        self._movement_on(receipt=r2, line=l2, quantity=Decimal("20"), posted_date=(2026, 1, 15))
+        r3, l3 = self._receipt_and_line(po, Decimal("1"))
+        self._movement_on(receipt=r3, line=l3, quantity=Decimal("5"), posted_date=(2026, 2, 1))
+
+        res = get_json(
+            self.client_,
+            material_register_url(self.store.id, self.material.id) + "?posted_from=2026-01-10&posted_to=2026-01-31",
+            self.token,
+        )
+        self.assertEqual(res.status_code, 200, res.content[:300])
+        body = res.json()
+
+        opening_qty = {row["unit_id"]: Decimal(row["recorded_receipt_quantity"]) for row in body["opening"]}
+        period_qty = {row["unit_id"]: Decimal(row["recorded_receipt_quantity"]) for row in body["period_received"]}
+        closing_qty = {row["unit_id"]: Decimal(row["recorded_receipt_quantity"]) for row in body["closing"]}
+
+        self.assertEqual(opening_qty[self.unit.id], Decimal("10.000"))
+        self.assertEqual(period_qty[self.unit.id], Decimal("20.000"))
+        self.assertEqual(closing_qty[self.unit.id], Decimal("30.000"))
+        # Independently-computed closing must still agree algebraically with opening + period.
+        self.assertEqual(closing_qty[self.unit.id], opening_qty[self.unit.id] + period_qty[self.unit.id])
+        self.assertEqual(body["period"], {"posted_from": "2026-01-10", "posted_to": "2026-01-31"})
+        self.assertEqual(body["material"]["code"], self.material.code)
+        self.assertEqual(body["store_id"], self.store.id)
+
+    def test_opening_is_empty_when_no_posted_from_given(self):
+        po = self._issued_po(quantity=Decimal("100"))
+        self._create_and_post_receipt(po, quantity=Decimal("60"), actor=self.receiver)
+
+        res = get_json(self.client_, material_register_url(self.store.id, self.material.id), self.token)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["opening"], [])
+
+    def test_scoped_to_exactly_one_material(self):
+        other_material = make_material("STKMATOTHER", base_unit=self.unit, category=self.category)
+        po_a = self._issued_po(quantity=Decimal("50"))
+        self._create_and_post_receipt(po_a, quantity=Decimal("30"), actor=self.receiver)
+        po_b = self._issued_po(quantity=Decimal("50"), material=other_material)
+        self._create_and_post_receipt(po_b, quantity=Decimal("15"), actor=self.receiver)
+
+        res = get_json(self.client_, material_register_url(self.store.id, self.material.id), self.token)
+        body = res.json()
+        self.assertEqual(len(body["results"]), 1)
+        self.assertEqual(body["results"][0]["material_code_snapshot"], self.material.code)
+        closing_qty = {row["unit_id"]: row["recorded_receipt_quantity"] for row in body["closing"]}
+        self.assertEqual(closing_qty[self.unit.id], "30.000")
+
+    def test_container_and_invoice_reference_exposed_on_movements(self):
+        from apps.receiving.models import ContainerType
+
+        bag = ContainerType.objects.create(code="STKBAG", name="Bag")
+        po = self._issued_po(quantity=Decimal("100"))
+        po_line_id = po.issue_snapshot.lines.get().id
+        response = post_json(
+            self.client_, goods_receipts_url(self.store.id),
+            {
+                "source_purchase_order_id": po.id, "arrived_at": (timezone.now() - timedelta(hours=1)).isoformat(),
+                "supplier_invoice_reference": "INV-REG-1",
+                "lines": [{"source_po_line_id": po_line_id, "received_quantity": "5", "container_type_id": bag.id, "container_quantity": 2}],
+            },
+            self.receiver_token,
+        )
+        receipt_id = response.json()["id"]
+        post_json(self.client_, goods_receipt_post_url(self.store.id, receipt_id), {"expected_version": 1}, self.receiver_token)
+
+        res = get_json(self.client_, material_register_url(self.store.id, self.material.id), self.token)
+        row = res.json()["results"][0]
+        self.assertEqual(row["container_type_code"], "STKBAG")
+        self.assertEqual(row["container_quantity"], 2)
+        self.assertEqual(row["source_invoice_reference"], "INV-REG-1")
+
+    def test_container_fields_are_null_not_an_error_when_absent(self):
+        po = self._issued_po(quantity=Decimal("100"))
+        self._create_and_post_receipt(po, quantity=Decimal("10"), actor=self.receiver)
+        res = get_json(self.client_, material_register_url(self.store.id, self.material.id), self.token)
+        self.assertEqual(res.status_code, 200)
+        row = res.json()["results"][0]
+        self.assertIsNone(row["container_type_code"])
+        self.assertIsNone(row["container_quantity"])
+
+    def test_unknown_material_is_404(self):
+        res = get_json(self.client_, material_register_url(self.store.id, 999999), self.token)
+        self.assertEqual(res.status_code, 404)
+
+    def test_access_follows_the_same_store_and_company_rules_as_other_endpoints(self):
+        outsider = make_user("stkreguser_outsider")
+        res = get_json(self.client_, material_register_url(self.store.id, self.material.id), access_token_for(outsider))
+        self.assertEqual(res.status_code, 404)
+
+        no_company_access = make_user("stkreguser_nocompany")
+        grant_store_permission(self.superuser, no_company_access, self.store, *STOCK_MOVEMENTS_ALL_PERMS)
+        res = get_json(self.client_, material_register_url(self.store.id, self.material.id), access_token_for(no_company_access))
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["results"], [])
+        self.assertEqual(res.json()["closing"], [])
+
+    def test_unknown_query_param_rejected(self):
+        res = get_json(self.client_, material_register_url(self.store.id, self.material.id) + "?bogus=1", self.token)
+        self.assertEqual(res.status_code, 400)
+
+    def test_coverage_notice_present_and_never_implies_full_stock(self):
+        res = get_json(self.client_, material_register_url(self.store.id, self.material.id), self.token)
+        coverage = res.json()["coverage"]
+        self.assertEqual(coverage["release_status"], "Not tracked")
+        self.assertIn("NOT complete physical stock", coverage["notice"])
+
+    def test_pagination_of_movement_history(self):
+        po = self._issued_po(quantity=Decimal("1000"))
+        for i in range(3):
+            r, l = self._receipt_and_line(po, Decimal("1"))
+            self._movement_on(receipt=r, line=l, quantity=Decimal("1"), posted_date=(2026, 1, i + 1))
+        res = get_json(self.client_, material_register_url(self.store.id, self.material.id) + "?page_size=2", self.token)
+        body = res.json()
+        self.assertEqual(body["count"], 3)
+        self.assertEqual(len(body["results"]), 2)

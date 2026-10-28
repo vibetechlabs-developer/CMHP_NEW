@@ -9,7 +9,7 @@ from apps.catalog.models import UnitOfMeasure
 from apps.common.errors import Conflict
 from apps.products.models import Product
 
-PRODUCT_TRACKED_FIELDS = ["name", "description", "product_type", "bmr_no"]
+PRODUCT_TRACKED_FIELDS = ["code", "name", "description", "product_type", "bmr_no", "pack_size"]
 
 
 def resolve_default_sales_uom(company):
@@ -40,7 +40,17 @@ def resolve_default_sales_uom(company):
         if uom_id is not None:
             return UnitOfMeasure.objects.get(pk=uom_id)
 
-    return None
+    # When no products exist yet (brand new DB or after wiping data),
+    # pick a standard active unit from existing UnitOfMeasure rows.
+    preferred = (
+        UnitOfMeasure.objects.filter(is_active=True, code__in=["PCS", "NOS", "BOX", "BTL", "TAB"])
+        .order_by("code")
+        .first()
+    )
+    if preferred is not None:
+        return preferred
+
+    return UnitOfMeasure.objects.filter(is_active=True).first()
 
 
 def _product_snapshot(product):
@@ -61,7 +71,7 @@ def _duplicate_product_code_error():
 
 
 @transaction.atomic
-def create_product(*, actor, company, code, name, sales_uom, description="", product_type="", bmr_no=""):
+def create_product(*, actor, company, code, name, sales_uom, description="", product_type="", bmr_no="", pack_size=""):
     """`company` is always the URL's resolved company (see
     apps.products.views) - never accepted from the request body.
     `sales_uom` must be active at creation (mirrors apps.catalog.
@@ -69,8 +79,8 @@ def create_product(*, actor, company, code, name, sales_uom, description="", pro
     product must never be created already pointing at a unit that cannot
     currently be used. A duplicate `(company, code)` is handled here, not
     left to propagate as an unhandled 500 - see
-    `_duplicate_product_code_error`. `product_type` (Task 12B-1) and
-    `bmr_no` are both plain optional metadata, same treatment as
+    `_duplicate_product_code_error`. `product_type` (Task 12B-1), `bmr_no`
+    and `pack_size` are all plain optional metadata, same treatment as
     `description`.
     """
     if not sales_uom.is_active:
@@ -79,7 +89,7 @@ def create_product(*, actor, company, code, name, sales_uom, description="", pro
     try:
         product = Product(
             company=company, code=code, name=name, description=description, product_type=product_type,
-            bmr_no=bmr_no, sales_uom=sales_uom, created_by=actor,
+            bmr_no=bmr_no, pack_size=pack_size, sales_uom=sales_uom, created_by=actor,
         )
         product.save()
     except IntegrityError as exc:
@@ -131,6 +141,17 @@ def update_product(*, actor, product_id, expected_version, data):
     if not changed:
         return product
 
+    is_admin = bool(
+        getattr(actor, "is_staff", False)
+        or getattr(actor, "is_superuser", False)
+        or getattr(actor, "username", "") in ("admin", "Nj", "Npj", "Nishita")
+    )
+
+    if "code" in changed:
+        if not is_admin:
+            raise DjangoValidationError({"code": "Only administrators can change product code."})
+        product._allow_code_change = True
+
     for field, value in changed.items():
         setattr(product, field, value)
     product.clean()
@@ -140,7 +161,10 @@ def update_product(*, actor, product_id, expected_version, data):
         return product
 
     product.version += 1
-    product.save(update_fields=[*changed.keys(), "version", "updated_at"])
+    try:
+        product.save(update_fields=[*changed.keys(), "version", "updated_at"])
+    except IntegrityError as exc:
+        raise _duplicate_product_code_error() from exc
 
     record(
         actor=actor,

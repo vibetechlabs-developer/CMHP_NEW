@@ -1,12 +1,23 @@
+from decimal import Decimal
+
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from apps.audit.services import record
-from apps.catalog.models import Material, MaterialCategory, UnitOfMeasure
+from apps.catalog.models import Material, MaterialCategory, MaterialReorderSetting, UnitOfMeasure
 
 UNIT_TRACKED_FIELDS = ["name"]
 CATEGORY_TRACKED_FIELDS = ["name", "description"]
-MATERIAL_TRACKED_FIELDS = ["name", "description", "category_id"]
+MATERIAL_TRACKED_FIELDS = [
+    "name",
+    "description",
+    "category_id",
+    "default_container_type_id",
+    "code",
+    "kind",
+    "base_unit_id",
+    "alcohol_percentage",
+]
 
 
 def _unit_snapshot(unit):
@@ -18,7 +29,14 @@ def _category_snapshot(category):
 
 
 def _material_snapshot(material):
-    return {field: getattr(material, field) for field in MATERIAL_TRACKED_FIELDS}
+    snapshot = {}
+    for field in MATERIAL_TRACKED_FIELDS:
+        val = getattr(material, field)
+        # Decimal is not JSON-serializable; convert to string for audit log
+        if isinstance(val, Decimal):
+            val = str(val)
+        snapshot[field] = val
+    return snapshot
 
 
 # ---------------------------------------------------------------------------
@@ -221,10 +239,11 @@ def deactivate_category(*, actor, category):
 
 
 @transaction.atomic
-def create_material(*, actor, code, name, kind, base_unit, description="", category=None):
-    """Rejects an inactive base_unit or category (400) - a material must
-    never be created already pointing at a reference that cannot
-    currently be used. `category` is optional (None is always allowed);
+def create_material(*, actor, code, name, kind, base_unit, description="", category=None, default_container_type=None, alcohol_percentage=None):
+    """Rejects an inactive base_unit, category or default_container_type
+    (400) - a material must never be created already pointing at a
+    reference that cannot currently be used. `category` and
+    `default_container_type` are each optional (None is always allowed);
     `base_unit` is required and always resolved by the caller (the view)
     from `base_unit_id` before this function is called.
     """
@@ -232,9 +251,18 @@ def create_material(*, actor, code, name, kind, base_unit, description="", categ
         raise ValidationError({"base_unit": "Base unit is inactive."})
     if category is not None and not category.is_active:
         raise ValidationError({"category": "Category is inactive."})
+    if default_container_type is not None and not default_container_type.is_active:
+        raise ValidationError({"default_container_type": "Container type is inactive."})
 
     material = Material(
-        code=code, name=name, description=description, kind=kind, base_unit=base_unit, category=category
+        code=code,
+        name=name,
+        description=description,
+        kind=kind,
+        base_unit=base_unit,
+        category=category,
+        default_container_type=default_container_type,
+        alcohol_percentage=alcohol_percentage,
     )
     material.save()
     record(
@@ -253,27 +281,39 @@ def create_material(*, actor, code, name, kind, base_unit, description="", categ
     return material
 
 
+_MATERIAL_RELATION_FIELDS = {
+    "category_id": "category",
+    "default_container_type_id": "default_container_type",
+    "base_unit_id": "base_unit",
+}
+
+
 @transaction.atomic
 def update_material(*, actor, material, data):
     """`data` is already restricted to MATERIAL_TRACKED_FIELDS - name/
-    description/category_id - by the caller's serializer; code/kind/
-    base_unit are immutable through this API. A PATCH that would newly
-    assign an inactive category is rejected (400) - re-assigning to the
-    *same* category the material already has is never rejected here, even
-    if that category has since become inactive, because that is not a new
-    assignment (and the model's own field-shape validation in Material.
-    clean() does not check this either - see its docstring).
+    description/category_id/default_container_type_id - by the caller's
+    serializer; code/kind/base_unit are immutable through this API. A
+    PATCH that would newly assign an inactive category or default
+    container type is rejected (400) - re-assigning to the *same* one the
+    material already has is never rejected here, even if that reference
+    has since become inactive, because that is not a new assignment (and
+    the model's own field-shape validation in Material.clean() does not
+    check this either - see its docstring).
     """
-    if "category_id" in data:
-        new_category = data["category_id"]
-        if new_category is not None and new_category.pk != material.category_id and not new_category.is_active:
-            raise ValidationError({"category": "Category is inactive."})
+    for field, relation_name in _MATERIAL_RELATION_FIELDS.items():
+        if field not in data:
+            continue
+        new_value = data[field]
+        current_id = getattr(material, field)
+        if new_value is not None and new_value.pk != current_id and not new_value.is_active:
+            label = relation_name.replace("_", " ")
+            raise ValidationError({relation_name: f"{label.capitalize()} is inactive."})
 
     before = _material_snapshot(material)
     changed = {}
     for field, value in data.items():
         current = getattr(material, field)
-        new_value = value.pk if field == "category_id" and value is not None else value
+        new_value = value.pk if field in _MATERIAL_RELATION_FIELDS and value is not None else value
         if current != new_value:
             changed[field] = value
 
@@ -281,8 +321,8 @@ def update_material(*, actor, material, data):
         return material
 
     for field, value in changed.items():
-        if field == "category_id":
-            material.category = value
+        if field in _MATERIAL_RELATION_FIELDS:
+            setattr(material, _MATERIAL_RELATION_FIELDS[field], value)
         else:
             setattr(material, field, value)
     material.save()
@@ -332,11 +372,16 @@ def activate_material(*, actor, material):
 
 @transaction.atomic
 def deactivate_material(*, actor, material):
-    """No dependency checks - nothing references a Material yet (stock/
-    lot/movement models are a future task), so deactivation is always
-    allowed once the material itself exists. Deactivating a material
-    preserves its identity and history: the row is never deleted, and
-    nothing about its code/kind/base_unit/category is touched.
+    """Excludes the material from new selections under the established
+    activation rule (apps.catalog.permissions / the material list's own
+    `is_active` filter) without touching any historical reference: every
+    receipt/register/audit row that already names this material keeps
+    its own frozen snapshot fields (material_code_snapshot etc.) exactly
+    as the stock_movements/receiving apps already guarantee, and this
+    call itself never creates, cancels or alters a stock movement.
+    Deactivating a material preserves its identity and history: the row
+    is never deleted, and nothing about its code/kind/base_unit/category
+    is touched.
     """
     if not material.is_active:
         return material
@@ -351,3 +396,44 @@ def deactivate_material(*, actor, material):
         after={"is_active": False},
     )
     return material
+
+
+# ---------------------------------------------------------------------------
+# MaterialReorderSetting - store-scoped reorder level (see its own model
+# docstring for why this is a separate row, never a field on Material).
+# ---------------------------------------------------------------------------
+
+
+def get_material_reorder_setting(*, store, material):
+    """Returns the setting row or None - None means "not configured for
+    this store", never a reorder level of zero.
+    """
+    return MaterialReorderSetting.objects.filter(store=store, material=material).first()
+
+
+@transaction.atomic
+def set_material_reorder_level(*, actor, store, material, reorder_level):
+    """Creates or updates the one (store, material) row. Setting it never
+    creates a stock movement and never changes Material itself - see
+    MaterialReorderSetting's own docstring. `reorder_level` must already
+    be a non-negative Decimal (validated by the caller's serializer); the
+    model's own CheckConstraint/clean() re-validate it regardless.
+    """
+    setting = MaterialReorderSetting.objects.filter(store=store, material=material).first()
+    before = {"reorder_level": str(setting.reorder_level)} if setting else None
+    if setting is None:
+        setting = MaterialReorderSetting(store=store, material=material, reorder_level=reorder_level, updated_by=actor)
+    else:
+        setting.reorder_level = reorder_level
+        setting.updated_by = actor
+    setting.save()
+    record(
+        actor=actor,
+        action="material_reorder_setting.updated" if before else "material_reorder_setting.created",
+        target_type="material_reorder_setting",
+        target_id=setting.id,
+        store=store,
+        before=before,
+        after={"reorder_level": str(setting.reorder_level)},
+    )
+    return setting

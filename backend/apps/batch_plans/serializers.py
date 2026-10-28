@@ -201,10 +201,21 @@ class BatchPlanListSerializer(serializers.ModelSerializer):
         return _batch_number_fields(obj)["numbered_at"]
 
     def get_notice(self, obj):
+        fields = _batch_number_fields(obj)
+        if fields["official_batch_number"]:
+            return f"Official batch number assigned: {fields['official_batch_number']}."
         return PLANNING_NOTICE
 
 
 class BatchPlanDetailSerializer(serializers.ModelSerializer):
+    source_order_reference = serializers.CharField(source="source_order_reference_snapshot", read_only=True)
+    source_line_number = serializers.IntegerField(source="source_line_number_snapshot", read_only=True)
+    product_code = serializers.CharField(source="product_code_snapshot", read_only=True)
+    product_name = serializers.CharField(source="product_name_snapshot", read_only=True)
+    output_uom_code = serializers.CharField(source="output_uom_code_snapshot", read_only=True)
+    pack_uom_code = serializers.CharField(source="pack_uom_code_snapshot", read_only=True)
+    formula_code = serializers.CharField(source="formula_code_snapshot", read_only=True)
+    formula_revision_number = serializers.IntegerField(source="formula_revision_number_snapshot", read_only=True)
     source_snapshots = serializers.SerializerMethodField()
     current_source_state = serializers.SerializerMethodField()
     source_drift = serializers.SerializerMethodField()
@@ -238,6 +249,14 @@ class BatchPlanDetailSerializer(serializers.ModelSerializer):
             "numbered_at",
             "status",
             "version",
+            "source_order_reference",
+            "source_line_number",
+            "product_code",
+            "product_name",
+            "output_uom_code",
+            "pack_uom_code",
+            "formula_code",
+            "formula_revision_number",
             "created_by_id",
             "created_at",
             "updated_at",
@@ -323,4 +342,7 @@ class BatchPlanDetailSerializer(serializers.ModelSerializer):
         return compute_packing_assessment(obj)
 
     def get_notice(self, obj):
+        fields = _batch_number_fields(obj)
+        if fields["official_batch_number"]:
+            return f"Official batch number assigned: {fields['official_batch_number']}."
         return PLANNING_NOTICE

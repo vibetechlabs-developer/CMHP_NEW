@@ -1,4 +1,6 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
+from django.db.models import ProtectedError
 
 from apps.audit.services import record
 from apps.suppliers.models import Supplier
@@ -109,3 +111,29 @@ def deactivate_supplier(*, actor, supplier):
         after={"is_active": False},
     )
     return supplier
+
+
+@transaction.atomic
+def delete_supplier(*, actor, supplier):
+    """Permanently delete a supplier that nothing references.
+    Suppliers referenced by purchase orders or other records cannot be deleted.
+    """
+    supplier_id = supplier.id
+    before = _supplier_snapshot(supplier)
+    before["code"] = supplier.code
+    before["id"] = supplier_id
+    try:
+        with transaction.atomic():
+            supplier.delete()
+    except ProtectedError:
+        raise DjangoValidationError(
+            "This supplier is referenced by purchase orders and cannot be deleted. Deactivate it instead."
+        )
+    record(
+        actor=actor,
+        action="supplier.deleted",
+        target_type="supplier",
+        target_id=supplier_id,
+        before=before,
+        after=None,
+    )

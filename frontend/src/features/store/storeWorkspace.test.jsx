@@ -12,14 +12,20 @@ import {
   createMaterial,
   deactivateMaterial,
   getMaterial,
+  getMaterialRegister,
   getMyStores,
+  listContainerTypes,
   listLocations,
+  listMaterialCategories,
   listMaterials,
+  listMaterialSuppliers,
+  listMyCompanies,
   listRecordedReceiptBalances,
   listRecordedReceipts,
   previewMaterialImport,
   updateMaterial,
 } from './storeService'
+import { listMaterialIssueMovements } from './materialIssueService'
 
 const auth = vi.hoisted(() => ({ user: null }))
 vi.mock('../../hooks/useAuth', () => ({ default: () => ({ user: auth.user }) }))
@@ -44,6 +50,17 @@ vi.mock('./storeService', () => ({
   listLocations: vi.fn(),
   listRecordedReceipts: vi.fn(),
   listRecordedReceiptBalances: vi.fn(),
+  getMaterialRegister: vi.fn(),
+  listContainerTypes: vi.fn(),
+  listMaterialCategories: vi.fn(),
+  listMaterialSuppliers: vi.fn(),
+  listMyCompanies: vi.fn(),
+}))
+vi.mock('./materialIssueService', () => ({
+  listMaterialIssueMovements: vi.fn(),
+  createMaterialIssue: vi.fn(),
+  postMaterialIssue: vi.fn(),
+  getAvailableToIssue: vi.fn(),
 }))
 
 const MATERIAL = { id: 10, code: 'SYN-RAW-1', name: 'Synthetic raw A', kind: 'RAW_MATERIAL', base_unit_code: 'KG', is_active: true, description: '' }
@@ -69,6 +86,19 @@ beforeEach(() => {
   listLocations.mockResolvedValue({ count: 0, results: [] })
   listRecordedReceiptBalances.mockResolvedValue({ count: 0, results: [], coverage: null, period: { posted_from: null, posted_to: null } })
   listRecordedReceipts.mockResolvedValue({ count: 0, results: [], coverage: { release_status: 'Not tracked', historical_receipts_backfilled: false }, period: { posted_from: null, posted_to: null } })
+  listContainerTypes.mockResolvedValue([{ id: 1, code: 'BAG', name: 'Bag' }])
+  listMaterialCategories.mockResolvedValue([{ id: 1, code: 'HERB', name: 'Herbs' }])
+  listMaterialSuppliers.mockResolvedValue([{ id: 1, code: 'SUP1', name: 'Synthetic Supplier' }])
+  listMyCompanies.mockResolvedValue([{ id: 1, code: 'SYNCO', legal_name: 'Synthetic Co', display_name: '' }])
+  getMaterialRegister.mockResolvedValue({
+    material: { id: 10, code: 'SYN-RAW-1', name: 'Synthetic raw A' },
+    storeId: 5, storeCode: 'SYNWH1',
+    opening: [], periodReceived: [], closing: [], movements: [], count: 0,
+    periodIssued: [], closingNetOfIssues: [],
+    coverage: { release_status: 'Not tracked', historical_receipts_backfilled: false },
+    period: { posted_from: null, posted_to: null },
+  })
+  listMaterialIssueMovements.mockResolvedValue({ count: 0, results: [], coverage: null, period: { posted_from: null, posted_to: null } })
 })
 
 afterEach(() => {
@@ -95,14 +125,14 @@ describe('Materials tab', () => {
     expect(screen.queryByText(/<html>/)).toBeNull()
     listMaterials.mockResolvedValueOnce({ count: 0, results: [] })
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-    expect(await screen.findByText('No materials match these filters.')).toBeTruthy()
+    expect(await screen.findByText('No raw materials match your filters')).toBeTruthy()
   })
 
   it('creates a material, then refreshes the list from the server and shows success only after it', async () => {
     createMaterial.mockResolvedValue({ id: 11, code: 'SYN-PKG-1' })
     renderAt()
     await screen.findByText('Synthetic raw A')
-    fireEvent.click(screen.getByRole('button', { name: '+ Add material' }))
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Raw Material' }))
     fireEvent.change(screen.getByLabelText('Material code'), { target: { value: 'SYN-PKG-1' } })
     fireEvent.change(screen.getByLabelText('Material name'), { target: { value: 'Synthetic pack' } })
     fireEvent.change(screen.getByPlaceholderText('Search active unit'), { target: { value: 'k' } })
@@ -158,7 +188,7 @@ describe('Material import', () => {
     previewMaterialImport.mockResolvedValue(batch({ eligible_for_commit: false, valid_rows: 1, invalid_rows: 1 }))
     renderAt()
     await screen.findByText('Synthetic raw A')
-    fireEvent.click(screen.getByRole('button', { name: 'Import materials' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Import CSV' }))
     fireEvent.change(screen.getByLabelText('Choose material CSV file'), { target: { files: [new File(['x'], 'm.csv', { type: 'text/csv' })] } })
     fireEvent.click(await screen.findByRole('button', { name: 'Check file' }))
     expect(await screen.findByText('Unit not found.')).toBeTruthy()
@@ -172,7 +202,7 @@ describe('Material import', () => {
     commitMaterialImport.mockResolvedValue({ status: 'COMMITTED', created_material_ids: [21, 22] })
     renderAt()
     await screen.findByText('Synthetic raw A')
-    fireEvent.click(screen.getByRole('button', { name: 'Import materials' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Import CSV' }))
     fireEvent.change(screen.getByLabelText('Choose material CSV file'), { target: { files: [new File(['x'], 'm.csv', { type: 'text/csv' })] } })
     fireEvent.click(await screen.findByRole('button', { name: 'Check file' }))
     const commit = await screen.findByRole('button', { name: /Import 2 materials/ })
@@ -188,7 +218,7 @@ describe('Material import', () => {
     commitMaterialImport.mockRejectedValue({ response: { status: 400, headers: { 'content-type': 'application/json' }, data: { detail: ['This preview expired.'] } } })
     renderAt()
     await screen.findByText('Synthetic raw A')
-    fireEvent.click(screen.getByRole('button', { name: 'Import materials' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Import CSV' }))
     fireEvent.change(screen.getByLabelText('Choose material CSV file'), { target: { files: [new File(['x'], 'm.csv', { type: 'text/csv' })] } })
     fireEvent.click(await screen.findByRole('button', { name: 'Check file' }))
     fireEvent.click(await screen.findByRole('button', { name: /Import 2 materials/ }))
@@ -226,27 +256,29 @@ describe('Material register', () => {
     await screen.findByText('Synthetic raw A')
     fireEvent.click(screen.getByRole('link', { name: 'SYN-RAW-1' }))
 
-    expect(await screen.findByText('Inward register')).toBeTruthy()
+    // The code now appears twice on the register (a read-only identity
+    // chip in the filter row, plus the material-identity badge) - both
+    // are real, intentional, so assert on the register having loaded
+    // rather than on there being exactly one match.
+    expect((await screen.findAllByText('SYN-RAW-1')).length).toBeGreaterThan(0)
     await waitFor(() => expect(getMaterial).toHaveBeenCalledWith(10))
-    await waitFor(() =>
-      expect(listRecordedReceipts).toHaveBeenCalledWith(5, expect.objectContaining({ material: 10 }))
-    )
-    expect(screen.getByText('← Back to materials')).toBeTruthy()
+    await waitFor(() => expect(getMaterialRegister).toHaveBeenCalledWith(5, 10, expect.any(Object)))
+    expect(screen.getByText('← Back to Materials')).toBeTruthy()
   })
 
   it('"View register" is a separate, always-visible action leading to the same register', async () => {
     renderAt()
     await screen.findByText('Synthetic raw A')
-    fireEvent.click(screen.getByRole('link', { name: 'View register' }))
-    expect(await screen.findByText('Inward register')).toBeTruthy()
+    fireEvent.click(screen.getByRole('link', { name: 'View Register' }))
+    expect((await screen.findAllByText('SYN-RAW-1')).length).toBeGreaterThan(0)
   })
 
   it('the Back link returns to the materials list', async () => {
     renderAt()
     await screen.findByText('Synthetic raw A')
-    fireEvent.click(screen.getByRole('link', { name: 'View register' }))
-    await screen.findByText('Inward register')
-    fireEvent.click(screen.getByRole('link', { name: /Back to materials/ }))
+    fireEvent.click(screen.getByRole('link', { name: 'View Register' }))
+    await screen.findAllByText('SYN-RAW-1')
+    fireEvent.click(screen.getByRole('link', { name: /Back to Materials/ }))
     expect(await screen.findByText('Synthetic raw A')).toBeTruthy()
   })
 
@@ -257,39 +289,46 @@ describe('Material register', () => {
   })
 
   it('distinguishes no register access (403) from a store problem, never claiming a stock figure', async () => {
-    listRecordedReceipts.mockRejectedValue({ response: { status: 403, headers: {}, data: { detail: 'The following permission(s) are required: stock.view.' } } })
-    listRecordedReceiptBalances.mockRejectedValue({ response: { status: 403, headers: {}, data: { detail: 'The following permission(s) are required: stock.view.' } } })
+    getMaterialRegister.mockRejectedValue({ response: { status: 403, headers: {}, data: { detail: 'The following permission(s) are required: stock.view.' } } })
     renderAt('/inventory/materials/10')
     expect(await screen.findByText(/You do not have register access for this store/)).toBeTruthy()
   })
 
   it('applies a posted-date filter as posted_from/posted_to and shows which window produced the total', async () => {
-    listRecordedReceiptBalances.mockResolvedValue({
-      count: 1,
-      results: [{ unit_id: 2, unit_code: 'KG', source_company_id: 2, source_company_code: 'DEMOA', recorded_receipt_quantity: '5.000' }],
-      coverage: null,
+    getMaterialRegister.mockResolvedValue({
+      material: { id: 10, code: 'SYN-RAW-1', name: 'Synthetic raw A' },
+      storeId: 5, storeCode: 'SYNWH1',
+      opening: [{ unit_id: 2, unit_code: 'KG', source_company_id: 2, source_company_code: 'DEMOA', recorded_receipt_quantity: '2.000' }],
+      periodReceived: [{ unit_id: 2, unit_code: 'KG', source_company_id: 2, source_company_code: 'DEMOA', recorded_receipt_quantity: '5.000' }],
+      closing: [{ unit_id: 2, unit_code: 'KG', source_company_id: 2, source_company_code: 'DEMOA', recorded_receipt_quantity: '7.000' }],
+      movements: [], count: 0, coverage: null,
       period: { posted_from: '2026-01-01', posted_to: '2026-01-31' },
     })
-    listRecordedReceipts.mockResolvedValue({ count: 0, results: [], coverage: null, period: { posted_from: '2026-01-01', posted_to: '2026-01-31' } })
     renderAt('/inventory/materials/10')
-    await screen.findByText('Inward register')
+    await screen.findAllByText('SYN-RAW-1')
 
-    fireEvent.change(screen.getByLabelText('Posted from'), { target: { value: '2026-01-01' } })
-    fireEvent.change(screen.getByLabelText('Posted to'), { target: { value: '2026-01-31' } })
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-01-01' } })
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-01-31' } })
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
 
     await waitFor(() =>
-      expect(listRecordedReceipts).toHaveBeenLastCalledWith(
-        5,
-        expect.objectContaining({ material: 10, postedFrom: '2026-01-01', postedTo: '2026-01-31' })
+      expect(getMaterialRegister).toHaveBeenLastCalledWith(
+        5, 10,
+        expect.objectContaining({ postedFrom: '2026-01-01', postedTo: '2026-01-31' })
       )
     )
-    expect(await screen.findByText(/2026-01-01.*2026-01-31/)).toBeTruthy()
+    // Opening, period and closing must appear as three distinct totals, never one merged number.
+    expect(await screen.findByText('Opening Book Stock')).toBeTruthy()
+    expect(screen.getByText('Received This Period')).toBeTruthy()
+    expect(screen.getByText('Closing Book Stock')).toBeTruthy()
+    expect(screen.getByText('2.000')).toBeTruthy()
+    expect(screen.getByText('5.000')).toBeTruthy()
+    expect(screen.getByText('7.000')).toBeTruthy()
   })
 
   it('never shows available/usable/on-hand stock language on the register', async () => {
     renderAt('/inventory/materials/10')
-    await screen.findByText('Inward register')
+    await screen.findAllByText('SYN-RAW-1')
     const page = document.body.textContent || ''
     for (const forbidden of ['Available stock', 'Usable stock', 'On-hand stock', 'Closing balance']) {
       expect(page).not.toMatch(new RegExp(forbidden))
@@ -330,8 +369,8 @@ describe('Write-action visibility follows the server capability', () => {
     renderAt()
     expect(await screen.findByText('Synthetic raw A')).toBeTruthy()
     expect(screen.getByText(/Read-only access/)).toBeTruthy()
-    expect(screen.queryByRole('button', { name: '+ Add material' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Import materials' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '+ Add Raw Material' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Import CSV' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Deactivate' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Activate' })).toBeNull()
@@ -341,21 +380,21 @@ describe('Write-action visibility follows the server capability', () => {
     auth.user = { id: 3, username: 'no-capabilities' }
     renderAt()
     expect(await screen.findByText('Synthetic raw A')).toBeTruthy()
-    expect(screen.queryByRole('button', { name: '+ Add material' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '+ Add Raw Material' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
   })
 
   it('a capable user sees the write controls', async () => {
     renderAt()
     expect(await screen.findByText('Synthetic raw A')).toBeTruthy()
-    expect(screen.getByRole('button', { name: '+ Add material' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Import materials' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '+ Add Raw Material' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Import CSV' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Edit' })).toBeTruthy()
   })
 
   it('switching from a capable user to a read-only user removes the write controls', async () => {
     const { rerender } = renderAt()
-    expect(await screen.findByRole('button', { name: '+ Add material' })).toBeTruthy()
+    expect(await screen.findByRole('button', { name: '+ Add Raw Material' })).toBeTruthy()
     auth.user = READ_ONLY
     rerender(
       <MemoryRouter initialEntries={['/inventory/materials']}>
@@ -364,7 +403,7 @@ describe('Write-action visibility follows the server capability', () => {
         </Routes>
       </MemoryRouter>
     )
-    await waitFor(() => expect(screen.queryByRole('button', { name: '+ Add material' })).toBeNull())
+    await waitFor(() => expect(screen.queryByRole('button', { name: '+ Add Raw Material' })).toBeNull())
     expect(screen.getByText(/Read-only access/)).toBeTruthy()
   })
 
@@ -372,7 +411,7 @@ describe('Write-action visibility follows the server capability', () => {
     createMaterial.mockRejectedValue({ response: { status: 403, headers: { 'content-type': 'application/json' }, data: { detail: 'You must be an active superuser to perform this action.' } } })
     renderAt()
     await screen.findByText('Synthetic raw A')
-    fireEvent.click(screen.getByRole('button', { name: '+ Add material' }))
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Raw Material' }))
     fireEvent.change(screen.getByLabelText('Material code'), { target: { value: 'SYN-X' } })
     fireEvent.change(screen.getByLabelText('Material name'), { target: { value: 'X' } })
     fireEvent.change(screen.getByPlaceholderText('Search active unit'), { target: { value: 'k' } })

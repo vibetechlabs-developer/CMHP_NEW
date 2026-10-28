@@ -5,6 +5,7 @@ from apps.purchasing.views import (
     PurchaseOrderDetailView,
     PurchaseOrderIssueView,
     PurchaseOrderListCreateView,
+    PurchasingSupplierListView,
     PurchaseRequestApproveView,
     PurchaseRequestCancelView,
     PurchaseRequestDetailView,
@@ -69,5 +70,10 @@ urlpatterns = [
         "<int:company_id>/purchase-orders/<int:order_id>/issue/",
         PurchaseOrderIssueView.as_view(),
         name="purchase-order-issue",
+    ),
+    path(
+        "<int:company_id>/suppliers/",
+        PurchasingSupplierListView.as_view(),
+        name="purchasing-supplier-list",
     ),
 ]

@@ -9,9 +9,10 @@ export default function Button({
   loadingText = 'Please wait...',
   fullWidth = false,
   disabled = false,
+  className: extraClassName,
   ...rest
 }) {
-  const className = ['btn', `btn-${variant}`, fullWidth ? 'btn-full' : '']
+  const className = ['btn', `btn-${variant}`, fullWidth ? 'btn-full' : '', extraClassName]
     .filter(Boolean)
     .join(' ')
 

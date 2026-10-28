@@ -82,7 +82,11 @@ class ProductListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         company = _get_company_for_action(self.request, self.kwargs["company_id"], PRODUCTS_VIEW)
-        queryset = Product.objects.select_related("company", "sales_uom").filter(company=company)
+        queryset = (
+            Product.objects.select_related("company", "sales_uom")
+            .prefetch_related("formulas__revisions")
+            .filter(company=company)
+        )
 
         search = self.request.query_params.get("search", "").strip()
         if search:
@@ -127,7 +131,9 @@ class ProductDetailView(APIView):
     def get(self, request, company_id, product_id):
         company = _get_company_for_action(request, company_id, PRODUCTS_VIEW)
         product = get_object_or_404(
-            Product.objects.select_related("company", "sales_uom"), pk=product_id, company=company
+            Product.objects.select_related("company", "sales_uom").prefetch_related("formulas__revisions"),
+            pk=product_id,
+            company=company,
         )
         return Response(ProductSerializer(product).data)
 

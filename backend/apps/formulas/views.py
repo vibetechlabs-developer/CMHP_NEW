@@ -283,6 +283,7 @@ class RevisionApproveView(APIView):
                 formula_id=formula.id,
                 revision_id=revision_id,
                 expected_version=serializer.validated_data["expected_version"],
+                approval_remarks=serializer.validated_data.get("approval_remarks", ""),
             )
         except DjangoValidationError as exc:
             raise translate_django_validation_error(exc) from exc

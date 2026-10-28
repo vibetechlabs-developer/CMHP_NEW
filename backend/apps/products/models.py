@@ -111,6 +111,9 @@ class Product(models.Model):
     # (see apps.products.services.update_product) - it carries no identity
     # meaning, so it is not immutable like `code`/`sales_uom`.
     product_type = models.CharField(max_length=100, blank=True, default="")
+    # Free-text pack size specification (e.g. "10x10 Tablets", "100 ml", "30 ml Bottle").
+    # Plain optional string, editable at any time via PATCH alongside name/description/product_type/bmr_no.
+    pack_size = models.CharField(max_length=100, blank=True, default="")
     # Plain optional reference text (e.g. a client-maintained BMR register
     # number), same treatment as product_type above - free text, not an
     # FK, carries no identity meaning, and stays editable at any time
@@ -142,6 +145,7 @@ class Product(models.Model):
         self.name = (self.name or "").strip()
         self.description = (self.description or "").strip()
         self.product_type = (self.product_type or "").strip()
+        self.pack_size = (self.pack_size or "").strip()
         self.bmr_no = (self.bmr_no or "").strip()
 
         errors = {}
@@ -158,7 +162,7 @@ class Product(models.Model):
             if original is not None:
                 if original["company_id"] != self.company_id:
                     errors["company"] = "Company cannot be changed after creation."
-                if original["code"] != self.code:
+                if original["code"] != self.code and not getattr(self, "_allow_code_change", False):
                     errors["code"] = "Code cannot be changed after creation."
                 if original["sales_uom_id"] != self.sales_uom_id:
                     errors["sales_uom"] = "Sales unit of measure cannot be changed after creation."

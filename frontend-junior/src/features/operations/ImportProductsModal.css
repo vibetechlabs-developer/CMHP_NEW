@@ -1,0 +1,78 @@
+.imp-step {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.imp-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.imp-summary {
+  display: flex;
+  gap: 18px;
+  font-size: 13px;
+  color: #33506a;
+}
+
+.imp-ok strong {
+  color: #0f7a4a;
+}
+
+.imp-bad strong {
+  color: #b42318;
+}
+
+.imp-muted {
+  color: #6b7f95;
+  font-size: 12px;
+  margin: 0;
+}
+
+.imp-lead {
+  margin: 0 0 6px;
+  color: #163b59;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.imp-table-wrap {
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid #e1eaf0;
+  border-radius: 10px;
+}
+
+.imp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.imp-table th,
+.imp-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid #eef3f6;
+}
+
+.imp-table th {
+  position: sticky;
+  top: 0;
+  background: #f5f8fa;
+  color: #33506a;
+}
+
+.imp-table tr.is-invalid td {
+  color: #b42318;
+}
+
+.inv-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}

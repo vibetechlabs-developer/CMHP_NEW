@@ -8,11 +8,13 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 from apps.audit.services import record
+from apps.catalog.models import Material
 from apps.common.errors import Conflict
+from apps.companies.models import Company
 from apps.companies.services import active_companies_for_user
 from apps.permissions.services import user_has_permission
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderIssueLineSnapshot, PurchaseOrderIssueSnapshot
-from apps.receiving.models import GoodsReceipt, GoodsReceiptLine
+from apps.receiving.models import GoodsReceipt, GoodsReceiptLine, ContainerType
 from apps.stock_movements.services import create_receipt_in_movements
 
 _REFERENCE_MAX_ATTEMPTS = 5
@@ -71,6 +73,20 @@ def _validate_lines(purchase_order, lines_data):
         if quantity is None or quantity <= 0:
             raise DjangoValidationError({"lines": f"Line {index}: received_quantity must be greater than zero."})
 
+        # Optional container fields
+        container_type_id = line.get("container_type_id")
+        container_quantity = line.get("container_quantity")
+        container_type_obj = None
+        if container_type_id is not None:
+            try:
+                container_type_obj = ContainerType.objects.get(id=container_type_id)
+            except ContainerType.DoesNotExist:
+                raise DjangoValidationError({"lines": f"Line {index}: container_type_id {container_type_id} does not exist."})
+            if not container_type_obj.is_active:
+                raise DjangoValidationError({"lines": f"Line {index}: container type {container_type_obj.code} is inactive."})
+        if container_quantity is not None and container_quantity <= 0:
+            raise DjangoValidationError({"lines": f"Line {index}: container_quantity must be positive if provided."})
+
         po_line = source_po_line.purchase_order_line
         resolved.append(
             {
@@ -84,6 +100,76 @@ def _validate_lines(purchase_order, lines_data):
                 "material_name_snapshot": source_po_line.material_name_snapshot,
                 "unit_code_snapshot": source_po_line.unit_code_snapshot,
                 "unit_name_snapshot": source_po_line.unit_name_snapshot,
+                "container_type": container_type_obj,
+                "container_quantity": container_quantity,
+            }
+        )
+    return resolved
+
+
+def _validate_manual_lines(lines_data):
+    """MANUAL ENTRY MODE counterpart of _validate_lines (added after Task
+    09A) - no PurchaseOrder exists to validate against. Each line names
+    a real, active apps.catalog.Material directly (never free text,
+    never caller-chosen - `unit` is always that material's own base
+    unit, the same "no caller-chosen unit" convention apps.
+    stock_movements.services.create_material_issue already uses) and may
+    carry its own `unit_price`/`currency_code` - the only place this app
+    ever accepts a caller-supplied price. Deliberately does NOT check
+    any "remaining quantity" here or at posting time (see
+    post_goods_receipt) - there is no ordered quantity to check against,
+    a genuine, disclosed relaxation of the PO path's over-receipt guard.
+    """
+    resolved = []
+    for index, line in enumerate(lines_data, start=1):
+        material_id = line.get("material_id")
+        if material_id is None:
+            raise DjangoValidationError({"lines": f"Line {index}: material_id is required for a manual entry line."})
+        try:
+            material = Material.objects.select_related("base_unit").get(pk=material_id)
+        except Material.DoesNotExist:
+            raise DjangoValidationError({"lines": f"Line {index}: material_id {material_id} does not exist."})
+        if not material.is_active:
+            raise DjangoValidationError({"lines": f"Line {index}: material '{material.code}' is inactive."})
+
+        quantity = line.get("received_quantity")
+        if quantity is None or quantity <= 0:
+            raise DjangoValidationError({"lines": f"Line {index}: received_quantity must be greater than zero."})
+
+        unit_price = line.get("unit_price")
+        if unit_price is not None and unit_price <= 0:
+            raise DjangoValidationError({"lines": f"Line {index}: unit_price must be greater than zero if given."})
+        currency_code = (line.get("currency_code") or "").strip().upper()
+
+        container_type_id = line.get("container_type_id")
+        container_quantity = line.get("container_quantity")
+        container_type_obj = None
+        if container_type_id is not None:
+            try:
+                container_type_obj = ContainerType.objects.get(id=container_type_id)
+            except ContainerType.DoesNotExist:
+                raise DjangoValidationError({"lines": f"Line {index}: container_type_id {container_type_id} does not exist."})
+            if not container_type_obj.is_active:
+                raise DjangoValidationError({"lines": f"Line {index}: container type {container_type_obj.code} is inactive."})
+        if container_quantity is not None and container_quantity <= 0:
+            raise DjangoValidationError({"lines": f"Line {index}: container_quantity must be positive if provided."})
+
+        resolved.append(
+            {
+                "line_number": index,
+                "source_po_line": None,
+                "material": material,
+                "unit": material.base_unit,
+                "received_quantity": quantity,
+                "lot_reference": (line.get("lot_reference") or "").strip(),
+                "material_code_snapshot": material.code,
+                "material_name_snapshot": material.name,
+                "unit_code_snapshot": material.base_unit.code,
+                "unit_name_snapshot": material.base_unit.name,
+                "container_type": container_type_obj,
+                "container_quantity": container_quantity,
+                "unit_price": unit_price,
+                "currency_code": currency_code,
             }
         )
     return resolved
@@ -95,7 +181,7 @@ def _create_lines(goods_receipt, resolved_lines):
             GoodsReceiptLine(
                 goods_receipt=goods_receipt,
                 line_number=item["line_number"],
-                source_po_line=item["source_po_line"],
+                source_po_line=item.get("source_po_line"),
                 material=item["material"],
                 unit=item["unit"],
                 received_quantity=item["received_quantity"],
@@ -104,6 +190,10 @@ def _create_lines(goods_receipt, resolved_lines):
                 material_name_snapshot=item["material_name_snapshot"],
                 unit_code_snapshot=item["unit_code_snapshot"],
                 unit_name_snapshot=item["unit_name_snapshot"],
+                container_type=item.get("container_type"),
+                container_quantity=item.get("container_quantity"),
+                unit_price=item.get("unit_price"),
+                currency_code=item.get("currency_code") or "",
             )
             for item in resolved_lines
         ]
@@ -113,8 +203,10 @@ def _create_lines(goods_receipt, resolved_lines):
 def _header_snapshot(goods_receipt):
     return {
         "arrived_at": goods_receipt.arrived_at.isoformat() if goods_receipt.arrived_at else None,
+        "supplier_invoice_reference": goods_receipt.supplier_invoice_reference,
         "delivery_note_reference": goods_receipt.delivery_note_reference,
         "notes": goods_receipt.notes,
+        "supplier_name": goods_receipt.supplier_name,
     }
 
 
@@ -122,15 +214,50 @@ def _line_snapshot_list(goods_receipt):
     return [
         {
             "source_po_line_id": line.source_po_line_id,
+            "material_id": line.material_id,
             "received_quantity": str(line.received_quantity),
             "lot_reference": line.lot_reference,
+            "container_type_id": line.container_type_id,
+            "container_quantity": line.container_quantity,
+            "unit_price": str(line.unit_price) if line.unit_price is not None else None,
+            "currency_code": line.currency_code,
         }
         for line in goods_receipt.lines.order_by("line_number", "id")
     ]
 
 
+def _line_snapshot_from_resolved(resolved_lines):
+    """Same shape as _line_snapshot_list, built from resolved (not yet
+    persisted) line dicts - used to compare a proposed idempotent-retry
+    create against an existing row before writing anything.
+    """
+    return [
+        {
+            "source_po_line_id": item["source_po_line"].id if item.get("source_po_line") else None,
+            "material_id": item["material"].id,
+            "received_quantity": str(item["received_quantity"]),
+            "lot_reference": item["lot_reference"],
+            "container_type_id": item["container_type"].id if item.get("container_type") else None,
+            "container_quantity": item.get("container_quantity"),
+            "unit_price": str(item["unit_price"]) if item.get("unit_price") is not None else None,
+            "currency_code": item.get("currency_code") or "",
+        }
+        for item in resolved_lines
+    ]
+
+
 def _create_header_with_unique_reference(
-    *, store, company, actor, source_purchase_order, arrived_at, delivery_note_reference, notes, idempotency_key
+    *,
+    store,
+    company,
+    actor,
+    source_purchase_order,
+    supplier_name,
+    arrived_at,
+    supplier_invoice_reference,
+    delivery_note_reference,
+    notes,
+    idempotency_key,
 ):
     """Retries on the extremely unlikely event of a reference collision -
     mirrors apps.purchasing.services._create_header_with_unique_reference
@@ -149,8 +276,10 @@ def _create_header_with_unique_reference(
                     store=store,
                     company=company,
                     source_purchase_order=source_purchase_order,
+                    supplier_name=supplier_name,
                     reference=_generate_reference(),
                     arrived_at=arrived_at,
+                    supplier_invoice_reference=supplier_invoice_reference,
                     delivery_note_reference=delivery_note_reference,
                     notes=notes,
                     idempotency_key=idempotency_key,
@@ -174,65 +303,91 @@ def create_goods_receipt(
     *,
     actor,
     store,
-    source_purchase_order_id,
+    source_purchase_order_id=None,
+    company_id=None,
+    supplier_name="",
     arrived_at,
+    supplier_invoice_reference="",
     delivery_note_reference="",
     notes="",
     idempotency_key="",
     lines=None,
 ):
-    """Creates a `DRAFT` GoodsReceipt against an already-`ISSUED`
-    PurchaseOrder, at `store`. `company` is always
-    `source_purchase_order.company` - never independently accepted (see
-    apps.receiving.views, which never reads a `company`/`company_id` key
-    from the request body at all). An empty `lines` list is accepted,
-    mirroring PurchaseRequest's own "empty draft is valid" rule -
-    completeness is enforced only at posting (see post_goods_receipt).
+    """Creates a `DRAFT` GoodsReceipt at `store`, in one of two mutually
+    exclusive modes:
+
+    - PO-BASED (give `source_purchase_order_id`, the original Task 09A
+      path, unchanged): against an already-`ISSUED` PurchaseOrder;
+      `company` is always `source_purchase_order.company` - never
+      independently accepted; every line names a `source_po_line_id`
+      and derives material/unit/price from it, never a caller-supplied
+      price (see _validate_lines). `supplier_name` is ignored for this
+      path - supplier is always shown via the PO relation instead.
+
+    - MANUAL ENTRY MODE (give `company_id` instead, added after Task
+      09A - see GoodsReceipt.supplier_name's own docstring for why):
+      no PurchaseOrder exists, so the caller names the company directly
+      and may give a free-text `supplier_name`; every line names a real
+      `material_id` directly and may carry its own `unit_price`/
+      `currency_code` - the only path on which this app ever accepts a
+      caller-supplied price. No over-receipt check applies (see
+      post_goods_receipt) - there is nothing to check it against.
+
+    An empty `lines` list is accepted either way, mirroring
+    PurchaseRequest's own "empty draft is valid" rule - completeness is
+    enforced only at posting (see post_goods_receipt).
 
     Idempotency: if `idempotency_key` is non-blank and a GoodsReceipt
     with that exact key already exists, this is a safe retry - if the
-    proposed content (store, source PO, arrived_at, delivery note
-    reference, notes, lines) matches the existing row exactly, that row
-    is returned unchanged (no new row, no new audit entry); if it
-    differs in any way, this is a `409 Conflict` - the caller's retry
-    does not actually match what it claims to be retrying, so silently
-    creating a second document or silently returning the mismatched
-    existing one would both be wrong.
+    proposed content matches the existing row exactly, that row is
+    returned unchanged (no new row, no new audit entry); if it differs
+    in any way, this is a `409 Conflict` - the caller's retry does not
+    actually match what it claims to be retrying, so silently creating a
+    second document or silently returning the mismatched existing one
+    would both be wrong.
     """
     idempotency_key = (idempotency_key or "").strip()
+    supplier_invoice_reference = (supplier_invoice_reference or "").strip()
     delivery_note_reference = (delivery_note_reference or "").strip()
     notes = notes or ""
+    lines = lines or []
 
-    purchase_order = get_object_or_404(
-        PurchaseOrder.objects.select_related("company", "issue_snapshot"), pk=source_purchase_order_id
-    )
-    if purchase_order.status != PurchaseOrder.Status.ISSUED:
-        raise DjangoValidationError({"detail": "Only an ISSUED purchase order can receive a goods receipt."})
-
-    resolved_lines = _validate_lines(purchase_order, lines or [])
+    if source_purchase_order_id is not None:
+        purchase_order = get_object_or_404(
+            PurchaseOrder.objects.select_related("company", "issue_snapshot"), pk=source_purchase_order_id
+        )
+        if purchase_order.status != PurchaseOrder.Status.ISSUED:
+            raise DjangoValidationError({"detail": "Only an ISSUED purchase order can receive a goods receipt."})
+        company = purchase_order.company
+        supplier_name = ""
+        resolved_lines = _validate_lines(purchase_order, lines)
+    else:
+        company = get_object_or_404(Company, pk=company_id)
+        purchase_order = None
+        supplier_name = (supplier_name or "").strip()
+        resolved_lines = _validate_manual_lines(lines)
 
     if idempotency_key:
         existing = GoodsReceipt.objects.filter(idempotency_key=idempotency_key).first()
         if existing is not None:
             proposed = {
                 "store_id": store.id,
-                "source_purchase_order_id": purchase_order.id,
+                "source_purchase_order_id": purchase_order.id if purchase_order else None,
+                "company_id": company.id,
+                "supplier_name": supplier_name,
                 "arrived_at": arrived_at,
+                "supplier_invoice_reference": supplier_invoice_reference,
                 "delivery_note_reference": delivery_note_reference,
                 "notes": notes,
-                "lines": [
-                    {
-                        "source_po_line_id": item["source_po_line"].id,
-                        "received_quantity": str(item["received_quantity"]),
-                        "lot_reference": item["lot_reference"],
-                    }
-                    for item in resolved_lines
-                ],
+                "lines": _line_snapshot_from_resolved(resolved_lines),
             }
             actual = {
                 "store_id": existing.store_id,
                 "source_purchase_order_id": existing.source_purchase_order_id,
+                "company_id": existing.company_id,
+                "supplier_name": existing.supplier_name,
                 "arrived_at": existing.arrived_at,
+                "supplier_invoice_reference": existing.supplier_invoice_reference,
                 "delivery_note_reference": existing.delivery_note_reference,
                 "notes": existing.notes,
                 "lines": _line_snapshot_list(existing),
@@ -246,10 +401,12 @@ def create_goods_receipt(
 
     goods_receipt = _create_header_with_unique_reference(
         store=store,
-        company=purchase_order.company,
+        company=company,
         actor=actor,
         source_purchase_order=purchase_order,
+        supplier_name=supplier_name,
         arrived_at=arrived_at,
+        supplier_invoice_reference=supplier_invoice_reference,
         delivery_note_reference=delivery_note_reference,
         notes=notes,
         idempotency_key=idempotency_key,
@@ -266,7 +423,7 @@ def create_goods_receipt(
         after={
             "reference": goods_receipt.reference,
             "status": goods_receipt.status,
-            "source_purchase_order_id": purchase_order.id,
+            "source_purchase_order_id": purchase_order.id if purchase_order else None,
             **_header_snapshot(goods_receipt),
             "lines": _line_snapshot_list(goods_receipt),
         },
@@ -297,14 +454,25 @@ def update_goods_receipt(*, actor, goods_receipt_id, expected_version, data):
     if goods_receipt.status != GoodsReceipt.Status.DRAFT:
         raise DjangoValidationError({"detail": "Only a draft goods receipt can be edited."})
 
-    purchase_order = PurchaseOrder.objects.select_related("issue_snapshot").get(
-        pk=goods_receipt.source_purchase_order_id
-    )
+    # PO-based vs MANUAL ENTRY MODE - whichever this receipt already is
+    # (fixed at creation, never changeable on update - see GoodsReceipt.
+    # clean()'s own "source purchase order cannot be changed" rule).
+    purchase_order = None
+    if goods_receipt.source_purchase_order_id is not None:
+        purchase_order = PurchaseOrder.objects.select_related("issue_snapshot").get(
+            pk=goods_receipt.source_purchase_order_id
+        )
 
     before_header = _header_snapshot(goods_receipt)
     header_changed = False
     if "arrived_at" in data and data["arrived_at"] != goods_receipt.arrived_at:
         goods_receipt.arrived_at = data["arrived_at"]
+        header_changed = True
+    if (
+        "supplier_invoice_reference" in data
+        and data["supplier_invoice_reference"] != goods_receipt.supplier_invoice_reference
+    ):
+        goods_receipt.supplier_invoice_reference = data["supplier_invoice_reference"]
         header_changed = True
     if (
         "delivery_note_reference" in data
@@ -315,21 +483,21 @@ def update_goods_receipt(*, actor, goods_receipt_id, expected_version, data):
     if "notes" in data and data["notes"] != goods_receipt.notes:
         goods_receipt.notes = data["notes"]
         header_changed = True
+    if (
+        purchase_order is None
+        and "supplier_name" in data
+        and data["supplier_name"] != goods_receipt.supplier_name
+    ):
+        goods_receipt.supplier_name = data["supplier_name"]
+        header_changed = True
 
     lines_changed = False
     before_lines = None
     after_lines = None
     if "lines" in data:
         before_lines = _line_snapshot_list(goods_receipt)
-        resolved = _validate_lines(purchase_order, data["lines"])
-        after_lines = [
-            {
-                "source_po_line_id": item["source_po_line"].id,
-                "received_quantity": str(item["received_quantity"]),
-                "lot_reference": item["lot_reference"],
-            }
-            for item in resolved
-        ]
+        resolved = _validate_lines(purchase_order, data["lines"]) if purchase_order else _validate_manual_lines(data["lines"])
+        after_lines = _line_snapshot_from_resolved(resolved)
         if after_lines != before_lines:
             lines_changed = True
             goods_receipt.lines.all().delete()
@@ -339,7 +507,9 @@ def update_goods_receipt(*, actor, goods_receipt_id, expected_version, data):
         return goods_receipt
 
     goods_receipt.version += 1
-    goods_receipt.save(update_fields=["arrived_at", "delivery_note_reference", "notes", "version", "updated_at"])
+    goods_receipt.save(
+        update_fields=["arrived_at", "delivery_note_reference", "notes", "supplier_name", "version", "updated_at"]
+    )
 
     audit_before = dict(before_header)
     audit_after = _header_snapshot(goods_receipt)
@@ -418,11 +588,16 @@ def post_goods_receipt(*, actor, goods_receipt_id, expected_version):
             {"detail": f"A goods receipt with status '{goods_receipt.status}' cannot be posted."}
         )
 
-    purchase_order = PurchaseOrder.objects.select_for_update().get(pk=goods_receipt.source_purchase_order_id)
-    if purchase_order.status != PurchaseOrder.Status.ISSUED:
-        raise DjangoValidationError(
-            {"detail": "The source purchase order is no longer ISSUED and this receipt cannot be posted."}
-        )
+    # Manual entry mode (goods_receipt.source_purchase_order_id is None)
+    # has no PurchaseOrder to lock or validate against at all - skip
+    # straight to the arrived_at/lines checks below. See MANUAL ENTRY
+    # MODE in create_goods_receipt's own docstring.
+    if goods_receipt.source_purchase_order_id is not None:
+        purchase_order = PurchaseOrder.objects.select_for_update().get(pk=goods_receipt.source_purchase_order_id)
+        if purchase_order.status != PurchaseOrder.Status.ISSUED:
+            raise DjangoValidationError(
+                {"detail": "The source purchase order is no longer ISSUED and this receipt cannot be posted."}
+            )
 
     if goods_receipt.arrived_at > timezone.now():
         raise DjangoValidationError({"arrived_at": "Arrival date/time cannot be in the future."})
@@ -434,6 +609,13 @@ def post_goods_receipt(*, actor, goods_receipt_id, expected_version):
         raise DjangoValidationError({"detail": "At least one line is required to post a goods receipt."})
 
     for line in lines:
+        # Manual entry mode line (no source_po_line) - there is no
+        # ordered quantity to check against, so no over-receipt guard
+        # applies to it at all. A deliberate, disclosed relaxation of
+        # the PO path's own rule below, never a silent gap - see
+        # create_goods_receipt's MANUAL ENTRY MODE docstring.
+        if line.source_po_line_id is None:
+            continue
         ordered_quantity = line.source_po_line.quantity_snapshot
         already_posted = (
             GoodsReceiptLine.objects.filter(
@@ -564,6 +746,15 @@ def delivery_progress_for_purchase_order(purchase_order):
     physically arrived, on paper," never "accepted, usable, or
     financially closed" (see GoodsReceipt's docstring). Returns `[]` if
     the order has no issue snapshot (i.e. is not `ISSUED`).
+
+    `unit_price`/`pricing_unit_code`/`currency_code` are the issue-time
+    snapshot's own historical price (never the live, possibly-since-
+    changed PurchaseOrderLine price) - the same source and the same
+    reasoning as apps.stock_movements.serializers.StockMovementSerializer.
+    get_unit_price. Callers of this function already sit behind the
+    same `purchase_orders.view`/company-access gate every other field
+    here does (see eligible_purchase_orders_for_receiving) - no new or
+    looser check is introduced for these three fields.
     """
     try:
         issue_snapshot = purchase_order.issue_snapshot
@@ -592,6 +783,12 @@ def delivery_progress_for_purchase_order(purchase_order):
                 "received_quantity": received,
                 "remaining_quantity": remaining,
                 "delivery_status": _delivery_status_for(ordered, received),
+                "unit_price": po_line.unit_price_snapshot,
+                "pricing_unit_code": po_line.unit_code_snapshot,
+                # `issue_snapshot` (the enclosing loop variable), not
+                # `po_line.issue_snapshot` - same object, avoids an N+1
+                # reverse-FK query per line.
+                "currency_code": issue_snapshot.currency_code_snapshot,
             }
         )
     return progress
@@ -631,3 +828,97 @@ def eligible_purchase_orders_for_receiving(user):
         .select_related("company", "supplier", "source_purchase_request", "issue_snapshot")
         .order_by("-issued_at")
     )
+
+
+# ---------------------------------------------------------------------------
+# ContainerType - shared packaging reference data. Mirrors
+# apps.catalog.services' create_unit/update_unit/activate_unit/
+# deactivate_unit exactly (see there for the identical no-company/no-store
+# audit-context reasoning and the immutable-code/no-op-suppression rules).
+# ---------------------------------------------------------------------------
+
+
+def _container_type_snapshot(container_type):
+    return {"name": container_type.name, "description": container_type.description}
+
+
+def create_container_type(*, actor, code, name, description=""):
+    container_type = ContainerType(code=code, name=name, description=description)
+    container_type.save()
+    record(
+        actor=actor,
+        action="container_type.created",
+        target_type="container_type",
+        target_id=container_type.id,
+        after={"code": container_type.code, "is_active": True, **_container_type_snapshot(container_type)},
+    )
+    return container_type
+
+
+def update_container_type(*, actor, container_type, data):
+    before = _container_type_snapshot(container_type)
+    changed = {field: value for field, value in data.items() if getattr(container_type, field) != value}
+    if not changed:
+        return container_type
+
+    for field, value in changed.items():
+        setattr(container_type, field, value)
+    container_type.save()
+
+    after = _container_type_snapshot(container_type)
+    if before == after:
+        return container_type
+
+    record(
+        actor=actor,
+        action="container_type.updated",
+        target_type="container_type",
+        target_id=container_type.id,
+        before=before,
+        after=after,
+    )
+    return container_type
+
+
+@transaction.atomic
+def activate_container_type(*, actor, container_type):
+    if container_type.is_active:
+        return container_type
+    container_type.is_active = True
+    container_type.save(update_fields=["is_active", "updated_at"])
+    record(
+        actor=actor,
+        action="container_type.activated",
+        target_type="container_type",
+        target_id=container_type.id,
+        before={"is_active": False},
+        after={"is_active": True},
+    )
+    return container_type
+
+
+@transaction.atomic
+def deactivate_container_type(*, actor, container_type):
+    """Rejected while any active Material still references this as its
+    `default_container_type` - mirrors apps.catalog.services.
+    deactivate_unit's identical guard for base_unit exactly.
+    """
+    from apps.catalog.models import Material
+
+    if not container_type.is_active:
+        return container_type
+    if Material.objects.filter(default_container_type=container_type, is_active=True).exists():
+        raise DjangoValidationError(
+            {"detail": "Cannot deactivate a container type while active materials reference it as their default."}
+        )
+    container_type.is_active = False
+    container_type.save(update_fields=["is_active", "updated_at"])
+    record(
+        actor=actor,
+        action="container_type.deactivated",
+        target_type="container_type",
+        target_id=container_type.id,
+        before={"is_active": True},
+        after={"is_active": False},
+    )
+    return container_type

@@ -1,0 +1,74 @@
+/* =========================================================
+   CMHP PHARMA ERP
+   STATUS PILL
+   ========================================================= */
+
+.status-pill {
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 5px;
+
+  padding: 4px 8px;
+
+  color: #637b8e;
+
+  background: #f2f6f8;
+
+  border-radius: 999px;
+
+  font-size: 8.5px;
+
+  font-weight: 750;
+
+  letter-spacing: 0.03em;
+
+  text-transform: uppercase;
+
+  white-space: nowrap;
+}
+
+.status-pill::before {
+  content: "";
+
+  width: 6px;
+
+  height: 6px;
+
+  flex-shrink: 0;
+
+  background: currentColor;
+
+  border-radius: 50%;
+}
+
+.status-pill-success {
+  color: #159b72;
+
+  background: #eaf8f2;
+}
+
+.status-pill-warning {
+  color: #b77412;
+
+  background: #fff6e5;
+}
+
+.status-pill-danger {
+  color: #d04455;
+
+  background: #fff0f2;
+}
+
+.status-pill-info {
+  color: #1478c9;
+
+  background: #eaf5fc;
+}
+
+.status-pill-neutral {
+  color: #657d91;
+
+  background: #eef3f6;
+}

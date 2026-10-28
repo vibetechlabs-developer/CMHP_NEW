@@ -1,5 +1,5 @@
 import { confirmAction } from '../../components/ConfirmProvider'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import useAuth from '../../hooks/useAuth'
 import RequirementCalculator from '../formulas/RequirementCalculator'
@@ -36,6 +36,9 @@ import {
   updatePreparation,
 } from './storePreparationService'
 import { listPlanningUnits } from './unitsLookupService'
+import { getAvailableToIssue } from '../store/materialIssueService'
+import { getRequirementPreview } from '../formulas/formulasService'
+import { getBatchPlanRequirementPreview } from './batchPlansService'
 import { getErrorMessage } from '../../utils/errors'
 
 const NEW_PLAN = 'new'
@@ -303,6 +306,15 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
   const [storeConflict, setStoreConflict] = useState(false)
   const [storeMessage, setStoreMessage] = useState('')
 
+  // Section C: Raw Material Allocation & Inventory Verification State
+  const [allocationStock, setAllocationStock] = useState({})
+  const [allocationStockLoading, setAllocationStockLoading] = useState(false)
+  // Server-fetched formula requirement lines (replaces hardcoded defaults)
+  const [formulaLines, setFormulaLines] = useState([])
+  const [formulaLinesLoading, setFormulaLinesLoading] = useState(false)
+  // Per-row allocation tracking: rowId -> true means allocated (deducted from stock)
+  const [allocatedRows, setAllocatedRows] = useState({})
+
   useEffect(() => {
     let cancelled = false
     listProductTypes()
@@ -460,20 +472,24 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
   }, [storeId])
 
   const selectedLine = orderForm.lines.find((line) => line.localId === selectedLineId) || orderForm.lines[0]
-  const selectedRevisionProduct = planId === NEW_PLAN && selectedLine?.product ? selectedLine.product.id : null
+  const selectedProductId = selectedLine?.product ? selectedLine.product.id : null
+  const selectedRevisionProduct = selectedProductId
 
   useEffect(() => {
-    if (!selectedRevisionProduct) return
+    if (!selectedProductId || !realCompanyId) {
+      setRevisions([])
+      return
+    }
     let cancelled = false
-    const scope = `${realCompanyId}:${selectedRevisionProduct}`
+    const scope = `${realCompanyId}:${selectedProductId}`
     // A different company or product must never show the previous list.
     if (revisionScopeRef.current !== scope) {
       revisionScopeRef.current = scope
       setRevisions([])
     }
     setRevisionsError('')
-    listApprovedRevisionsForProduct(realCompanyId, selectedRevisionProduct)
-      .then((rows) => !cancelled && setRevisions(rows))
+    listApprovedRevisionsForProduct(realCompanyId, selectedProductId)
+      .then((rows) => !cancelled && setRevisions(rows || []))
       .catch((error) => {
         // Keep the last good list and the user's selection; offer Retry.
         if (cancelled) return
@@ -554,6 +570,131 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
       cancelled = true
     }
   }, [storeId, planId])
+
+  // ----- Section C: Raw Material Allocation & Inventory Verification -----
+  const activePlan = plans.find((p) => p.id === planId) || (typeof planId === 'number' ? plan : null)
+  const displayBatchNumber = plan?.official_batch_number || activePlan?.official_batch_number || (typeof planId === 'number' ? `Plan #${planId}` : 'Not Allocated (Pending Batch Plan)')
+  const orderLineQty = Number(selectedLine?.quantity) || 89
+
+  // Fetch actual formula requirement lines from the server when plan or revision changes
+  const activeRevision = revisions.find((r) => String(r.id) === String(batchForm.revisionId))
+  useEffect(() => {
+    let cancelled = false
+    // Reset allocated rows when the plan/revision changes
+    setAllocatedRows({})
+
+    const fetchLines = async () => {
+      setFormulaLinesLoading(true)
+      try {
+        let data = null
+        if (typeof planId === 'number' && realCompanyId) {
+          data = await getBatchPlanRequirementPreview(realCompanyId, planId)
+        } else if (activeRevision?.formulaId && activeRevision?.id && realCompanyId && orderLineQty) {
+          data = await getRequirementPreview(realCompanyId, activeRevision.formulaId, activeRevision.id, String(orderLineQty))
+        }
+        if (!cancelled && data) {
+          const rawLines = (data.lines || []).filter((l) => l.material_type === 'RAW_MATERIAL')
+          const baseOutput = Number(data.revision?.base_output_quantity) || orderLineQty || 1
+          const factor = baseOutput > 0 ? orderLineQty / baseOutput : 1
+          setFormulaLines(
+            rawLines.map((l, idx) => ({
+              id: `fl-${l.id || idx}`,
+              materialId: l.material_id || null,
+              code: l.material_code || `RM-${String(idx + 1).padStart(3, '0')}`,
+              name: l.material_name || `Material ${idx + 1}`,
+              claim: l.label_claim_quantity ? `Claim: ${l.label_claim_quantity} ${l.label_claim_uom_code || ''}` : '',
+              unit: l.unit_code || '',
+              baseQty: Number(l.base_line_quantity) || 0,
+              requiredQty: Number(l.required_quantity?.value || l.required_quantity) || Number((Number(l.base_line_quantity || 0) * factor).toFixed(4)),
+              defaultAvail: 0,
+            }))
+          )
+        } else if (!cancelled && !data) {
+          setFormulaLines([])
+        }
+      } catch {
+        if (!cancelled) setFormulaLines([])
+      } finally {
+        if (!cancelled) setFormulaLinesLoading(false)
+      }
+    }
+    fetchLines()
+    return () => { cancelled = true }
+  }, [planId, activeRevision?.id, realCompanyId, orderLineQty])
+
+  // Use server-fetched lines when available; fall back to empty
+  const rawMaterialLines = formulaLines
+
+  // Fetch live store balances for allocation materials
+  useEffect(() => {
+    if (!storeId) return
+    let cancelled = false
+    setAllocationStockLoading(true)
+    Promise.all(
+      rawMaterialLines.map((line) => {
+        if (!line.materialId) return Promise.resolve({ id: line.id, avail: line.defaultAvail })
+        return getAvailableToIssue(storeId, line.materialId)
+          .then((rows) => {
+            const sum = (rows || []).reduce((acc, r) => acc + (Number(r.net_quantity) || 0), 0)
+            return { id: line.id, avail: rows && rows.length > 0 ? sum : line.defaultAvail }
+          })
+          .catch(() => ({ id: line.id, avail: line.defaultAvail }))
+      })
+    )
+      .then((res) => {
+        if (cancelled) return
+        const map = {}
+        res.forEach((r) => {
+          map[r.id] = r.avail
+        })
+        setAllocationStock(map)
+      })
+      .finally(() => {
+        if (!cancelled) setAllocationStockLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [storeId, rawMaterialLines])
+
+  const verifiedAllocation = useMemo(() => {
+    const list = rawMaterialLines.map((row) => {
+      const rawAvail = allocationStock[row.id] !== undefined ? allocationStock[row.id] : row.defaultAvail
+      const isAllocated = Boolean(allocatedRows[row.id])
+      // After allocation, show the remaining balance (stock minus what was taken)
+      const available = isAllocated ? Math.max(0, Number((rawAvail - row.requiredQty).toFixed(4))) : rawAvail
+      const isShort = !isAllocated && rawAvail < row.requiredQty
+      const diff = Math.max(0, Number((row.requiredQty - rawAvail).toFixed(4)))
+      return {
+        ...row,
+        rawAvailable: rawAvail,
+        available,
+        isAllocated,
+        isShort,
+        diff,
+      }
+    })
+    const shortages = list.filter((r) => r.isShort)
+    return {
+      list,
+      allInStock: shortages.length === 0,
+      shortageCount: shortages.length,
+      shortages,
+    }
+  }, [rawMaterialLines, allocationStock, allocatedRows])
+
+  // Allocate a single raw material row (deduct from available stock display)
+  const handleAllocateRow = (rowId) => {
+    setAllocatedRows((prev) => ({ ...prev, [rowId]: true }))
+  }
+  // Undo / return allocation for a row
+  const handleDeallocateRow = (rowId) => {
+    setAllocatedRows((prev) => {
+      const next = { ...prev }
+      delete next[rowId]
+      return next
+    })
+  }
 
   // ----- Dirty state (per resource) -----
   const orderDirty = JSON.stringify(orderForm) !== orderSnapshot
@@ -804,11 +945,30 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
     setBatchConflict(false)
     const problems = []
     if (!order) problems.push('Save the order first.')
+    if (orderDirty) {
+      try {
+        await saveOrder()
+      } catch {
+        problems.push('Please save the order details first.')
+      }
+    }
     if (planId === NEW_PLAN) {
       if (!selectedLine?.id) problems.push('Save the order line before creating a batch plan for it.')
       if (!batchForm.revisionId) problems.push('Choose an approved formula revision. It is not selected automatically.')
     }
-    if (!batchForm.target_output_quantity || Number(batchForm.target_output_quantity) <= 0) problems.push('Enter the batch size (greater than 0).')
+    let targetQty = batchForm.target_output_quantity
+    if (!targetQty || Number(targetQty) <= 0) {
+      const rev = revisions.find((r) => String(r.id) === String(batchForm.revisionId))
+      if (rev?.baseOutputQuantity && Number(rev.baseOutputQuantity) > 0) {
+        targetQty = String(rev.baseOutputQuantity)
+        setBatchForm((prev) => ({ ...prev, target_output_quantity: targetQty }))
+      } else if (selectedLine?.quantity && Number(selectedLine.quantity) > 0) {
+        targetQty = String(selectedLine.quantity)
+        setBatchForm((prev) => ({ ...prev, target_output_quantity: targetQty }))
+      } else {
+        problems.push('Enter the batch size (target output quantity greater than 0).')
+      }
+    }
     if ((batchForm.packing_content_quantity !== '' || batchForm.planned_pack_quantity !== '') && !batchForm.packing_content_uom) {
       problems.push('Choose the packing size unit.')
     }
@@ -822,7 +982,7 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
         const payload = {
           sales_order_line_id: selectedLine.id,
           formula_revision_id: Number(batchForm.revisionId),
-          target_output_quantity: batchForm.target_output_quantity,
+          target_output_quantity: targetQty,
           planned_manufacturing_date: batchForm.planned_manufacturing_date || null,
           packing_size_note: batchForm.packing_size_note || '',
           notes: batchForm.notes || '',
@@ -969,14 +1129,53 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
   }
 
   const footer = (
-    <>
-      <span className="field-status" role="status" aria-live="polite">
-        {orderDirty || batchDirty || storeDirty ? `Unsaved: ${dirtyNames.join(', ')}` : lastResult}
-      </span>
-      <button type="button" className="btn btn-secondary" onClick={requestClose}>
-        Close
-      </button>
-    </>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span
+          className="field-status"
+          role="status"
+          aria-live="polite"
+          style={{ fontWeight: 600, color: orderDirty || batchDirty || storeDirty ? '#d97706' : '#16a34a' }}
+        >
+          {orderDirty || batchDirty || storeDirty ? `● Unsaved: ${dirtyNames.join(', ')}` : (lastResult || 'All changes saved')}
+        </span>
+        {batchMessage && (
+          <span style={{ fontSize: 12, color: batchMessage.includes('not') || batchMessage.includes('Enter') ? '#b91c1c' : '#16a34a' }}>
+            · {batchMessage}
+          </span>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button type="button" className="btn btn-secondary" onClick={requestClose}>
+          Close
+        </button>
+
+        {orderDirty && canEditOrder && (
+          <button type="submit" form="company-customer-order-form" className="btn btn-secondary" disabled={orderBusy}>
+            Save Order
+          </button>
+        )}
+
+        {canEditBatch && planId !== null && (
+          <Button
+            variant="primary"
+            onClick={saveBatch}
+            loading={batchBusy}
+            disabled={batchBusy}
+            title="Save batch planning details"
+          >
+            💾 Save Batch Plan
+          </Button>
+        )}
+
+        {storeDirty && canWriteStore && storeId && (
+          <Button variant="secondary" onClick={saveStore} loading={storeBusy} disabled={storeBusy}>
+            Save Store Details
+          </Button>
+        )}
+      </div>
+    </div>
   )
 
   return (
@@ -1381,17 +1580,48 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
           )}
 
           <section className="sof-group" aria-labelledby="sof-h-store">
-            <div className="sof-group-head">
-              <h4 id="sof-h-store" className="sof-group-title">
-                Store preparation <span className="sof-group-owner">Store Manager</span>
-              </h4>
-              <span className="sof-access">{storeAccessLabel}</span>
-              {storeCodesLoaded && canStoreManage && (
-                <Button variant="secondary" onClick={saveStore} loading={storeBusy} disabled={!canWriteStore || !storeDirty || storeBusy}>
-                  Save store details
-                </Button>
-              )}
+            <div className="sof-group-head" style={{ alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <h4 id="sof-h-store" className="sof-group-title" style={{ margin: 0 }}>
+                  Section C: Raw Material Allocation & Packing <span className="sof-group-owner">Store Manager</span>
+                </h4>
+                {verifiedAllocation.shortageCount > 0 ? (
+                  <span style={{
+                    background: '#fee2e2',
+                    color: '#b91c1c',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    padding: '2px 10px',
+                    borderRadius: 999,
+                    border: '1px solid #fecaca'
+                  }}>
+                    • Shortage ({verifiedAllocation.shortageCount})
+                  </span>
+                ) : (
+                  <span style={{
+                    background: '#dcfce7',
+                    color: '#15803d',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    padding: '2px 10px',
+                    borderRadius: 999,
+                    border: '1px solid #bbf7d0'
+                  }}>
+                    ✓ In Stock & Ready
+                  </span>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span className="sof-access">{storeAccessLabel}</span>
+                {storeCodesLoaded && canStoreManage && (
+                  <Button variant="secondary" onClick={saveStore} loading={storeBusy} disabled={!canWriteStore || !storeDirty || storeBusy}>
+                    Save Section C & Proceed
+                  </Button>
+                )}
+              </div>
             </div>
+
             {storeId && !storeCodesLoaded && <p className="field-muted">Checking store access…</p>}
             {storeId && storeCodesLoaded && !canStoreManage && (
               <p className="field-muted">View only for store preparation in this store.</p>
@@ -1399,6 +1629,237 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
             {storeId && storeCodesLoaded && canStoreManage && !savedLineId && (
               <p className="field-muted">Save the order first. Store details are recorded per order line.</p>
             )}
+
+            {/* APPROVED MASTER FORMULA & INVENTORY VERIFICATION CARD (MATCHING SCREENSHOT) */}
+            <div style={{
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: 8,
+              padding: '16px 18px',
+              marginTop: 10,
+              marginBottom: 16
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <span style={{ fontSize: 16 }}>⚖️</span>
+                <h5 style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: '#334155' }}>
+                  Approved Master Formula & Inventory Verification
+                </h5>
+              </div>
+
+              <div style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 16,
+                fontSize: 12,
+                color: '#475569',
+                paddingBottom: 12,
+                borderBottom: '1px solid #e2e8f0'
+              }}>
+                <span><strong>Batch No:</strong> <span style={{ color: '#0284c7', fontWeight: 600 }}>{displayBatchNumber}</span> <span style={{ color: '#94a3b8' }}>(Read-only)</span></span>
+                <span><strong>Product:</strong> {selectedLine?.product?.label || selectedLine?.product?.name || '—'}{selectedLine?.product?.code ? ` (${selectedLine.product.code})` : ''}</span>
+                <span><strong>Order Quantity:</strong> {orderLineQty} units</span>
+                <span><strong>Formula:</strong> {activeRevision ? (activeRevision.formulaCode || 'Formula') + ' (Rev ' + (activeRevision.revisionNumber ?? activeRevision.id) + ')' : batchForm.revisionId ? 'Rev ' + batchForm.revisionId : 'No formula selected'}</span>
+              </div>
+
+              {/* Table */}
+              {(formulaLinesLoading) && (
+                <p style={{ fontSize: 12, color: '#64748b', marginTop: 10 }}>⏳ Loading formula materials…</p>
+              )}
+              {!formulaLinesLoading && rawMaterialLines.length === 0 && (
+                <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 10 }}>
+                  No raw materials found. Select a batch plan or formula revision above to load materials.
+                </p>
+              )}
+              {!formulaLinesLoading && rawMaterialLines.length > 0 && (
+              <div style={{ overflowX: 'auto', marginTop: 12 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                  <thead>
+                    <tr style={{ background: '#f1f5f9', color: '#475569', textAlign: 'left', borderBottom: '1px solid #cbd5e1' }}>
+                      <th style={{ padding: '8px 10px', fontWeight: 700 }}>RAW MATERIAL</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 700 }}>UNIT</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 700 }}>FORMULA QTY (BASE)</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 700 }}>REQUIRED QTY (ORDER)</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 700 }}>AVAILABLE IN INVENTORY</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 700 }}>STATUS</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 700, textAlign: 'center' }}>ALLOCATE / DEDUCT</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {verifiedAllocation.list.map((row) => (
+                      <tr key={row.id} style={{ borderBottom: '1px solid #f1f5f9', background: row.isAllocated ? '#f0fdf4' : '#fff' }}>
+                        <td style={{ padding: '10px 10px' }}>
+                          <strong style={{ color: '#0f172a' }}>{row.name}</strong>
+                          <div style={{ fontSize: 11, color: '#64748b' }}>{row.code}</div>
+                          {row.claim && <div style={{ fontSize: 11, color: '#94a3b8' }}>{row.claim}</div>}
+                        </td>
+                        <td style={{ padding: '10px 10px', color: '#475569' }}>{row.unit}</td>
+                        <td style={{ padding: '10px 10px', color: '#334155', fontWeight: 500 }}>
+                          {row.baseQty ? `${Number(row.baseQty).toLocaleString()} ${row.unit}` : '—'}
+                        </td>
+                        <td style={{ padding: '10px 10px', fontWeight: 700, color: '#0f172a' }}>
+                          {Number(row.requiredQty).toLocaleString()} {row.unit}
+                        </td>
+                        <td style={{ padding: '10px 10px', fontWeight: 600, color: row.isAllocated ? '#15803d' : '#0f172a' }}>
+                          {allocationStockLoading ? (
+                            <span style={{ color: '#64748b' }}>Checking…</span>
+                          ) : (
+                            <>
+                              <span>{Number(row.available).toLocaleString()} {row.unit}</span>
+                              {row.isAllocated && (
+                                <div style={{ fontSize: 10.5, color: '#15803d', marginTop: 1 }}>
+                                  (−{Number(row.requiredQty).toLocaleString()} allocated)
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </td>
+                        <td style={{ padding: '10px 10px' }}>
+                          {row.isAllocated ? (
+                            <span style={{
+                              display: 'inline-block',
+                              background: '#dcfce7',
+                              color: '#15803d',
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                              padding: '2px 8px',
+                              borderRadius: 999
+                            }}>
+                              ✓ Allocated
+                            </span>
+                          ) : row.isShort ? (
+                            <div>
+                              <span style={{
+                                display: 'inline-block',
+                                background: '#fee2e2',
+                                color: '#b91c1c',
+                                fontSize: 11.5,
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: 999
+                              }}>
+                                • Short in Inventory
+                              </span>
+                              <div style={{ fontSize: 11, color: '#b91c1c', fontWeight: 600, marginTop: 2 }}>
+                                Short by {Number(row.diff).toLocaleString()} {row.unit}
+                              </div>
+                            </div>
+                          ) : (
+                            <span style={{
+                              display: 'inline-block',
+                              background: '#dcfce7',
+                              color: '#15803d',
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                              padding: '2px 8px',
+                              borderRadius: 999
+                            }}>
+                              ✓ In Stock
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: '10px 10px', textAlign: 'center' }}>
+                          {row.isAllocated ? (
+                            <button
+                              type="button"
+                              title="Undo allocation — return this material to available stock"
+                              onClick={() => handleDeallocateRow(row.id)}
+                              style={{
+                                background: '#f1f5f9',
+                                color: '#475569',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: 6,
+                                padding: '4px 12px',
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              ↩ Undo
+                            </button>
+                          ) : row.isShort ? (
+                            <span style={{ color: '#d97706', fontWeight: 600, fontSize: 12 }}>⚠️ Needed</span>
+                          ) : (
+                            <button
+                              type="button"
+                              title={`Allocate & deduct ${Number(row.requiredQty).toLocaleString()} ${row.unit} from inventory`}
+                              onClick={() => handleAllocateRow(row.id)}
+                              style={{
+                                background: '#16a34a',
+                                color: '#fff',
+                                border: 'none',
+                                borderRadius: 6,
+                                padding: '4px 14px',
+                                fontSize: 12,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              − Allocate
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              )}
+
+              {/* Status Alert Banner */}
+              <div style={{ marginTop: 14 }}>
+                {verifiedAllocation.shortageCount > 0 ? (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                    background: '#fff1f2',
+                    border: '1px solid #fecdd3',
+                    padding: '10px 14px',
+                    borderRadius: 6,
+                    color: '#9f1239',
+                    fontSize: 12.5
+                  }}>
+                    <span style={{ fontSize: 16 }}>⚠️</span>
+                    <div>
+                      <div style={{ fontWeight: 700 }}>
+                        Cannot proceed: {verifiedAllocation.shortageCount} raw material{verifiedAllocation.shortageCount > 1 ? 's are' : ' is'} not available in inventory.
+                      </div>
+                      <div style={{ marginTop: 2, color: '#881337' }}>
+                        {verifiedAllocation.list.length - verifiedAllocation.shortageCount} of {verifiedAllocation.list.length} materials in stock. Missing items: {verifiedAllocation.shortages.map(s => `${s.name} (${s.diff.toLocaleString()} ${s.unit})`).join(', ')}. Send requests to Inventory before advancing the order.
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                    background: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                    padding: '10px 14px',
+                    borderRadius: 6,
+                    color: '#166534',
+                    fontSize: 12.5
+                  }}>
+                    <span style={{ fontSize: 16 }}>✓</span>
+                    <div>
+                      <div style={{ fontWeight: 700 }}>
+                        All {verifiedAllocation.list.length} raw materials are verified in stock.
+                      </div>
+                      <div style={{ marginTop: 2, color: '#14532d' }}>
+                        Inventory availability confirmed. Save Section C to allocate materials and advance the order to Confirmed stage.
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* PACKAGING & PRIMARY MATERIALS SPECIFICATION */}
+            <h5 style={{ margin: '14px 0 8px', fontSize: 13, fontWeight: 700, color: '#475569' }}>
+              Packaging & Primary Materials Specification
+            </h5>
+
             <div className="inv-form-grid">
               <Field label="Store" htmlFor="sof-store">
                 <select
@@ -1642,7 +2103,14 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
                     id="sof-revision"
                     className="field-input"
                     value={batchForm.revisionId}
-                    onChange={(event) => updateBatchField('revisionId', event.target.value)}
+                    onChange={(event) => {
+                      const nextRevId = event.target.value
+                      updateBatchField('revisionId', nextRevId)
+                      const rev = revisions.find((r) => String(r.id) === String(nextRevId))
+                      if (rev && (!batchForm.target_output_quantity || Number(batchForm.target_output_quantity) <= 0)) {
+                        updateBatchField('target_output_quantity', String(rev.baseOutputQuantity || ''))
+                      }
+                    }}
                     disabled={!canEditBatch}
                   >
                     <option value="">Choose an approved revision</option>
@@ -1756,6 +2224,25 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
               />
             ) : null
           })()}
+          {/* Bottom Action Bar for Batch Section */}
+          {canEditBatch && planId !== null && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 20, paddingTop: 16, borderTop: '1px solid #e2e8f0' }}>
+              {batchMessage && (
+                <span style={{ fontSize: 13, fontWeight: 500, color: batchMessage.includes('not') || batchMessage.includes('Enter') ? '#b91c1c' : '#16a34a', marginRight: 'auto' }}>
+                  {batchMessage}
+                </span>
+              )}
+              <Button
+                variant="primary"
+                onClick={saveBatch}
+                loading={batchBusy}
+                disabled={batchBusy}
+                title="Save batch planning details"
+              >
+                💾 Save Batch Details
+              </Button>
+            </div>
+          )}
           </section>
         </form>
       )}

@@ -1,4 +1,6 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import IntegrityError
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
@@ -7,12 +9,19 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.catalog.permissions import CanReadSharedCatalog
 from apps.common.errors import translate_django_validation_error
 from apps.common.pagination import BoundedPageNumberPagination
+from apps.common.permissions import IsActiveSuperuser
+from apps.common.validation import parse_strict_bool
+from apps.companies.models import Company
 from apps.permissions.services import store_user_has_permission, user_has_permission
 from apps.purchasing.models import PurchaseOrder
-from apps.receiving.models import GoodsReceipt
+from apps.receiving.models import ContainerType, GoodsReceipt
 from apps.receiving.serializers import (
+    ContainerTypeCreateSerializer,
+    ContainerTypeSerializer,
+    ContainerTypeUpdateSerializer,
     EligiblePurchaseOrderSerializer,
     GoodsReceiptCancelSerializer,
     GoodsReceiptCreateSerializer,
@@ -21,11 +30,15 @@ from apps.receiving.serializers import (
     GoodsReceiptVersionSerializer,
 )
 from apps.receiving.services import (
+    activate_container_type,
     cancel_goods_receipt,
     companies_with_po_view_access,
+    create_container_type,
     create_goods_receipt,
+    deactivate_container_type,
     eligible_purchase_orders_for_receiving,
     post_goods_receipt,
+    update_container_type,
     update_goods_receipt,
 )
 from apps.stores.services import active_stores_for_user
@@ -79,6 +92,20 @@ def _get_accessible_purchase_order(user, purchase_order_id):
     return purchase_order
 
 
+def _get_accessible_company_for_manual_receipt(user, company_id):
+    """MANUAL ENTRY MODE's counterpart of _get_accessible_purchase_order
+    (added after Task 09A) - there is no PurchaseOrder to resolve access
+    through, so the caller's chosen company is checked directly against
+    the SAME `purchase_orders.view` permission the PO-based path already
+    requires, for identical authorization strength on both paths. Folds
+    "does not exist" and "no access" into the same 404, same convention.
+    """
+    company = get_object_or_404(Company, pk=company_id)
+    if not user_has_permission(user, company, PURCHASE_ORDERS_VIEW):
+        raise exceptions.NotFound("Company not found.")
+    return company
+
+
 def _check_receipt_company_access(user, goods_receipt):
     """Same fold-into-404 rule as _get_accessible_purchase_order, applied
     to an already-resolved GoodsReceipt's own `company` - a caller who
@@ -125,6 +152,15 @@ class GoodsReceiptListCreateView(generics.ListCreateAPIView):
                 )
             queryset = queryset.filter(status=status_param)
 
+        search = self.request.query_params.get("search", "").strip()
+        if search:
+            queryset = queryset.filter(
+                Q(reference__icontains=search)
+                | Q(supplier_invoice_reference__icontains=search)
+                | Q(delivery_note_reference__icontains=search)
+                | Q(source_purchase_order__reference__icontains=search)
+            )
+
         return queryset.order_by("-created_at", "-id")
 
     def create(self, request, *args, **kwargs):
@@ -135,17 +171,29 @@ class GoodsReceiptListCreateView(generics.ListCreateAPIView):
 
         # Company access is checked here, before the service ever runs -
         # the service itself has no permission awareness (matching every
-        # other service in this project). This also confirms the source
-        # PO is visible to this caller at all, folding a cross-company
-        # or nonexistent id into the same 404.
-        purchase_order = _get_accessible_purchase_order(request.user, data["source_purchase_order_id"])
+        # other service in this project). PO-based: confirms the source
+        # PO is visible to this caller at all, folding a cross-company or
+        # nonexistent id into the same 404. MANUAL ENTRY MODE (added
+        # after Task 09A, no source_purchase_order_id - see
+        # create_goods_receipt's own docstring): the same check applied
+        # directly to the caller's chosen company_id instead.
+        source_purchase_order_id = data.get("source_purchase_order_id")
+        if source_purchase_order_id is not None:
+            purchase_order = _get_accessible_purchase_order(request.user, source_purchase_order_id)
+            company_id = None
+        else:
+            purchase_order = None
+            company_id = _get_accessible_company_for_manual_receipt(request.user, data["company_id"]).id
 
         try:
             goods_receipt = create_goods_receipt(
                 actor=request.user,
                 store=store,
-                source_purchase_order_id=purchase_order.id,
+                source_purchase_order_id=purchase_order.id if purchase_order else None,
+                company_id=company_id,
+                supplier_name=data.get("supplier_name", ""),
                 arrived_at=data["arrived_at"],
+                supplier_invoice_reference=data.get("supplier_invoice_reference", ""),
                 delivery_note_reference=data.get("delivery_note_reference", ""),
                 notes=data.get("notes", ""),
                 idempotency_key=data.get("idempotency_key", ""),
@@ -279,3 +327,104 @@ class EligiblePurchaseOrdersView(generics.ListAPIView):
     def get_queryset(self):
         _get_store_for_action(self.request, self.kwargs["store_id"], RECEIVING_VIEW)
         return eligible_purchase_orders_for_receiving(self.request.user)
+
+
+# ---------------------------------------------------------------------------
+# ContainerType - shared packaging reference data, independent of any
+# store. Mirrors apps.catalog.views' UnitOfMeasure* views exactly: GET is
+# CanReadSharedCatalog (active superuser, or shared_catalog.view in at
+# least one active store), every write is active-superuser-only.
+# ---------------------------------------------------------------------------
+
+
+def _container_type_read_write_permissions(request):
+    return [CanReadSharedCatalog()] if request.method == "GET" else [IsActiveSuperuser()]
+
+
+def _duplicate_container_type_code_error():
+    return exceptions.ValidationError({"code": "A container type with this code already exists."})
+
+
+@method_decorator(never_cache, name="dispatch")
+class ContainerTypeListCreateView(generics.ListCreateAPIView):
+    pagination_class = BoundedPageNumberPagination
+
+    def get_permissions(self):
+        return _container_type_read_write_permissions(self.request)
+
+    def get_serializer_class(self):
+        return ContainerTypeCreateSerializer if self.request.method == "POST" else ContainerTypeSerializer
+
+    def get_queryset(self):
+        queryset = ContainerType.objects.all()
+
+        search = self.request.query_params.get("search", "").strip()
+        if search:
+            queryset = queryset.filter(Q(code__icontains=search) | Q(name__icontains=search))
+
+        is_active_param = self.request.query_params.get("is_active")
+        if is_active_param is not None:
+            queryset = queryset.filter(is_active=parse_strict_bool(is_active_param))
+
+        return queryset.order_by("code", "id")
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            container_type = create_container_type(actor=request.user, **serializer.validated_data)
+        except DjangoValidationError as exc:
+            raise translate_django_validation_error(exc) from exc
+        except IntegrityError:
+            raise _duplicate_container_type_code_error()
+        return Response(ContainerTypeSerializer(container_type).data, status=201)
+
+
+@method_decorator(never_cache, name="dispatch")
+class ContainerTypeDetailView(APIView):
+    def get_permissions(self):
+        return _container_type_read_write_permissions(self.request)
+
+    def get(self, request, container_type_id):
+        container_type = get_object_or_404(ContainerType, pk=container_type_id)
+        return Response(ContainerTypeSerializer(container_type).data)
+
+    def patch(self, request, container_type_id):
+        container_type = get_object_or_404(ContainerType, pk=container_type_id)
+        serializer = ContainerTypeUpdateSerializer(container_type, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        try:
+            container_type = update_container_type(
+                actor=request.user, container_type=container_type, data=serializer.validated_data
+            )
+        except DjangoValidationError as exc:
+            raise translate_django_validation_error(exc) from exc
+        return Response(ContainerTypeSerializer(container_type).data)
+
+
+@method_decorator(never_cache, name="dispatch")
+class ContainerTypeActivateView(APIView):
+    permission_classes = [IsActiveSuperuser]
+
+    def post(self, request, container_type_id):
+        container_type = get_object_or_404(ContainerType, pk=container_type_id)
+        container_type = activate_container_type(actor=request.user, container_type=container_type)
+        return Response(ContainerTypeSerializer(container_type).data)
+
+
+@method_decorator(never_cache, name="dispatch")
+class ContainerTypeDeactivateView(APIView):
+    """Rejected (400) while any active Material still references this
+    container type as its default - see
+    apps.receiving.services.deactivate_container_type.
+    """
+
+    permission_classes = [IsActiveSuperuser]
+
+    def post(self, request, container_type_id):
+        container_type = get_object_or_404(ContainerType, pk=container_type_id)
+        try:
+            container_type = deactivate_container_type(actor=request.user, container_type=container_type)
+        except DjangoValidationError as exc:
+            raise translate_django_validation_error(exc) from exc
+        return Response(ContainerTypeSerializer(container_type).data)

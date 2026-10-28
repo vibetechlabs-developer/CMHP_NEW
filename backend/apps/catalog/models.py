@@ -1,3 +1,5 @@
+from decimal import Decimal
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -152,10 +154,23 @@ class Material(models.Model):
     class Kind(models.TextChoices):
         RAW_MATERIAL = "RAW_MATERIAL", "Raw material"
         PACKAGING_MATERIAL = "PACKAGING_MATERIAL", "Packaging material"
+        MOTHER_TINCTURE = "MOTHER_TINCTURE", "Mother Tincture"
 
     code = models.CharField(max_length=32, unique=True)
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
+    # Grade/specification is deliberately NOT a field here - a real,
+    # versioned, QC-gated specification identity already exists at
+    # apps.quality.MaterialSpecification (code/name/description + test
+    # criteria, one material may have several). Adding a second, simpler
+    # free-text "specification" field on Material itself would duplicate
+    # that system rather than reuse it - the Material Master UI instead
+    # links out to the existing material-specifications API/screen (see
+    # frontend CommonMaterialsTab.jsx). "Different grades are different
+    # Material rows, each with its own unique code" (this model's own
+    # identity rule below) is the separate, already-complete answer for
+    # grade-as-identity; this field would have been grade-as-description,
+    # which is what MaterialSpecification already is.
     kind = models.CharField(max_length=20, choices=Kind.choices)
     category = models.ForeignKey(
         MaterialCategory,
@@ -168,6 +183,22 @@ class Material(models.Model):
         UnitOfMeasure,
         on_delete=models.PROTECT,
         related_name="materials",
+    )
+    # Optional default container type for packaging – does not affect unit conversion.
+    default_container_type = models.ForeignKey(
+        "receiving.ContainerType",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="materials_default",
+    )
+    alcohol_percentage = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        default=Decimal("0.00"),
+        help_text="Alcohol content percentage (% v/v) present in this material, used for C1*V1 = C2*V2 batch deduction.",
     )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -192,19 +223,10 @@ class Material(models.Model):
             errors["kind"] = f"Kind must be one of {list(self.Kind.values)}."
         if not self.base_unit_id:
             errors["base_unit"] = "Base unit is required."
-        if self.pk:
-            original = (
-                Material.objects.filter(pk=self.pk)
-                .values("code", "kind", "base_unit_id")
-                .first()
-            )
-            if original is not None:
-                if original["code"] != self.code:
-                    errors["code"] = "Code cannot be changed after creation."
-                if original["kind"] != self.kind:
-                    errors["kind"] = "Kind cannot be changed after creation."
-                if original["base_unit_id"] != self.base_unit_id:
-                    errors["base_unit"] = "Base unit cannot be changed after creation."
+        if self.alcohol_percentage is not None and (self.alcohol_percentage < 0 or self.alcohol_percentage > 100):
+            errors["alcohol_percentage"] = "Alcohol percentage must be between 0 and 100."
+        if self.code and Material.objects.filter(code=self.code).exclude(pk=self.pk).exists():
+            errors["code"] = "A material with this code already exists."
         if errors:
             raise ValidationError(errors)
 
@@ -220,6 +242,63 @@ class Material(models.Model):
         # not a data-shape rule enforced here - it depends on *why* the
         # row is being saved (create vs. reactivate vs. an unrelated field
         # update), which this method has no way to distinguish.
+        self.clean()
+        super().save(*args, **kwargs)
+
+
+class MaterialReorderSetting(models.Model):
+    """A store-scoped reorder threshold for one material - deliberately
+    NOT a field on Material itself. The material catalog is shared across
+    every store (Material has no store FK at all - see its own
+    docstring), but stock/receipts are always store-scoped, so "below
+    reorder level" can only ever mean something at one specific store,
+    never globally. One optional row per (store, material); its absence
+    means "not configured for this store", never a reorder level of zero.
+
+    Setting/changing this value is bookkeeping only: it never creates,
+    reads, or implies a stock movement, and is never used anywhere to
+    compute a stock-status filter on the shared material list itself
+    (that list has no store context and no authoritative balance to
+    compare against - see apps.catalog.views.MaterialListCreateView's own
+    stock_status rejection, unchanged by this model's existence).
+    """
+
+    store = models.ForeignKey(
+        "stores.SharedStore",
+        on_delete=models.CASCADE,
+        related_name="material_reorder_settings",
+    )
+    material = models.ForeignKey(
+        Material,
+        on_delete=models.CASCADE,
+        related_name="reorder_settings",
+    )
+    reorder_level = models.DecimalField(max_digits=14, decimal_places=3)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["store", "material"], name="unique_store_material_reorder_setting"),
+            models.CheckConstraint(
+                check=models.Q(reorder_level__gte=0),
+                name="material_reorder_level_nonnegative",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.store_id}/{self.material_id}={self.reorder_level}"
+
+    def clean(self):
+        if self.reorder_level is not None and self.reorder_level < 0:
+            raise ValidationError({"reorder_level": "Reorder level cannot be negative."})
+
+    def save(self, *args, **kwargs):
         self.clean()
         super().save(*args, **kwargs)
 

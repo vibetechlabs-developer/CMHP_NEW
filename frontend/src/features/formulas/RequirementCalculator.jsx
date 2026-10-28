@@ -27,7 +27,7 @@ export default function RequirementCalculator({ companyId, formulaId, revisionId
 
   const calculate = async () => {
     const trimmed = String(target).trim()
-    if (!trimmed) {
+    if (!planId && !trimmed) {
       setError('Enter a target batch output quantity.')
       return
     }

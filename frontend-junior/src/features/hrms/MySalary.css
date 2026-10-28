@@ -1,0 +1,199 @@
+.my-salary-card {
+  overflow: hidden;
+}
+
+.my-salary-toolbar {
+  display: flex;
+
+  justify-content: space-between;
+  align-items: flex-end;
+
+  gap: 20px;
+
+  padding-bottom: 20px;
+
+  border-bottom:
+    1px solid #e3edf3;
+}
+
+.my-salary-toolbar h2 {
+  margin: 0 0 6px;
+}
+
+.my-salary-toolbar p {
+  margin: 0;
+  color: #71879a;
+}
+
+.my-salary-month {
+  display: grid;
+  gap: 6px;
+}
+
+.my-salary-month label,
+.my-salary-label {
+  color: #71879a;
+
+  font-size: 11px;
+  font-weight: 800;
+
+  text-transform: uppercase;
+
+  letter-spacing: .08em;
+}
+
+.my-salary-month input {
+  min-width: 170px;
+
+  border:
+    1px solid #cfe0ea;
+
+  border-radius: 10px;
+
+  padding: 10px 12px;
+
+  color: #183d60;
+  background: #fff;
+}
+
+.my-salary-status-row {
+  display: grid;
+
+  grid-template-columns:
+    repeat(3, 1fr);
+
+  gap: 14px;
+
+  padding: 20px 0;
+}
+
+.my-salary-status-row > div {
+  display: grid;
+
+  gap: 5px;
+
+  padding: 16px;
+
+  border:
+    1px solid #e0ecf2;
+
+  border-radius: 12px;
+
+  background: #f9fcfe;
+}
+
+.my-salary-paid,
+.my-salary-unpaid {
+  width: fit-content;
+
+  padding: 5px 10px;
+
+  border-radius: 999px;
+
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.my-salary-paid {
+  color: #15803d;
+  background: #e9f8ef;
+}
+
+.my-salary-unpaid {
+  color: #b45309;
+  background: #fff5df;
+}
+
+.my-salary-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(3, 1fr);
+
+  gap: 12px;
+}
+
+.my-salary-grid > div {
+  display: flex;
+
+  justify-content: space-between;
+
+  gap: 12px;
+
+  padding: 14px 16px;
+
+  border:
+    1px solid #e3edf3;
+
+  border-radius: 10px;
+}
+
+.my-salary-grid span {
+  color: #71879a;
+}
+
+.my-salary-footer {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 20px;
+
+  margin-top: 20px;
+
+  padding-top: 20px;
+
+  border-top:
+    1px solid #e3edf3;
+}
+
+.my-salary-footer > div:first-child {
+  display: grid;
+  gap: 5px;
+}
+
+.my-salary-footer span {
+  color: #71879a;
+  font-size: 13px;
+}
+
+.my-salary-actions {
+  display: flex;
+
+  flex-wrap: wrap;
+
+  justify-content: flex-end;
+
+  gap: 8px;
+}
+
+.my-salary-empty {
+  padding: 35px 10px;
+
+  text-align: center;
+
+  color: #71879a;
+}
+
+.my-salary-empty p {
+  margin-bottom: 0;
+}
+
+@media (max-width: 900px) {
+  .my-salary-toolbar,
+  .my-salary-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .my-salary-status-row,
+  .my-salary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .my-salary-actions {
+    justify-content: flex-start;
+  }
+}

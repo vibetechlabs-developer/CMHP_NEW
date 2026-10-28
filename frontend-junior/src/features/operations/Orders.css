@@ -1,0 +1,827 @@
+
+/* =========================================================
+   CMHP PHARMA ERP - ORDERS / CUSTOMER MANAGEMENT
+   PROFESSIONAL UI OVERRIDES
+   ========================================================= */
+
+.orders-page {
+  width: 100%;
+  min-height: 100%;
+  box-sizing: border-box;
+  color: #183f5c;
+  background: transparent;
+}
+
+
+/* =========================================================
+   HEADER / HERO
+   ========================================================= */
+
+.orders-header {
+  position: relative;
+
+  width: 100%;
+  min-height: 250px;
+
+  display: flex;
+  align-items: center;
+
+  overflow: hidden;
+
+  margin-bottom: 20px;
+
+  padding: 36px 38px;
+
+  box-sizing: border-box;
+
+  border: 1px solid #d9e9f3;
+  border-radius: 20px;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.98) 0%,
+      rgba(255, 255, 255, 0.94) 30%,
+      rgba(255, 255, 255, 0.62) 58%,
+      rgba(255, 255, 255, 0.08) 100%
+    ),
+    url('/pharma-banner.png');
+
+  background-size: cover;
+  background-position: center;
+
+  box-shadow: 0 7px 24px rgba(32, 91, 132, 0.07);
+}
+
+
+.orders-header-content {
+  position: relative;
+  z-index: 2;
+
+  width: 52%;
+  max-width: 620px;
+}
+
+
+.orders-eyebrow {
+  display: block;
+
+  margin-bottom: 7px;
+
+  color: #147bc1;
+
+  font-size: 11px;
+  font-weight: 850;
+
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+}
+
+
+.orders-header h1 {
+  margin: 0;
+
+  color: #123f61;
+
+  font-size: 34px;
+  font-weight: 850;
+
+  line-height: 1.1;
+
+  letter-spacing: -0.5px;
+}
+
+
+.orders-header p {
+  max-width: 560px;
+
+  margin: 12px 0 0;
+
+  color: #496b83;
+
+  font-size: 14px;
+  font-weight: 500;
+
+  line-height: 1.6;
+}
+
+
+/* Decorative mark */
+
+.orders-header-mark {
+  position: absolute;
+
+  right: 42px;
+  top: 50%;
+
+  width: 90px;
+  height: 90px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  transform: translateY(-50%);
+
+  border-radius: 50%;
+
+  background: rgba(255, 255, 255, 0.35);
+
+  pointer-events: none;
+}
+
+
+.orders-header-mark span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 52px;
+  height: 52px;
+
+  border-radius: 50%;
+
+  color: rgba(33, 134, 217, 0.18);
+
+  font-size: 38px;
+  font-weight: 300;
+}
+
+/* =========================================================
+   CUSTOMER SEARCH + ADD CUSTOMER
+   ========================================================= */
+
+/*
+ * The order form currently uses an inline flex wrapper for
+ * Customer + Add customer. These selectors target only that
+ * customer row and keep the search field wider than the button.
+ */
+
+.inv-form-grid .field > div[style*="align-items: flex-end"] {
+  display: flex !important;
+  align-items: flex-end !important;
+  gap: 10px !important;
+  width: 100%;
+}
+
+.inv-form-grid .field > div[style*="align-items: flex-end"] > div[style*="flex: 1"] {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  width: auto !important;
+}
+
+.inv-form-grid .field > div[style*="align-items: flex-end"] .field-input {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 42px !important;
+  box-sizing: border-box;
+}
+
+/* =========================================================
+   ADD CUSTOMER BUTTON
+   ========================================================= */
+
+.inv-form-grid .field > div[style*="align-items: flex-end"] > .btn {
+  flex: 0 0 auto !important;
+  min-width: 108px !important;
+  min-height: 42px !important;
+  padding: 9px 13px !important;
+  border-radius: 9px !important;
+  white-space: nowrap !important;
+}
+
+/* =========================================================
+   CUSTOMER SEARCH FIELD HOVER / FOCUS
+   ========================================================= */
+
+.inv-form-grid .field > div[style*="align-items: flex-end"] .field-input:hover {
+  border-color: #a9c9dd;
+}
+
+.inv-form-grid .field > div[style*="align-items: flex-end"] .field-input:focus {
+  border-color: #318bd1;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(49, 139, 209, 0.10);
+
+  background: #ffffff;
+}
+
+/* =========================================================
+   CUSTOMER SEARCH ROW - GENERIC SUPPORT
+   ========================================================= */
+
+.order-customer-select-row {
+  display: flex;
+
+  align-items: flex-end;
+
+  gap: 10px;
+
+  width: 100%;
+}
+
+.order-customer-select-row .field {
+  flex: 1;
+
+  min-width: 0;
+}
+
+.order-customer-select-row .field-input {
+  width: 100%;
+}
+
+.order-customer-search-row {
+  display: flex;
+
+  align-items: flex-end;
+
+  width: 100%;
+
+  gap: 10px;
+}
+
+.order-customer-search-control {
+  flex: 1 1 auto;
+
+  min-width: 0;
+
+  width: 100%;
+}
+
+.customer-search-field {
+  position: relative;
+
+  z-index: 30;
+
+  width: 100%;
+
+  min-width: 0;
+}
+
+.customer-search-field .customer-search-control,
+.customer-search-field .customer-search-select {
+  width: 100%;
+
+  min-width: 0;
+}
+
+/* =========================================================
+   CUSTOMER ACTIONS
+   EDIT = LIGHT YELLOW / APP THEME
+   DELETE = RED
+   ========================================================= */
+
+.customer-actions {
+  display: inline-flex;
+
+  align-items: center;
+
+  justify-content: flex-start;
+
+  gap: 7px;
+
+  flex-wrap: wrap;
+
+  padding: 4px;
+
+  background: #f8fbfd;
+
+  border:
+    1px solid #e2edf3;
+
+  border-radius: 9px;
+
+  box-shadow:
+    0 2px 7px
+    rgba(30, 72, 100, 0.05);
+}
+
+.customer-actions .company-link,
+.customer-actions .company-link.danger {
+  display: inline-flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  min-width: 58px;
+
+  min-height: 31px;
+
+  padding: 6px 11px;
+
+  margin: 0;
+
+  border-radius: 7px;
+
+  font-family: inherit;
+
+  font-size: 9px;
+
+  font-weight: 800;
+
+  line-height: 1;
+
+  white-space: nowrap;
+
+  cursor: pointer;
+
+  text-decoration: none;
+
+  transition:
+    color 0.16s ease,
+    background 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+/* =========================================================
+   CUSTOMER EDIT / DELETE & ORDER TABLE ACTIONS
+   ========================================================= */
+
+.customer-actions .company-link:not(.danger),
+.table-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0284c7;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.4;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.customer-actions .company-link:not(.danger):hover:not(:disabled),
+.table-edit:hover:not(:disabled) {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+  color: #0369a1;
+  text-decoration: none;
+}
+
+.customer-actions .company-link.danger,
+.table-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #e11d48;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.4;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.customer-actions .company-link.danger:hover:not(:disabled),
+.table-delete:hover:not(:disabled) {
+  background: #ffe4e6;
+  border-color: #fda4af;
+  color: #be123c;
+  text-decoration: none;
+}
+
+.customer-actions .company-link:disabled,
+.table-edit:disabled,
+.table-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+/* =========================================================
+   SALES ORDER ACTIONS
+   ========================================================= */
+
+.sales-order-actions {
+  display: inline-flex;
+
+  align-items: center;
+
+  justify-content: flex-start;
+
+  gap: 7px;
+
+  flex-wrap: wrap;
+
+  padding: 4px;
+
+  background: #f8fbfd;
+
+  border:
+    1px solid #e2edf3;
+
+  border-radius: 9px;
+
+  box-shadow:
+    0 2px 7px
+    rgba(30, 72, 100, 0.05);
+}
+
+.sales-order-actions .btn {
+  min-height: 31px;
+
+  padding: 6px 11px;
+
+  border-radius: 7px;
+
+  font-size: 9px;
+
+  box-shadow: none;
+}
+
+/* =========================================================
+   SALES ORDER EDIT
+   ========================================================= */
+
+.sales-order-actions .btn-secondary {
+  color: #8b5d00;
+
+  background: #fff8e5;
+
+  border-color: #e5c66f;
+}
+
+.sales-order-actions .btn-secondary:hover:not(:disabled) {
+  color: #704b00;
+
+  background: #ffefbf;
+
+  border-color: #d6b34e;
+}
+
+/* =========================================================
+   SALES ORDER DELETE
+   ========================================================= */
+
+.sales-order-actions .btn-danger {
+  color: #bf3042;
+
+  background: #fff1f3;
+
+  border-color: #edb8c0;
+}
+
+.sales-order-actions .btn-danger:hover:not(:disabled) {
+  color: #a32133;
+
+  background: #ffe2e6;
+
+  border-color: #dd8d99;
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 768px) {
+
+  .order-customer-select-row,
+  .order-customer-search-row {
+    flex-direction: column;
+
+    align-items: stretch;
+  }
+
+  .order-customer-select-row button,
+  .order-customer-search-row .btn {
+    width: 100%;
+  }
+
+  .inv-form-grid .field > div[style*="align-items: flex-end"] {
+    flex-direction: column;
+
+    align-items: stretch !important;
+  }
+
+  .inv-form-grid .field > div[style*="align-items: flex-end"] > div[style*="flex: 1"],
+  .inv-form-grid .field > div[style*="align-items: flex-end"] > .btn {
+    width: 100% !important;
+
+    min-width: 0 !important;
+
+    flex: 1 1 auto !important;
+  }
+
+  .customer-actions,
+  .sales-order-actions {
+    gap: 6px;
+  }
+}
+
+@media (max-width: 480px) {
+
+  .customer-actions .company-link,
+  .customer-actions .company-link.danger,
+  .table-edit,
+  .table-delete,
+  .sales-order-actions .btn {
+    min-height: 30px;
+
+    padding: 5px 9px;
+  }
+}
+
+
+/* =========================================================
+   ORDER CUSTOMER SEARCH ROW
+   ========================================================= */
+
+.order-customer-row {
+
+  display: flex;
+
+  align-items: flex-end;
+
+  gap: 10px;
+
+  width: 100%;
+
+}
+
+
+.order-customer-search {
+
+  flex: 1 1 auto;
+
+  min-width: 0;
+
+}
+
+
+.order-customer-search .field-input {
+
+  width: 100% !important;
+
+  min-height: 42px;
+
+}
+
+
+/* =========================================================
+   ADD CUSTOMER BUTTON
+   ========================================================= */
+
+.order-customer-add-btn {
+
+  flex:
+    0 0 122px;
+
+  min-width: 122px;
+
+  min-height: 42px;
+
+  white-space: nowrap;
+
+}
+
+
+/* =========================================================
+   SEARCH INPUT
+   ========================================================= */
+
+.order-customer-search input {
+
+  width: 100% !important;
+
+  min-height: 42px !important;
+
+  box-sizing: border-box;
+
+}
+
+
+/* =========================================================
+   CUSTOMER DROPDOWN
+   ========================================================= */
+
+.order-customer-search [role="listbox"] {
+
+  border:
+    1px solid #d4e2eb !important;
+
+  border-radius: 10px !important;
+
+  box-shadow:
+    0 14px 35px
+    rgba(25, 70, 100, 0.15) !important;
+
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 768px) {
+
+  .order-customer-row {
+
+    flex-direction: column;
+
+    align-items: stretch;
+
+  }
+
+  .order-customer-add-btn {
+
+    width: 100%;
+
+    flex: 1 1 auto;
+
+  }
+
+}
+
+/* =========================================================
+   SALES ORDERS TABLE ENHANCEMENTS
+   Clean, modern and even UI
+   ========================================================= */
+
+.orders-page .inv-table td {
+  vertical-align: middle !important;
+  padding: 12px 14px !important;
+}
+
+.orders-page .inv-table th {
+  font-size: 11px !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.6px !important;
+  text-transform: uppercase !important;
+  color: #475569 !important;
+  padding: 12px 14px !important;
+  white-space: nowrap !important;
+}
+
+.so-ref-badge {
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e3a5f;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  padding: 4px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.so-items-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 220px;
+}
+
+.so-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.so-item-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.so-item-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.so-item-code {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #64748b;
+  background: #ffffff;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  flex-shrink: 0;
+  letter-spacing: 0.2px;
+}
+
+.so-item-qty {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #0369a1;
+  background: #e0f2fe;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid #bae6fd;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.so-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.so-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.so-status-confirmed {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+.so-status-confirmed .so-status-dot {
+  background: #10b981;
+}
+
+.so-status-draft {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+.so-status-draft .so-status-dot {
+  background: #94a3b8;
+}
+
+.so-status-cancelled {
+  background: #fff1f2;
+  color: #be123c;
+  border: 1px solid #fecdd3;
+}
+.so-status-cancelled .so-status-dot {
+  background: #f43f5e;
+}
+
+.so-btn-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0284c7;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.so-btn-edit:hover {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+  color: #0369a1;
+}
+
+.so-btn-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #e11d48;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.so-btn-delete:hover {
+  background: #ffe4e6;
+  border-color: #fda4af;
+  color: #be123c;
+}

@@ -22,6 +22,7 @@ from apps.suppliers.services import (
     activate_supplier,
     create_supplier,
     deactivate_supplier,
+    delete_supplier,
     update_supplier,
 )
 
@@ -92,6 +93,14 @@ class SupplierDetailView(APIView):
         except DjangoValidationError as exc:
             raise translate_django_validation_error(exc) from exc
         return Response(SupplierSerializer(supplier).data)
+
+    def delete(self, request, supplier_id):
+        supplier = get_object_or_404(Supplier, pk=supplier_id)
+        try:
+            delete_supplier(actor=request.user, supplier=supplier)
+        except DjangoValidationError as exc:
+            raise translate_django_validation_error(exc) from exc
+        return Response(status=204)
 
 
 @method_decorator(never_cache, name="dispatch")

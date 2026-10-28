@@ -10,7 +10,7 @@ import { activateCustomer, createCustomer, deactivateCustomer, getCustomer, upda
 import { getErrorMessage } from '../../utils/errors'
 
 function emptyForm() {
-  return { code: '', name: '', contact_person: '', email: '', phone: '', billing_address: '', shipping_address: '', notes: '' }
+  return { code: '', name: '', contact_person: '', email: '', phone: '', city: '', gst_number: '', billing_address: '', shipping_address: '', notes: '' }
 }
 
 function parseFieldErrors(error) {
@@ -50,6 +50,8 @@ export default function CustomerFormModal({ realCompanyId, customerId, canEdit, 
           contact_person: customer.contact_person || '',
           email: customer.email || '',
           phone: customer.phone || '',
+          city: customer.city || '',
+          gst_number: customer.gst_number || customer.gst_no || '',
           billing_address: customer.billing_address || '',
           shipping_address: customer.shipping_address || '',
           notes: customer.notes || '',
@@ -174,6 +176,8 @@ export default function CustomerFormModal({ realCompanyId, customerId, canEdit, 
         <Input label="Contact Person" value={form.contact_person} onChange={(e) => updateField('contact_person', e.target.value)} disabled={readOnly} error={fieldErrors.contact_person} />
         <Input label="Email" type="email" value={form.email} onChange={(e) => updateField('email', e.target.value)} disabled={readOnly} error={fieldErrors.email} />
         <Input label="Phone" value={form.phone} onChange={(e) => updateField('phone', e.target.value)} disabled={readOnly} error={fieldErrors.phone} />
+        <Input label="City" value={form.city} onChange={(e) => updateField('city', e.target.value)} disabled={readOnly} error={fieldErrors.city} placeholder="e.g. Ahmedabad" />
+        <Input label="GST No" value={form.gst_number} onChange={(e) => updateField('gst_number', e.target.value.toUpperCase())} disabled={readOnly} error={fieldErrors.gst_number || fieldErrors.gst_no} placeholder="e.g. 24AAAAA0000A1Z5" />
         <div className="field">
           <label className="field-label">Billing Address</label>
           <textarea className="field-input" rows={2} value={form.billing_address} onChange={(e) => updateField('billing_address', e.target.value)} disabled={readOnly} />

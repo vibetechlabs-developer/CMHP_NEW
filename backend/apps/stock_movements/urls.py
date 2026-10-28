@@ -1,6 +1,25 @@
 from django.urls import path
 
-from apps.stock_movements.views import StockBalanceListView, StockMovementListView
+from apps.stock_movements.views import (
+    AvailableToIssueView,
+    CutoverStockDraftListCreateView,
+    MaterialIssueCancelView,
+    MaterialIssueDetailView,
+    MaterialIssueListCreateView,
+    MaterialIssueMovementListView,
+    MaterialIssuePostView,
+    MaterialRegisterView,
+    MaterialReturnListView,
+    PhysicalCountDraftListCreateView,
+    ProductionCustodyClassifyDefectView,
+    ProductionCustodyConsumeView,
+    ProductionCustodyDetailView,
+    ProductionCustodyDisposeView,
+    ProductionCustodyListView,
+    ProductionCustodyReturnView,
+    StockBalanceListView,
+    StockMovementListView,
+)
 
 urlpatterns = [
     path(
@@ -12,5 +31,85 @@ urlpatterns = [
         "<int:store_id>/stock-balances/",
         StockBalanceListView.as_view(),
         name="stock-balance-list",
+    ),
+    path(
+        "<int:store_id>/materials/<int:material_id>/register/",
+        MaterialRegisterView.as_view(),
+        name="material-register",
+    ),
+    path(
+        "<int:store_id>/material-issues/available/",
+        AvailableToIssueView.as_view(),
+        name="material-issue-available",
+    ),
+    path(
+        "<int:store_id>/material-issues/",
+        MaterialIssueListCreateView.as_view(),
+        name="material-issue-list-create",
+    ),
+    path(
+        "<int:store_id>/material-issues/<int:issue_id>/",
+        MaterialIssueDetailView.as_view(),
+        name="material-issue-detail",
+    ),
+    path(
+        "<int:store_id>/material-issues/<int:issue_id>/post/",
+        MaterialIssuePostView.as_view(),
+        name="material-issue-post",
+    ),
+    path(
+        "<int:store_id>/material-issues/<int:issue_id>/cancel/",
+        MaterialIssueCancelView.as_view(),
+        name="material-issue-cancel",
+    ),
+    path(
+        "<int:store_id>/material-issue-movements/",
+        MaterialIssueMovementListView.as_view(),
+        name="material-issue-movement-list",
+    ),
+    path(
+        "<int:store_id>/production-custody/",
+        ProductionCustodyListView.as_view(),
+        name="production-custody-list",
+    ),
+    path(
+        "<int:store_id>/production-custody/<int:custody_id>/",
+        ProductionCustodyDetailView.as_view(),
+        name="production-custody-detail",
+    ),
+    path(
+        "<int:store_id>/production-custody/<int:custody_id>/consume/",
+        ProductionCustodyConsumeView.as_view(),
+        name="production-custody-consume",
+    ),
+    path(
+        "<int:store_id>/production-custody/<int:custody_id>/classify-defect/",
+        ProductionCustodyClassifyDefectView.as_view(),
+        name="production-custody-classify-defect",
+    ),
+    path(
+        "<int:store_id>/production-custody/<int:custody_id>/return/",
+        ProductionCustodyReturnView.as_view(),
+        name="production-custody-return",
+    ),
+    path(
+        "<int:store_id>/production-custody/<int:custody_id>/dispose/",
+        ProductionCustodyDisposeView.as_view(),
+        name="production-custody-dispose",
+    ),
+    path(
+        "<int:store_id>/material-returns/",
+        MaterialReturnListView.as_view(),
+        name="material-return-list",
+    ),
+    path(
+        "<int:store_id>/physical-count-drafts/",
+        PhysicalCountDraftListCreateView.as_view(),
+        name="physical-count-draft-list-create",
+    ),
+    path(
+        "<int:store_id>/cutover-stock-drafts/",
+        CutoverStockDraftListCreateView.as_view(),
+        name="cutover-stock-draft-list-create",
     ),
 ]

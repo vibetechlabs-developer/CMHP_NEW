@@ -4,16 +4,15 @@ import { useNavigate } from 'react-router-dom'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
 import Spinner, { LoadingState } from '../../components/Spinner'
-import Modal from '../inventory/components/Modal'
 import { confirmAction } from '../../components/ConfirmProvider'
 import { getErrorMessage } from '../../utils/errors'
 import { getStorePermissionCodes } from '../operations/storePreparationService'
+import InwardStockModal from './InwardStockModal'
+import { listContainerTypes } from './storeService'
 import './ReceivingTab.css'
 import {
   cancelGoodsReceipt,
-  createGoodsReceipt,
   getGoodsReceipt,
-  listEligiblePurchaseOrders,
   listGoodsReceipts,
   postGoodsReceipt,
   updateGoodsReceipt,
@@ -159,7 +158,7 @@ function ReceivingList({ storeId, codes }) {
       )}
 
       {creating && (
-        <NewReceiptModal
+        <InwardStockModal
           storeId={storeId}
           onClose={() => setCreating(false)}
           onCreated={(receipt) => {
@@ -169,186 +168,6 @@ function ReceivingList({ storeId, codes }) {
         />
       )}
     </div>
-  )
-}
-
-function NewReceiptModal({ storeId, onClose, onCreated }) {
-  const [pos, setPos] = useState({ loading: true, results: [], error: '' })
-  const [selectedPo, setSelectedPo] = useState(null)
-  const [arrivedAt, setArrivedAt] = useState(() => toLocalDateTimeInput(new Date().toISOString()))
-  const [deliveryNoteReference, setDeliveryNoteReference] = useState('')
-  const [notes, setNotes] = useState('')
-  const [quantities, setQuantities] = useState({}) // {source_po_line_id: {received_quantity, lot_reference}}
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const savingRef = useRef(false)
-  // Generated once per modal instance, reused on every retry of the same
-  // submission - a double-click or a network retry of the same create
-  // call is then a safe no-op server-side (see apps.receiving.services.
-  // create_goods_receipt's idempotency_key handling) instead of creating
-  // two receipts for one delivery.
-  const idempotencyKeyRef = useRef(`${Date.now()}-${Math.random().toString(36).slice(2)}`)
-
-  useEffect(() => {
-    listEligiblePurchaseOrders(storeId, { pageSize: 50 })
-      .then((data) => setPos({ loading: false, results: data.results, error: '' }))
-      .catch((err) => setPos({ loading: false, results: [], error: getErrorMessage(err) }))
-  }, [storeId])
-
-  const selectPo = (po) => {
-    setSelectedPo(po)
-    setQuantities({})
-  }
-
-  const setLineValue = (lineId, field, value) => {
-    setQuantities((prev) => ({ ...prev, [lineId]: { ...prev[lineId], [field]: value } }))
-  }
-
-  const create = async () => {
-    if (savingRef.current || !selectedPo) return
-    savingRef.current = true
-    const lines = selectedPo.delivery_progress
-      .map((line) => {
-        const entry = quantities[line.source_po_line_id]
-        const qty = entry?.received_quantity
-        if (!qty || Number(qty) <= 0) return null
-        return {
-          source_po_line_id: line.source_po_line_id,
-          received_quantity: qty,
-          lot_reference: entry?.lot_reference || '',
-        }
-      })
-      .filter(Boolean)
-
-    setSaving(true)
-    setError('')
-    try {
-      const receipt = await createGoodsReceipt(storeId, {
-        source_purchase_order_id: selectedPo.id,
-        arrived_at: new Date(arrivedAt).toISOString(),
-        delivery_note_reference: deliveryNoteReference.trim(),
-        notes: notes.trim(),
-        idempotency_key: idempotencyKeyRef.current,
-        lines,
-      })
-      onCreated(receipt)
-    } catch (err) {
-      setError(getErrorMessage(err))
-    } finally {
-      savingRef.current = false
-      setSaving(false)
-    }
-  }
-
-  return (
-    <Modal
-      title="New goods receipt"
-      size="lg"
-      onClose={saving ? undefined : onClose}
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={create} disabled={saving || !selectedPo || !arrivedAt} loading={saving}>
-            Create draft
-          </Button>
-        </>
-      }
-    >
-      {error && <Alert type="error">{error}</Alert>}
-
-      {!selectedPo ? (
-        <>
-          <p className="field-muted">Pick the purchase order this delivery is against.</p>
-          {pos.error && <Alert type="error">{pos.error}</Alert>}
-          {pos.loading ? (
-            <LoadingState label="Loading eligible purchase orders…" compact />
-          ) : pos.results.length === 0 ? (
-            <p className="field-muted">No eligible purchase order found - it must be ISSUED and visible to you.</p>
-          ) : (
-            <div className="inv-table-scroll">
-              <table className="inv-table">
-                <thead><tr><th>Reference</th><th>Company</th><th>Supplier</th><th>Expected delivery</th><th></th></tr></thead>
-                <tbody>
-                  {pos.results.map((po) => (
-                    <tr key={po.id}>
-                      <td className="cell-strong">{po.reference}</td>
-                      <td>{po.company_code}</td>
-                      <td>{po.supplier_code}</td>
-                      <td>{po.expected_delivery_date || '—'}</td>
-                      <td><button type="button" className="table-edit" onClick={() => selectPo(po)}>Select</button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
-      ) : (
-        <>
-          <p className="field-muted">
-            <strong>{selectedPo.reference}</strong> · {selectedPo.company_code} · {selectedPo.supplier_code}{' '}
-            <button type="button" className="table-edit" onClick={() => setSelectedPo(null)}>Change purchase order</button>
-          </p>
-          <div className="inv-form-grid">
-            <div className="field">
-              <label className="field-label" htmlFor="recv-arrived">Arrived at *</label>
-              <input id="recv-arrived" className="field-input" type="datetime-local" value={arrivedAt} onChange={(e) => setArrivedAt(e.target.value)} required />
-            </div>
-            <div className="field">
-              <label className="field-label" htmlFor="recv-delivery-note">Delivery note reference</label>
-              <input id="recv-delivery-note" className="field-input" value={deliveryNoteReference} onChange={(e) => setDeliveryNoteReference(e.target.value)} maxLength={100} />
-            </div>
-            <div className="field">
-              <label className="field-label" htmlFor="recv-notes">Notes</label>
-              <input id="recv-notes" className="field-input" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={2000} />
-            </div>
-          </div>
-
-          <div className="inv-section-label">Lines - enter the actual received quantity for each line you are recording now; leave the rest blank</div>
-          <div className="inv-table-scroll">
-            <table className="inv-table">
-              <thead>
-                <tr><th>Material</th><th>Unit</th><th>Ordered</th><th>Remaining</th><th>Received now</th><th>Lot reference</th></tr>
-              </thead>
-              <tbody>
-                {selectedPo.delivery_progress.map((line) => (
-                  <tr key={line.source_po_line_id}>
-                    <td>{line.material_code_snapshot} · {line.material_name_snapshot}</td>
-                    <td>{line.unit_code_snapshot}</td>
-                    <td style={{ textAlign: 'right' }}>{line.ordered_quantity}</td>
-                    <td style={{ textAlign: 'right' }}>{line.remaining_quantity}</td>
-                    <td>
-                      <input
-                        className="field-input"
-                        type="number"
-                        step="any"
-                        min="0"
-                        value={quantities[line.source_po_line_id]?.received_quantity || ''}
-                        onChange={(e) => setLineValue(line.source_po_line_id, 'received_quantity', e.target.value)}
-                        disabled={line.delivery_status === 'FULLY_RECEIVED'}
-                        placeholder={line.delivery_status === 'FULLY_RECEIVED' ? 'Fully received' : '0'}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        className="field-input"
-                        value={quantities[line.source_po_line_id]?.lot_reference || ''}
-                        onChange={(e) => setLineValue(line.source_po_line_id, 'lot_reference', e.target.value)}
-                        maxLength={100}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="field-muted">
-            Over-receipt beyond what remains outstanding is rejected when you post - verify quantities carefully.
-            A line left blank here can still be added later while the receipt is a draft.
-          </p>
-        </>
-      )}
-    </Modal>
   )
 }
 
@@ -367,9 +186,14 @@ function ReceiptDetail({ storeId, receiptId, codes }) {
   const [cancelReason, setCancelReason] = useState('')
   const [showCancelForm, setShowCancelForm] = useState(false)
   const [notice, setNotice] = useState('')
+  const [containerTypes, setContainerTypes] = useState([])
   const savingRef = useRef(false)
   const postingRef = useRef(false)
   const cancellingRef = useRef(false)
+
+  useEffect(() => {
+    listContainerTypes().then(setContainerTypes).catch(() => setContainerTypes([]))
+  }, [])
 
   const load = async () => {
     setLoading(true)
@@ -393,12 +217,15 @@ function ReceiptDetail({ storeId, receiptId, codes }) {
   const startEdit = () => {
     setForm({
       arrived_at: toLocalDateTimeInput(receipt.arrived_at),
+      supplier_invoice_reference: receipt.supplier_invoice_reference || '',
       delivery_note_reference: receipt.delivery_note_reference,
       notes: receipt.notes,
       lines: receipt.lines.map((l) => ({
         source_po_line_id: l.source_po_line_id,
         received_quantity: l.received_quantity,
         lot_reference: l.lot_reference || '',
+        container_type_id: l.container_type_id || '',
+        container_quantity: l.container_quantity || '',
         material_code: l.material_code,
         material_name: l.material_name,
         unit_code: l.unit_code,
@@ -418,12 +245,15 @@ function ReceiptDetail({ storeId, receiptId, codes }) {
       const updated = await updateGoodsReceipt(storeId, receiptId, {
         expected_version: receipt.version,
         arrived_at: new Date(form.arrived_at).toISOString(),
+        supplier_invoice_reference: form.supplier_invoice_reference.trim(),
         delivery_note_reference: form.delivery_note_reference.trim(),
         notes: form.notes.trim(),
         lines: form.lines.map((l) => ({
           source_po_line_id: l.source_po_line_id,
           received_quantity: l.received_quantity,
           lot_reference: l.lot_reference,
+          container_type_id: l.container_type_id ? Number(l.container_type_id) : null,
+          container_quantity: l.container_quantity ? Number(l.container_quantity) : null,
         })),
       })
       setReceipt(updated)
@@ -567,8 +397,12 @@ function ReceiptDetail({ storeId, receiptId, codes }) {
               <input id="recv-edit-arrived" className="field-input" type="datetime-local" value={form.arrived_at} onChange={(e) => setForm({ ...form, arrived_at: e.target.value })} required />
             </div>
             <div className="field">
+              <label className="field-label" htmlFor="recv-edit-invoice-ref">Supplier invoice number</label>
+              <input id="recv-edit-invoice-ref" className="field-input" value={form.supplier_invoice_reference} onChange={(e) => setForm({ ...form, supplier_invoice_reference: e.target.value })} maxLength={100} placeholder="If the invoice is already available" />
+            </div>
+            <div className="field">
               <label className="field-label" htmlFor="recv-edit-note">Delivery note reference</label>
-              <input id="recv-edit-note" className="field-input" value={form.delivery_note_reference} onChange={(e) => setForm({ ...form, delivery_note_reference: e.target.value })} maxLength={100} />
+              <input id="recv-edit-note" className="field-input" value={form.delivery_note_reference} onChange={(e) => setForm({ ...form, delivery_note_reference: e.target.value })} maxLength={100} placeholder="If no invoice yet" />
             </div>
             <div className="field">
               <label className="field-label" htmlFor="recv-edit-notes">Notes</label>
@@ -577,7 +411,7 @@ function ReceiptDetail({ storeId, receiptId, codes }) {
           </div>
           <div className="inv-table-scroll">
             <table className="inv-table">
-              <thead><tr><th>Material</th><th>Unit</th><th>Received quantity</th><th>Lot reference</th></tr></thead>
+              <thead><tr><th>Material</th><th>Unit</th><th>Received quantity</th><th>Lot reference</th><th>Container</th><th>Container qty</th></tr></thead>
               <tbody>
                 {form.lines.map((line, index) => (
                   <tr key={line.source_po_line_id}>
@@ -609,9 +443,40 @@ function ReceiptDetail({ storeId, receiptId, codes }) {
                         maxLength={100}
                       />
                     </td>
+                    <td>
+                      <select
+                        className="field-input"
+                        value={line.container_type_id}
+                        onChange={(e) => {
+                          const next = [...form.lines]
+                          next[index] = { ...line, container_type_id: e.target.value }
+                          setForm({ ...form, lines: next })
+                        }}
+                      >
+                        <option value="">—</option>
+                        {containerTypes.map((ct) => (
+                          <option key={ct.id} value={ct.id}>{ct.name}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <input
+                        className="field-input"
+                        type="number"
+                        step="1"
+                        min="1"
+                        value={line.container_quantity}
+                        onChange={(e) => {
+                          const next = [...form.lines]
+                          next[index] = { ...line, container_quantity: e.target.value }
+                          setForm({ ...form, lines: next })
+                        }}
+                        placeholder="Count"
+                      />
+                    </td>
                   </tr>
                 ))}
-                {form.lines.length === 0 && <tr><td colSpan={4} style={{ textAlign: 'center' }}>No lines yet.</td></tr>}
+                {form.lines.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center' }}>No lines yet.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -624,12 +489,13 @@ function ReceiptDetail({ storeId, receiptId, codes }) {
         <>
           <div className="inv-form-grid">
             <div className="field"><span className="field-label">Arrived at</span><div className="field-input field-readonly">{receipt.arrived_at ? new Date(receipt.arrived_at).toLocaleString() : '—'}</div></div>
+            <div className="field"><span className="field-label">Supplier invoice number</span><div className="field-input field-readonly">{receipt.supplier_invoice_reference || '—'}</div></div>
             <div className="field"><span className="field-label">Delivery note reference</span><div className="field-input field-readonly">{receipt.delivery_note_reference || '—'}</div></div>
             <div className="field"><span className="field-label">Notes</span><div className="field-input field-readonly">{receipt.notes || '—'}</div></div>
           </div>
           <div className="inv-table-scroll">
             <table className="inv-table">
-              <thead><tr><th>Material</th><th>Unit</th><th style={{ textAlign: 'right' }}>Received quantity</th><th>Lot reference</th></tr></thead>
+              <thead><tr><th>Material</th><th>Unit</th><th style={{ textAlign: 'right' }}>Received quantity</th><th>Lot reference</th><th>Container</th></tr></thead>
               <tbody>
                 {receipt.lines.map((line) => (
                   <tr key={line.id}>
@@ -637,9 +503,10 @@ function ReceiptDetail({ storeId, receiptId, codes }) {
                     <td>{line.unit_code}</td>
                     <td style={{ textAlign: 'right' }}>{line.received_quantity}</td>
                     <td>{line.lot_reference || '—'}</td>
+                    <td>{line.container_type_code ? `${line.container_type_code}${line.container_quantity ? ` × ${line.container_quantity}` : ''}` : '—'}</td>
                   </tr>
                 ))}
-                {receipt.lines.length === 0 && <tr><td colSpan={4} style={{ textAlign: 'center' }}>No lines recorded.</td></tr>}
+                {receipt.lines.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center' }}>No lines recorded.</td></tr>}
               </tbody>
             </table>
           </div>

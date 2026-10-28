@@ -23,6 +23,7 @@ from apps.stores.views import (
     StoreOverviewView,
     StoreRoleAssignmentDeactivateView,
     StoreRoleAssignmentListCreateView,
+    StoreSummaryView,
 )
 
 urlpatterns = [
@@ -40,6 +41,7 @@ urlpatterns = [
         name="store-my-permissions",
     ),
     path("<int:store_id>/overview/", StoreOverviewView.as_view(), name="store-overview"),
+    path("<int:store_id>/summary/", StoreSummaryView.as_view(), name="store-summary"),
     path(
         "<int:store_id>/roles/",
         StoreRoleListCreateView.as_view(),

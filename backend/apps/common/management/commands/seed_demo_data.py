@@ -83,7 +83,7 @@ COMMERCIAL_PERMS = (
     "sales_orders.create",
     "sales_orders.edit",
 )
-FORMULA_COMPANY_PERMS = ("products.view", "formulas.view", "formulas.create", "formulas.edit")
+FORMULA_COMPANY_PERMS = ("products.view", "formulas.view", "formulas.create", "formulas.edit", "formulas.submit")
 # Material lookup (GET /api/v1/materials/) is a shared, store-permissioned
 # catalog read - it needs shared_catalog.view through an active STORE
 # membership, not any company permission.

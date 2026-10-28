@@ -12,6 +12,7 @@ from apps.common.pagination import BoundedPageNumberPagination
 from apps.companies.services import active_companies_for_user
 from apps.permissions.services import user_has_permission
 from apps.purchasing.models import PurchaseOrder, PurchaseRequest
+from apps.suppliers.models import Supplier
 from apps.purchasing.serializers import (
     PurchaseOrderCancelSerializer,
     PurchaseOrderCreateSerializer,
@@ -406,11 +407,12 @@ class PurchaseOrderListCreateView(generics.ListCreateAPIView):
             purchase_order = create_purchase_order(
                 actor=request.user,
                 company=company,
-                source_purchase_request_id=data["source_purchase_request_id"],
+                source_purchase_request_id=data.get("source_purchase_request_id"),
                 supplier_id=data["supplier_id"],
                 currency_code=data["currency_code"],
                 expected_delivery_date=data.get("expected_delivery_date"),
                 notes=data.get("notes", ""),
+                direct_lines=data.get("lines") or None,
             )
         except DjangoValidationError as exc:
             raise translate_django_validation_error(exc) from exc
@@ -510,3 +512,34 @@ class PurchaseOrderIssueView(APIView):
             raise translate_django_validation_error(exc) from exc
         purchase_order = _purchase_order_queryset().get(pk=purchase_order.pk)
         return Response(PurchaseOrderSerializer(purchase_order).data)
+
+
+@method_decorator(never_cache, name="dispatch")
+class PurchasingSupplierListView(APIView):
+    """List active suppliers available for purchasing (PO creation).
+    Available to users with purchasing view/create permissions for the company.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, company_id):
+        _get_company_for_action(
+            request,
+            company_id,
+            PURCHASE_ORDERS_VIEW,
+            PURCHASE_ORDERS_CREATE,
+            PURCHASE_REQUESTS_VIEW,
+        )
+        suppliers = Supplier.objects.filter(is_active=True).order_by("code")
+        return Response(
+            [
+                {
+                    "id": s.id,
+                    "code": s.code,
+                    "name": s.display_name or s.legal_name,
+                    "legal_name": s.legal_name,
+                    "display_name": s.display_name,
+                }
+                for s in suppliers
+            ]
+        )

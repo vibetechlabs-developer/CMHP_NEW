@@ -190,6 +190,9 @@ class FormulaRevision(models.Model):
         related_name="formula_revisions_approved",
     )
     approved_at = models.DateTimeField(null=True, blank=True)
+    # Optional free-text remarks the approver may attach (e.g. "Stoichiometric
+    # calculations verified against SOP/QA/04/F-02/00"). Not required.
+    approval_remarks = models.CharField(max_length=2000, blank=True, default="")
     approval_policy_version = models.PositiveIntegerField(null=True, blank=True)
     approval_policy_snapshot = models.JSONField(null=True, blank=True)
     approved_identity_snapshot = models.JSONField(null=True, blank=True)
@@ -331,6 +334,7 @@ class FormulaLine(models.Model):
     quantity = models.DecimalField(max_digits=14, decimal_places=3)
     unit = models.ForeignKey(UnitOfMeasure, on_delete=models.PROTECT, related_name="formula_lines")
     notes = models.CharField(max_length=500, blank=True)
+    potency = models.CharField(max_length=60, blank=True, default="")
     # Client-defined free text, entered per formula line. Not used in any calculation -
     # unrelated to label_claim_quantity/label_claim_uom below, which ARE used (only
     # in AS_PER_LABEL_CLAIM mode). This free-text field still holds things like

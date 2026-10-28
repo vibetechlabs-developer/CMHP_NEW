@@ -1,0 +1,396 @@
+/* Order workspace only. The modal chrome, grid, fields and buttons come from
+   the shared reference styles (inv-modal*, inv-form-grid, field*, btn*).
+   Overrides here are limited to the workspace width and the few
+   order-specific controls. */
+
+.inv-modal-workspace,
+.inv-modal.inv-modal-workspace,
+.sof-order-modal .inv-modal,
+.sof-order-modal.inv-modal {
+  width: min(1200px, calc(100vw - 48px)) !important;
+  max-width: 1200px !important;
+  height: auto;
+  max-height: calc(100dvh - 48px);
+}
+
+.sof-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.sof-batch-bar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sof-batch-select {
+  flex: 1 1 320px;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.sof-batch-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sof-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sof-link {
+  padding: 0;
+  color: #1478c9;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sof-link:disabled {
+  color: #9aacba;
+  cursor: not-allowed;
+}
+
+.sof-link-danger {
+  color: #b42318;
+}
+
+.sof-inline {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.sof-inline .field-readonly {
+  flex: 1 1 auto;
+}
+
+.sof-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.sof-section-label {
+  margin-top: 4px;
+  color: #496277;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sof-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sof-line {
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid #dfe8ee;
+  border-radius: 10px;
+}
+
+.sof-line.is-selected {
+  border-color: #72add0;
+  box-shadow: 0 0 0 3px rgba(20, 120, 201, 0.07);
+}
+
+.sof-line-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  color: #33506a;
+}
+
+.sof-line .inv-form-grid {
+  row-gap: 8px;
+}
+
+.sof-calc {
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 11px;
+  color: #33506a;
+  background: #f5f8fa;
+  border: 1px solid #e1eaf0;
+  border-radius: 8px;
+}
+
+.sof-calc strong {
+  color: #163b59;
+}
+
+.sof-sep {
+  margin: 0 8px;
+  color: #9aacba;
+}
+
+.field-readonly {
+  display: flex;
+  align-items: center;
+  min-height: 39px;
+  padding: 8px 11px;
+  color: #405b70 !important;
+  background: #f3f6f8 !important;
+  border: 1px solid #dde6ed !important;
+  border-radius: 8px;
+  font-size: 10.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field-readonly.is-muted {
+  color: #8593a0 !important;
+  font-style: normal;
+}
+
+.field-muted {
+  margin: 0;
+  color: #6b7f95;
+  font-size: 11px;
+}
+
+.field-error {
+  color: #b42318;
+  font-size: 10px;
+}
+
+.field-status {
+  margin-right: auto;
+  min-width: 0;
+  color: #6b7f95;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .inv-modal-workspace {
+    width: 100vw;
+    max-height: 100dvh;
+  }
+
+  .sof-pair {
+    grid-template-columns: 1fr;
+  }
+
+  .sof-batch-actions {
+    width: 100%;
+  }
+}
+
+.sof-customer-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sof-customer-picker {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sof-add-customer {
+  flex: none;
+  white-space: nowrap;
+}
+
+.inv-modal-workspace .field-status {
+  margin: 0 0 4px;
+  min-height: 0;
+}
+
+.inv-modal-workspace .sof-customer-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.inv-modal-workspace .sof-add-customer {
+  height: 44px;
+  padding: 0 14px;
+  font-size: 11px;
+}
+
+.sof-reasons {
+  margin: 0;
+  padding: 0 0 0 16px;
+  color: #6b7f95;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.sof-reasons-blocking {
+  color: #b42318;
+}
+
+.sof-reasons-info {
+  color: #6b7f95;
+}
+
+.sof-status-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.sof-status-draft {
+  background: #fff8ec;
+  color: #8a5a00;
+  border: 1px solid #f2d3a2;
+}
+
+.sof-status-confirmed {
+  background: #eaf7ef;
+  color: #1d7a3d;
+  border: 1px solid #bfe3cb;
+}
+
+.sof-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sof-review {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #e3ebf1;
+  border-radius: 8px;
+  background: #f8fbfd;
+}
+
+.sof-subtotal {
+  margin: 0;
+  font-size: 13px;
+  color: #163b59;
+}
+
+.sof-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid #e3ebf1;
+}
+
+.sof-group:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.sof-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sof-group-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #163b59;
+}
+
+.sof-group-owner {
+  font-weight: 500;
+  color: #6b7f95;
+}
+
+@media (max-width: 720px) {
+  .sof-group-head {
+    flex-wrap: wrap;
+  }
+}
+
+/* Neutral per-section access label (replaces raw permission-code banners). */
+.sof-group-head .sof-access {
+  margin-left: auto;
+  font-size: 12px;
+  color: #6b7f95;
+  white-space: nowrap;
+}
+
+.sof-group-head .sof-access + .btn {
+  margin-left: 12px;
+}
+
+/* First batch plan action and unit-load retry. */
+.sof-create-plan {
+  margin-top: 6px;
+}
+
+.sof-retry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Legacy batch-specific store record: read-only, clearly separate. */
+.sof-legacy {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px dashed #c9d6e2;
+  border-radius: 8px;
+}
+
+/* Success popup after saving an order. */
+.sof-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 35, 55, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Above the workspace modal overlay (z-index 9999). */
+  z-index: 10050;
+}
+
+.sof-popup {
+  background: #fff;
+  border-radius: 14px;
+  padding: 24px 28px;
+  width: min(380px, calc(100vw - 48px));
+  box-shadow: 0 18px 48px rgba(15, 35, 55, 0.25);
+  text-align: center;
+}
+
+.sof-popup h3 {
+  margin: 0 0 8px;
+  color: #0f3a5f;
+}
+
+.sof-popup p {
+  margin: 0 0 18px;
+  color: #3d5870;
+}

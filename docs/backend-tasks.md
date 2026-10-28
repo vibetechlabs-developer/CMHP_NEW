@@ -5591,3 +5591,218 @@ New request serializers: `MaterialRequisitionApproveSerializer` (`expected_versi
 - Tests: `tests/test_department_workflow.py` (14 tests). Affected existing modules re-run: batch plans, sales orders, store preparation, catalog, batch-number allocation, store permissions.
 - Known pre-existing failure: `tests.test_store_permissions` scope-filter tests compare one page (default size 20) against the full COMPANY-scope set (39 rows). Not caused by this change.
 - Not done in this pass: draft-order delete; requisition submit/approve/reject/revise UI; batch register display of the new fields; Postman collection and API dashboard regeneration; browser verification.
+
+## Shared Material Stock & Inventory Workflow — Slice 1: container metadata, supplier invoice reference, and a real Receiving screen (2026-10-09)
+
+**Context.** This session inherited concurrent, uncommitted, in-progress work in `apps.receiving`/`apps.catalog`
+(a `ContainerType` model, `GoodsReceiptLine.container_type`/`container_quantity`, `Material.
+default_container_type`) started by a parallel process. That work was verified by direct code reading
+(not trusted from any report), found genuinely real but half-finished, and completed rather than redone or
+discarded, per this project's "preserve concurrent work" rule.
+
+**What was already there (verified, kept unchanged):** the model fields themselves, `apps.receiving.services.
+_validate_lines`/`_create_lines`'s container validation/save path, and the serializer fields on
+`GoodsReceiptLineSerializer`.
+
+**What was missing and has now been added:**
+- `ContainerType` lifecycle: `name`/`is_active`/`created_at`/`updated_at` fields (the in-progress version had
+  only `code`/`description`, with no activate/deactivate concept at all - inconsistent with every other
+  reference-data model in this project). Migration `receiving.0003`.
+- A real `ContainerType` API, mirroring `UnitOfMeasure`'s exactly: `GET/POST /api/v1/container-types/`,
+  `GET/PATCH /api/v1/container-types/<id>/`, `.../activate/`, `.../deactivate/` (read: `CanReadSharedCatalog`;
+  write: `IsActiveSuperuser`). Deactivation is rejected while an active `Material` still references it as
+  `default_container_type`. Routed via a new small `apps/receiving/container_type_urls.py`, mounted at
+  `/api/v1/` directly (not under the store-scoped `goods-receipts` paths, which would have wrongly implied
+  store scoping) - see `config/urls.py`.
+- Django Admin registration (`ContainerTypeAdmin`, read-only - writes go through the API only, mirroring
+  `UnitOfMeasureAdmin`).
+- Idempotent seed migration `receiving.0004` for the six container types the business brief named as examples
+  (Bag, Drum, Tin, Bottle, Box, Other) - get_or_create, reversible only if unreferenced, same convention as
+  every permission-seed migration in this project.
+- **A real bug fix**: `MaterialSerializer.default_container_type_id` used a plain `source="default_container_
+  type.id"`, which raises an uncaught `AttributeError` (500) for every material with none set - i.e. every
+  material that existed before this field was added. Fixed to a `SerializerMethodField`, the exact same fix
+  `category_id`/`category_code` already needed and already document in this file's own code comments.
+- **The write path that never existed**: `default_container_type_id` was readable but could never be set.
+  Added to `MaterialCreateSerializer`/`MaterialUpdateSerializer`, with the same "reject a newly-assigned
+  inactive reference, but never reject keeping an existing one that has since become inactive" rule
+  `category_id` already follows (`apps.catalog.services.create_material`/`update_material`).
+- `GoodsReceipt.supplier_invoice_reference` (new field, independent of the existing `delivery_note_reference`
+  - "a supplier invoice number when available, a separate alternative reference when it is not", per the
+  brief - neither is ever inferred from the other). Migration `receiving.0003`. **A second real bug**: the
+  field existed on the model/serializers but `apps.receiving.views.GoodsReceiptListCreateView.create()` never
+  passed it to `create_goods_receipt()` (hand-picked kwargs, not `**data`) - meaning it was silently dropped on
+  every create regardless of what the client sent. Fixed in the view, the service's signature/body,
+  `_create_header_with_unique_reference`, the idempotency-retry comparison, and `_header_snapshot` (audit/
+  no-op detection). `update_goods_receipt` already read generically from `data` and needed only the one new
+  `if "supplier_invoice_reference" in data` branch.
+- A real, working **Receiving screen** in the frontend (previously entirely absent - the only prior "goods
+  receipt" UI anywhere was the unrelated, fully mock `features/supplyChain/SupplyChain.jsx`, which must not be
+  mistaken for this). See the frontend handoff doc for detail.
+
+**Migration status - IMPORTANT, not yet applied to the running app's database.** The live `manage.py runserver`
+process (confirmed via read-only process inspection, PID at the time of writing) is configured with
+`DB_NAME=cmhp_new_dev`. Against that database: `receiving.0001`/`0002` are applied (the in-progress
+`ContainerType`/container-field migration this session inherited), but **`receiving.0003`
+(container-type lifecycle fields + `supplier_invoice_reference`) and `receiving.0004` (seed data) are NOT
+applied**. Until they are, `ContainerType` rows in `cmhp_new_dev` have no `name`/`is_active` columns and zero
+seeded rows, and `GoodsReceipt` has no `supplier_invoice_reference` column - meaning **every** goods-receipt
+query (not just the new fields) will error against that database once this code is loaded, because Django's
+ORM selects every model field, not just the ones a given request happens to touch. This session did not run
+`migrate` against `cmhp_new_dev` - per this project's explicit constraint, that requires separate authorization
+naming the target database. The two migrations are additive only (new nullable columns, a new table, idempotent
+seed data) - no destructive operation, no data loss risk - but still require that authorization before being
+applied to a database already in active use.
+
+**Verification.** Both new migrations confirmed via `makemigrations --check --dry-run` (no drift against the
+current model state) and applied + exercised in an isolated scratch database (`cmhp_new_claude_inventory_verify`,
+not `cmhp_new_dev` and not the shared `test_cmhp_new_dev` another concurrent process was actively using at the
+time - confirmed via `pg_stat_activity` before choosing a separate name, to avoid colliding with that other
+session's own test run). New test file `tests/test_container_types.py` (12 tests: seed data, create/duplicate-
+code/immutable-code/activate-deactivate/deactivate-blocked-while-referenced for `ContainerType`, and the
+previously-impossible `Material.default_container_type` create/update/clear/reject-inactive paths, including an
+explicit regression test for the `AttributeError` bug above). 6 new tests added to `tests/test_receiving.py`
+(container fields on create/update, invoice vs. delivery-note independence, unknown/inactive container type
+rejected, positive-container-quantity enforced). **Full result: `tests.test_container_types` +
+`tests.test_receiving` together, 83 tests, OK, Python exit code 0** (isolated database). No other backend app's
+model/service/view was touched, so no other app's suite was re-run.
+
+**Frontend.** 180/180 existing+new frontend tests pass (32 files); `vite build` and lint both clean (lint exit
+0; only pre-existing warning patterns). See `docs/frontend-api-handoff.md`'s new section for the full screen/API
+mapping.
+
+**Deliberately not done in this slice** (see `docs/erp-handoff-open-decisions.md` for the policy questions this
+depends on, and the audit's own precedent for treating these as genuine open decisions rather than guessed
+defaults): explicit price basis/currency on a goods receipt line (the existing code deliberately excludes all
+commercial data from this app today, repeatedly, by design - changing that is a real policy decision, not an
+additive field); opening stock / period reporting / cutover; material issue, production custody, consumption,
+returns, defects, disposal (no `StockMovement` kind beyond `RECEIPT_IN` exists yet - this is genuinely
+greenfield, not partially built); physical counts.
+Browser verification: **NOT VERIFIED** - no browser tool was available in this session.
+
+**Same-day follow-up: migration applied, API verified live, and a dedicated Material Register endpoint added.**
+
+- `receiving.0003`/`0004` applied to `cmhp_new_dev` under explicit authorization, after a verified `pg_dump`
+  backup (`cmhp_new_dev_pre_receiving0003_<timestamp>.dump`, confirmed readable and containing the expected
+  table-data sections via `pg_restore --list`) and a pre-flight `sqlmigrate`/`migrate --plan` re-check (no other
+  migration pending anywhere in the project). Row counts preserved exactly: `GoodsReceipt` 4→4,
+  `GoodsReceiptLine` 4→4, `Material` 17→17; the 4 existing `GoodsReceipt` rows were backfilled with
+  `supplier_invoice_reference=''` by the migration's own `DEFAULT ''` clause (verified via `sqlmigrate`'s
+  printed SQL before applying, not assumed). 6 `ContainerType` rows seeded (Bag/Drum/Tin/Bottle/Box/Other).
+  Live API re-verified against the running `cmhp_new_dev`-backed server (read-only GETs, two real demo
+  accounts, no writes): `GET /api/v1/container-types/` → 200 with the 6 seeded codes;
+  `GET /api/v1/stores/5/goods-receipts/` → 200, all 4 existing receipts now carry `supplier_invoice_reference`;
+  `GET /api/v1/materials/` → 200 for all 17 materials (the `AttributeError` bug confirmed fixed live, not just
+  in tests).
+- **New: `GET /api/v1/stores/<store_id>/materials/<material_id>/register/`** (`apps/stock_movements`) - a
+  dedicated, store+material-scoped register, authorized explicitly as not needing to wait on cutover/opening-
+  stock/issue-movement-type decisions (it reuses only the existing `RECEIPT_IN` ledger, decomposed by period).
+  Returns `opening` (every `RECEIPT_IN` strictly before `posted_from` - empty, never zero-defaulted, if
+  `posted_from` is omitted), `period_received` (the existing `posted_from`/`posted_to` window, identical to
+  `stock-balances`' own number for the same filters), and `closing` (every `RECEIPT_IN` up to and including
+  `posted_to`, computed independently from the ledger, verified in tests to agree algebraically with
+  opening + period rather than assumed), each grouped by `(unit, source_company)` and permission-filtered
+  before aggregation exactly like the existing `stock-balances` endpoint - plus the same paginated movement
+  history, narrowed to this one material. `StockMovementSerializer` gained `container_type_code`/
+  `container_quantity` (traversed read-only through the existing `source_receipt_line` FK -
+  `SerializerMethodField`, not a naive `source=`, to avoid the exact `AttributeError` class just fixed for
+  `Material.default_container_type_id`) and `source_invoice_reference`/`source_delivery_note_reference`. No
+  model/migration change - purely new service (`material_register_balances`) + view + URL, additive to
+  `apps.stock_movements`. 13 new tests in `tests/test_stock_movements.py` (opening/period/closing split and
+  algebraic cross-check, empty-opening-without-start-date, single-material scoping, container/invoice exposure
+  and null-safety, 404 for an unknown material, access parity with the existing endpoints, unknown-param
+  rejection, coverage notice, pagination). **Full `tests.test_stock_movements`: 44 tests, OK, exit 0** (run
+  against a freshly-created isolated database, not `--keepdb` - an earlier `--keepdb` attempt surfaced a false
+  failure from a pre-existing, unrelated `TransactionTestCase` flushing seeded `PermissionDefinition` rows on
+  teardown; documented here so it is not mistaken for a real regression next time this suite is re-run with
+  `--keepdb`). `makemigrations --check --dry-run`: no changes (no model touched).
+- **Price basis / currency - inspected, not implemented, by design.** `PurchaseOrderLine.unit_price` +
+  `PurchaseOrder.currency_code` already fully capture an authoritative, editable, per-unit price for every
+  receipt's source PO line - no "per container" price basis exists anywhere in this codebase today, on the PO
+  or elsewhere. **No new editable receipt-level price field is needed** - the existing PO data is already the
+  single source of truth. The only remaining question is a **display policy**, not a data-model one: every
+  serializer this app exposes today (`GoodsReceiptSerializer`, `EligiblePurchaseOrderSerializer`,
+  `DeliveryProgressLineSerializer`) repeatedly and deliberately states it shows "no supplier price/line
+  amount/currency" - this is reinforced in multiple independent docstrings, not an oversight. Reading the
+  existing PO line's price/currency through onto the register (`source_receipt_line.source_po_line.unit_price`,
+  already joinable with zero new fields) is technically trivial, but would reverse that repeated, explicit
+  boundary. **Precise question for the client**: should the Material Register/receipt screens display the
+  linked PO line's existing unit price and currency (read-only, exactly as already authorized on the PO
+  itself), or should receiving/stock screens continue to show zero commercial data, as every one of them does
+  today? This was deliberately left unanswered rather than guessed - no code change was made either way.
+- Frontend: `getMaterialRegister()` (new, `frontend/src/features/store/storeService.js`) and
+  `MaterialRegisterPage.jsx`'s `Register` component rewritten to call it directly, replacing the previous
+  two-endpoint-plus-a-manual-all-history-comparison approach with the new endpoint's three explicitly separate
+  `opening`/`periodReceived`/`closing` sections (never merged, never shown as one number) plus the movement
+  table's new container/invoice-reference columns. 180/180 frontend tests pass (32 files, including updated
+  `storeWorkspace.test.jsx` assertions for the new data source); `vite build` and lint both clean.
+- Manual UI checklist (no browser tool available this session - **NOT VERIFIED** by browser, only by direct
+  API calls and code review): sign in as a user holding `receiving.*`+`stock.view`+`purchase_orders.view` →
+  Store & Materials → Materials → Add/Edit a material → pick a Default container type → Save → reload the list
+  → confirm the "Default container" column shows it → open Receiving → + New receipt → pick an eligible PO →
+  enter a received quantity, a container type/count and a supplier invoice number on a line → Create draft →
+  Edit the draft → Post → confirm the success message and the "Recorded Receipts" link → open the material's
+  Register (`/inventory/materials/<id>`) → set a date range → confirm Opening/Received this period/Closing
+  render as three separate tables, and the movement row shows the container and invoice reference just
+  entered.
+
+## Material Master completion — store-scoped reorder level (2026-10-13)
+
+Scoped to `apps.catalog` only, alongside a concurrent, unrelated task on the Common Inventory Dashboard
+(`apps.stock_movements`'s production-custody/physical-count-draft additions - untouched by this entry).
+
+**New model**: `MaterialReorderSetting(store, material, reorder_level, updated_by)` - a reorder threshold is
+never a field on the shared `Material` master (no store context exists there at all), so it is its own row,
+one optional per `(store, material)` (`UniqueConstraint`), `reorder_level >= 0`
+(`CheckConstraint`+`clean()`). Migration `apps/catalog/migrations/0006_materialreordersetting.py` - additive
+only, **not applied** (`showmigrations` confirms `[ ]`).
+
+**New permission**: `materials.manage_reorder_level` (STORE scope), seeded by
+`apps/permissions/migrations/0035_seed_material_reorder_permission.py` (idempotent, same `get_or_create`
+pattern as every prior seed migration; granted to no role). Reading the setting needs only the pre-existing
+`stock.view` in the store.
+
+**New endpoint**: `GET/PUT /api/v1/stores/<store_id>/materials/<material_id>/reorder-setting/`
+(`MaterialReorderSettingView` in `apps/catalog/views.py`, routed via a new, small
+`apps/catalog/store_urls.py` - same "second urls module mounted at a different prefix" pattern
+`apps/receiving/container_type_urls.py` already uses - included once, additively, from `config/urls.py`).
+GET is never a 404 when unconfigured (`{"reorder_level": null, ...}` instead) - absence is a normal state. PUT
+rejects unknown fields (400), matching `_reject_prohibited_fields` used throughout this module.
+
+**Specification/grade — investigated, reused rather than duplicated.** A simpler free-text
+`Material.specification` field was drafted first, before discovering `apps.quality.MaterialSpecification` (a
+real, versioned, audited, superuser-only specification identity already fully wired at
+`/api/v1/material-specifications/...`, confirmed by its own existing, passing test suite,
+`tests/test_material_specifications.py`). The draft field was **reverted** (model docstring addition
+explaining why, migration deleted and regenerated without it) before being applied anywhere. No new
+specification endpoint or field was added to `Material`.
+
+**Verification**: `python manage.py check` clean. New `tests/test_material_reorder_setting.py` (11 tests:
+GET absence-not-404, store-scoped read/write permission gating, negative-value rejection, update-replaces
+semantics, store isolation between two stores for the same material, no `StockMovement` row created by
+setting it, audit entry scoped to the store, prohibited-field rejection, anonymous 401) - all pass. Full
+existing suite re-run for regression: `tests.test_catalog`, `tests.test_material_catalog_capability`,
+`tests.test_material_imports`, `tests.test_material_specifications` - **192/192 pass**, confirming the
+specification-field revert left no trace and the reorder-setting addition is fully additive. All runs used an
+isolated database (`DB_NAME=cmhp_new_materialmaster_isolated`, destroyed automatically after each run) to
+avoid colliding with the concurrent task's own test runs. Neither new migration was applied to `cmhp_new_dev`
+or any other live database in this session.
+
+## Common Material Purchasing - backend verification, no backend code changes (2026-10-15)
+
+No backend files were modified for this task - `apps.purchasing` and `apps.receiving` (including the
+store-scoped facades `apps/purchasing/store_views.py`/`store_urls.py`) were already built earlier this
+session and matched this task's requirements on direct inspection: no-tolerance over-receipt rejection at
+post time (`post_goods_receipt`), idempotent retry semantics for both issue and post, immutable
+`PurchaseOrderIssueSnapshot`/line snapshots as the source of truth for delivery progress, duplicate-material
+rejection on PO lines, and every permission code used (`purchase_orders.*`, `receiving.*`) traced to an
+existing seed migration (`0007`-`0009`) - none invented. See `docs/frontend-api-handoff.md`'s matching entry
+for the one real gap found (non-PO/manual receiving reachable with no distinct authorization) and how it was
+closed on the frontend side, since the backend already discloses that relaxation plainly in
+`_validate_manual_lines`'s own docstring rather than hiding it.
+
+**Verification**: `DB_NAME=cmhp_new_purchasing_isolated python manage.py test tests.test_purchase_orders
+tests.test_purchase_requests tests.test_receiving tests.test_store_purchasing` - **312/312 pass** (`Ran 312
+tests in 1573.408s - OK`), isolated test database destroyed automatically afterward. `showmigrations`
+confirms every existing `purchasing`/`receiving`/`catalog`/`permissions` migration is already applied to
+`cmhp_new_dev` (pre-existing state, not changed by this entry). No new migrations were generated.

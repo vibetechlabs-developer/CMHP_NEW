@@ -1,0 +1,36 @@
+.audit-page .audit-toolbar {
+  align-items: center;
+}
+
+.audit-search-row {
+  margin: 0 0 18px;
+}
+
+.audit-search-row .field-input {
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.audit-table td,
+.audit-table th {
+  vertical-align: top;
+}
+
+.audit-time {
+  white-space: nowrap;
+  color: #56708c;
+  font-size: 13px;
+}
+
+.audit-details {
+  min-width: 260px;
+  max-width: 420px;
+  color: #56708c;
+  line-height: 1.5;
+}
+
+.audit-table .company-address {
+  display: block;
+  margin-top: 4px;
+}

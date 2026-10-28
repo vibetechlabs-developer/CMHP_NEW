@@ -1241,3 +1241,95 @@ select {
       5px 9px !important;
   }
 }
+
+/* =========================================================
+   UNIFIED EDIT & DELETE ACTION BUTTONS
+   ========================================================= */
+
+.so-btn-edit,
+.table-edit,
+.btn-edit,
+.btn-action-edit,
+.ci-row-btn-edit {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 5px 14px !important;
+  border-radius: 6px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #0284c7 !important;
+  background: #f0f9ff !important;
+  border: 1px solid #bae6fd !important;
+  box-shadow: none !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  line-height: 1.4 !important;
+  text-decoration: none !important;
+  white-space: nowrap !important;
+}
+
+.so-btn-edit:hover:not(:disabled),
+.table-edit:hover:not(:disabled),
+.btn-edit:hover:not(:disabled),
+.btn-action-edit:hover:not(:disabled),
+.ci-row-btn-edit:hover:not(:disabled) {
+  background: #e0f2fe !important;
+  border-color: #7dd3fc !important;
+  color: #0369a1 !important;
+  box-shadow: none !important;
+  transform: none !important;
+  text-decoration: none !important;
+}
+
+.so-btn-delete,
+.table-delete,
+.btn-delete,
+.btn-action-delete,
+.ci-row-btn-delete {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 5px 14px !important;
+  border-radius: 6px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #e11d48 !important;
+  background: #fff1f2 !important;
+  border: 1px solid #fecdd3 !important;
+  box-shadow: none !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  line-height: 1.4 !important;
+  text-decoration: none !important;
+  white-space: nowrap !important;
+}
+
+.so-btn-delete:hover:not(:disabled),
+.table-delete:hover:not(:disabled),
+.btn-delete:hover:not(:disabled),
+.btn-action-delete:hover:not(:disabled),
+.ci-row-btn-delete:hover:not(:disabled) {
+  background: #ffe4e6 !important;
+  border-color: #fda4af !important;
+  color: #be123c !important;
+  box-shadow: none !important;
+  transform: none !important;
+  text-decoration: none !important;
+}
+
+.so-btn-edit:disabled,
+.table-edit:disabled,
+.btn-edit:disabled,
+.btn-action-edit:disabled,
+.ci-row-btn-edit:disabled,
+.so-btn-delete:disabled,
+.table-delete:disabled,
+.btn-delete:disabled,
+.btn-action-delete:disabled,
+.ci-row-btn-delete:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+  transform: none !important;
+}

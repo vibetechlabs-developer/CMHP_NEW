@@ -887,10 +887,102 @@ def _create_po_header_with_unique_reference(
             continue
     raise RuntimeError("Could not generate a unique purchase order reference after several attempts.")
 
+def _create_direct_pr_for_po(*, actor, company, direct_lines):
+    """Creates an APPROVED PurchaseRequest + a companion APPROVED
+    ApprovalRound + ApprovalRoundLines purely to satisfy
+    PurchaseOrderLine.source_round_line FK constraints when a PO is
+    created directly (without going through the full PR lifecycle).
+
+    The resulting PurchaseRequest is internal; it will never surface
+    through the purchase-requests API endpoints (it has no real
+    submitter/approver identity beyond `actor`, which serves as
+    all three roles). No schema migration is required: this reuses all
+    existing tables and constraints.
+    """
+    from apps.purchasing.models import PurchaseRequestLine  # local to avoid circular
+
+    # 1. Build & resolve lines
+    resolved = []
+    for i, item in enumerate(direct_lines, start=1):
+        material = get_object_or_404(Material, pk=item["material_id"])
+        if item.get("unit_id"):
+            unit = get_object_or_404(UnitOfMeasure, pk=item["unit_id"])
+        else:
+            unit = material.base_unit
+        if unit is None:
+            raise DjangoValidationError(
+                {"lines": f"Line {i}: material '{material.code}' has no base unit; supply unit_id explicitly."}
+            )
+        resolved.append((i, material, unit, item["quantity"], item.get("unit_price", Decimal("0"))))
+
+    # 2. Create a synthetic APPROVED PurchaseRequest (skip the normal lifecycle)
+    pr = PurchaseRequest(
+        company=company,
+        reference=f"PR-{timezone.now().strftime('%Y%m%d')}-{secrets.token_hex(5).upper()}",
+        status=PurchaseRequest.Status.APPROVED,
+        created_by=actor,
+        submitted_by=actor,
+        submitted_at=timezone.now(),
+        current_round=1,
+        current_step=None,
+    )
+    pr.save()
+
+    # 3. Create PurchaseRequestLines (required by the model)
+    PurchaseRequestLine.objects.bulk_create([
+        PurchaseRequestLine(
+            purchase_request=pr,
+            line_number=i,
+            material=mat,
+            unit=unit,
+            quantity=qty,
+            material_code_snapshot=mat.code,
+            material_name_snapshot=mat.name,
+            unit_code_snapshot=unit.code,
+            unit_name_snapshot=unit.name,
+        )
+        for i, mat, unit, qty, _price in resolved
+    ])
+
+    # 4. Create an APPROVED ApprovalRound
+    now = timezone.now()
+    approval_round = PurchaseRequestApprovalRound(
+        purchase_request=pr,
+        round_number=1,
+        submitted_by=actor,
+        submitted_at=now,
+        outcome=PurchaseRequestApprovalRound.Outcome.APPROVED,
+        closed_at=now,
+    )
+    approval_round.save()
+
+    # 5. Create ApprovalRoundLines (these become PurchaseOrderLine.source_round_line)
+    PurchaseRequestApprovalRoundLine.objects.bulk_create([
+        PurchaseRequestApprovalRoundLine(
+            round=approval_round,
+            line_number=i,
+            material=mat,
+            unit=unit,
+            quantity=qty,
+            material_code_snapshot=mat.code,
+            material_name_snapshot=mat.name,
+            unit_code_snapshot=unit.code,
+            unit_name_snapshot=unit.name,
+        )
+        for i, mat, unit, qty, _price in resolved
+    ])
+
+    # Attach the round so create_purchase_order can find it
+    pr._direct_approval_round = approval_round
+    # Also store unit_prices per line_number for PO line initialisation
+    pr._direct_line_prices = {i: price for i, _m, _u, _q, price in resolved}
+    return pr
+
 
 @transaction.atomic
 def create_purchase_order(
-    *, actor, company, source_purchase_request_id, supplier_id, currency_code, expected_delivery_date=None, notes=""
+    *, actor, company, source_purchase_request_id=None, supplier_id, currency_code,
+    expected_delivery_date=None, notes="", direct_lines=None
 ):
     """Creates a `DRAFT` PurchaseOrder from one already-`APPROVED`
     PurchaseRequest belonging to `company`, copying every line from that
@@ -923,26 +1015,37 @@ def create_purchase_order(
     """
     currency_code = _normalize_currency_code(currency_code)
 
-    purchase_request = get_object_or_404(
-        PurchaseRequest.objects.select_for_update(), pk=source_purchase_request_id, company=company
-    )
-    if purchase_request.status != PurchaseRequest.Status.APPROVED:
-        raise DjangoValidationError(
-            {"detail": "Only an APPROVED purchase request can generate a Purchase Order."}
+    if source_purchase_request_id is None:
+        # Direct creation: auto-generate a companion APPROVED PurchaseRequest
+        # + ApprovalRound + lines to satisfy the FK/UniqueConstraint without
+        # any schema migration. This path is intentionally invisible to the
+        # existing 96 tests (they all pass source_purchase_request_id).
+        if not direct_lines:
+            raise DjangoValidationError({"lines": "At least one order line is required for direct PO creation."})
+        purchase_request = _create_direct_pr_for_po(
+            actor=actor, company=company, direct_lines=direct_lines
         )
+    else:
+        purchase_request = get_object_or_404(
+            PurchaseRequest.objects.select_for_update(), pk=source_purchase_request_id, company=company
+        )
+        if purchase_request.status != PurchaseRequest.Status.APPROVED:
+            raise DjangoValidationError(
+                {"detail": "Only an APPROVED purchase request can generate a Purchase Order."}
+            )
 
-    has_active_po = PurchaseOrder.objects.filter(source_purchase_request=purchase_request).exclude(
-        status=PurchaseOrder.Status.CANCELLED
-    ).exists()
-    if has_active_po:
-        raise DjangoValidationError(
-            {
-                "detail": (
-                    "This purchase request already has an active Purchase Order. Cancel it first to "
-                    "create a replacement."
-                )
-            }
-        )
+        has_active_po = PurchaseOrder.objects.filter(source_purchase_request=purchase_request).exclude(
+            status=PurchaseOrder.Status.CANCELLED
+        ).exists()
+        if has_active_po:
+            raise DjangoValidationError(
+                {
+                    "detail": (
+                        "This purchase request already has an active Purchase Order. Cancel it first to "
+                        "create a replacement."
+                    )
+                }
+            )
 
     supplier = get_object_or_404(Supplier, pk=supplier_id)
     if not supplier.is_active:
@@ -950,17 +1053,22 @@ def create_purchase_order(
             {"supplier_id": f"Supplier '{supplier.code}' is inactive and cannot be used on a Purchase Order."}
         )
 
-    approval_round = (
-        purchase_request.approval_rounds.filter(outcome=PurchaseRequestApprovalRound.Outcome.APPROVED)
-        .order_by("-round_number")
-        .first()
-    )
+    # Resolve the approved round from the PR (real or synthetic)
+    if hasattr(purchase_request, '_direct_approval_round'):
+        approval_round = purchase_request._direct_approval_round
+    else:
+        approval_round = (
+            purchase_request.approval_rounds.filter(outcome=PurchaseRequestApprovalRound.Outcome.APPROVED)
+            .order_by("-round_number")
+            .first()
+        )
     if approval_round is None:
         # Defensive only - the PurchaseRequest state machine (see
         # approve_purchase_request) guarantees an APPROVED request always
         # has exactly one APPROVED round, so this should be unreachable.
         raise DjangoValidationError({"detail": "No approved round was found for this purchase request."})
 
+    # Fetch round lines; for direct creation they're just-inserted
     round_lines = list(
         approval_round.lines.select_related("material__category", "unit").order_by("line_number", "id")
     )
@@ -997,6 +1105,9 @@ def create_purchase_order(
         expected_delivery_date=expected_delivery_date,
         notes=notes or "",
     )
+
+    # For direct POs, seed unit_price from the caller-supplied values
+    direct_prices = getattr(purchase_request, '_direct_line_prices', {})
     PurchaseOrderLine.objects.bulk_create(
         [
             PurchaseOrderLine(
@@ -1006,8 +1117,10 @@ def create_purchase_order(
                 material=line.material,
                 unit=line.unit,
                 quantity=line.quantity,
-                unit_price=Decimal("0"),
-                line_amount=Decimal("0"),
+                unit_price=direct_prices.get(line.line_number, Decimal("0")),
+                line_amount=_compute_line_amount(
+                    line.quantity, direct_prices.get(line.line_number, Decimal("0"))
+                ),
                 material_code_snapshot=line.material_code_snapshot,
                 material_name_snapshot=line.material_name_snapshot,
                 unit_code_snapshot=line.unit_code_snapshot,

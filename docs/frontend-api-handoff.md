@@ -2850,3 +2850,282 @@ implemented and tested.
   the order is switched away from. 21/21 tests pass in this file; the full
   frontend suite (141 tests, 27 files) passes with no regressions; `vite
   build` and lint are both clean.
+
+---
+
+## Shared Material Stock & Inventory Workflow, Slice 1 — Receiving screen, container type, supplier invoice reference (2026-10-09)
+
+### New screen: Receiving
+
+Location: `frontend/src/features/store/ReceivingTab.jsx`, a new tab (`/inventory/receiving`,
+`/inventory/receiving/<id>`) inside the existing Store & Materials workspace (`StoreMaterialsWorkspace.jsx`'s
+`TABS` array and manual pathname-matching convention - not a nested route). **This is a wholly new, real screen**
+- no goods-receipt create/post UI existed anywhere in the frontend before this (the only prior "Goods Receipt"
+UI, `features/supplyChain/SupplyChain.jsx`, is unrelated, fully mock Redux state via `delay()`, and currently
+reachable in navigation - it is not a backend-wired screen and this task did not touch it).
+
+- **List** (`GET .../goods-receipts/?status=&page=`): status filter, pagination, "+ New receipt" (only with
+  `receiving.create`).
+- **Create** (`POST .../goods-receipts/`): picks an eligible, real `ISSUED` purchase order
+  (`GET .../goods-receipts/eligible-purchase-orders/`), shows its lines' ordered/remaining quantity, lets the
+  clerk enter the actual received quantity, lot reference, container type (new `<select>`, populated from
+  `GET /api/v1/container-types/`) and container count per line, plus header fields: arrived-at, supplier
+  invoice number, delivery note reference, notes. A stable client-generated `idempotency_key` is reused across
+  retries of the same submission (a duplicate-click guard, backed by the server's own idempotency handling).
+- **Draft detail/edit** (`PATCH .../goods-receipts/<id>/`, `receiving.edit`, DRAFT only): same fields, full-
+  replace `lines` semantics (mirrors every other "lines" convention in this codebase: omit = unchanged, present
+  even empty = replace).
+- **Post** (`POST .../goods-receipts/<id>/post/`, `receiving.post`): a confirmation dialog states plainly "This
+  records the physical arrival and increases the recorded-receipt quantity for `<company>`. It does not
+  release, reserve or issue material." A 409 clears nothing silently - it shows "changed since it was last
+  loaded... reload and try again" and requires an explicit reload, never an automatic retry.
+- **Cancel** (`POST .../goods-receipts/<id>/cancel/`, `receiving.cancel`, DRAFT only): requires a typed,
+  non-blank reason - the Confirm-cancellation button stays disabled until one is entered.
+- Permission gating: `getStorePermissionCodes(storeId)` (the existing, already-real `/v1/stores/<id>/
+  my-permissions/` call, already used elsewhere in this codebase for store-scoped operational permissions) -
+  **not** the single `capabilities.can_manage_material_catalog` superuser flag the Materials tab uses, since
+  receiving is a normal operational action gated by fine-grained STORE permission codes
+  (`receiving.view/create/edit/post/cancel`), not a superuser-only administrative one. This resolves, in favor
+  of the fine-grained convention, a gating-pattern question this area had not previously had to answer.
+- After posting, the detail view links directly to the "Recorded Receipts" tab so the clerk can verify the new
+  entries landed in the ledger - no automatic cross-tab refresh is possible or attempted (different React route,
+  different component instance); the register itself already always fetches fresh on load.
+- New service file: `frontend/src/features/store/receivingService.js` (thin wrappers, one per endpoint above).
+- Tests: `receivingService.test.js` (8, request-contract), `ReceivingTab.test.jsx` (9: access gating, duplicate-
+  submit prevention with a stable idempotency key, the exact required confirmation wording, 409 handling,
+  cancellation requiring a reason, container/invoice-reference fields round-tripping).
+
+### Material default container type
+
+`frontend/src/features/store/MaterialsTab.jsx`'s add/edit form gained a "Default container type (optional)"
+`<select>`, populated once from the new `listContainerTypes()` call in `storeService.js`
+(`GET /api/v1/container-types/?is_active=true`). Explicitly labelled "a packaging suggestion only - never a
+unit conversion." On edit, the field is sent to the server **only if it actually changed** (matches this
+screen's existing "edits send only what changed" convention, verified against
+`storeWorkspace.test.jsx`'s own exact-key-set assertion for this form). The Materials list table gained a
+"Default container" column (`material.default_container_type_code`).
+
+### API reference
+
+- `GET/POST /api/v1/container-types/`, `GET/PATCH /api/v1/container-types/<id>/`, `.../activate/`,
+  `.../deactivate/` - mirrors `/api/v1/units/` exactly (read: superuser or `shared_catalog.view` in an active
+  store; write: active superuser only). Fields: `id, code, name, description, is_active, created_at, updated_at`.
+- `Material` gained `default_container_type_id`/`default_container_type_code` (both read-only response fields,
+  `default_container_type_id` additionally writable on create/update as a plain integer-or-null).
+- `GoodsReceipt` gained `supplier_invoice_reference` (writable on create/update, independent of the existing
+  `delivery_note_reference`). `GoodsReceiptLine` gained `container_type_id`/`container_type_code`/
+  `container_quantity` (the first and last writable via the `lines[]` input on create/update; `container_quantity`
+  must be a positive integer if given).
+
+### Known gap carried forward, not fixed in this slice
+
+`GET .../stores/<id>/stock-movements/` and `.../stock-balances/` (the "Recorded Receipts" tab / Material
+Register) do **not** carry container detail - `StockMovement` was not touched in this slice, and container
+information today exists only on `GoodsReceiptLine`, one step before the ledger. The register's own "receipt-
+only coverage" disclaimer is unchanged and still accurate.
+
+### Build/test status
+
+Frontend: 180/180 tests pass (32 files, +22 new in this slice). `vite build` clean. Lint exit 0 (only
+pre-existing warning patterns, including two new `react(purity)` warnings for `Date.now()`/`Math.random()`
+inside a `useRef()` initializer in `ReceivingTab.jsx` - cosmetic, not a correctness issue; not fixed this pass).
+Backend: see `docs/backend-tasks.md`'s "Shared Material Stock & Inventory Workflow — Slice 1" entry for the
+**pending-migration blocker** (migrations `receiving.0003`/`0004` are not yet applied to `cmhp_new_dev`, the
+database the live running backend process is actually using) - this must be resolved before any of the above
+can work against the running app, and this session did not apply it without explicit authorization.
+
+## Material Master completion - store-scoped reorder level, filters, export (2026-10-13)
+
+Scope: `frontend-junior` Material Master only (list/Add-Edit/filters/import/export), coordinated alongside a
+concurrent, separate task implementing the Common Inventory Dashboard (`OverviewTab.jsx`/`StoreDashboard.*` -
+untouched by this entry). No file this entry lists was shared with that task.
+
+### Specification/grade - reused, not duplicated
+
+Before adding anything, this task checked for an existing specification concept per its own "reuse rather
+than duplicate" instruction, and found one: `apps.quality.MaterialSpecification`/`MaterialSpecificationVersion`
+(a real, versioned, audited, active-superuser-only QC specification identity, already fully wired at
+`/api/v1/material-specifications/...`). A simpler free-text `Material.specification` field was drafted, found
+to duplicate that system, and **reverted** before being applied anywhere (the migration was deleted and
+regenerated without it - see below). No specification UI was added to Material Master; building a frontend for
+the existing QC specification system is a separate, larger piece of work (no frontend consumes it yet in
+either app) and out of this task's scope.
+
+### New: store-scoped reorder level (`apps.catalog.MaterialReorderSetting`)
+
+A reorder threshold is **never** a field on the shared `Material` master (which has no store context at all -
+see that model's own docstring) - it is store-specific bookkeeping, modeled as its own row:
+
+- Model: `MaterialReorderSetting(store, material, reorder_level, updated_by, created_at, updated_at)`, one
+  optional row per `(store, material)` (`UniqueConstraint`), `reorder_level >= 0` (`CheckConstraint` + `clean()`).
+  Absence means "not configured for this store", never a reorder level of zero.
+- Migration: `apps/catalog/migrations/0006_materialreordersetting.py` - additive only (`CreateModel`), generated
+  via `makemigrations`, **not applied** to any database this session (confirmed via `showmigrations`: `[ ]`).
+- Permission: new `materials.manage_reorder_level` (STORE scope), seeded by
+  `apps/permissions/migrations/0035_seed_material_reorder_permission.py` (idempotent `get_or_create`, same
+  pattern as every prior permission-seeding migration; also **not applied**). Granted to no role/user. Reading
+  the setting needs only the existing `stock.view` in the store.
+- Endpoint: `GET/PUT /api/v1/stores/<store_id>/materials/<material_id>/reorder-setting/`
+  (`apps/catalog/views.py::MaterialReorderSettingView`, routed via the new `apps/catalog/store_urls.py`,
+  included once from `config/urls.py` at `api/v1/stores/`). GET returns `{"reorder_level": null, ...}` (never a
+  404) when unconfigured. PUT body: `{"reorder_level": "<decimal string>"}` only - any other field is rejected
+  (400), matching this module's existing `_reject_prohibited_fields` convention.
+- Service: `apps.catalog.services.get_material_reorder_setting` / `set_material_reorder_level` - the latter
+  writes one audit entry (`material_reorder_setting.created`/`.updated`, store-scoped) and never touches
+  `StockMovement` or any other stock-affecting table (verified by a dedicated test asserting the stock-movement
+  count is unchanged after setting it).
+- Frontend: `storeService.js` gained `getMaterialReorderSetting(storeId, materialId)` /
+  `setMaterialReorderLevel(storeId, materialId, reorderLevel)`. `CommonMaterialsTab.jsx`'s edit form gained a
+  "Reorder level (optional, store-specific)" section, shown only in edit mode, with its own store picker
+  (`getMyStores()`) that **names the selected store explicitly** next to the value, and its own independent
+  Save action (a separate real API call from the main "Save changes" button, since it is a genuinely different
+  endpoint).
+
+### Completed: receipt-activity date range filter, honest stock-status control, filtered CSV export
+
+- `listMaterials()` already had server support for `receipt_from`/`receipt_to` (query the material's own
+  recorded-receipt-posting history, `apps.stock_movements`) but the UI never exposed it - added as a clearly
+  labelled "Receipt activity" date-range pair, with the same "no activity in range does not mean zero stock"
+  tooltip the reference frontend uses for the identical filter.
+- Stock-status filtering is real-API-confirmed **unavailable** on this list (`MaterialListCreateView` rejects
+  any non-blank `?stock_status=` with 400 - no reorder/balance data is store-independent, so a honest global
+  filter cannot exist here) - a disabled `<select>` with an explanatory `title` was added rather than silently
+  omitting the control, matching the reference frontend's own established pattern for this exact gap.
+- Export: "Export CSV (filtered/all)" button, visible to every viewer (no commercial/price field exists on
+  Material at all, so nothing hidden is ever exported). Fetches every page matching the **current filters**
+  (not just the loaded page), capped at 5,000 rows with an explicit "truncated" line in the file if the cap is
+  hit (never a silent truncation). Columns match the list's own required columns.
+
+### API reference (additive only - no existing Material/catalog field or endpoint changed)
+
+- `GET/PUT /api/v1/stores/<store_id>/materials/<material_id>/reorder-setting/` (new - see above).
+- `GET /api/v1/materials/?receipt_from=&receipt_to=` (already existed server-side; newly exposed in the UI).
+
+### Build/test status
+
+Frontend (full suite, including the concurrent task's own files): 129/130 tests pass. This entry's own
+additions are 8 of those tests (3 new in `storeService.test.js` - receipt-date params + the two new reorder-
+setting functions; 5 new in `CommonMaterialsTab.test.jsx`, covering the date filter, the disabled stock-status
+control, filtered multi-page export, and the reorder-level load/save/permission-denied paths), all passing.
+The one failing test (`OverviewTab.test.jsx`) belongs to the concurrent Dashboard task, not this entry - left
+untouched per this task's own file-boundary instruction.
+`vite build` clean; lint clean (only pre-existing warning patterns, unrelated to this entry's files).
+Backend: `python manage.py check` clean; 11/11 new tests pass
+(`tests/test_material_reorder_setting.py`), run against an isolated database
+(`DB_NAME=cmhp_new_materialmaster_isolated`, dropped automatically by the test runner) to avoid colliding with
+the concurrent task's own test runs. Migrations `catalog.0006`/`permissions.0035` generated but **not applied**
+to `cmhp_new_dev` or any other live database.
+
+### Browser/visual verification - not performed, stated plainly
+
+No browser-automation tool and no live credentials were available in this session. The reorder-level section,
+the new date-range filter, the disabled stock-status control and the export button were verified only via
+`vite build`, lint, the isolated Vitest/Django test suites above, and direct code review - **not** by opening
+the running app. A 401/403 response, a passing mocked test or a clean build must never be read as proof of
+real browser behaviour (per this task's own instruction) - none of the above is claimed as browser
+verification.
+
+## Common Material Purchasing - completion and non-PO receiving gate (2026-10-15)
+
+Picked up `/inventory/orders` (`CommonOrdersTab.jsx`, `PurchaseOrderModal.jsx`,
+`purchasingService.js`, `apps/purchasing/store_views.py`/`store_urls.py`) already
+substantially built from earlier in this same session - PO list/create/edit/issue/cancel,
+Inward Receipts draft/post/cancel, Material Requests, all wired to real backend contracts
+(no mock data, no Redux business state). This entry documents what was verified, found, and
+fixed on top of that, not a rebuild.
+
+**Fixed: non-PO/manual receiving was reachable from Common Material Purchasing with no extra
+authorization.** `InwardStockModal.jsx` has always supported a "Direct Inward" (manual entry,
+no source PO) mode, gated server-side by only the same `purchase_orders.view` any PO-based
+receipt already needs - there is no distinct, established permission for who may receive
+without a PO. That contradicts this task's own instruction ("Non-PO/manual receiving is not
+automatically authorized... disable affected posting if unresolved") and an earlier standing
+constraint on this screen ("PO-based Inward only"). Added an `allowDirectMode` prop (default
+`true`, so `MaterialRegisterPage.jsx`'s and `OverviewTab.jsx`'s own existing usage - both out of
+this task's scope - is unchanged) and passed `allowDirectMode={false}` from `CommonOrdersTab.jsx`'s
+only `InwardStockModal` usage. All three UI entry points into direct mode (the mode-switcher
+tabs, and the "no matching PO -> switch to direct" fallback button) are hidden when disabled,
+plus a defensive effect that forces `mode` back to `'po'` if nothing else already is. New test:
+`CommonOrdersTab.test.jsx` - "opens the Inward popup in PO-only mode, with no non-PO direct-entry
+option offered".
+
+**Fixed: invented requisition status.** The Material Requests status filter had a `"REVISED"`
+option that can never match a real row - `apps.material_requisitions.models.MaterialRequisition.
+Status` has no `REVISED` value; `revise_material_requisition` moves a rejected request back to
+`DRAFT`, never to a distinct status. Removed the dead option.
+
+**Added (frontend-only, additive, low-risk):**
+- A `Store` column to the Inward Receipts list, matching this task's required column list exactly
+  (the screen is single-store-scoped already, but the task names the column explicitly).
+- Pagination controls for the Material Requests tab - `reqPage`/`setReqPage` state already existed
+  and was already sent to the API, but no Next/Previous control was ever rendered, so a user could
+  never reach a requisition past the first 20.
+- Exact page-hero text the task specified: title `"Common Material Purchasing"`, subtitle
+  `"Purchase raw and packaging materials and track deliveries into the shared store."`
+  (`Inventory.jsx`'s `orders` hero config; previously `"Purchasing & Procurement"`).
+
+**Found, not fixed - flagged for a decision:** a separate top-level `/orders` route
+(`features/operations/Orders.jsx`, wired into the `companyOnly` nav section as "Orders", distinct
+from the "Purchasing" nav item that correctly points at `/inventory/orders`) renders this exact
+same `CommonOrdersTab` but under a stale hero banner reading `"{Company} Sales Orders"`, using a
+legacy Redux `selectActiveCompanyId` selector and passing `role`/`isCompanyScoped` props that
+`CommonOrdersTab` does not even accept. This directly contradicts this task's "keep supplier
+purchasing distinct from customer sales orders" instruction today, in production. No real Sales
+Orders management UI exists anywhere in `frontend-junior` yet (only a service file,
+`salesOrdersService.js`, used read-only elsewhere) to redirect it to, so fixing this would mean
+either building a new feature (out of this task's scope) or removing/redirecting a route outside
+the Purchasing area this task owns - left for the user's call rather than guessed.
+
+**Pre-existing, unrelated to this task's changes - noted, not touched:** `InwardStockModal.jsx`'s
+edit-existing-draft loader (the `editReceiptId` path) branches on `rcpt.is_manual_entry`/
+`rcpt.manual_company_id`/etc., none of which `GoodsReceiptSerializer` ever actually returns (manual-
+vs-PO mode is really distinguished by `source_purchase_order_id` being null). In practice this is
+a dead branch, not a data-loss bug: the separate `initialDraft` path `CommonOrdersTab.jsx` actually
+uses for "Edit Draft" never sets `mode`, so a manual-entry draft loaded that way simply leaves
+"Update Draft" disabled (no `selectedPo`) rather than silently sending `lines: []`. Left as-is -
+it is in a shared modal, affects callers outside this task's scope, and disabling direct-mode
+creation from this screen already prevents new instances of it from this flow.
+
+### Build/test status
+
+Frontend (full suite): **142/142 pass**, `npx vitest run`. `npm run build` clean (one pre-existing
+chunk-size warning, unrelated). Backend: **312/312 pass**, `DB_NAME=cmhp_new_purchasing_isolated
+python manage.py test tests.test_purchase_orders tests.test_purchase_requests tests.test_receiving
+tests.test_store_purchasing` (`Ran 312 tests in 1573.408s - OK`), isolated test database destroyed
+automatically afterward. No migrations were generated or applied by this entry's changes (frontend-
+only + one dead `<option>` removal); `cmhp_new_dev`'s own migration state was not touched.
+
+### Browser verification - not performed, stated plainly
+
+The frontend dev server was confirmed running (`localhost:5173`, HTTP 200) and Chrome browser
+automation tools were available this session, but the user declined a live walkthrough rather than
+share credentials for an existing account. Nothing above is claimed as browser-verified; see the
+manual checklist below for what to run by hand.
+
+### Manual verification checklist (PO -> issue -> receive -> post)
+
+1. Open `/inventory/orders` as a user with `purchase_orders.view`/`.create`/`.issue`/`.cancel` and
+   `receiving.view`/`.create`/`.post`/`.cancel` in the shared store. Confirm the hero reads "Common
+   Material Purchasing" and the "Purchasing Orders" tab is the default.
+2. Create a PO with one RAW and one PACKAGING material line, different units/prices. Confirm the
+   subtotal shown matches quantity x price per line, summed - and that no stock/ledger entry appears
+   anywhere from this save.
+3. Reload the page, reopen the draft via Edit, confirm every field/line survived the reload exactly.
+4. Issue it. Confirm it becomes read-only (no more Edit/Cancel), and that the Purchase Orders list's
+   "Receipt Progress" column shows "Pending Delivery".
+5. Click "Receive", confirm the popup opens in PO-linked mode only - there should be **no** "Direct
+   Inward" / "Link to Purchase Order" toggle visible anywhere in this popup. Enter a partial quantity
+   on one line, "Save Draft". Confirm the PO's Receipt Progress is still "Pending Delivery" (a draft
+   must not move it) and no stock/ledger entry exists yet.
+6. Post that draft. Confirm Receipt Progress becomes "Partial Received", the Material Register/ledger
+   for that material increases by exactly the posted quantity, and an audit entry exists.
+7. Click Post again on the same (now-posted) receipt via a repeated request (e.g. resubmit the same
+   browser action twice quickly) - confirm the stock quantity does **not** double.
+8. Receive the remaining quantity through a second receipt, post it, confirm Receipt Progress reaches
+   "Fully Received" and the two posted quantities sum exactly to the ordered quantity.
+9. Attempt to receive more than the remaining quantity on either line - confirm it is rejected outright
+   (no silent tolerance).
+10. As a user without `receiving.post`, confirm the "Post Receipt" button is disabled with an
+    explanatory tooltip, not hidden/silently failing.
+11. Switch to the Material Requests tab, confirm pagination controls appear once there are more than
+    20 requests, and that approving one creates no stock movement.

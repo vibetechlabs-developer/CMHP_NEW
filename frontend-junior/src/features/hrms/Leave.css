@@ -1,0 +1,855 @@
+/* =========================================================
+   CMHP PHARMA ERP
+   HRMS - LEAVE MANAGEMENT
+   Professional Light Blue Theme
+   ========================================================= */
+
+.hr-page {
+  width: 100%;
+  min-width: 0;
+  color: #405b70;
+}
+
+
+/* =========================================================
+   PAGE HEADER
+   ========================================================= */
+
+.hr-page .hr-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  width: 100%;
+
+  margin-bottom: 20px;
+  padding: 26px 30px;
+
+  background:
+    radial-gradient(
+      circle at 94% 12%,
+      rgba(42, 145, 220, 0.10),
+      transparent 28%
+    ),
+    linear-gradient(
+      135deg,
+      #ffffff 0%,
+      #f4faff 100%
+    );
+
+  border: 1px solid #d9e9f3;
+  border-radius: 18px;
+
+  box-shadow:
+    0 7px 24px rgba(27, 72, 104, 0.055);
+}
+
+.hr-page .hr-header > div {
+  min-width: 0;
+  text-align: left;
+}
+
+.hr-page .hr-header h1 {
+  margin: 6px 0 7px;
+
+  color: #163f61;
+
+  font-size: 27px;
+  line-height: 1.2;
+
+  font-weight: 800;
+
+  letter-spacing: -0.45px;
+
+  text-align: left;
+}
+
+.hr-page .hr-header p {
+  max-width: 760px;
+
+  margin: 0;
+
+  color: #72899b;
+
+  font-size: 12px;
+  line-height: 1.65;
+
+  text-align: left;
+}
+
+
+/* =========================================================
+   HRMS PILL
+   ========================================================= */
+
+.hr-page .dash-pill {
+  display: inline-flex !important;
+
+  align-items: center;
+  gap: 7px;
+
+  padding: 6px 11px !important;
+
+  color: #1478c9 !important;
+
+  background: #edf8ff !important;
+
+  border: 1px solid #cde6f5 !important;
+  border-radius: 999px !important;
+
+  font-size: 9px !important;
+  font-weight: 800 !important;
+
+  letter-spacing: 0.7px;
+
+  text-transform: uppercase;
+}
+
+.hr-page .dash-pill::before {
+  content: "";
+
+  width: 6px;
+  height: 6px;
+
+  flex: 0 0 6px;
+
+  background: #20a77a;
+
+  border-radius: 50%;
+
+  box-shadow:
+    0 0 0 4px rgba(32, 167, 122, 0.10);
+}
+
+
+/* =========================================================
+   ALERT
+   ========================================================= */
+
+.hr-page > [role="alert"] {
+  margin-bottom: 16px;
+}
+
+
+/* =========================================================
+   LEAVE PANEL
+   ========================================================= */
+
+.hr-page .company-panel {
+  width: 100%;
+
+  overflow: hidden;
+
+  background: #ffffff;
+
+  border: 1px solid #dce9f1;
+  border-radius: 16px;
+
+  box-shadow:
+    0 5px 20px rgba(27, 72, 104, 0.045);
+}
+
+
+/* =========================================================
+   TOOLBAR
+   IMPORTANT:
+   PREVENT GLOBAL TOOLBAR RULES FROM SHIFTING CONTENT
+   ========================================================= */
+
+.hr-page .company-toolbar {
+  display: flex !important;
+
+  align-items: center !important;
+  justify-content: space-between !important;
+
+  gap: 20px;
+
+  width: 100%;
+
+  min-height: 74px;
+
+  padding: 18px 21px;
+
+  background: #ffffff;
+
+  border-bottom: 1px solid #e8f0f5;
+
+  text-align: left !important;
+}
+
+.hr-page .company-toolbar > div:first-child {
+  flex: 1 1 auto !important;
+
+  min-width: 0;
+
+  margin-left: 0 !important;
+
+  text-align: left !important;
+}
+
+.hr-page .company-toolbar > div:last-child {
+  flex: 0 0 auto;
+
+  margin-left: auto;
+
+  text-align: right;
+}
+
+.hr-page .company-toolbar h2 {
+  margin: 0 0 5px;
+
+  color: #173f61;
+
+  font-size: 18px;
+  line-height: 1.3;
+
+  font-weight: 800;
+
+  text-align: left;
+}
+
+.hr-page .company-toolbar p {
+  margin: 0;
+
+  color: #8498a8;
+
+  font-size: 11px;
+  line-height: 1.5;
+
+  text-align: left;
+}
+
+
+/* =========================================================
+   APPLY LEAVE FORM
+   ========================================================= */
+
+.hr-page form {
+  width: 100%;
+}
+
+.hr-page .company-panel > form {
+  padding: 22px;
+}
+
+
+/* =========================================================
+   FORM GRID
+   ========================================================= */
+
+.hr-page .company-form-grid {
+  display: grid !important;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 18px 17px;
+
+  width: 100%;
+}
+
+.hr-page .company-form-grid > * {
+  min-width: 0;
+}
+
+
+/* =========================================================
+   FORM FIELD
+   ========================================================= */
+
+.hr-page .field {
+  width: 100%;
+
+  min-width: 0;
+
+  margin: 0;
+}
+
+.hr-page .field-label {
+  display: block;
+
+  margin-bottom: 7px;
+
+  color: #466279;
+
+  font-size: 10px;
+
+  font-weight: 800;
+
+  line-height: 1.35;
+}
+
+.hr-page .field-input {
+  width: 100%;
+
+  min-height: 43px;
+
+  padding: 10px 12px;
+
+  color: #405b70;
+
+  background: #fbfdff;
+
+  border: 1px solid #d5e4ec;
+
+  border-radius: 9px;
+
+  outline: none;
+
+  font-size: 11px;
+
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.hr-page .field-input:hover {
+  border-color: #bfd7e6;
+
+  background: #ffffff;
+}
+
+.hr-page .field-input:focus {
+  border-color: #5da8d8;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 0 0 3px rgba(20, 120, 201, 0.09);
+}
+
+
+/* =========================================================
+   REASON INPUT
+   ========================================================= */
+
+.hr-page .company-form-grid .field:last-child {
+  min-width: 0;
+}
+
+
+/* =========================================================
+   REASON / INPUT COMPONENT
+   ========================================================= */
+
+.hr-page .company-form-grid input,
+.hr-page .company-form-grid select,
+.hr-page .company-form-grid textarea {
+  width: 100%;
+}
+
+
+/* =========================================================
+   REQUESTED DAYS TEXT
+   ========================================================= */
+
+.hr-page .user-admin-help {
+  margin: 14px 0 17px;
+
+  padding: 9px 12px;
+
+  color: #4d728d;
+
+  background: #f1f8fc;
+
+  border: 1px solid #d9eaf3;
+
+  border-radius: 8px;
+
+  font-size: 10px;
+
+  line-height: 1.5;
+}
+
+
+/* =========================================================
+   SUBMIT BUTTON
+   ========================================================= */
+
+.hr-page .company-panel > form > .btn,
+.hr-page .company-panel > form button[type="submit"] {
+  min-height: 40px;
+
+  padding: 9px 17px;
+
+  border-radius: 9px;
+
+  font-size: 10.5px;
+
+  font-weight: 800;
+}
+
+
+/* =========================================================
+   EMPTY MESSAGE
+   ========================================================= */
+
+.hr-page .dash-empty {
+  margin: 0 22px 20px;
+
+  padding: 13px 15px;
+
+  color: #7890a1;
+
+  background: #f8fbfd;
+
+  border: 1px solid #e3edf3;
+
+  border-radius: 9px;
+
+  font-size: 10px;
+
+  line-height: 1.55;
+}
+
+
+/* =========================================================
+   TABLE WRAPPER
+   ========================================================= */
+
+.hr-page .company-table-wrap {
+  width: 100%;
+
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  border-radius: 0 0 16px 16px;
+
+  scrollbar-width: thin;
+  scrollbar-color: #c5dbe8 transparent;
+}
+
+.hr-page .company-table-wrap::-webkit-scrollbar {
+  height: 7px;
+}
+
+.hr-page .company-table-wrap::-webkit-scrollbar-track {
+  background: #f7fafc;
+}
+
+.hr-page .company-table-wrap::-webkit-scrollbar-thumb {
+  background: #c4d9e6;
+
+  border-radius: 999px;
+}
+
+
+/* =========================================================
+   TABLE
+   ========================================================= */
+
+.hr-page .company-table {
+  width: 100%;
+
+  min-width: 850px;
+
+  border-collapse: separate;
+  border-spacing: 0;
+
+  background: #ffffff;
+
+  font-size: 10px;
+}
+
+
+/* =========================================================
+   TABLE HEADER
+   ========================================================= */
+
+.hr-page .company-table th {
+  padding: 12px 14px;
+
+  color: #71899b;
+
+  background:
+    linear-gradient(
+      180deg,
+      #f9fcfe 0%,
+      #f4f8fb 100%
+    );
+
+  border-bottom: 1px solid #dfeaf1;
+
+  font-size: 8px;
+
+  font-weight: 800;
+
+  letter-spacing: 0.55px;
+
+  line-height: 1.3;
+
+  text-align: left;
+
+  text-transform: uppercase;
+
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+   TABLE BODY
+   ========================================================= */
+
+.hr-page .company-table td {
+  padding: 13px 14px;
+
+  color: #50697b;
+
+  background: #ffffff;
+
+  border-bottom: 1px solid #edf2f5;
+
+  font-size: 10px;
+
+  vertical-align: middle;
+}
+
+.hr-page .company-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.hr-page .company-table tbody tr {
+  transition:
+    background 0.15s ease;
+}
+
+.hr-page .company-table tbody tr:hover td {
+  background: #f8fbfd;
+}
+
+.hr-page .company-table td strong {
+  color: #1d4563;
+
+  font-weight: 750;
+}
+
+
+/* =========================================================
+   COMPANY ADDRESS / EMPLOYEE CODE
+   ========================================================= */
+
+.hr-page .company-address {
+  display: block;
+
+  margin-top: 3px;
+
+  color: #91a3b0;
+
+  font-size: 8.5px;
+}
+
+
+/* =========================================================
+   CODE BADGE
+   ========================================================= */
+
+.hr-page .company-code {
+  display: inline-flex;
+
+  align-items: center;
+
+  padding: 4px 8px;
+
+  color: #2879ac;
+
+  background: #eaf5fc;
+
+  border: 1px solid #d4e8f3;
+
+  border-radius: 999px;
+
+  font-size: 8px;
+
+  font-weight: 800;
+}
+
+
+/* =========================================================
+   STATUS
+   ========================================================= */
+
+.hr-page .company-status {
+  display: inline-flex;
+
+  align-items: center;
+  gap: 5px;
+
+  padding: 5px 9px;
+
+  border-radius: 999px;
+
+  font-size: 8px;
+
+  font-weight: 800;
+}
+
+.hr-page .company-status::before {
+  content: "";
+
+  width: 5px;
+  height: 5px;
+
+  background: currentColor;
+
+  border-radius: 50%;
+}
+
+.hr-page .company-status.active {
+  color: #159b72;
+
+  background: #eaf8f2;
+}
+
+.hr-page .company-status.inactive {
+  color: #7c91a1;
+
+  background: #eef3f6;
+}
+
+
+/* =========================================================
+   LEAVE STATUS
+   ========================================================= */
+
+.hr-page .leave-status {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  min-width: 75px;
+
+  padding: 5px 9px;
+
+  border-radius: 999px;
+
+  font-size: 8px;
+
+  font-weight: 800;
+
+  letter-spacing: 0.25px;
+
+  text-transform: uppercase;
+}
+
+.hr-page .leave-PENDING {
+  color: #a56d00;
+
+  background: #fff5dc;
+
+  border: 1px solid #f0dfb0;
+}
+
+.hr-page .leave-APPROVED {
+  color: #16845d;
+
+  background: #eaf8f2;
+
+  border: 1px solid #c7e8d9;
+}
+
+.hr-page .leave-REJECTED {
+  color: #c24858;
+
+  background: #fdecef;
+
+  border: 1px solid #f2d1d7;
+}
+
+.hr-page .leave-CANCELLED {
+  color: #7b8d9b;
+
+  background: #eef3f6;
+
+  border: 1px solid #dce5ea;
+}
+
+
+/* =========================================================
+   ACTION BUTTONS
+   ========================================================= */
+
+.hr-page .company-actions {
+  white-space: nowrap;
+
+  text-align: right;
+}
+
+.hr-page .company-link {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  min-height: 30px;
+
+  margin-right: 5px;
+
+  padding: 5px 10px;
+
+  color: #2478aa;
+
+  background: #ffffff;
+
+  border: 1px solid #d3e4ed;
+
+  border-radius: 7px;
+
+  font-size: 8.5px;
+
+  font-weight: 800;
+
+  cursor: pointer;
+
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.hr-page .company-link:hover {
+  color: #126ba0;
+
+  background: #eef8fd;
+
+  border-color: #bdd9e8;
+
+  transform: translateY(-1px);
+}
+
+.hr-page .company-link.danger {
+  color: #c34455;
+
+  background: #fff7f8;
+
+  border-color: #edcfd5;
+}
+
+.hr-page .company-link.danger:hover {
+  color: #a92f40;
+
+  background: #ffedf0;
+
+  border-color: #e5aeb8;
+}
+
+
+/* =========================================================
+   EMPTY TABLE
+   ========================================================= */
+
+.hr-page .company-empty {
+  padding: 38px 20px !important;
+
+  color: #8ca0ae !important;
+
+  background: #ffffff !important;
+
+  font-size: 10px !important;
+
+  text-align: center;
+}
+
+
+/* =========================================================
+   TEAM APPROVAL FILTER
+   ========================================================= */
+
+.hr-page .company-toolbar select.field-input {
+  width: auto;
+
+  min-width: 160px;
+
+  max-width: 190px;
+
+  flex: 0 0 auto;
+}
+
+
+/* =========================================================
+   LEAVE TYPES TOOLBAR BUTTON
+   ========================================================= */
+
+.hr-page .company-toolbar .btn {
+  flex: 0 0 auto;
+
+  min-height: 40px;
+
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+   LEAVE TYPE TABLE
+   ========================================================= */
+
+.hr-page .company-panel:last-of-type .company-table {
+  min-width: 760px;
+}
+
+
+/* =========================================================
+   MODAL
+   ========================================================= */
+
+.hr-page .modal,
+.hr-page [role="dialog"] {
+  max-width: 100%;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 900px) {
+  .hr-page .company-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hr-page .hr-header {
+    padding: 22px;
+  }
+
+  .hr-page .company-toolbar {
+    align-items: flex-start !important;
+    flex-direction: column;
+  }
+
+  .hr-page .company-toolbar > div:last-child {
+    width: 100%;
+
+    margin-left: 0;
+
+    text-align: left;
+  }
+
+  .hr-page .company-toolbar select.field-input {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+@media (max-width: 650px) {
+  .hr-page .hr-header h1 {
+    font-size: 23px;
+  }
+
+  .hr-page .hr-header p {
+    font-size: 10.5px;
+  }
+
+  .hr-page .company-panel > form {
+    padding: 16px;
+  }
+
+  .hr-page .company-toolbar {
+    padding: 16px;
+  }
+
+  .hr-page .company-table {
+    min-width: 760px;
+  }
+}

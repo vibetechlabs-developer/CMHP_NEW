@@ -1,0 +1,180 @@
+.org-page {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+}
+
+.org-page h2 {
+  margin: 0 0 4px;
+  color: #163b59;
+}
+
+.org-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 18px 0 16px;
+  border-bottom: 1px solid #e3ebf1;
+  padding-bottom: 10px;
+}
+
+.org-tab-button {
+  padding: 8px 14px;
+  border: 1px solid #dde6ed;
+  border-radius: 999px;
+  background: #fff;
+  color: #33506a;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.org-tab-button.is-active {
+  background: #1478c9;
+  border-color: #1478c9;
+  color: #fff;
+}
+
+.org-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.org-tab-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.org-tab-head h3 {
+  margin: 0 0 4px;
+  color: #163b59;
+}
+
+.org-search {
+  max-width: 320px;
+}
+
+.org-section {
+  padding: 16px;
+  border: 1px solid #e3ebf1;
+  border-radius: 10px;
+  background: #f8fbfd;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.org-section h4 {
+  margin: 0;
+  color: #163b59;
+}
+
+.org-inline-form {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px dashed #c9d6e2;
+}
+
+.org-inline-form .field {
+  min-width: 160px;
+}
+
+.org-permission-panel {
+  padding-top: 10px;
+  border-top: 1px dashed #c9d6e2;
+}
+
+.org-permission-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.org-permission-group {
+  border: 1px solid #e1eaf0;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.org-permission-group legend {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #496277;
+  padding: 0 4px;
+}
+
+.org-permission-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12.5px;
+  color: #33506a;
+}
+
+.org-permission-check code {
+  color: #6b7f95;
+  font-size: 10.5px;
+}
+
+.org-permission-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.org-member-row {
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #dfe8ee;
+  border-radius: 8px;
+}
+
+.org-role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  margin: 2px 4px 2px 0;
+  border-radius: 999px;
+  background: #eef4f9;
+  font-size: 11px;
+}
+
+.org-search-results {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.org-search-results li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 10px;
+  background: #fff;
+  border: 1px solid #e1eaf0;
+  border-radius: 8px;
+  font-size: 12.5px;
+}
+
+.org-policy-field {
+  max-width: 420px;
+}
+
+.inv-table tr.is-selected {
+  background: #eef6fc;
+}

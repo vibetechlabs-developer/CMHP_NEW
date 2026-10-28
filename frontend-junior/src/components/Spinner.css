@@ -1,0 +1,101 @@
+/* =========================================================
+   SHARED SPINNER
+   Ported from frontend/src/components/Spinner.css.
+   ========================================================= */
+
+.spinner-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: inherit;
+}
+
+.spinner {
+  flex: 0 0 auto;
+  display: inline-block;
+  box-sizing: border-box;
+  border-style: solid;
+  border-radius: 50%;
+  animation: spinner-rotate .75s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 1.6s;
+  }
+}
+
+.spinner-xs { width: 12px; height: 12px; border-width: 2px; }
+.spinner-sm { width: 16px; height: 16px; border-width: 2px; }
+.spinner-md { width: 22px; height: 22px; border-width: 2.5px; }
+.spinner-lg { width: 32px; height: 32px; border-width: 3px; }
+.spinner-xl { width: 44px; height: 44px; border-width: 3.5px; }
+
+.spinner-brand {
+  border-color: #dceaf4;
+  border-top-color: #1478c9;
+}
+
+.spinner-light {
+  border-color: rgba(255, 255, 255, 0.32);
+  border-top-color: #ffffff;
+}
+
+.spinner-muted {
+  border-color: #e4eaf0;
+  border-top-color: #7c8b9a;
+}
+
+.spinner-current {
+  border-color: color-mix(in srgb, currentColor 22%, transparent);
+  border-top-color: currentColor;
+}
+
+.spinner-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #5c7184;
+  line-height: 1.3;
+}
+
+@keyframes spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  padding: 40px 16px;
+  text-align: center;
+}
+
+.loading-state .spinner-wrap {
+  flex-direction: column;
+  gap: 12px;
+}
+
+.loading-state .spinner-label {
+  font-size: 14px;
+}
+
+.loading-state-compact {
+  padding: 18px 12px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

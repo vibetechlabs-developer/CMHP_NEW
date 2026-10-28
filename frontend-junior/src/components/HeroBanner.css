@@ -1,0 +1,131 @@
+/* =========================================================
+   CMHP PHARMA ERP - SHARED HERO BANNER
+   Standardized hero card matching User Management reference
+   ========================================================= */
+
+.hero-banner {
+  position: relative !important;
+  width: 100% !important;
+  min-height: 250px !important;
+  height: 250px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  overflow: hidden !important;
+  margin: 0 0 20px 0 !important;
+  padding: 34px 38px !important;
+  box-sizing: border-box !important;
+  border: 1px solid #d9e9f3 !important;
+  border-radius: 20px !important;
+  box-shadow: 0 7px 24px rgba(32, 91, 132, 0.07) !important;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.98) 0%,
+      rgba(255, 255, 255, 0.94) 32%,
+      rgba(255, 255, 255, 0.65) 58%,
+      rgba(255, 255, 255, 0.08) 100%
+    ),
+    url('/pharma-banner.png') right center / cover no-repeat #e6f2fb !important;
+}
+
+.hero-banner-content {
+  position: relative !important;
+  z-index: 2 !important;
+  width: 54% !important;
+  max-width: 640px !important;
+  min-width: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  text-align: left !important;
+}
+
+.hero-banner-eyebrow {
+  display: inline-block !important;
+  margin-bottom: 8px !important;
+  color: #147bc1 !important;
+  font-size: 11px !important;
+  font-weight: 850 !important;
+  letter-spacing: 1.4px !important;
+  text-transform: uppercase !important;
+}
+
+.hero-banner-title {
+  margin: 0 !important;
+  color: #123f61 !important;
+  font-size: 32px !important;
+  font-weight: 850 !important;
+  line-height: 1.15 !important;
+  letter-spacing: -0.5px !important;
+}
+
+.hero-banner-subtitle {
+  margin: 10px 0 0 !important;
+  color: #496b83 !important;
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  line-height: 1.6 !important;
+  max-width: 580px !important;
+}
+
+.hero-banner-mark {
+  position: absolute !important;
+  right: 42px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 90px !important;
+  height: 90px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: rgba(20, 123, 193, 0.12) !important;
+  font-size: 80px !important;
+  font-weight: 300 !important;
+  pointer-events: none !important;
+  border-radius: 50% !important;
+}
+
+@media (max-width: 900px) {
+  .hero-banner {
+    min-height: 220px !important;
+    height: auto !important;
+    padding: 26px 24px !important;
+  }
+
+  .hero-banner-content {
+    width: 75% !important;
+  }
+
+  .hero-banner-title {
+    font-size: 26px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-banner {
+    min-height: auto !important;
+    height: auto !important;
+    padding: 22px 18px !important;
+    background:
+      linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.97) 0%,
+        rgba(255, 255, 255, 0.92) 100%
+      ),
+      url('/pharma-banner.png') center / cover no-repeat #e6f2fb !important;
+  }
+
+  .hero-banner-content {
+    width: 100% !important;
+  }
+
+  .hero-banner-title {
+    font-size: 22px !important;
+  }
+
+  .hero-banner-mark {
+    display: none !important;
+  }
+}

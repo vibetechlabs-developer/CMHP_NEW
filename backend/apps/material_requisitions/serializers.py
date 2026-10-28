@@ -231,7 +231,11 @@ class MaterialRequisitionSerializer(serializers.ModelSerializer):
         from apps.catalog.models import Material
 
         return MaterialRequisitionLineSerializer(
-            [l for l in self._lines(obj) if l.material_kind_snapshot == Material.Kind.RAW_MATERIAL], many=True
+            [
+                l for l in self._lines(obj)
+                if l.material_kind_snapshot in (Material.Kind.RAW_MATERIAL, Material.Kind.MOTHER_TINCTURE)
+            ],
+            many=True,
         ).data
 
     def get_packaging_lines(self, obj):

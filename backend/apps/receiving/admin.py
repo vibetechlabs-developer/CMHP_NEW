@@ -1,14 +1,31 @@
 from django.contrib import admin
 
 from apps.companies.admin import ReadOnlySuperuserAdminMixin
-from apps.receiving.models import GoodsReceipt, GoodsReceiptLine
+from apps.receiving.models import ContainerType, GoodsReceipt, GoodsReceiptLine
+
+
+@admin.register(ContainerType)
+class ContainerTypeAdmin(ReadOnlySuperuserAdminMixin, admin.ModelAdmin):
+    """Read-only: create/update/activate/deactivate go through the
+    audited /api/v1/container-types/ API only - mirrors
+    apps.catalog.admin's UnitOfMeasureAdmin exactly.
+    """
+
+    list_display = ("code", "name", "is_active", "created_at")
+    list_filter = ("is_active",)
+    search_fields = ("code", "name")
+    readonly_fields = ("created_at", "updated_at")
+    ordering = ("code",)
 
 
 class GoodsReceiptLineInline(admin.TabularInline):
     model = GoodsReceiptLine
     extra = 0
     can_delete = False
-    fields = ("line_number", "material", "received_quantity", "unit", "lot_reference")
+    fields = (
+        "line_number", "source_po_line", "material", "received_quantity", "unit", "unit_price", "currency_code",
+        "lot_reference", "container_type", "container_quantity",
+    )
     readonly_fields = fields
 
 
@@ -26,6 +43,7 @@ class GoodsReceiptAdmin(ReadOnlySuperuserAdminMixin, admin.ModelAdmin):
         "company",
         "status",
         "source_purchase_order",
+        "supplier_name",
         "arrived_at",
         "created_by",
         "created_at",

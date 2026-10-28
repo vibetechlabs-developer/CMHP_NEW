@@ -1,0 +1,2578 @@
+import { confirmAction } from '../../components/ConfirmProvider'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import useAuth from '../../hooks/useAuth'
+import RequirementCalculator from '../formulas/RequirementCalculator'
+import FormulasPage from '../formulas/FormulasPage'
+import BmrPanel from '../bmr/BmrPanel'
+
+import Modal from '../inventory/components/Modal'
+import Button from '../../components/Button'
+import Alert from '../../components/Alert'
+import Spinner, { LoadingState } from '../../components/Spinner'
+import AsyncSearchSelect from './AsyncSearchSelect'
+import CustomerFormModal from './CustomerFormModal'
+import './SalesOrderFormModal.css'
+
+import { confirmSalesOrder, createSalesOrder, getConfirmationPreview, getSalesOrder, updateSalesOrder } from './salesOrdersService'
+import { searchCustomers, searchProducts } from './catalogLookupService'
+import { listProductTypes } from './productTypesService'
+import {
+  allocateBatchNumber,
+  createBatchPlan,
+  getBatchPlan,
+  getBatchPlanRequirementPreview,
+  listApprovedRevisionsForProduct,
+  listBatchPlansForOrder,
+  updateBatchPlan,
+} from './batchPlansService'
+import {
+  createPreparation,
+  getRequisitionStatus,
+  requisitionStatusText,
+  getStorePermissionCodes,
+  listMyStores,
+  listPreparationsForLine,
+  listPreparationsForPlan,
+  updatePreparation,
+} from './storePreparationService'
+import { listPlanningUnits } from './unitsLookupService'
+import { getAvailableToIssue } from '../store/materialIssueService'
+import { getRequirementPreview } from '../formulas/formulasService'
+import { convertQuantity } from '../formulas/ProductionRawMaterialCalculator'
+import { getErrorMessage } from '../../utils/errors'
+
+const NEW_PLAN = 'new'
+
+// Packing size is only ever counted in pieces or measured in these mass/
+// volume units in this business - offer just these instead of the full
+// shared catalog (which also holds unrelated formula-output/demo units).
+const PACKING_UNIT_CODES = ['PCS', 'ML', 'KG', 'GM']
+
+function filterToPackingUnitChoices(units) {
+  const filtered = units.filter((u) => PACKING_UNIT_CODES.includes((u.code || '').toUpperCase()))
+  return filtered.length ? filtered : units
+}
+
+const INSERT_OPTIONS = [
+  { value: 'NOT_SPECIFIED', label: 'Not specified' },
+  { value: 'REQUIRED', label: 'Required' },
+  { value: 'NOT_REQUIRED', label: 'Not required' },
+]
+
+const insertToValue = (insertRequired) => {
+  if (insertRequired === true) return 'REQUIRED'
+  if (insertRequired === false) return 'NOT_REQUIRED'
+  return 'NOT_SPECIFIED'
+}
+
+const valueToInsert = (value) => {
+  if (value === 'REQUIRED') return true
+  if (value === 'NOT_REQUIRED') return false
+  return null
+}
+
+const todayIso = () => new Date().toISOString().slice(0, 10)
+
+function emptyLine() {
+  return { localId: `new-${Math.random().toString(36).slice(2)}`, id: null, product: null, productType: '', quantity: '', description: '' }
+}
+
+function emptyOrderForm() {
+  return {
+    customer: null,
+    order_date: todayIso(),
+    requested_delivery_date: '',
+    planned_manufacturing_date: '',
+    customer_order_reference: '',
+    currency: 'INR',
+    notes: '',
+    lines: [emptyLine()],
+  }
+}
+
+function orderFormFromOrder(order) {
+  return {
+    customer: { id: order.customer_id, label: order.customer_name, code: order.customer_code, meta: order.customer_code },
+    order_date: order.order_date,
+    requested_delivery_date: order.requested_delivery_date || '',
+    planned_manufacturing_date: order.planned_manufacturing_date || '',
+    customer_order_reference: order.customer_order_reference || '',
+    currency: order.currency,
+    notes: order.notes || '',
+    lines: order.lines.length
+      ? order.lines.map((line) => ({
+          localId: `existing-${line.id}`,
+          id: line.id,
+          productType: line.product_type_snapshot || '',
+          product: { id: line.product_id, label: line.product_name, code: line.product_code, salesUomCode: line.sales_uom_code, meta: line.product_code },
+          quantity: line.quantity,
+          description: line.description || '',
+        }))
+      : [emptyLine()],
+  }
+}
+
+function emptyBatchForm() {
+  return {
+    mrp_for_printing: '',
+    printing_status_note: '',
+    revisionId: '',
+    target_output_quantity: '',
+    planned_manufacturing_date: '',
+    packing_size_note: '',
+    notes: '',
+    planned_pack_quantity: '',
+    packing_content_quantity: '',
+    packing_content_uom: null,
+  }
+}
+
+function batchFormFromPlan(plan) {
+  return {
+    mrp_for_printing: plan.mrp_for_printing ?? '',
+    printing_status_note: plan.printing_status_note || '',
+    revisionId: plan.formula_revision_id,
+    target_output_quantity: plan.target_output_quantity,
+    planned_manufacturing_date: plan.planned_manufacturing_date || '',
+    packing_size_note: plan.packing_size_note || '',
+    notes: plan.notes || '',
+    planned_pack_quantity: plan.planned_pack_quantity ?? '',
+    packing_content_quantity: plan.packing_content_quantity ?? '',
+    packing_content_uom: plan.packing_content_uom_id
+      ? { id: plan.packing_content_uom_id, label: plan.packing_content_uom_code, meta: '' }
+      : null,
+  }
+}
+
+function emptyStoreForm() {
+  return { packing_type: '', label_note: '', box_note: '', insert: 'NOT_SPECIFIED' }
+}
+
+function storeFormFromPreparation(prep) {
+  return {
+    packing_type: prep?.packing_type || '',
+    label_note: prep?.label_note || '',
+    box_note: prep?.box_note || '',
+    insert: insertToValue(prep ? prep.insert_required : null),
+  }
+}
+
+function parseFieldErrors(error) {
+  const data = error?.response?.data
+  if (!data || typeof data !== 'object') return {}
+  const map = {}
+  for (const [field, value] of Object.entries(data)) {
+    if (field === 'detail') continue
+    map[field] = Array.isArray(value) ? value.join(' ') : String(value)
+  }
+  return map
+}
+
+// A line with any content must be complete. Incomplete lines are rejected,
+// never dropped, because the server replaces the whole line set on edit.
+function validateLines(lines) {
+  const problems = []
+  lines.forEach((line, index) => {
+    const hasContent = line.product || line.quantity !== ''
+    if (!hasContent) return
+    if (!line.product) problems.push(`Line ${index + 1}: choose a product.`)
+    if (!/^[1-9]\d*$/.test(String(line.quantity))) problems.push(`Line ${index + 1}: order quantity must be a whole number greater than 0.`)
+  })
+  if (!lines.some((line) => line.product)) problems.push('Add at least one product line.')
+  return problems
+}
+
+function Field({ label, htmlFor, full = false, error, action = null, children }) {
+  return (
+    <div className={`field${full ? ' field-full' : ''}`}>
+      <div className="sof-label-row">
+        <label className="field-label" htmlFor={htmlFor}>
+          {label}
+        </label>
+        {action}
+      </div>
+      {children}
+      {error && <span className="field-error">{error}</span>}
+    </div>
+  )
+}
+
+// Renders exactly the server's own blocking_reasons/informational_observations
+// arrays - never a client-computed eligibility message. `reasons` items carry
+// {message, line_number?}; `tone` picks the visual treatment only.
+function ReasonsList({ reasons, tone = 'blocking' }) {
+  if (!reasons?.length) return null
+  return (
+    <ul className={`sof-reasons sof-reasons-${tone}`}>
+      {reasons.map((reason, index) => (
+        <li key={`${reason.code || index}-${reason.line_number ?? ''}`}>
+          {reason.message}
+          {reason.line_number != null && ` (line ${reason.line_number})`}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function ReadOnly({ label, value, muted = false, title }) {
+  return (
+    <div className="field">
+      <span className="field-label">{label}</span>
+      <div className={`field-input field-readonly${muted ? ' is-muted' : ''}`} title={title} aria-label={label}>
+        {value}
+      </div>
+    </div>
+  )
+}
+
+export default function SalesOrderFormModal({ realCompanyId, companyCode, companyName, orderId, permissions, onClose, onSaved }) {
+  const { user } = useAuth()
+  const canManageOrgSetup = user?.capabilities?.can_manage_organization_setup === true
+  // ----- Order (sales_orders) -----
+  const [currentOrderId, setCurrentOrderId] = useState(orderId)
+  const [order, setOrder] = useState(null)
+  const [loading, setLoading] = useState(Boolean(orderId))
+  const [loadError, setLoadError] = useState('')
+  const [reloadKey, setReloadKey] = useState(0)
+  const [orderForm, setOrderForm] = useState(emptyOrderForm)
+  const [orderSnapshot, setOrderSnapshot] = useState(() => JSON.stringify(orderForm))
+  const [selectedLineId, setSelectedLineId] = useState(null)
+  const [orderBusy, setOrderBusy] = useState(false)
+  const [orderErrors, setOrderErrors] = useState({})
+  const [orderConflict, setOrderConflict] = useState(false)
+  const [addingCustomer, setAddingCustomer] = useState(false)
+  const [lastResult, setLastResult] = useState('')
+  // Why the last save was refused. Shown in the form body, never hidden by the footer status.
+  const [orderProblems, setOrderProblems] = useState([])
+  // Success popup shown after a successful order save.
+  const [savedPopup, setSavedPopup] = useState(null)
+  const [typeOptions, setTypeOptions] = useState([])
+
+  // ----- Order confirmation (review + confirm) -----
+  // `preview` is exactly the confirmation-preview response, or null before
+  // the first review / after context changes. Nothing here is computed
+  // client-side - every quantity, blocking reason and eligibility flag is
+  // whatever the server returned.
+  const [preview, setPreview] = useState(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState('')
+  const [confirmBusy, setConfirmBusy] = useState(false)
+  // {detail, blockingReasons, status} from the most recent failed confirm
+  // attempt, or null. Kept separate from previewError/orderErrors since its
+  // shape (structured blocking reasons) is specific to the confirm outcome.
+  const [confirmResult, setConfirmResult] = useState(null)
+  const previewRequestRef = useRef(0)
+  const confirmingRef = useRef(false)
+
+  // ----- Batch plan (batch_plans) -----
+  const [plans, setPlans] = useState([])
+  const [plansError, setPlansError] = useState('')
+  const [planId, setPlanId] = useState(null)
+  const [plan, setPlan] = useState(null)
+  const [batchForm, setBatchForm] = useState(emptyBatchForm)
+  const [batchSnapshot, setBatchSnapshot] = useState(() => JSON.stringify(emptyBatchForm()))
+  const [revisions, setRevisions] = useState([])
+  const [revisionsError, setRevisionsError] = useState('')
+  const [revisionsRetry, setRevisionsRetry] = useState(0)
+  const revisionScopeRef = useRef(null)
+  const [formulasOpen, setFormulasOpen] = useState(false)
+  // Legacy batch-specific store record for the selected plan. Read-only and
+  // kept apart from the order-line store fields; never merged into them.
+  const [legacyPrep, setLegacyPrep] = useState(null)
+  const [unitsBlocked, setUnitsBlocked] = useState('')
+  const [unitsRetry, setUnitsRetry] = useState(0)
+  const [packingUnits, setPackingUnits] = useState([])
+  const [batchBusy, setBatchBusy] = useState(false)
+  const [allocating, setAllocating] = useState(false)
+  const [batchErrors, setBatchErrors] = useState({})
+  const [batchConflict, setBatchConflict] = useState(false)
+  const [batchMessage, setBatchMessage] = useState('')
+
+  // ----- Store preparation (store_preparation) -----
+  const [stores, setStores] = useState([])
+  const [storesError, setStoresError] = useState('')
+  const [storeId, setStoreId] = useState('')
+  const [storeCodes, setStoreCodes] = useState([])
+  const [storeCodesLoaded, setStoreCodesLoaded] = useState(false)
+  // Derived before any effect or dependency array reads it.
+  const canReadStore = storeCodes.includes('store_preparation.view')
+  const [prep, setPrep] = useState(null)
+  const [storeForm, setStoreForm] = useState(emptyStoreForm)
+  const [storeSnapshot, setStoreSnapshot] = useState(() => JSON.stringify(emptyStoreForm()))
+  const [requisition, setRequisition] = useState({ state: '', row: null })
+  const [prepError, setPrepError] = useState('')
+  const [storeBusy, setStoreBusy] = useState(false)
+  const [storeErrors, setStoreErrors] = useState('')
+  const [storeConflict, setStoreConflict] = useState(false)
+  const [storeMessage, setStoreMessage] = useState('')
+
+  // Section C: Raw Material Allocation & Inventory Verification State
+  const [allocationStock, setAllocationStock] = useState({})
+  const [allocationStockLoading, setAllocationStockLoading] = useState(false)
+  const [formulaLines, setFormulaLines] = useState([])
+  const [formulaLinesLoading, setFormulaLinesLoading] = useState(false)
+  const [allocatedRows, setAllocatedRows] = useState({})
+
+  useEffect(() => {
+    let cancelled = false
+    listProductTypes()
+      .then((rows) => !cancelled && setTypeOptions(rows))
+      .catch(() => !cancelled && setTypeOptions([]))
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // ----- Loading -----
+  useEffect(() => {
+    if (!currentOrderId) {
+      setOrder(null)
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setLoadError('')
+    getSalesOrder(realCompanyId, currentOrderId)
+      .then((detail) => {
+        if (cancelled) return
+        setOrder(detail)
+        setLoading(false)
+      })
+      .catch((error) => {
+        if (cancelled) return
+        setLoadError(getErrorMessage(error))
+        setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [currentOrderId, realCompanyId, reloadKey])
+
+  // The review is a snapshot of one specific order version. Any context
+  // change - a different order, a different company, or a fresh reload
+  // after a save/confirm - makes it stale, so it is cleared rather than
+  // left showing stale eligibility against the new state. This also
+  // discards any in-flight preview request's eventual result (guarded
+  // again below via previewRequestRef, in case this effect and that
+  // request's own promise resolve in the same tick).
+  useEffect(() => {
+    previewRequestRef.current += 1
+    setPreview(null)
+    setPreviewError('')
+    setConfirmResult(null)
+  }, [currentOrderId, realCompanyId, reloadKey])
+
+  // Hydrate the order form from the server whenever the saved order changes.
+  useEffect(() => {
+    const next = order ? orderFormFromOrder(order) : emptyOrderForm()
+    setOrderForm(next)
+    setOrderSnapshot(JSON.stringify(next))
+    setSelectedLineId(next.lines[0].localId)
+  }, [order])
+
+  // The plan list loads once per order id. It never depends on the whole
+  // `order` object, which changes after every save and must not reset the
+  // user's plan or unsaved batch edits.
+  const loadedOrderId = order?.id ?? null
+  const [autoPlanId, setAutoPlanId] = useState(null)
+  const planIdRef = useRef(null)
+  useEffect(() => {
+    planIdRef.current = planId
+  }, [planId])
+
+  useEffect(() => {
+    if (!loadedOrderId || !permissions.canViewBatch) return
+    let cancelled = false
+    listBatchPlansForOrder(realCompanyId, loadedOrderId)
+      .then((rows) => {
+        if (cancelled) return
+        setPlans(rows)
+        setPlansError('')
+        // Pre-select the first plan only when the user has not chosen one yet.
+        if (rows.length > 0 && planIdRef.current === null) setAutoPlanId(rows[0].id)
+      })
+      .catch((error) => !cancelled && setPlansError(getErrorMessage(error)))
+    return () => {
+      cancelled = true
+    }
+  }, [loadedOrderId, realCompanyId, permissions.canViewBatch])
+
+  // Loads the auto-selected plan's detail. Runs only when that id changes, so
+  // it never overwrites a plan the user picked or unsaved batch edits.
+  useEffect(() => {
+    if (typeof autoPlanId !== 'number') return
+    let cancelled = false
+    getBatchPlan(realCompanyId, autoPlanId)
+      .then((detail) => {
+        if (cancelled) return
+        const next = batchFormFromPlan(detail)
+        setPlanId(autoPlanId)
+        setPlan(detail)
+        setBatchForm(next)
+        setBatchSnapshot(JSON.stringify(next))
+      })
+      .catch((error) => !cancelled && setBatchMessage(getErrorMessage(error)))
+    return () => {
+      cancelled = true
+    }
+  }, [autoPlanId, realCompanyId])
+
+  // Units for batch planning come from the company-scoped planning lookup
+  // (batch_plans.view). A failed load is shown with a Retry action.
+  useEffect(() => {
+    if (!realCompanyId || !permissions.canViewBatch) return
+    let cancelled = false
+    listPlanningUnits(realCompanyId)
+      .then((rows) => {
+        if (cancelled) return
+        setPackingUnits(filterToPackingUnitChoices(rows))
+        setUnitsBlocked('')
+      })
+      .catch(() => !cancelled && setUnitsBlocked('failed'))
+    return () => {
+      cancelled = true
+    }
+  }, [realCompanyId, permissions.canViewBatch, unitsRetry])
+
+  useEffect(() => {
+    let cancelled = false
+    listMyStores()
+      .then((rows) => {
+        if (cancelled) return
+        setStores(rows)
+        if (rows.length) setStoreId((current) => current || String(rows[0].id))
+      })
+      .catch((error) => !cancelled && setStoresError(getErrorMessage(error)))
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!storeId) return
+    let cancelled = false
+    setStoreCodesLoaded(false)
+    getStorePermissionCodes(storeId)
+      .then((codes) => {
+        if (cancelled) return
+        setStoreCodes(codes)
+        setStoreCodesLoaded(true)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setStoreCodes([])
+        setStoreCodesLoaded(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [storeId])
+
+  const selectedLine = orderForm.lines.find((line) => line.localId === selectedLineId) || orderForm.lines[0]
+  const selectedProductId = selectedLine?.product ? selectedLine.product.id : null
+  const selectedRevisionProduct = selectedProductId
+
+  useEffect(() => {
+    if (!selectedProductId || !realCompanyId) {
+      setRevisions([])
+      return
+    }
+    let cancelled = false
+    const scope = `${realCompanyId}:${selectedProductId}`
+    // A different company or product must never show the previous list.
+    if (revisionScopeRef.current !== scope) {
+      revisionScopeRef.current = scope
+      setRevisions([])
+    }
+    setRevisionsError('')
+    listApprovedRevisionsForProduct(realCompanyId, selectedProductId)
+      .then((rows) => !cancelled && setRevisions(rows || []))
+      .catch((error) => {
+        // Keep the last good list and the user's selection; offer Retry.
+        if (cancelled) return
+        setRevisionsError(getErrorMessage(error))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedProductId, realCompanyId, revisionsRetry])
+
+  // Store preparation belongs to the saved ORDER LINE, not to a batch plan. It
+  // loads as soon as a store and a saved line are chosen, with or without a plan.
+  const savedLineId = selectedLine?.id ?? null
+  useEffect(() => {
+    if (!storeId || !savedLineId) {
+      setPrep(null)
+      setStoreForm(emptyStoreForm())
+      setStoreSnapshot(JSON.stringify(emptyStoreForm()))
+      return
+    }
+    let cancelled = false
+    setPrepError('')
+    listPreparationsForLine(storeId, savedLineId)
+      .then((rows) => {
+        if (cancelled) return
+        const existing = rows[0] || null
+        setPrep(existing)
+        const next = storeFormFromPreparation(existing)
+        setStoreForm(next)
+        setStoreSnapshot(JSON.stringify(next))
+      })
+      .catch((error) => {
+        if (cancelled) return
+        setPrep(null)
+        setPrepError(getErrorMessage(error))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [storeId, savedLineId])
+
+  useEffect(() => {
+    if (typeof planId !== 'number' || !storeId || !canReadStore) {
+      setLegacyPrep(null)
+      return
+    }
+    let cancelled = false
+    listPreparationsForPlan(storeId, planId)
+      .then((rows) => !cancelled && setLegacyPrep(rows[0] || null))
+      .catch(() => !cancelled && setLegacyPrep(null))
+    return () => {
+      cancelled = true
+    }
+  }, [storeId, planId, canReadStore])
+
+  // Requisition status is still tied to the batch plan: it only exists once
+  // planning has produced formula-derived requirements.
+  useEffect(() => {
+    if (typeof planId !== 'number' || !storeId) {
+      setRequisition({ state: '', row: null })
+      return
+    }
+    let cancelled = false
+    getRequisitionStatus(storeId, planId).then(
+      (body) => {
+        if (cancelled) return
+        if (body.state === 'present') setRequisition({ state: 'present', row: body })
+        else setRequisition({ state: body.state === 'none' ? 'none' : 'unavailable', row: null })
+      },
+      (error) => {
+        if (cancelled) return
+        // Refused or not visible: neutral wording, never "no requisition".
+        const refused = error?.response?.status === 403 || error?.response?.status === 404
+        setRequisition({ state: refused ? 'unavailable' : 'error', row: null })
+      }
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [storeId, planId])
+
+  // ----- Section C: Raw Material Allocation & Inventory Verification -----
+  const activePlan = plans.find((p) => p.id === planId) || (typeof planId === 'number' ? plan : null)
+  const displayBatchNumber = plan?.official_batch_number || activePlan?.official_batch_number || (typeof planId === 'number' ? `Plan #${planId}` : 'Not Allocated (Pending Batch Plan)')
+  const orderLineQty = Number(selectedLine?.quantity) || 0
+
+  // Tracking allocated & deducted lines
+  const [allocatedOrderLines, setAllocatedOrderLines] = useState({})
+  const currentLineKey = String(selectedLine?.id || selectedLine?.localId || 'default')
+  const isLineAllocated = Boolean(allocatedOrderLines[currentLineKey])
+
+  // Active Revision from list or batchForm
+  const activeRev = revisions.find((r) => String(r.id) === String(batchForm.revisionId)) || revisions[0] || null
+  const hasApprovedFormula = Boolean(activeRev || revisions.length > 0)
+  const hasBatchPlan = Boolean(typeof planId === 'number' && planId > 0)
+
+  // Fetch real recipe lines from the server if a formula revision or batch plan exists
+  useEffect(() => {
+    let cancelled = false
+    setAllocatedRows({})
+
+    const fetchServerFormulaLines = async () => {
+      if (!orderLineQty || (!hasBatchPlan && !activeRev?.id)) {
+        setFormulaLines([])
+        return
+      }
+      setFormulaLinesLoading(true)
+      try {
+        let data = null
+        if (typeof planId === 'number' && realCompanyId) {
+          data = await getBatchPlanRequirementPreview(realCompanyId, planId, String(orderLineQty))
+        } else if (activeRev?.formulaId && activeRev?.id && realCompanyId && orderLineQty) {
+          data = await getRequirementPreview(realCompanyId, activeRev.formulaId, activeRev.id, String(orderLineQty))
+        }
+        if (!cancelled && data && data.lines && data.lines.length > 0) {
+          const rawLines = data.lines.filter((l) => l.material_type === 'RAW_MATERIAL')
+          const baseOutput = Number(data.revision?.base_output_quantity) || orderLineQty || 1
+          const factor = baseOutput > 0 ? orderLineQty / baseOutput : 1
+          setFormulaLines(
+            rawLines.map((l, idx) => ({
+              id: `db-mat-${l.id || idx}`,
+              materialId: l.material_id || null,
+              code: l.material_code || `RM-${String(idx + 1).padStart(3, '0')}`,
+              name: l.material_name || `Material ${idx + 1}`,
+              claim: l.label_claim_quantity
+                ? `Potency/Claim: ${l.label_claim_quantity} ${l.label_claim_uom_code || ''}`
+                : l.potency
+                  ? `Potency: ${l.potency}`
+                  : '',
+              unit: l.unit_code || 'lit',
+              baseQty: Number(l.base_line_quantity) || 1,
+              requiredQty:
+                Number(l.required_quantity?.value || l.required_quantity) ||
+                Number((Number(l.base_line_quantity || 1) * factor).toFixed(2)),
+              defaultAvail: 0,
+            }))
+          )
+        } else if (!cancelled) {
+          setFormulaLines([])
+        }
+      } catch {
+        if (!cancelled) setFormulaLines([])
+      } finally {
+        if (!cancelled) setFormulaLinesLoading(false)
+      }
+    }
+
+    fetchServerFormulaLines()
+    return () => {
+      cancelled = true
+    }
+  }, [planId, activeRev?.id, activeRev?.formulaId, realCompanyId, orderLineQty, hasBatchPlan])
+
+  // Calculate required quantities: strictly use database formula lines; no fake mock fallback!
+  const rawMaterialLines = useMemo(() => {
+    return formulaLines || []
+  }, [formulaLines])
+
+  // Fetch live store balances for allocation materials
+  useEffect(() => {
+    if (!storeId) return
+    let cancelled = false
+    setAllocationStockLoading(true)
+    Promise.all(
+      rawMaterialLines.map((line) => {
+        if (!line.materialId) return Promise.resolve({ id: line.id, avail: line.defaultAvail || 0 })
+        return getAvailableToIssue(storeId, line.materialId)
+          .then((rows) => {
+            const sum = (rows || []).reduce((acc, r) => acc + (Number(r.net_quantity) || 0), 0)
+            const storeUnit = rows && rows.length > 0 ? (rows[0].unit_code || 'ML') : (line.unit || 'lit')
+            const converted = convertQuantity(sum, storeUnit, line.unit || 'lit')
+            return { id: line.id, avail: converted }
+          })
+          .catch(() => ({ id: line.id, avail: line.defaultAvail || 0 }))
+      })
+    )
+      .then((res) => {
+        if (cancelled) return
+        const map = {}
+        res.forEach((r) => {
+          map[r.id] = r.avail
+        })
+        setAllocationStock(map)
+      })
+      .finally(() => {
+        if (!cancelled) setAllocationStockLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [storeId, rawMaterialLines])
+
+  // Verified allocation calculation with live inventory deduction when allocated
+  const verifiedAllocation = useMemo(() => {
+    if (!rawMaterialLines || rawMaterialLines.length === 0) {
+      return {
+        list: [],
+        allInStock: false,
+        shortageCount: 0,
+        shortages: [],
+        allocatedCount: 0,
+        allAllocated: false,
+      }
+    }
+    const list = rawMaterialLines.map((row) => {
+      const initialAvail = allocationStock[row.id] !== undefined ? allocationStock[row.id] : row.defaultAvail
+      const isAllocated = Boolean(allocatedRows[row.id]) || isLineAllocated
+      // Deduct required quantity when allocated!
+      const avail = isAllocated ? Math.max(0, Number((initialAvail - row.requiredQty).toFixed(2))) : initialAvail
+      const isShort = !isAllocated && initialAvail < row.requiredQty
+      const diff = Math.max(0, Number((row.requiredQty - initialAvail).toFixed(2)))
+      return {
+        ...row,
+        initialAvailable: initialAvail,
+        available: avail,
+        isAllocated,
+        isShort,
+        diff,
+      }
+    })
+    const shortages = list.filter((r) => r.isShort)
+    const allocatedCount = list.filter((r) => r.isAllocated).length
+    return {
+      list,
+      allInStock: shortages.length === 0,
+      shortageCount: shortages.length,
+      shortages,
+      allocatedCount,
+      allAllocated: allocatedCount === list.length && list.length > 0,
+    }
+  }, [rawMaterialLines, allocationStock, allocatedRows, isLineAllocated])
+
+  // Individual Row Allocate (deducts stock immediately)
+  const handleAllocateRow = (rowId) => {
+    setAllocatedRows((prev) => ({ ...prev, [rowId]: true }))
+  }
+
+  // Individual Row Deallocate (restores stock)
+  const handleDeallocateRow = (rowId) => {
+    setAllocatedRows((prev) => {
+      const next = { ...prev }
+      delete next[rowId]
+      return next
+    })
+  }
+
+  // Allocate all materials that are currently in stock
+  const handleAllocateAllReady = () => {
+    const next = {}
+    verifiedAllocation.list.forEach((r) => {
+      if (!r.isShort) next[r.id] = true
+    })
+    setAllocatedRows(next)
+    setAllocatedOrderLines((prev) => ({ ...prev, [currentLineKey]: true }))
+  }
+
+  // Reset all allocations
+  const handleDeallocateAll = () => {
+    setAllocatedRows({})
+    setAllocatedOrderLines((prev) => {
+      const next = { ...prev }
+      delete next[currentLineKey]
+      return next
+    })
+  }
+
+  // Handle Save Section C & Allocate (deducts stock from inventory!)
+  const handleSaveSectionCAndAllocate = async () => {
+    if (canWriteStore) {
+      await saveStore()
+    }
+    handleAllocateAllReady()
+  }
+
+  // Deallocate / Return stock to inventory
+  const handleDeallocate = () => {
+    handleDeallocateAll()
+  }
+
+  // ----- Dirty state (per resource) -----
+  const orderDirty = JSON.stringify(orderForm) !== orderSnapshot
+  const batchDirty = planId !== null && JSON.stringify(batchForm) !== batchSnapshot
+  const storeDirty = Boolean(savedLineId) && JSON.stringify(storeForm) !== storeSnapshot
+  const dirtyNames = [orderDirty && 'order', batchDirty && 'batch plan', storeDirty && 'store preparation'].filter(Boolean)
+
+  // ----- Permissions -----
+  const canEditOrder = Boolean(order ? permissions.canEditOrder && order.status === 'DRAFT' : permissions.canCreateOrder)
+  const canEditBatch = Boolean(order && (planId === NEW_PLAN ? permissions.canCreateBatch : permissions.canEditBatch))
+  const canEditPrinting = Boolean(canEditBatch && permissions.canEditPrinting)
+  const canWriteStore = Boolean(
+    storeId && savedLineId && (prep ? storeCodes.includes('store_preparation.edit') : storeCodes.includes('store_preparation.create'))
+  )
+  // Store preparation depends only on store-scoped permissions. Order
+  // (sales_orders.*) and batch-plan edit rights are deliberately not part of it.
+  const canStoreManage = storeCodes.includes('store_preparation.create') || storeCodes.includes('store_preparation.edit')
+  const storeAccessLabel = !storeId
+    ? 'No active store'
+    : !storeCodesLoaded || permissions.loading
+      ? <Spinner size="xs" tone="muted" label="Loading…" />
+      : canStoreManage ? 'You can edit' : canReadStore ? 'View only' : 'Access unavailable'
+  const batchAccessLabel = !order
+    ? 'Save the order first'
+    : permissions.loading
+      ? <Spinner size="xs" tone="muted" label="Loading…" />
+      : !permissions.canViewBatch ? 'Access unavailable' : canEditBatch ? 'You can edit' : 'View only'
+
+  // ----- Order actions -----
+  const updateOrderField = (key, value) => setOrderForm((prev) => ({ ...prev, [key]: value }))
+  const updateLine = (localId, patch) =>
+    setOrderForm((prev) => ({ ...prev, lines: prev.lines.map((line) => (line.localId === localId ? { ...line, ...patch } : line)) }))
+  const addLine = () => {
+    const line = emptyLine()
+    setOrderForm((prev) => ({ ...prev, lines: [...prev.lines, line] }))
+    setSelectedLineId(line.localId)
+  }
+  const removeLine = (localId) => {
+    setOrderForm((prev) => ({ ...prev, lines: prev.lines.filter((line) => line.localId !== localId) }))
+    if (selectedLineId === localId) setSelectedLineId(orderForm.lines.find((line) => line.localId !== localId)?.localId ?? null)
+  }
+
+  // Type choices come from the maintained ProductType lookup. A value already
+  // saved on a line stays selectable even if the lookup no longer lists it.
+  const typeChoices = (current) => {
+    const names = typeOptions.map((item) => item.name)
+    return current && !names.includes(current) ? [...names, current] : names
+  }
+
+  const saveOrder = async () => {
+    if (orderBusy || !canEditOrder) return
+    setOrderErrors({})
+    setOrderConflict(false)
+    setOrderProblems([])
+    const problems = validateLines(orderForm.lines)
+    if (!orderForm.customer) problems.unshift('Choose a customer.')
+    if (!order && !orderForm.currency) problems.unshift('Enter a currency (for example INR).')
+    if (problems.length) {
+      setOrderProblems(problems)
+      setLastResult('Order not saved. Fix the items listed above the form.')
+      return
+    }
+    const lines = orderForm.lines
+      .filter((line) => line.product)
+      .map((line) => {
+        const base = {
+          product_id: Number(line.product.id),
+          quantity: line.quantity,
+          // No unit_price - the form no longer collects it; the server
+          // defaults it to 0 when omitted (apps.sales_orders.serializers).
+          description: line.description || undefined,
+          product_type_snapshot: line.productType || '',
+        }
+        return order && line.id ? { id: line.id, ...base } : base
+      })
+    const header = {
+      customer_id: Number(orderForm.customer.id),
+      order_date: orderForm.order_date || undefined,
+      requested_delivery_date: orderForm.requested_delivery_date || null,
+      planned_manufacturing_date: orderForm.planned_manufacturing_date || null,
+      customer_order_reference: orderForm.customer_order_reference || '',
+      notes: orderForm.notes || '',
+    }
+    setOrderBusy(true)
+    try {
+      const saved = order
+        ? await updateSalesOrder(realCompanyId, order.id, { expected_version: order.version, ...header, lines })
+        : await createSalesOrder(realCompanyId, { ...header, currency: orderForm.currency, lines })
+      setOrderProblems([])
+      setLastResult(order ? 'Order saved.' : `Order ${saved.reference} created.`)
+      setSavedPopup({
+        title: order ? 'Order saved' : 'Order created',
+        text: order ? `Order ${saved.reference} has been saved.` : `Order ${saved.reference} has been created.`,
+        // A newly created order closes this window once the popup is acknowledged.
+        closeAfter: !order,
+      })
+      setCurrentOrderId(saved.id)
+      setReloadKey((key) => key + 1)
+      onSaved?.(saved)
+    } catch (error) {
+      if (error?.response?.status === 409) {
+        setOrderConflict(true)
+        setLastResult('Order not saved: it changed elsewhere. Your entries are kept.')
+      } else {
+        setOrderErrors(parseFieldErrors(error))
+        setOrderProblems([getErrorMessage(error)])
+        setLastResult('Order not saved. See the message above the form.')
+      }
+    } finally {
+      setOrderBusy(false)
+    }
+  }
+
+  // ----- Order confirmation (review + confirm) -----
+  // Fetches the real confirmation-preview. Requires a saved order
+  // (orderDirty must be false - the caller is responsible for that
+  // guard, matching "save or discard before review"). Never computes
+  // eligibility itself; only displays the server's own assessment.
+  const reviewOrder = async () => {
+    if (!order || orderDirty || previewLoading) return
+    const requestId = ++previewRequestRef.current
+    setPreviewLoading(true)
+    setPreviewError('')
+    setConfirmResult(null)
+    try {
+      const data = await getConfirmationPreview(realCompanyId, order.id)
+      if (previewRequestRef.current !== requestId) return // stale - context changed while this was in flight
+      setPreview(data)
+    } catch (error) {
+      if (previewRequestRef.current !== requestId) return
+      setPreview(null)
+      setPreviewError(getErrorMessage(error))
+    } finally {
+      if (previewRequestRef.current === requestId) setPreviewLoading(false)
+    }
+  }
+
+  // Confirms using preview.order.version - the version actually reviewed,
+  // never order.version or any other locally-held value, so a confirm can
+  // never silently apply to a version the user never saw the eligibility
+  // assessment for.
+  const handleConfirm = async () => {
+    if (confirmingRef.current || !preview || !preview.confirmation.ready_to_attempt) return
+    // Set the guard before the (async) confirmation dialog, not after it
+    // resolves - otherwise rapid repeat clicks can all pass the check above
+    // before any of them sets it, each opening its own dialog/request.
+    confirmingRef.current = true
+    try {
+      const proceed = await confirmAction(
+        'Confirming freezes order details. It does not issue stock or start production.',
+        { confirmLabel: 'Confirm order', title: 'Confirm this order?', danger: false }
+      )
+      if (!proceed) return
+    } finally {
+      confirmingRef.current = false
+    }
+    confirmingRef.current = true
+    setConfirmBusy(true)
+    setConfirmResult(null)
+    try {
+      const confirmed = await confirmSalesOrder(realCompanyId, order.id, preview.order.version)
+      setOrder(confirmed)
+      setPreview(null)
+      setConfirmResult({ kind: 'success' })
+      setLastResult(`Order ${confirmed.reference} confirmed.`)
+      onSaved?.(confirmed)
+    } catch (error) {
+      const status = error?.response?.status
+      const data = error?.response?.data
+      if (status === 409) {
+        // Clear the stale reviewed state outright - its ready_to_attempt/
+        // version no longer apply, and leaving the old Confirm button
+        // enabled would invite another doomed attempt at the same stale
+        // version. A fresh "Review order" click is required before
+        // confirming can be attempted again.
+        setPreview(null)
+        setConfirmResult({
+          kind: 'stale',
+          message: 'This order changed since you reviewed it, so it was not confirmed. Review it again to see the current details before confirming.',
+        })
+      } else if (status === 400 && Array.isArray(data?.blocking_reasons)) {
+        // Confirm re-assessed eligibility fresh, under lock, at confirm time -
+        // that is now the authoritative answer, so the earlier preview (which
+        // may already disagree with it) is cleared rather than shown
+        // alongside a second, possibly-different reasons list.
+        setPreview(null)
+        setConfirmResult({ kind: 'blocked', message: data.detail, blockingReasons: data.blocking_reasons })
+      } else if (status === 403) {
+        setConfirmResult({ kind: 'error', message: "You don't have permission to confirm this order." })
+      } else if (status === 404) {
+        setConfirmResult({ kind: 'error', message: 'This order was not found. It may have been removed, or you may no longer have access.' })
+      } else {
+        setConfirmResult({ kind: 'error', message: getErrorMessage(error) })
+      }
+    } finally {
+      confirmingRef.current = false
+      setConfirmBusy(false)
+    }
+  }
+
+  // ----- Batch actions -----
+  const updateBatchField = (key, value) => setBatchForm((prev) => ({ ...prev, [key]: value }))
+
+  const selectPlan = async (nextPlanId, { force = false } = {}) => {
+    if (!force && (batchDirty || storeDirty) && !(await confirmAction('Discard unsaved batch plan or store changes?'))) return
+    setBatchErrors({})
+    setBatchConflict(false)
+    setBatchMessage('')
+    setStoreErrors('')
+    setStoreConflict(false)
+    setStoreMessage('')
+    if (nextPlanId === null) {
+      setPlanId(null)
+      setPlan(null)
+      setBatchForm(emptyBatchForm())
+      setBatchSnapshot(JSON.stringify(emptyBatchForm()))
+      return
+    }
+    if (nextPlanId === NEW_PLAN) {
+      const fresh = { ...emptyBatchForm(), planned_manufacturing_date: orderForm.planned_manufacturing_date || '' }
+      setPlanId(NEW_PLAN)
+      setPlan(null)
+      setBatchForm(fresh)
+      setBatchSnapshot(JSON.stringify(fresh))
+      return
+    }
+    try {
+      const detail = await getBatchPlan(realCompanyId, nextPlanId)
+      const next = batchFormFromPlan(detail)
+      setPlanId(nextPlanId)
+      setPlan(detail)
+      setBatchForm(next)
+      setBatchSnapshot(JSON.stringify(next))
+    } catch (error) {
+      setBatchMessage(getErrorMessage(error))
+    }
+  }
+
+  const reloadPlanDetail = async () => {
+    if (typeof planId !== 'number') return
+    await selectPlan(planId, { force: true })
+    setPlans(await listBatchPlansForOrder(realCompanyId, order.id))
+  }
+
+  const saveBatch = async () => {
+    if (batchBusy || !canEditBatch) return
+    setBatchErrors({})
+    setBatchConflict(false)
+    const problems = []
+    if (!order) problems.push('Save the order first.')
+    if (orderDirty) {
+      try {
+        await saveOrder()
+      } catch {
+        problems.push('Please save the order details first.')
+      }
+    }
+    if (planId === NEW_PLAN) {
+      if (!selectedLine?.id) problems.push('Save the order line before creating a batch plan for it.')
+      if (!batchForm.revisionId) problems.push('Choose an approved formula revision. It is not selected automatically.')
+    }
+    let targetQty = batchForm.target_output_quantity
+    if (!targetQty || Number(targetQty) <= 0) {
+      const rev = revisions.find((r) => String(r.id) === String(batchForm.revisionId))
+      if (rev?.baseOutputQuantity && Number(rev.baseOutputQuantity) > 0) {
+        targetQty = String(rev.baseOutputQuantity)
+        setBatchForm((prev) => ({ ...prev, target_output_quantity: targetQty }))
+      } else if (selectedLine?.quantity && Number(selectedLine.quantity) > 0) {
+        targetQty = String(selectedLine.quantity)
+        setBatchForm((prev) => ({ ...prev, target_output_quantity: targetQty }))
+      } else {
+        problems.push('Enter the batch size (target output quantity greater than 0).')
+      }
+    }
+    if ((batchForm.packing_content_quantity !== '' || batchForm.planned_pack_quantity !== '') && !batchForm.packing_content_uom) {
+      problems.push('Choose the packing size unit.')
+    }
+    if (problems.length) {
+      setBatchMessage(problems.join(' '))
+      return
+    }
+    setBatchBusy(true)
+    try {
+      if (planId === NEW_PLAN) {
+        const payload = {
+          sales_order_line_id: selectedLine.id,
+          formula_revision_id: Number(batchForm.revisionId),
+          target_output_quantity: targetQty,
+          planned_manufacturing_date: batchForm.planned_manufacturing_date || null,
+          packing_size_note: batchForm.packing_size_note || '',
+          notes: batchForm.notes || '',
+        }
+        if (batchForm.planned_pack_quantity !== '') payload.planned_pack_quantity = batchForm.planned_pack_quantity
+        if (batchForm.packing_content_quantity !== '') payload.packing_content_quantity = batchForm.packing_content_quantity
+        if (batchForm.packing_content_uom) payload.packing_content_uom_id = Number(batchForm.packing_content_uom.id)
+        if (canEditPrinting) {
+          payload.mrp_for_printing = batchForm.mrp_for_printing === '' ? null : batchForm.mrp_for_printing
+          payload.printing_status_note = batchForm.printing_status_note || ''
+        }
+        const created = await createBatchPlan(realCompanyId, payload)
+        setBatchMessage(`Batch plan ${created.id} created.`)
+        setSavedPopup({ title: 'Batch plan created', text: `Batch plan ${created.id} has been created.`, closeAfter: true })
+        setPlans(await listBatchPlansForOrder(realCompanyId, order.id))
+        await selectPlan(created.id, { force: true })
+      } else {
+        const payload = {
+          expected_version: plan.version,
+          target_output_quantity: batchForm.target_output_quantity,
+          planned_manufacturing_date: batchForm.planned_manufacturing_date || null,
+          packing_size_note: batchForm.packing_size_note,
+          notes: batchForm.notes,
+          planned_pack_quantity: batchForm.planned_pack_quantity === '' ? null : batchForm.planned_pack_quantity,
+          packing_content_quantity: batchForm.packing_content_quantity === '' ? null : batchForm.packing_content_quantity,
+          packing_content_uom_id: batchForm.packing_content_uom ? Number(batchForm.packing_content_uom.id) : null,
+          ...(canEditPrinting
+            ? {
+                mrp_for_printing: batchForm.mrp_for_printing === '' ? null : batchForm.mrp_for_printing,
+                printing_status_note: batchForm.printing_status_note || '',
+              }
+            : {}),
+        }
+        await updateBatchPlan(realCompanyId, plan.id, payload)
+        setBatchMessage('Batch details saved.')
+        setSavedPopup({ title: 'Batch details saved', text: 'The batch and printing details have been saved.', closeAfter: true })
+        await reloadPlanDetail()
+      }
+    } catch (error) {
+      if (error?.response?.status === 409) {
+        setBatchConflict(true)
+        setBatchMessage('Batch plan not saved: it changed elsewhere. Your entries are kept. Reload to review.')
+      } else {
+        setBatchErrors(parseFieldErrors(error))
+        setBatchMessage(`Batch plan not saved. ${getErrorMessage(error)}`)
+      }
+    } finally {
+      setBatchBusy(false)
+    }
+  }
+
+  const generateBatchNumber = async () => {
+    if (!plan || allocating) return
+    const confirmed = await confirmAction(
+      `Generate the permanent batch number for plan ${plan.id}?\n\nIt cannot be changed afterwards. It does not authorize production, reserve stock or issue material.`
+    )
+    if (!confirmed) return
+    setAllocating(true)
+    setBatchConflict(false)
+    try {
+      const result = await allocateBatchNumber(realCompanyId, plan.id, plan.version)
+      setBatchMessage(`Batch number ${result.official_batch_number || ''} generated.`)
+      await reloadPlanDetail()
+    } catch (error) {
+      if (error?.response?.status === 409) {
+        setBatchConflict(true)
+        setBatchMessage('Not generated: the plan changed. Nothing was allocated. Reload and try again.')
+      } else {
+        setBatchMessage(`Not generated. ${getErrorMessage(error)}`)
+      }
+    } finally {
+      setAllocating(false)
+    }
+  }
+
+  // ----- Store preparation actions -----
+  const saveStore = async () => {
+    if (storeBusy || !canWriteStore || !storeId) return
+    setStoreErrors('')
+    setStoreConflict(false)
+    setStoreBusy(true)
+    try {
+      const insertRequired = valueToInsert(storeForm.insert)
+      const saved = prep
+        ? await updatePreparation(storeId, prep.id, {
+            expected_version: prep.version,
+            packing_type: storeForm.packing_type,
+            insert_required: insertRequired,
+            label_note: storeForm.label_note,
+            box_note: storeForm.box_note,
+          })
+        : await createPreparation(storeId, {
+            sales_order_line_id: savedLineId,
+            packing_type: storeForm.packing_type,
+            insert_required: insertRequired,
+            label_note: storeForm.label_note,
+            box_note: storeForm.box_note,
+          })
+      setPrep(saved)
+      const next = storeFormFromPreparation(saved)
+      setStoreForm(next)
+      setStoreSnapshot(JSON.stringify(next))
+      setStoreMessage('Store details saved.')
+      setSavedPopup({ title: 'Store details saved', text: 'The store preparation details have been saved.', closeAfter: true })
+    } catch (error) {
+      if (error?.response?.status === 409) {
+        setStoreConflict(true)
+        setStoreMessage('Store details not saved: they changed elsewhere. Your entries are kept. Reload to review.')
+      } else {
+        setStoreErrors(getErrorMessage(error))
+        setStoreMessage('Store details not saved. Your entries are kept.')
+      }
+    } finally {
+      setStoreBusy(false)
+    }
+  }
+
+  // ----- Derived display values -----
+  const planListRow = plans.find((row) => row.id === planId) || null
+  const outputUom = planListRow?.output_uom_code || revisions.find((rev) => String(rev.id) === String(batchForm.revisionId))?.outputUomCode || ''
+  const requisitionText = typeof planId !== 'number' ? 'Available after batch planning' : requisitionStatusText(requisition)
+  const batchNumber = plan?.official_batch_number || null
+  const assessment = plan?.packing_assessment || null
+
+
+  const currencyCode = order?.currency || orderForm.currency || ''
+  const title = 'Order details'
+  const orderAccessLabel = permissions.loading
+    ? <Spinner size="xs" tone="muted" label="Loading…" />
+    : !order
+      ? (permissions.canCreateOrder ? 'You can edit' : 'Access unavailable')
+      : canEditOrder ? 'You can edit' : 'View only'
+
+  // Back from Manage formulas: the order and batch input are untouched. Only the
+  // approved-revision list is refreshed; the selection is kept as it was.
+  const closeFormulas = () => {
+    setFormulasOpen(false)
+    setRevisionsRetry((n) => n + 1)
+  }
+
+  const requestClose = async () => {
+    if (dirtyNames.length && !(await confirmAction(`Unsaved changes in ${dirtyNames.join(', ')}. Close without saving?`))) return
+    onClose()
+  }
+
+  const footer = (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span
+          className="field-status"
+          role="status"
+          aria-live="polite"
+          style={{ fontWeight: 600, color: orderDirty || batchDirty || storeDirty ? '#d97706' : '#16a34a' }}
+        >
+          {orderDirty || batchDirty || storeDirty ? `● Unsaved: ${dirtyNames.join(', ')}` : (lastResult || 'All changes saved')}
+        </span>
+        {batchMessage && (
+          <span style={{ fontSize: 12, color: batchMessage.includes('not') || batchMessage.includes('Enter') ? '#b91c1c' : '#16a34a' }}>
+            · {batchMessage}
+          </span>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button type="button" className="btn btn-secondary" onClick={requestClose}>
+          Close
+        </button>
+
+        {orderDirty && canEditOrder && (
+          <button type="submit" form="company-customer-order-form" className="btn btn-secondary" disabled={orderBusy}>
+            Save Order
+          </button>
+        )}
+
+        {canEditBatch && planId !== null && (
+          <Button
+            variant="primary"
+            onClick={saveBatch}
+            loading={batchBusy}
+            disabled={batchBusy}
+            title="Save batch planning details"
+          >
+            💾 Save Batch Plan
+          </Button>
+        )}
+
+        {storeDirty && canWriteStore && storeId && (
+          <Button variant="secondary" onClick={saveStore} loading={storeBusy} disabled={storeBusy}>
+            Save Store Details
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+
+  return (
+    <Modal
+      title={title}
+      subheader={
+        <p className="field-muted">
+          {order ? `Order ${order.reference}` : 'New order'}
+          {companyCode ? ` · Operating company ${companyCode}` : ''}
+        </p>
+      }
+      onClose={requestClose}
+      size="workspace"
+      maxWidth="1200px"
+      className="sof-order-modal"
+      footer={footer}
+    >
+      {loadError && <Alert type="error">{loadError}</Alert>}
+      {loading && <LoadingState label="Loading order…" compact />}
+      {!loading && (
+        <form id="company-customer-order-form" className="sof-form" onSubmit={(event) => { event.preventDefault(); saveOrder() }}>
+          {order && order.status !== 'DRAFT' && (
+            <Alert type="error">This order is {order.status}. It is read-only.</Alert>
+          )}
+          {orderProblems.length > 0 && (
+            <Alert type="error">
+              {orderProblems.map((text) => (
+                <span key={text} style={{ display: 'block' }}>{text}</span>
+              ))}
+            </Alert>
+          )}
+          {orderErrors.detail && <Alert type="error">{orderErrors.detail}</Alert>}
+          {orderConflict && (
+            <Alert type="error">
+              This order changed since you loaded it. Your entries are preserved. <Button variant="secondary" onClick={() => window.location.reload()}>Reload to review</Button>
+            </Alert>
+          )}
+          {storesError && <Alert type="error">{storesError}</Alert>}
+
+          {batchMessage && <Alert type={batchMessage.includes('not') || batchMessage.includes('Not') ? 'error' : 'success'}>{batchMessage}</Alert>}
+          {batchConflict && <Alert type="error">Batch plan changed elsewhere. Reload it to review before saving again.</Alert>}
+          {batchErrors.detail && <Alert type="error">{batchErrors.detail}</Alert>}
+          {plansError && <Alert type="error">{plansError}</Alert>}
+          {storeMessage && <Alert type={storeMessage.includes('not') ? 'error' : 'success'}>{storeMessage}</Alert>}
+          {storeConflict && (
+            <Alert type="error">
+              Store details changed elsewhere. Your entries are kept. <Button variant="secondary" onClick={() => window.location.reload()}>Reload to review</Button>
+            </Alert>
+          )}
+          {storeErrors && <Alert type="error">{storeErrors}</Alert>}
+          {prepError && <Alert type="error">{prepError}</Alert>}
+
+          <section className="sof-group" aria-labelledby="sof-h-order">
+            <div className="sof-group-head">
+              <h4 id="sof-h-order" className="sof-group-title">
+                Order details <span className="sof-group-owner">Admin</span>
+              </h4>
+              <span className="sof-access">{orderAccessLabel}</span>
+              {canEditOrder && (
+                <button type="submit" form="company-customer-order-form" className="btn btn-primary" disabled={orderBusy}>
+                  Save order details
+                </button>
+              )}
+            </div>
+            <div className="inv-form-grid">
+              <ReadOnly
+                label="Company"
+                value={orderForm.customer?.label || order?.customer_name || 'Select a customer'}
+                muted={!orderForm.customer && !order}
+                title={`Client company placing the order. Operating company: ${companyCode || '—'}${companyName ? ` · ${companyName}` : ''}`}
+              />
+              {!canEditOrder ? (
+                <ReadOnly label="Customer" value={orderForm.customer?.label || order?.customer_name || ''} muted={!orderForm.customer && !order?.customer_name} />
+              ) : (
+              <div className="field">
+                <label className="field-label" htmlFor="sof-customer">Customer</label>
+                <div className="sof-customer-row">
+                  <div className="sof-customer-picker">
+                    <AsyncSearchSelect
+                      id="sof-customer"
+                      value={orderForm.customer?.id || ''}
+                      selected={orderForm.customer}
+                      onChange={(option) => updateOrderField('customer', option)}
+                      fetchOptions={(term) => searchCustomers(realCompanyId, term)}
+                      getOptionLabel={(o) => o.label}
+                      getOptionMeta={(o) => o.meta}
+                      placeholder="Search customer by name, code, phone..."
+                      disabled={!canEditOrder}
+                      required
+                    />
+                  </div>
+                  {permissions.canAddCustomer && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary sof-add-customer"
+                      onClick={() => setAddingCustomer(true)}
+                      disabled={!canEditOrder}
+                    >
+                      + Add customer
+                    </button>
+                  )}
+                </div>
+                {orderErrors.customer_id && <span className="field-error">{orderErrors.customer_id}</span>}
+              </div>
+              )}
+
+              {!canEditOrder ? (
+                <div className="field field-full">
+                  <span className="field-label">Product name</span>
+                  <div className={`field-input field-readonly${!selectedLine?.product ? ' is-muted' : ''}`} aria-label="Product name">
+                    {selectedLine?.product?.label || '—'}
+                  </div>
+                </div>
+              ) : (
+              <Field label="Product name" htmlFor="sof-product" full error={orderErrors.lines}>
+                <AsyncSearchSelect
+                  id="sof-product"
+                  value={selectedLine?.product?.id || ''}
+                  selected={selectedLine?.product}
+                  onChange={(option) =>
+                    selectedLine &&
+                    updateLine(selectedLine.localId, {
+                      product: option,
+                      productType: option?.productType || '',
+                    })
+                  }
+                  fetchOptions={(term) => searchProducts(realCompanyId, term)}
+                  getOptionLabel={(o) => o.label}
+                  getOptionMeta={(o) => o.meta}
+                  placeholder="Search product by name or code…"
+                  disabled={!canEditOrder || !selectedLine}
+                />
+              </Field>
+              )}
+
+              <ReadOnly label="Order number" value={order?.reference || 'Generated after saving'} muted={!order} />
+              <Field label="Type" htmlFor="sof-type">
+                <select
+                  id="sof-type"
+                  className="field-input"
+                  value={selectedLine?.productType || ''}
+                  onChange={(event) => selectedLine && updateLine(selectedLine.localId, { productType: event.target.value })}
+                  disabled={!canEditOrder || !selectedLine?.product}
+                  title="Saved on this order line. The product master is not changed."
+                >
+                  <option value="">{selectedLine?.product ? 'Not specified' : 'Select a product first'}</option>
+                  {typeChoices(selectedLine?.productType || '').map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <ReadOnly
+                label="Customer code"
+                value={orderForm.customer?.code || order?.customer_code || '—'}
+                muted={!orderForm.customer && !order?.customer_code}
+                title="Customer code for the selected customer"
+              />
+              <ReadOnly label="Product code" value={selectedLine?.product?.code || '—'} muted={!selectedLine?.product} />
+
+              <Field label="Date of order" htmlFor="sof-order-date" error={orderErrors.order_date}>
+                <input
+                  id="sof-order-date"
+                  className="field-input"
+                  type="date"
+                  value={orderForm.order_date}
+                  onChange={(event) => updateOrderField('order_date', event.target.value)}
+                  disabled={!canEditOrder}
+                  required
+                />
+              </Field>
+              <Field label="Planned Mfg Date" htmlFor="sof-order-mfg" error={orderErrors.planned_manufacturing_date}>
+                <input
+                  id="sof-order-mfg"
+                  className="field-input"
+                  type="date"
+                  value={orderForm.planned_manufacturing_date}
+                  onChange={(event) => updateOrderField('planned_manufacturing_date', event.target.value)}
+                  disabled={!canEditOrder}
+                />
+              </Field>
+            </div>
+
+            <div className="sof-section-label">Order lines</div>
+            <div className="sof-lines">
+              {orderForm.lines.map((line, index) => (
+                <div key={line.localId} className={`sof-line${line.localId === selectedLine?.localId ? ' is-selected' : ''}`}>
+                  <div className="sof-line-head">
+                    <button type="button" className="sof-link" onClick={() => setSelectedLineId(line.localId)}>
+                      Line {index + 1} · {line.product?.label || 'No product yet'}
+                      {line.localId === selectedLine?.localId ? ' (selected)' : ''}
+                    </button>
+                    <button
+                      type="button"
+                      className="sof-link sof-link-danger"
+                      onClick={() => removeLine(line.localId)}
+                      disabled={!canEditOrder || orderForm.lines.length <= 1}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  <div className="inv-form-grid">
+                    <Field label="Order quantity (whole number) *" htmlFor={`sof-qty-${index}`}>
+                      <input
+                        id={`sof-qty-${index}`}
+                        className="field-input"
+                        type="text"
+                        inputMode="numeric"
+                        value={line.quantity}
+                        onChange={(event) => updateLine(line.localId, { quantity: event.target.value.replace(/\D/g, '') })}
+                        disabled={!canEditOrder}
+                      />
+                    </Field>
+                    <Field label="Description" htmlFor={`sof-desc-${index}`} full>
+                      <input
+                        id={`sof-desc-${index}`}
+                        className="field-input"
+                        value={line.description}
+                        onChange={(event) => updateLine(line.localId, { description: event.target.value })}
+                        disabled={!canEditOrder}
+                      />
+                    </Field>
+                  </div>
+                </div>
+              ))}
+              <div>
+                <Button variant="secondary" onClick={addLine} disabled={!canEditOrder}>
+                  + Add product line
+                </Button>
+              </div>
+            </div>
+
+            <div className="inv-form-grid">
+              {!order ? (
+                <Field label="Currency * (e.g. INR)" htmlFor="sof-currency" error={orderErrors.currency}>
+                  <input
+                    id="sof-currency"
+                    className="field-input"
+                    maxLength={3}
+                    value={orderForm.currency}
+                    onChange={(event) => updateOrderField('currency', event.target.value.toUpperCase())}
+                    disabled={!canEditOrder}
+                  />
+                </Field>
+              ) : (
+                <ReadOnly label="Currency" value={order.currency} />
+              )}
+              <Field label="Requested delivery date" htmlFor="sof-delivery">
+                <input
+                  id="sof-delivery"
+                  className="field-input"
+                  type="date"
+                  value={orderForm.requested_delivery_date}
+                  onChange={(event) => updateOrderField('requested_delivery_date', event.target.value)}
+                  disabled={!canEditOrder}
+                />
+              </Field>
+              <Field label="Customer order reference" htmlFor="sof-customer-ref">
+                <input
+                  id="sof-customer-ref"
+                  className="field-input"
+                  value={orderForm.customer_order_reference}
+                  onChange={(event) => updateOrderField('customer_order_reference', event.target.value)}
+                  disabled={!canEditOrder}
+                />
+              </Field>
+              <Field label="Notes" htmlFor="sof-notes">
+                <input
+                  id="sof-notes"
+                  className="field-input"
+                  value={orderForm.notes}
+                  onChange={(event) => updateOrderField('notes', event.target.value)}
+                  disabled={!canEditOrder}
+                />
+              </Field>
+            </div>
+          </section>
+
+          {order && (
+            <section className="sof-group" aria-labelledby="sof-h-confirm">
+              <div className="sof-group-head">
+                <h4 id="sof-h-confirm" className="sof-group-title">
+                  Order review and confirmation <span className="sof-group-owner">Admin</span>
+                </h4>
+                <span className={`sof-status-badge sof-status-${order.status.toLowerCase()}`}>{order.status}</span>
+              </div>
+
+              {order.status === 'CONFIRMED' && (
+                <p className="field-muted">
+                  Confirmed by user #{order.confirmed_by_id}{order.confirmed_at ? ` on ${new Date(order.confirmed_at).toLocaleString()}` : ''}.
+                </p>
+              )}
+
+              {orderDirty && (
+                <Alert type="error">
+                  This order has unsaved changes. Save them, or discard them by closing and reopening this order, before reviewing - a review must reflect what is actually saved.
+                </Alert>
+              )}
+
+              <div className="sof-actions-row">
+                <Button variant="secondary" onClick={reviewOrder} disabled={orderDirty || previewLoading} loading={previewLoading}>
+                  Review order
+                </Button>
+                {preview && (
+                  <span className="field-muted">
+                    Reviewed just now, against order version {preview.order.version}. {preview.preview.notice}
+                  </span>
+                )}
+              </div>
+
+              {previewError && (
+                <Alert type="error">
+                  {previewError}{' '}
+                  <button type="button" className="table-edit" onClick={reviewOrder}>Retry</button>
+                </Alert>
+              )}
+
+              {confirmResult?.kind === 'success' && <Alert type="success">Order confirmed.</Alert>}
+              {confirmResult?.kind === 'stale' && (
+                <Alert type="error">
+                  {confirmResult.message}{' '}
+                  <button type="button" className="table-edit" onClick={reviewOrder}>Review again</button>
+                </Alert>
+              )}
+              {confirmResult?.kind === 'blocked' && (
+                <Alert type="error">
+                  {confirmResult.message}
+                  <ReasonsList reasons={confirmResult.blockingReasons} tone="blocking" />
+                  <button type="button" className="table-edit" onClick={reviewOrder}>Review again</button>
+                </Alert>
+              )}
+              {confirmResult?.kind === 'error' && <Alert type="error">{confirmResult.message}</Alert>}
+
+              {preview && (
+                <div className="sof-review">
+                  <div className="inv-form-grid">
+                    <ReadOnly label="Reference" value={preview.order.reference} />
+                    <ReadOnly label="Customer" value={`${preview.customer.code} · ${preview.customer.name}`} />
+                    <ReadOnly label="Order date" value={preview.order.order_date} />
+                    <ReadOnly label="Requested delivery date" value={preview.order.requested_delivery_date || '—'} />
+                  </div>
+
+                  <div className="sof-section-label">Lines (from this review)</div>
+                  <div className="inv-table-scroll">
+                    <table className="inv-table">
+                      <thead>
+                        <tr>
+                          <th>Product</th>
+                          <th>Unit</th>
+                          <th>Quantity</th>
+                          <th>Unit price</th>
+                          <th>Line amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {preview.lines.map((line) => (
+                          <tr key={line.id}>
+                            <td>{line.product_code} · {line.product_name}</td>
+                            <td>{line.sales_uom_code}</td>
+                            <td>{line.quantity}</td>
+                            <td>{line.unit_price}</td>
+                            <td>{line.line_amount}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="sof-subtotal">
+                    Subtotal: <strong>{preview.subtotal} {preview.order.currency}</strong> (server-calculated)
+                  </p>
+
+                  <div className="sof-section-label">Confirmation eligibility</div>
+                  {preview.confirmation.policy.status !== 'CONFIGURED' ? (
+                    <Alert type="error">
+                      {preview.confirmation.policy_message}
+                      {' '}
+                      {canManageOrgSetup ? (
+                        <a href="/organization-setup">Configure the confirmation policy</a>
+                      ) : (
+                        'Ask an administrator to configure it in Organization Setup.'
+                      )}
+                    </Alert>
+                  ) : (
+                    <p className="field-muted">
+                      Company policy (version {preview.confirmation.policy.version}): self-confirmation{' '}
+                      {preview.confirmation.policy.allow_self_confirmation ? 'allowed' : 'not allowed'}; zero-price lines{' '}
+                      {preview.confirmation.policy.allow_zero_price_lines ? 'allowed' : 'not allowed'}; past delivery dates{' '}
+                      {preview.confirmation.policy.allow_past_requested_delivery_dates ? 'allowed' : 'not allowed'}.
+                    </p>
+                  )}
+
+                  <ReasonsList reasons={preview.confirmation.blocking_reasons} tone="blocking" />
+                  <ReasonsList reasons={preview.confirmation.informational_observations} tone="info" />
+
+                  {preview.order.status === 'DRAFT' && (
+                    permissions.canConfirmOrder ? (
+                      <Button onClick={handleConfirm} disabled={!preview.confirmation.ready_to_attempt || confirmBusy} loading={confirmBusy}>
+                        Confirm order
+                      </Button>
+                    ) : (
+                      <p className="field-muted">You can review this order, but confirming it requires additional permission.</p>
+                    )
+                  )}
+                </div>
+              )}
+            </section>
+          )}
+
+          <section className="sof-group" aria-labelledby="sof-h-store">
+            <div className="sof-group-head" style={{ alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <h4 id="sof-h-store" className="sof-group-title" style={{ margin: 0 }}>
+                  Section C: Raw Material Allocation & Packing <span className="sof-group-owner">Store Manager</span>
+                </h4>
+                {!selectedLine?.product ? (
+                  <span style={{
+                    background: '#f1f5f9',
+                    color: '#64748b',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    padding: '2px 10px',
+                    borderRadius: 999,
+                    border: '1px solid #cbd5e1'
+                  }}>
+                    • No Product Selected
+                  </span>
+                ) : !hasApprovedFormula ? (
+                  <span style={{
+                    background: '#fffbeb',
+                    color: '#b45309',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    padding: '2px 10px',
+                    borderRadius: 999,
+                    border: '1px solid #fde68a'
+                  }}>
+                    ⚠️ Formula Not Verified
+                  </span>
+                ) : !hasBatchPlan && rawMaterialLines.length === 0 ? (
+                  <span style={{
+                    background: '#f8fafc',
+                    color: '#475569',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    padding: '2px 10px',
+                    borderRadius: 999,
+                    border: '1px solid #cbd5e1'
+                  }}>
+                    ⏳ No Production Plan Approved
+                  </span>
+                ) : verifiedAllocation.shortageCount > 0 ? (
+                  <span style={{
+                    background: '#fee2e2',
+                    color: '#b91c1c',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    padding: '2px 10px',
+                    borderRadius: 999,
+                    border: '1px solid #fecaca'
+                  }}>
+                    • Shortage ({verifiedAllocation.shortageCount})
+                  </span>
+                ) : (
+                  <span style={{
+                    background: '#dcfce7',
+                    color: '#15803d',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    padding: '2px 10px',
+                    borderRadius: 999,
+                    border: '1px solid #bbf7d0'
+                  }}>
+                    ✓ In Stock & Ready
+                  </span>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span className="sof-access">{storeAccessLabel}</span>
+                {storeCodesLoaded && canStoreManage && (
+                  <Button variant="secondary" onClick={saveStore} loading={storeBusy} disabled={!canWriteStore || !storeDirty || storeBusy}>
+                    Save Section C & Proceed
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {storeId && !storeCodesLoaded && <p className="field-muted">Checking store access…</p>}
+            {storeId && storeCodesLoaded && !canStoreManage && (
+              <p className="field-muted">View only for store preparation in this store.</p>
+            )}
+            {storeId && storeCodesLoaded && canStoreManage && !savedLineId && (
+              <p className="field-muted">Save the order first. Store details are recorded per order line.</p>
+            )}
+
+            {/* APPROVED MASTER FORMULA & INVENTORY VERIFICATION CARD */}
+            <div style={{
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: 8,
+              padding: '16px 18px',
+              marginTop: 10,
+              marginBottom: 16
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 16 }}>⚖️</span>
+                  <h5 style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: '#334155' }}>
+                    Approved Master Formula & Inventory Verification
+                  </h5>
+                </div>
+                {permissions.canViewFormulas && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ fontSize: 11.5, padding: '3px 10px' }}
+                    onClick={() => setFormulasOpen(true)}
+                  >
+                    Open Master Formulas
+                  </button>
+                )}
+              </div>
+
+              <div style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 12,
+                fontSize: 12,
+                color: '#475569',
+                paddingBottom: 12,
+                borderBottom: '1px solid #e2e8f0'
+              }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+                  <span>
+                    <strong>Batch No:</strong>{' '}
+                    <span style={{ color: displayBatchNumber.startsWith('Not') ? '#64748b' : '#0284c7', fontWeight: 600 }}>
+                      {displayBatchNumber}
+                    </span>
+                    {!displayBatchNumber.startsWith('Not') && <span style={{ color: '#94a3b8' }}> (Read-only)</span>}
+                  </span>
+                  <span>
+                    <strong>Product:</strong> {selectedLine?.product?.label || selectedLine?.product?.name || '—'}
+                    {selectedLine?.product?.code ? ` (${selectedLine.product.code})` : ''}
+                  </span>
+                  <span><strong>Order Quantity:</strong> {orderLineQty} units</span>
+                  <span>
+                    <strong>Formula:</strong>{' '}
+                    {activeRev ? (
+                      <span style={{ color: '#15803d', fontWeight: 600 }}>
+                        {activeRev.formulaCode || 'Formula'} (Rev {activeRev.revisionNumber ?? activeRev.id})
+                      </span>
+                    ) : (
+                      <span style={{ color: '#b45309', fontWeight: 600 }}>
+                        Not Verified (No Approved Formula)
+                      </span>
+                    )}
+                  </span>
+                </div>
+
+                {rawMaterialLines.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={handleAllocateAllReady}
+                      style={{
+                        background: '#16a34a',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 6,
+                        padding: '5px 12px',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      ✓ Allocate All In Stock
+                    </button>
+                    {verifiedAllocation.allocatedCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleDeallocateAll}
+                        style={{
+                          background: '#f8fafc',
+                          color: '#64748b',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: 6,
+                          padding: '5px 10px',
+                          fontSize: 12,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        ↩ Reset All
+                      </button>
+                    )}
+                    {verifiedAllocation.allocatedCount > 0 && (
+                      <span style={{ fontSize: 11.5, color: '#16a34a', fontWeight: 600 }}>
+                        ({verifiedAllocation.allocatedCount} of {verifiedAllocation.list.length} allocated)
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {formulaLinesLoading && (
+                <p style={{ fontSize: 12, color: '#64748b', marginTop: 12 }}>⏳ Loading formula recipe from server…</p>
+              )}
+
+              {/* CASE 1: Formula not verified / approved */}
+              {!formulaLinesLoading && !hasApprovedFormula && (
+                <div style={{
+                  marginTop: 14,
+                  background: '#fffbeb',
+                  border: '1px solid #fde68a',
+                  borderRadius: 6,
+                  padding: '14px 16px',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 12
+                }}>
+                  <span style={{ fontSize: 22 }}>⚠️</span>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>
+                      Formula Not Verified
+                    </div>
+                    <div style={{ fontSize: 12, color: '#78350f', lineHeight: 1.5 }}>
+                      No approved master formula revision exists for <strong>{selectedLine?.product?.label || selectedLine?.product?.name || 'this product'}</strong>{selectedLine?.product?.code ? ` (${selectedLine.product.code})` : ''}.
+                      The formula is currently in Draft or not yet created. It must be approved in the Master Formula module before raw materials can be calculated and inventory verified.
+                    </div>
+                    {permissions.canViewFormulas && (
+                      <button
+                        type="button"
+                        onClick={() => setFormulasOpen(true)}
+                        style={{
+                          marginTop: 10,
+                          background: '#f59e0b',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 6,
+                          padding: '5px 14px',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Open Master Formulas to Review & Approve
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* CASE 2: Approved formula exists, but no batch production plan approved / created */}
+              {!formulaLinesLoading && hasApprovedFormula && !hasBatchPlan && rawMaterialLines.length === 0 && (
+                <div style={{
+                  marginTop: 14,
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 6,
+                  padding: '14px 16px',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 12
+                }}>
+                  <span style={{ fontSize: 22 }}>📋</span>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                      No Production Plan Approved
+                    </div>
+                    <div style={{ fontSize: 12, color: '#475569', lineHeight: 1.5 }}>
+                      An approved formula is available ({activeRev?.formulaCode || 'Master Formula'}, Rev {activeRev?.revisionNumber ?? activeRev?.id}), but no batch production plan has been created or approved for this order line yet.
+                      Please create and save a batch plan in <strong>Section B: Batch and printing</strong> below to scale recipe requirements and verify raw material stock.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* CASE 3: Has formula & plan, but 0 materials configured */}
+              {!formulaLinesLoading && hasApprovedFormula && hasBatchPlan && rawMaterialLines.length === 0 && (
+                <div style={{
+                  marginTop: 14,
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 6,
+                  padding: '14px 16px',
+                  fontSize: 12,
+                  color: '#64748b'
+                }}>
+                  No raw materials configured in this formula revision.
+                </div>
+              )}
+
+              {/* CASE 4: Materials available -> Show Table & Status */}
+              {!formulaLinesLoading && rawMaterialLines.length > 0 && (
+                <>
+                  <div style={{ overflowX: 'auto', marginTop: 12 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                      <thead>
+                        <tr style={{ background: '#f1f5f9', color: '#475569', textAlign: 'left', borderBottom: '1px solid #cbd5e1' }}>
+                          <th style={{ padding: '8px 10px', fontWeight: 700 }}>RAW MATERIAL</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 700 }}>UNIT</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 700 }}>FORMULA QTY (BASE)</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 700 }}>REQUIRED QTY (ORDER)</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 700 }}>AVAILABLE IN INVENTORY</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 700 }}>STATUS</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 700, textAlign: 'center' }}>ACTION</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {verifiedAllocation.list.map((row) => (
+                          <tr key={row.id} style={{ borderBottom: '1px solid #f1f5f9', background: row.isAllocated ? '#f0fdf4' : '#fff' }}>
+                            <td style={{ padding: '10px 10px' }}>
+                              <strong style={{ color: '#0f172a' }}>{row.name}</strong>
+                              <div style={{ fontSize: 11, color: '#64748b' }}>{row.code}</div>
+                              {row.claim && <div style={{ fontSize: 11, color: '#94a3b8' }}>{row.claim}</div>}
+                            </td>
+                            <td style={{ padding: '10px 10px', color: '#475569' }}>{row.unit}</td>
+                            <td style={{ padding: '10px 10px', color: '#334155', fontWeight: 500 }}>
+                              {row.baseQty ? `${Number(row.baseQty).toLocaleString()} ${row.unit}` : '—'}
+                            </td>
+                            <td style={{ padding: '10px 10px', fontWeight: 700, color: '#0f172a' }}>
+                              {Number(row.requiredQty).toLocaleString()} {row.unit}
+                            </td>
+                            <td style={{ padding: '10px 10px', fontWeight: 600, color: row.isAllocated ? '#15803d' : '#0f172a' }}>
+                              {allocationStockLoading ? (
+                                'Checking…'
+                              ) : (
+                                <>
+                                  <span>{Number(row.available).toLocaleString()} {row.unit}</span>
+                                  {row.isAllocated && (
+                                    <div style={{ fontSize: 11, color: '#15803d', fontWeight: 600, marginTop: 1 }}>
+                                      (−{Number(row.requiredQty).toLocaleString()} {row.unit} allocated)
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </td>
+                            <td style={{ padding: '10px 10px' }}>
+                              {row.isAllocated ? (
+                                <span style={{
+                                  display: 'inline-block',
+                                  background: '#dcfce7',
+                                  color: '#15803d',
+                                  fontSize: 11.5,
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: 999
+                                }}>
+                                  ✓ Allocated
+                                </span>
+                              ) : row.isShort ? (
+                                <div>
+                                  <span style={{
+                                    display: 'inline-block',
+                                    background: '#fee2e2',
+                                    color: '#b91c1c',
+                                    fontSize: 11.5,
+                                    fontWeight: 700,
+                                    padding: '2px 8px',
+                                    borderRadius: 999
+                                  }}>
+                                    • Not Available in Inventory
+                                  </span>
+                                  <div style={{ fontSize: 11, color: '#b91c1c', fontWeight: 600, marginTop: 2 }}>
+                                    Short by {row.diff.toLocaleString()} {row.unit}
+                                  </div>
+                                </div>
+                              ) : (
+                                <span style={{
+                                  display: 'inline-block',
+                                  background: '#dcfce7',
+                                  color: '#15803d',
+                                  fontSize: 11.5,
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: 999
+                                }}>
+                                  ✓ In Stock
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ padding: '10px 10px', textAlign: 'center' }}>
+                              {row.isAllocated ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeallocateRow(row.id)}
+                                  title="Undo allocation & restore to stock"
+                                  style={{
+                                    background: '#f1f5f9',
+                                    color: '#475569',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: 6,
+                                    padding: '4px 12px',
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  ↩ Undo
+                                </button>
+                              ) : row.isShort ? (
+                                <span style={{ color: '#d97706', fontWeight: 600, fontSize: 12 }}>⚠️ Needed</span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleAllocateRow(row.id)}
+                                  title={`Allocate & deduct ${row.requiredQty.toLocaleString()} ${row.unit} from inventory`}
+                                  style={{
+                                    background: '#16a34a',
+                                    color: '#fff',
+                                    border: 'none',
+                                    borderRadius: 6,
+                                    padding: '4px 14px',
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  − Allocate
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Status Alert Banner */}
+                  <div style={{ marginTop: 14 }}>
+                    {verifiedAllocation.shortageCount > 0 ? (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 10,
+                        background: '#fff1f2',
+                        border: '1px solid #fecdd3',
+                        padding: '10px 14px',
+                        borderRadius: 6,
+                        color: '#9f1239',
+                        fontSize: 12.5
+                      }}>
+                        <span style={{ fontSize: 16 }}>⚠️</span>
+                        <div>
+                          <div style={{ fontWeight: 700 }}>
+                            Cannot proceed: {verifiedAllocation.shortageCount} raw material{verifiedAllocation.shortageCount > 1 ? 's are' : ' is'} not available in inventory.
+                          </div>
+                          <div style={{ marginTop: 2, color: '#881337' }}>
+                            {verifiedAllocation.list.length - verifiedAllocation.shortageCount} of {verifiedAllocation.list.length} materials in stock. Missing items: {verifiedAllocation.shortages.map(s => `${s.name} (${s.diff.toLocaleString()} ${s.unit})`).join(', ')}. Send requests to Inventory before advancing the order.
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 10,
+                        background: '#f0fdf4',
+                        border: '1px solid #bbf7d0',
+                        padding: '10px 14px',
+                        borderRadius: 6,
+                        color: '#166534',
+                        fontSize: 12.5
+                      }}>
+                        <span style={{ fontSize: 16 }}>✓</span>
+                        <div>
+                          <div style={{ fontWeight: 700 }}>
+                            All {verifiedAllocation.list.length} raw materials are verified in stock.
+                          </div>
+                          <div style={{ marginTop: 2, color: '#14532d' }}>
+                            Inventory availability confirmed. Save Section C to allocate materials and advance the order to Confirmed stage.
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* PACKAGING & PRIMARY MATERIALS SPECIFICATION */}
+            <h5 style={{ margin: '14px 0 8px', fontSize: 13, fontWeight: 700, color: '#475569' }}>
+              Packaging & Primary Materials Specification
+            </h5>
+
+            <div className="inv-form-grid">
+              <Field label="Store" htmlFor="sof-store">
+                <select
+                  id="sof-store"
+                  className="field-input"
+                  value={storeId}
+                  onChange={(event) => setStoreId(event.target.value)}
+                  disabled={!stores.length}
+                >
+                  {stores.map((store) => (
+                    <option key={store.id} value={store.id}>
+                      {store.code} · {store.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <ReadOnly
+                label="Requisition Status"
+                value={requisitionText}
+                muted={requisition.state !== 'present'}
+                title="Changed only through the requisition workflow"
+              />
+              <Field label="Packing Type" htmlFor="sof-packing-type">
+                <input
+                  id="sof-packing-type"
+                  className="field-input"
+                  value={storeForm.packing_type}
+                  onChange={(event) => setStoreForm((prev) => ({ ...prev, packing_type: event.target.value }))}
+                  disabled={!canWriteStore}
+                  maxLength={255}
+                />
+              </Field>
+              <Field label="Insert" htmlFor="sof-insert">
+                <select
+                  id="sof-insert"
+                  className="field-input"
+                  value={storeForm.insert}
+                  onChange={(event) => setStoreForm((prev) => ({ ...prev, insert: event.target.value }))}
+                  disabled={!canWriteStore}
+                >
+                  {INSERT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Label" htmlFor="sof-label-note">
+                <input
+                  id="sof-label-note"
+                  className="field-input"
+                  value={storeForm.label_note}
+                  onChange={(event) => setStoreForm((prev) => ({ ...prev, label_note: event.target.value }))}
+                  disabled={!canWriteStore}
+                  maxLength={255}
+                  title="Unstructured note. Not used for stock or readiness."
+                />
+              </Field>
+              <Field label="Box" htmlFor="sof-box-note">
+                <input
+                  id="sof-box-note"
+                  className="field-input"
+                  value={storeForm.box_note}
+                  onChange={(event) => setStoreForm((prev) => ({ ...prev, box_note: event.target.value }))}
+                  disabled={!canWriteStore}
+                  maxLength={255}
+                  title="Unstructured note. Not used for stock or readiness."
+                />
+              </Field>
+            </div>
+          </section>
+
+          <section className="sof-group" aria-labelledby="sof-h-batch">
+            <div className="sof-group-head">
+              <h4 id="sof-h-batch" className="sof-group-title">
+                Batch and printing <span className="sof-group-owner">Manager</span>
+              </h4>
+              <span className="sof-access">{batchAccessLabel}</span>
+              {canEditBatch && planId !== null && (
+                <Button variant="secondary" onClick={saveBatch} loading={batchBusy} disabled={!batchDirty || batchBusy}>
+                  Save batch details
+                </Button>
+              )}
+            </div>
+
+            <div className="sof-batch-bar">
+              <div className="field sof-batch-select">
+                <label className="field-label" htmlFor="sof-plan">Batch plan (the line and plan these batch fields describe)</label>
+                <select
+                  id="sof-plan"
+                  className="field-input"
+                  value={planId === null ? '' : String(planId)}
+                  disabled={!order}
+                  onChange={(event) => {
+                    const value = event.target.value
+                    if (value === '') selectPlan(null)
+                    else if (value === NEW_PLAN) selectPlan(NEW_PLAN)
+                    else selectPlan(Number(value))
+                  }}
+                >
+                  <option value="">{order ? (plans.length ? 'Select a batch plan' : 'No batch plan yet') : 'Save the order first'}</option>
+                  {plans.map((row) => (
+                    <option key={row.id} value={row.id}>
+                      Line {row.source_line_number} · {row.product_code} · {row.official_batch_number || `plan ${row.id}`}
+                    </option>
+                  ))}
+                  {order && permissions.canCreateBatch && <option value={NEW_PLAN}>New batch plan for the selected line</option>}
+                </select>
+                {order && permissions.canCreateBatch && planId !== NEW_PLAN && (
+                  <button type="button" className="btn btn-secondary sof-create-plan" onClick={() => selectPlan(NEW_PLAN)}>
+                    Create batch plan
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {legacyPrep && (
+              <section className="sof-legacy" aria-label="Batch-specific store details (legacy, read-only)">
+                <span className="field-label">Batch-specific store details (legacy, read-only)</span>
+                <p className="field-muted">
+                  Recorded against this batch plan before order-line preparation existed. Shown for reference only and never merged with the order line&apos;s store details.
+                </p>
+                <div className="inv-form-grid">
+                  <ReadOnly label="Packing Type" value={legacyPrep.packing_type || '—'} />
+                  <ReadOnly
+                    label="Insert"
+                    value={legacyPrep.insert_required === true ? 'Required' : legacyPrep.insert_required === false ? 'Not required' : 'Not specified'}
+                  />
+                  <ReadOnly label="Label" value={legacyPrep.label_note || '—'} />
+                  <ReadOnly label="Box" value={legacyPrep.box_note || '—'} />
+                </div>
+              </section>
+            )}
+
+            <div className="inv-form-grid">
+              <div className="field">
+                <span className="field-label">Batch No.</span>
+                <div className="sof-inline">
+                  <div
+                    className={`field-input field-readonly${batchNumber ? '' : ' is-muted'}`}
+                    title="Returned by the backend. Never typed or computed here."
+                  >
+                    {batchNumber || (typeof planId === 'number' ? 'Not generated' : 'Select a batch plan')}
+                  </div>
+                  {typeof planId === 'number' && !batchNumber && permissions.canAllocateBatch && (
+                    <Button variant="secondary" onClick={generateBatchNumber} loading={allocating} title="Permanent. Does not authorize production or stock reservation.">
+                      Generate
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <Field label="Batch planned manufacturing date" htmlFor="sof-batch-mfg" error={batchErrors.planned_manufacturing_date}>
+                <input
+                  id="sof-batch-mfg"
+                  className="field-input"
+                  type="date"
+                  value={batchForm.planned_manufacturing_date}
+                  onChange={(event) => updateBatchField('planned_manufacturing_date', event.target.value)}
+                  disabled={!canEditBatch}
+                  title="Offered from the order's planned date when a plan is created. Saved on this plan only."
+                />
+              </Field>
+
+              <div className="field">
+                <label className="field-label" htmlFor="sof-pack-qty">Packing Size (content quantity and unit)</label>
+                <div className="sof-pair">
+                  <input
+                    id="sof-pack-qty"
+                    className="field-input"
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="e.g. 25"
+                    value={batchForm.packing_content_quantity}
+                    onChange={(event) => updateBatchField('packing_content_quantity', event.target.value)}
+                    disabled={!canEditBatch}
+                  />
+                  {unitsBlocked ? (
+                    <div className="field-input field-readonly is-muted sof-retry">
+                      Unable to load units{' '}
+                      <button type="button" className="btn btn-secondary" onClick={() => setUnitsRetry((n) => n + 1)}>
+                        Retry
+                      </button>
+                    </div>
+                  ) : (
+                    <select
+                      id="sof-pack-unit"
+                      className="field-input"
+                      value={batchForm.packing_content_uom?.id || ''}
+                      onChange={(event) =>
+                        updateBatchField(
+                          'packing_content_uom',
+                          packingUnits.find((u) => String(u.id) === event.target.value) || null
+                        )
+                      }
+                      disabled={!canEditBatch}
+                    >
+                      <option value="">Unit</option>
+                      {packingUnits.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              </div>
+              <div className="field">
+                <label className="field-label" htmlFor="sof-target">Batch Size (target output and unit)</label>
+                <div className="sof-pair">
+                  <input
+                    id="sof-target"
+                    className="field-input"
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="e.g. 76"
+                    value={batchForm.target_output_quantity}
+                    onChange={(event) => updateBatchField('target_output_quantity', event.target.value)}
+                    disabled={!canEditBatch}
+                  />
+                  <div className={`field-input field-readonly${outputUom ? '' : ' is-muted'}`} title="Formula output unit">
+                    {outputUom || 'Output unit'}
+                  </div>
+                </div>
+              </div>
+
+              <Field label="Planned pack quantity" htmlFor="sof-pack-count">
+                <input
+                  id="sof-pack-count"
+                  className="field-input"
+                  type="text"
+                  inputMode="decimal"
+                  value={batchForm.planned_pack_quantity}
+                  onChange={(event) => updateBatchField('planned_pack_quantity', event.target.value)}
+                  disabled={!canEditBatch}
+                />
+              </Field>
+              {planId === NEW_PLAN ? (
+                <Field label="Approved formula revision *" htmlFor="sof-revision" error={batchErrors.formula_revision_id}>
+                  <select
+                    id="sof-revision"
+                    className="field-input"
+                    value={batchForm.revisionId}
+                    onChange={(event) => {
+                      const nextRevId = event.target.value
+                      updateBatchField('revisionId', nextRevId)
+                      const rev = revisions.find((r) => String(r.id) === String(nextRevId))
+                      if (rev && (!batchForm.target_output_quantity || Number(batchForm.target_output_quantity) <= 0)) {
+                        updateBatchField('target_output_quantity', String(rev.baseOutputQuantity || ''))
+                      }
+                    }}
+                    disabled={!canEditBatch}
+                  >
+                    <option value="">Choose an approved revision</option>
+                    {revisions.map((rev) => (
+                      <option key={rev.id} value={rev.id}>
+                        {rev.formulaCode} · revision {rev.revisionNumber} · base {rev.baseOutputQuantity} {rev.outputUomCode}
+                      </option>
+                    ))}
+                    {batchForm.revisionId && !revisions.some((rev) => String(rev.id) === String(batchForm.revisionId)) && (
+                      <option value={batchForm.revisionId}>Selected revision (no longer listed as approved)</option>
+                    )}
+                  </select>
+                  {permissions.canViewFormulas && selectedRevisionProduct && (
+                    <button type="button" className="btn btn-secondary" onClick={() => setFormulasOpen(true)}>
+                      Manage formulas
+                    </button>
+                  )}
+                  {revisionsError && (
+                    <span className="field-error">
+                      Unable to load approved revisions.{' '}
+                      <button type="button" className="btn btn-secondary" onClick={() => setRevisionsRetry((n) => n + 1)}>
+                        Retry
+                      </button>
+                    </span>
+                  )}
+                  {!revisionsError && selectedRevisionProduct && revisions.length === 0 && (
+                    <span className="field-muted">No approved formula available for this product.</span>
+                  )}
+                </Field>
+              ) : (
+                <ReadOnly
+                  label="Approved formula revision"
+                  value={planListRow ? `${planListRow.formula_code} · revision ${planListRow.formula_revision_number}` : '—'}
+                />
+              )}
+
+              <Field label={`MRP for Printing${currencyCode ? ` (${currencyCode})` : ''}`} htmlFor="sof-mrp" error={batchErrors.mrp_for_printing}>
+                <input
+                  id="sof-mrp"
+                  className="field-input"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  value={batchForm.mrp_for_printing}
+                  onChange={(event) => updateBatchField('mrp_for_printing', event.target.value)}
+                  disabled={!canEditPrinting}
+                  title="Working value in the order currency. Not the sales unit price; no tax or stock effect."
+                />
+              </Field>
+              <Field label="Printing Status" htmlFor="sof-printing-status">
+                <input
+                  id="sof-printing-status"
+                  className="field-input"
+                  value={batchForm.printing_status_note}
+                  onChange={(event) => updateBatchField('printing_status_note', event.target.value)}
+                  disabled={!canEditPrinting}
+                  maxLength={255}
+                  placeholder="Free text until the status list is confirmed"
+                />
+              </Field>
+
+              <Field label="Batch notes" htmlFor="sof-batch-notes" full>
+                <input
+                  id="sof-batch-notes"
+                  className="field-input"
+                  value={batchForm.notes}
+                  onChange={(event) => updateBatchField('notes', event.target.value)}
+                  disabled={!canEditBatch}
+                />
+              </Field>
+            </div>
+
+            {assessment ? (
+              <p className="sof-calc">
+                Expected packed content <strong>{assessment.expected_packed_content?.value} {assessment.expected_packed_content?.unit_code}</strong>
+                <span className="sof-sep">·</span>
+                Target <strong>{assessment.manufacturing_target_quantity} {assessment.manufacturing_target_uom_code}</strong>
+                <span className="sof-sep">·</span>
+                Planning difference <strong>{assessment.difference?.value} {assessment.difference?.unit_code}</strong>
+              </p>
+            ) : (
+              <p className="field-muted">The packed-content calculation appears once a packing size is saved.</p>
+            )}
+          {permissions.canViewFormulas && typeof planId === 'number' && (
+            <RequirementCalculator
+              key={`plan-${planId}`}
+              companyId={realCompanyId}
+              planId={planId}
+              initialTarget={batchForm.target_output_quantity}
+            />
+          )}
+          {permissions.canViewBmr && typeof planId === 'number' && (
+            <BmrPanel
+              key={`bmr-${planId}`}
+              companyId={realCompanyId}
+              planId={planId}
+              canView={permissions.canViewBmr}
+              canCreate={permissions.canCreateBmr}
+              canEdit={permissions.canEditBmr}
+            />
+          )}
+          {permissions.canViewFormulas && planId === NEW_PLAN && batchForm.revisionId && (() => {
+            const chosen = revisions.find((rev) => String(rev.id) === String(batchForm.revisionId))
+            return chosen ? (
+              <RequirementCalculator
+                key={`draft-${chosen.id}`}
+                companyId={realCompanyId}
+                formulaId={chosen.formulaId}
+                revisionId={chosen.id}
+                initialTarget={batchForm.target_output_quantity}
+              />
+            ) : null
+          })()}
+          {/* Bottom Action Bar for Batch Section */}
+          {canEditBatch && planId !== null && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 20, paddingTop: 16, borderTop: '1px solid #e2e8f0' }}>
+              {batchMessage && (
+                <span style={{ fontSize: 13, fontWeight: 500, color: batchMessage.includes('not') || batchMessage.includes('Enter') ? '#b91c1c' : '#16a34a', marginRight: 'auto' }}>
+                  {batchMessage}
+                </span>
+              )}
+              <Button
+                variant="primary"
+                onClick={saveBatch}
+                loading={batchBusy}
+                disabled={batchBusy}
+                title="Save batch planning details"
+              >
+                💾 Save Batch Details
+              </Button>
+            </div>
+          )}
+          </section>
+        </form>
+      )}
+
+      {addingCustomer && (
+        <CustomerFormModal
+          realCompanyId={realCompanyId}
+          customerId={null}
+          canEdit
+          canActivate={false}
+          canDeactivate={false}
+          onClose={() => setAddingCustomer(false)}
+          onSaved={(customer) => {
+            setAddingCustomer(false)
+            updateOrderField('customer', { id: customer.id, label: customer.name, code: customer.code, meta: customer.code })
+          }}
+        />
+      )}
+      {formulasOpen && (
+        <Modal
+          title="Formulas"
+          onClose={closeFormulas}
+          size="workspace"
+          footer={
+            <Button variant="secondary" onClick={closeFormulas}>
+              Back to batch planning
+            </Button>
+          }
+        >
+          <FormulasPage embedded productId={selectedRevisionProduct} />
+        </Modal>
+      )}
+      {savedPopup &&
+        createPortal(
+          <div className="sof-popup-backdrop">
+            <div className="sof-popup" role="dialog" aria-modal="true" aria-labelledby="sof-popup-title">
+              <h3 id="sof-popup-title">{savedPopup.title}</h3>
+              <p>{savedPopup.text}</p>
+              <button
+                type="button"
+                className="btn btn-primary"
+                autoFocus
+                onClick={() => {
+                  const closeAfter = savedPopup.closeAfter
+                  setSavedPopup(null)
+                  if (closeAfter) onClose()
+                }}
+              >
+                OK
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
+    </Modal>
+  )
+}

@@ -160,9 +160,9 @@ export default function SalesOrdersPanel() {
       <div className="inv-toolbar">
         <input
           className="field-input"
-          style={{ maxWidth: 320 }}
+          style={{ maxWidth: 440 }}
           type="text"
-          placeholder="Search by reference, customer name or customer order reference…"
+          placeholder="Search by reference, customer name or order reference…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -174,14 +174,14 @@ export default function SalesOrdersPanel() {
         <table className="inv-table">
           <thead>
             <tr>
-              <th>Reference</th>
-              <th>Customer</th>
-              <th>Order Date</th>
-              <th>Status</th>
-              <th>Lines</th>
-              <th>Subtotal</th>
-              <th>Currency</th>
-              <th>Actions</th>
+              <th style={{ minWidth: 170 }}>Reference</th>
+              <th style={{ minWidth: 150 }}>Customer</th>
+              <th style={{ minWidth: 260 }}>Product / Items</th>
+              <th style={{ minWidth: 110 }}>Order Date</th>
+              <th style={{ minWidth: 110 }}>Status</th>
+              <th style={{ minWidth: 100 }}>Qty / Lines</th>
+              <th style={{ minWidth: 110 }}>Subtotal</th>
+              <th style={{ minWidth: 140 }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -198,36 +198,103 @@ export default function SalesOrdersPanel() {
                 </td>
               </tr>
             ) : (
-              data.results.map((order) => (
-                <tr key={order.id}>
-                  <td className="cell-strong">{order.reference}</td>
-                  <td>{order.customer_name}</td>
-                  <td>{order.order_date}</td>
-                  <td>{order.status}</td>
-                  <td>{order.lines.length}</td>
-                  <td>{order.subtotal}</td>
-                  <td>{order.currency}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="table-edit"
-                      onClick={() => setFormState({ mode: 'edit', orderId: order.id })}
-                    >
-                      {order.status === 'DRAFT' ? 'Edit' : 'View'}
-                    </button>
-                    {canDelete && order.status === 'DRAFT' && (
-                      <button
-                        type="button"
-                        className="table-edit"
-                        style={{ marginLeft: 12, color: '#b42318' }}
-                        onClick={() => setPendingDelete(order)}
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))
+              data.results.map((order) => {
+                const totalUnits = (order.lines || []).reduce((acc, l) => acc + (Number(l.quantity) || 0), 0)
+
+                return (
+                  <tr key={order.id}>
+                    <td>
+                      <span className="so-ref-badge" title={order.reference}>
+                        {order.reference}
+                      </span>
+                    </td>
+                    <td>
+                      <span style={{ fontWeight: 600, color: '#1e293b', fontSize: 13 }}>
+                        {order.customer_name || '—'}
+                      </span>
+                    </td>
+                    <td>
+                      {order.lines && order.lines.length > 0 ? (
+                        <div className="so-items-container">
+                          {order.lines.map((line, idx) => {
+                            const qtyNum = Number(line.quantity)
+                            const cleanQty = !isNaN(qtyNum)
+                              ? qtyNum.toLocaleString(undefined, { maximumFractionDigits: 2 })
+                              : line.quantity
+
+                            return (
+                              <div key={line.id || idx} className="so-item-row">
+                                <div className="so-item-main">
+                                  <span className="so-item-name" title={line.product_name}>
+                                    {line.product_name || line.product_code || `Product #${line.product_id}`}
+                                  </span>
+                                  {line.product_code && line.product_code !== line.product_name && (
+                                    <span className="so-item-code">
+                                      {line.product_code}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="so-item-qty">
+                                  {cleanQty} {line.sales_uom_code || ''}
+                                </span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: 12 }}>—</span>
+                      )}
+                    </td>
+                    <td style={{ color: '#475569', fontSize: 12.5, whiteSpace: 'nowrap' }}>
+                      {order.order_date || '—'}
+                    </td>
+                    <td>
+                      <span className={`so-status-pill so-status-${(order.status || 'draft').toLowerCase()}`}>
+                        <span className="so-status-dot" />
+                        {order.status}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        <span style={{ fontWeight: 700, color: '#0f172a', fontSize: 13 }}>
+                          {totalUnits > 0 ? totalUnits.toLocaleString(undefined, { maximumFractionDigits: 2 }) : order.lines.length}
+                        </span>
+                        <span style={{ fontSize: 11, color: '#64748b' }}>
+                          ({order.lines.length} {order.lines.length === 1 ? 'line' : 'lines'})
+                        </span>
+                      </div>
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <span style={{ fontWeight: 700, color: '#0f172a', fontSize: 13 }}>
+                        {Number(order.subtotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>{' '}
+                      <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>
+                        {order.currency || 'INR'}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
+                        <button
+                          type="button"
+                          className="so-btn-edit"
+                          onClick={() => setFormState({ mode: 'edit', orderId: order.id })}
+                        >
+                          {order.status === 'DRAFT' ? 'Edit' : 'View'}
+                        </button>
+                        {canDelete && order.status === 'DRAFT' && (
+                          <button
+                            type="button"
+                            className="so-btn-delete"
+                            onClick={() => setPendingDelete(order)}
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })
             )}
           </tbody>
         </table>

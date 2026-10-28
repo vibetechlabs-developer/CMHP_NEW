@@ -10,8 +10,8 @@ class ProductAdmin(ReadOnlySuperuserAdminMixin, admin.ModelAdmin):
     audited /api/v1/companies/<company_id>/products/ API only.
     """
 
-    list_display = ("code", "company", "name", "product_type", "sales_uom", "is_active", "created_at")
+    list_display = ("code", "company", "name", "product_type", "pack_size", "sales_uom", "is_active", "created_at")
     list_filter = ("is_active", "company")
-    search_fields = ("code", "name", "product_type")
+    search_fields = ("code", "name", "product_type", "pack_size")
     readonly_fields = ("created_at", "updated_at", "version")
     ordering = ("company__code", "code")

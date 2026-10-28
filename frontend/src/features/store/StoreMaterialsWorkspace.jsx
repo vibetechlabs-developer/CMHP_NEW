@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, Navigate, useLocation } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
@@ -9,6 +9,7 @@ import { getErrorMessage } from '../../utils/errors'
 import MaterialRegisterPage from './MaterialRegisterPage'
 import MaterialsTab from './MaterialsTab'
 import ReceivingTab from './ReceivingTab'
+import StoreDashboard from './StoreDashboard'
 import { getMyStores, listLocations, listRecordedReceiptBalances, listRecordedReceipts } from './storeService'
 
 // /inventory/materials/<numeric id> and /inventory/receiving/<numeric id> -
@@ -20,6 +21,7 @@ const MATERIAL_DETAIL_PATTERN = /^\/inventory\/materials\/(\d+)\/?$/
 const RECEIVING_DETAIL_PATTERN = /^\/inventory\/receiving\/(\d+)\/?$/
 
 const TABS = [
+  { to: '/inventory/dashboard', label: 'Dashboard', key: 'dashboard' },
   { to: '/inventory/materials', label: 'Materials', key: 'materials' },
   { to: '/inventory/receiving', label: 'Receiving', key: 'receiving' },
   { to: '/inventory/locations', label: 'Locations', key: 'locations' },
@@ -58,76 +60,78 @@ export default function StoreMaterialsWorkspace() {
   }, [user?.id, user?.username])
 
   const active = TABS.find((tab) => location.pathname.startsWith(tab.to)) || TABS[0]
-  if (!location.pathname.startsWith('/inventory/')) return <Navigate to="/inventory/materials" replace />
+  if (!location.pathname.startsWith('/inventory/')) return <Navigate to="/inventory/dashboard" replace />
+  if (location.pathname === '/inventory/' || location.pathname === '/inventory') {
+    return <Navigate to="/inventory/dashboard" replace />
+  }
   const materialDetailMatch = location.pathname.match(MATERIAL_DETAIL_PATTERN)
   const receivingDetailMatch = location.pathname.match(RECEIVING_DETAIL_PATTERN)
 
   return (
-    <section className="inv-page" aria-label="Store and materials">
-      <header className="inv-header" style={{ minHeight: 0, padding: '18px 22px' }}>
-        <h1 style={{ fontSize: 22, margin: 0 }}>Store &amp; Materials</h1>
-        <p style={{ fontSize: 14, margin: '6px 0 0' }}>
-          One physical store and one shared material catalog. Recorded receipts are kept per source company, and they are not stock balances.
-        </p>
-      </header>
+    <section className="inv-page store-workspace-shell" aria-label="Store and materials">
+      <div className="store-workspace-content" style={{ width: '100%', maxWidth: '100%' }}>
+        {/* The plain Materials list is a shared, store-independent
+            catalog (MaterialsTab never receives storeId) - showing a
+            store line above it implied the list was store-filtered,
+            which it never was. Still shown for the material register
+            below it (genuinely store-scoped) and every other tab. */}
+        {active.key !== 'dashboard' && !(active.key === 'materials' && !materialDetailMatch) && (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
+            <label className="field-label" htmlFor="store-select" style={{ margin: 0 }}>Store</label>
+            {stores.state === 'loading' && <Spinner size="sm" tone="muted" label="Loading your stores…" />}
+            {stores.state === 'error' && (
+              <>
+                <Alert type="error">{stores.error}</Alert>
+                <Button variant="secondary" onClick={load}>Retry</Button>
+              </>
+            )}
+            {stores.state === 'ready' && stores.list.length === 0 && (
+              <Alert type="error">No store is available to your account. Ask an administrator for store access.</Alert>
+            )}
+            {stores.state === 'ready' && stores.list.length === 1 && <span style={{ fontSize: 14 }}>{stores.list[0].name} ({stores.list[0].code})</span>}
+            {stores.state === 'ready' && stores.list.length > 1 && (
+              <select id="store-select" className="field-input" value={storeId ?? ''} onChange={(e) => setStoreId(e.target.value ? Number(e.target.value) : null)} style={{ minWidth: 260 }}>
+                <option value="">Choose a store</option>
+                {stores.list.map((store) => (
+                  <option key={store.id} value={store.id}>
+                    {store.name} ({store.code})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
 
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', margin: '12px 0' }}>
-        <label className="field-label" htmlFor="store-select" style={{ margin: 0 }}>Store</label>
-        {stores.state === 'loading' && <Spinner size="sm" tone="muted" label="Loading your stores…" />}
-        {stores.state === 'error' && (
-          <>
-            <Alert type="error">{stores.error}</Alert>
-            <Button variant="secondary" onClick={load}>Retry</Button>
-          </>
+        {active.key === 'dashboard' && (
+          <StoreDashboard
+            storeId={storeId}
+            storeLabel={stores.list.find((s) => s.id === storeId)?.name}
+            storesReady={stores.state === 'ready'}
+            stores={stores.list}
+            onSelectStore={setStoreId}
+          />
         )}
-        {stores.state === 'ready' && stores.list.length === 0 && (
-          <Alert type="error">No store is available to your account. Ask an administrator for store access.</Alert>
+        {active.key === 'materials' && materialDetailMatch && (
+          <MaterialRegisterPage
+            materialId={Number(materialDetailMatch[1])}
+            storeId={storeId}
+            storesReady={stores.state === 'ready'}
+            storeLabel={stores.list.find((s) => s.id === storeId)?.name}
+          />
         )}
-        {stores.state === 'ready' && stores.list.length === 1 && <span style={{ fontSize: 14 }}>{stores.list[0].name} ({stores.list[0].code})</span>}
-        {stores.state === 'ready' && stores.list.length > 1 && (
-          <select id="store-select" className="field-input" value={storeId ?? ''} onChange={(e) => setStoreId(e.target.value ? Number(e.target.value) : null)} style={{ minWidth: 260 }}>
-            <option value="">Choose a store</option>
-            {stores.list.map((store) => (
-              <option key={store.id} value={store.id}>
-                {store.name} ({store.code})
-              </option>
-            ))}
-          </select>
+        {active.key === 'materials' && !materialDetailMatch && (
+          <MaterialsTab canManage={user?.capabilities?.can_manage_material_catalog === true} />
         )}
+        {active.key === 'receiving' && (
+          <StoreScopedTab
+            storeId={storeId}
+            storesReady={stores.state === 'ready'}
+            render={(id) => <ReceivingTab storeId={id} receiptId={receivingDetailMatch ? Number(receivingDetailMatch[1]) : null} />}
+          />
+        )}
+        {active.key === 'locations' && <StoreScopedTab storeId={storeId} storesReady={stores.state === 'ready'} render={(id) => <LocationsTab storeId={id} />} />}
+        {active.key === 'receipts' && <StoreScopedTab storeId={storeId} storesReady={stores.state === 'ready'} render={(id) => <ReceiptsTab storeId={id} />} />}
       </div>
-
-      <nav className="inv-tabs" aria-label="Store and materials sections" style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-        {TABS.map((tab) => (
-          <NavLink
-            key={tab.key}
-            to={tab.to}
-            className={({ isActive }) => (isActive ? 'inv-tab active' : 'inv-tab')}
-            style={{ padding: '8px 14px', borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: 'none' }}
-          >
-            {tab.label}
-          </NavLink>
-        ))}
-      </nav>
-
-      {active.key === 'materials' && materialDetailMatch && (
-        <MaterialRegisterPage
-          materialId={Number(materialDetailMatch[1])}
-          storeId={storeId}
-          storesReady={stores.state === 'ready'}
-        />
-      )}
-      {active.key === 'materials' && !materialDetailMatch && (
-        <MaterialsTab canManage={user?.capabilities?.can_manage_material_catalog === true} />
-      )}
-      {active.key === 'receiving' && (
-        <StoreScopedTab
-          storeId={storeId}
-          storesReady={stores.state === 'ready'}
-          render={(id) => <ReceivingTab storeId={id} receiptId={receivingDetailMatch ? Number(receivingDetailMatch[1]) : null} />}
-        />
-      )}
-      {active.key === 'locations' && <StoreScopedTab storeId={storeId} storesReady={stores.state === 'ready'} render={(id) => <LocationsTab storeId={id} />} />}
-      {active.key === 'receipts' && <StoreScopedTab storeId={storeId} storesReady={stores.state === 'ready'} render={(id) => <ReceiptsTab storeId={id} />} />}
     </section>
   )
 }

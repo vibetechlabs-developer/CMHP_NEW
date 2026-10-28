@@ -1,0 +1,1357 @@
+/* =========================================================
+   CMHP PHARMACEUTICAL ERP - PRODUCTS & FORMULATION STYLES
+   ========================================================= */
+
+.products-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 0 0 40px 0;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Header & Top Banner (delegates to top-banner.css) */
+.products-header {
+  margin-bottom: 18px;
+}
+
+.products-stats-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.product-stat-badge {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  padding: 8px 14px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.product-stat-badge .num {
+  font-size: 16px;
+  font-weight: 700;
+  color: #123f61;
+}
+
+.product-stat-badge .label {
+  font-size: 12px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Toolbar */
+.products-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  background: #ffffff;
+  padding: 16px 20px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 6px rgba(18, 63, 97, 0.04);
+  flex-wrap: wrap;
+}
+
+.products-search-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 280px;
+  flex-wrap: wrap;
+}
+
+.products-search-box {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+}
+
+.products-search-input {
+  width: 100%;
+  padding: 9px 12px 9px 36px;
+  font-size: 13px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  outline: none;
+  background-color: #f8fafc;
+  transition: all 0.2s;
+  color: #0f172a;
+}
+
+.products-search-input:focus {
+  border-color: #0b73df;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(11, 115, 223, 0.12);
+}
+
+.products-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.products-filter-select {
+  padding: 9px 12px;
+  font-size: 13px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #1e293b;
+  cursor: pointer;
+  outline: none;
+  min-width: 150px;
+}
+
+.products-filter-select:focus {
+  border-color: #0b73df;
+  background: #ffffff;
+}
+
+/* Products Table */
+.products-card {
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(18, 63, 97, 0.05);
+  overflow: hidden;
+}
+
+.products-table-wrapper {
+  overflow-x: auto;
+}
+
+.products-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+
+.products-table th {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.products-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+  vertical-align: middle;
+}
+
+.products-table tbody tr:hover {
+  background-color: #f8fbff;
+}
+
+.products-table tr:last-child td {
+  border-bottom: none;
+}
+
+.prd-code-tag {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 700;
+  font-size: 12px;
+  color: #0b73df;
+  background: #eff6ff;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid #dbeafe;
+  display: inline-block;
+}
+
+.dosage-badge {
+  display: inline-block;
+  padding: 4px 9px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.dosage-tablet { background: #e0f2fe; color: #0369a1; }
+.dosage-capsule { background: #f3e8ff; color: #7e22ce; }
+.dosage-syrup { background: #fef3c7; color: #b45309; }
+.dosage-suspension { background: #ccfbf1; color: #0f766e; }
+.dosage-injection { background: #ffe4e6; color: #be123c; }
+.dosage-ointment, .dosage-cream, .dosage-gel { background: #dcfce7; color: #15803d; }
+.dosage-default { background: #f1f5f9; color: #475569; }
+
+.prd-actions-cell {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.btn-action-formula {
+  background: linear-gradient(135deg, #123f61 0%, #22b8a6 100%);
+  color: #ffffff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(34, 184, 166, 0.2);
+}
+
+.btn-action-formula:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.btn-action-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0284c7;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-action-edit:hover {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+  color: #0369a1;
+}
+
+.btn-action-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #e11d48;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-action-delete:hover {
+  background: #ffe4e6;
+  border-color: #fda4af;
+  color: #be123c;
+}
+
+/* Empty State */
+.products-empty-state {
+  padding: 48px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.products-empty-icon {
+  font-size: 40px;
+  color: #94a3b8;
+}
+
+.products-empty-state h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #1e293b;
+}
+
+.products-empty-state p {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+  max-width: 400px;
+}
+
+/* =========================================================
+   FORMULA FLOW & WORKFLOW
+   ========================================================= */
+
+.formula-flow-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.formula-banner-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 18px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 8px rgba(18, 63, 97, 0.05);
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.formula-banner-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.formula-banner-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.formula-banner-title h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #123f61;
+  margin: 0;
+}
+
+.formula-banner-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: #64748b;
+  flex-wrap: wrap;
+}
+
+.formula-banner-meta strong {
+  color: #1e293b;
+}
+
+.formula-banner-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* Step Indicator */
+.step-indicator-bar {
+  display: flex;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 6px;
+  gap: 8px;
+}
+
+.step-tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  transition: all 0.2s;
+}
+
+.step-tab-btn.active {
+  background: #ffffff;
+  color: #123f61;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e2e8f0;
+}
+
+.step-number-circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.step-tab-btn.active .step-number-circle {
+  background: #22b8a6;
+}
+
+.step-tab-btn.completed .step-number-circle {
+  background: #10b981;
+}
+
+/* Step Content Cards */
+.formula-step-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(18, 63, 97, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.formula-step-card-header {
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 14px;
+}
+
+.formula-step-card-header h3 {
+  margin: 0 0 4px 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #123f61;
+}
+
+.formula-step-card-header p {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.formula-selector-group {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.formula-field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.formula-field-row label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.formula-dropdown-action-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.formula-select {
+  flex: 1;
+  min-width: 240px;
+  padding: 10px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #0f172a;
+  background-color: #f8fafc;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.formula-select:focus {
+  border-color: #0b73df;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(11, 115, 223, 0.12);
+}
+
+/* Inline Creator Forms */
+.inline-form-box {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 18px;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.inline-form-box h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #123f61;
+}
+
+.form-grid-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.form-field-unit-group {
+  display: flex;
+  gap: 8px;
+}
+
+.form-field-unit-group input {
+  flex: 2;
+}
+
+.form-field-unit-group select {
+  flex: 1;
+  min-width: 80px;
+  padding: 9px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 13px;
+  background: #ffffff;
+}
+
+.inline-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* Step 2 - Raw Materials */
+.materials-entry-toolbar {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px 20px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.material-input-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 2;
+  min-width: 220px;
+}
+
+.material-qty-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 140px;
+}
+
+.material-unit-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 110px;
+}
+
+.material-btn-col {
+  display: flex;
+  align-items: flex-end;
+}
+
+.materials-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.materials-table th {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 12px;
+}
+
+.materials-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.materials-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+/* =========================================================
+   CALCULATION SECTION (LARGE CARD)
+   ========================================================= */
+
+.calculation-master-card {
+  background: #ffffff;
+  border: 1.5px solid #22b8a6;
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: 0 4px 18px rgba(34, 184, 166, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.calculation-master-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #123f61 0%, #22b8a6 50%, #0b73df 100%);
+}
+
+.calc-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 16px;
+}
+
+.calc-card-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.calc-icon-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #123f61 0%, #22b8a6 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  box-shadow: 0 2px 6px rgba(18, 63, 97, 0.2);
+}
+
+.calc-card-title h3 {
+  margin: 0 0 4px 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #123f61;
+}
+
+.calc-card-title p {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.calc-context-pill-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.calc-context-pill {
+  background: #f0fdfa;
+  border: 1px solid #ccfbf1;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #0f766e;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.calc-context-pill strong {
+  color: #115e59;
+}
+
+/* Batch Quantity Input Panel */
+.calc-input-panel {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 18px 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.calc-batch-entry {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.calc-batch-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #123f61;
+  white-space: nowrap;
+}
+
+.calc-batch-input-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.calc-batch-number-input {
+  width: 130px;
+  padding: 10px 14px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #123f61;
+  border: 2px solid #22b8a6;
+  border-radius: 8px;
+  outline: none;
+  background: #ffffff;
+  transition: all 0.2s;
+}
+
+.calc-batch-number-input:focus {
+  border-color: #0b73df;
+  box-shadow: 0 0 0 4px rgba(34, 184, 166, 0.15);
+}
+
+.calc-unit-select {
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1e293b;
+  cursor: pointer;
+  outline: none;
+}
+
+.calc-multiplier-badge {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.calc-multiplier-badge .scale-label {
+  font-size: 11px;
+  color: #64748b;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.calc-multiplier-badge .scale-val {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0b73df;
+}
+
+/* Calculation Table */
+.calc-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.calc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.calc-table th {
+  background: #f1f5f9;
+  color: #334155;
+  font-weight: 700;
+  padding: 12px 16px;
+  border-bottom: 2px solid #cbd5e1;
+  text-transform: uppercase;
+  font-size: 11.5px;
+  letter-spacing: 0.4px;
+}
+
+.calc-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  color: #1e293b;
+  vertical-align: middle;
+}
+
+.calc-table tbody tr:hover {
+  background: #f0fdf4;
+}
+
+.calc-table tr:last-child td {
+  border-bottom: none;
+}
+
+.calc-qty-highlight {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f766e;
+  background: #f0fdfa;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #ccfbf1;
+  display: inline-block;
+}
+
+.calc-qty-sub {
+  font-size: 12px;
+  color: #64748b;
+  margin-left: 6px;
+}
+
+.calc-share-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+/* Calculation Summary Footer */
+.calc-summary-footer {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 14px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: #475569;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.calc-summary-footer strong {
+  color: #123f61;
+}
+
+/* Modals */
+.pharma-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pharma-form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pharma-form-row label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.pharma-form-row label span.req {
+  color: #ef4444;
+  margin-left: 2px;
+}
+
+.pharma-input,
+.pharma-select,
+.pharma-textarea {
+  padding: 10px 14px;
+  font-size: 13px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #0f172a;
+  background-color: #ffffff;
+  outline: none;
+  transition: all 0.2s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pharma-input:focus,
+.pharma-select:focus,
+.pharma-textarea:focus {
+  border-color: #0b73df;
+  box-shadow: 0 0 0 3px rgba(11, 115, 223, 0.12);
+}
+
+.pharma-input[readonly] {
+  background: #f1f5f9;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+.pharma-textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .products-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .calc-input-panel {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .calc-multiplier-badge {
+    align-items: flex-start;
+  }
+
+  .materials-entry-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .material-btn-col {
+    align-self: flex-start;
+  }
+}
+
+/* =========================================================
+   QC APPROVAL FLOW & STATUS BANNERS
+   ========================================================= */
+
+.qc-status-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.qc-status-badge.badge-pending {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.qc-status-badge.badge-approved {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.qc-status-badge.badge-declined {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.qc-status-badge.badge-neutral {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
+/* Approval Banners */
+.approval-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border-radius: 10px;
+  margin: 16px 0;
+  font-size: 13.5px;
+}
+
+.approval-banner.banner-pending {
+  background: #fffbeb;
+  border: 1.5px solid #fde68a;
+  color: #78350f;
+}
+
+.approval-banner.banner-approved {
+  background: #f0fdf4;
+  border: 1.5px solid #bbf7d0;
+  color: #14532d;
+}
+
+.approval-banner.banner-declined {
+  background: #fef2f2;
+  border: 1.5px solid #fecaca;
+  color: #991b1b;
+}
+
+.banner-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.banner-content {
+  flex: 1;
+}
+
+.banner-title {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.banner-desc {
+  font-size: 13px;
+  line-height: 1.45;
+  color: inherit;
+  opacity: 0.95;
+}
+
+.decline-finding-card {
+  margin-top: 6px;
+  padding: 8px 12px;
+  background: #fee2e2;
+  border-left: 3px solid #dc2626;
+  border-radius: 4px;
+  font-size: 12.5px;
+  color: #7f1d1d;
+}
+
+.lock-tag {
+  margin-left: 8px;
+  font-size: 11px;
+  background: #e2e8f0;
+  color: #475569;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+/* Action Bar */
+.calc-action-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 18px;
+  border-top: 1.5px solid #e2e8f0;
+  margin-top: 20px;
+}
+
+.action-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.action-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+}
+
+/* Export Dropdown */
+.export-dropdown-wrapper {
+  position: relative;
+}
+
+.export-menu-dropdown {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  min-width: 210px;
+  z-index: 50;
+  overflow: hidden;
+  padding: 6px 0;
+}
+
+.export-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 14px;
+  font-size: 13px;
+  color: #1e293b;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.export-menu-item:hover {
+  background-color: #f1f5f9;
+  color: #0b73df;
+}
+
+/* Tooltip Container */
+.tooltip-container {
+  position: relative;
+  display: inline-block;
+}
+
+.tooltip-bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  background: #1e293b;
+  color: #ffffff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 60;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: all 0.2s ease;
+}
+
+.tooltip-container:hover .tooltip-bubble {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.badge-approved-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  background: #dcfce7;
+  color: #15803d;
+  font-weight: 700;
+  font-size: 13px;
+  border-radius: 8px;
+  border: 1px solid #86efac;
+}
+
+/* Products Table Approval Status Pills */
+.approval-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.approval-pill.pill-approved {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.approval-pill.pill-pending {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.approval-pill.pill-declined {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.approval-pill.pill-neutral {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
+/* QC Submit Modal Summary Card */
+.qc-summary-read-only-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.qc-summary-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.qc-summary-row .lbl {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.qc-summary-row .val {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.qc-summary-row .bold-val {
+  font-weight: 700;
+}
+
+/* QC Audit Timeline */
+.qc-audit-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+  padding-left: 20px;
+  margin-top: 10px;
+}
+
+.qc-audit-timeline::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: #e2e8f0;
+}
+
+.timeline-entry {
+  position: relative;
+}
+
+.timeline-dot {
+  position: absolute;
+  left: -20px;
+  top: 5px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 2px #94a3b8;
+  background: #94a3b8;
+}
+
+.timeline-submitted .timeline-dot {
+  background: #3b82f6;
+  box-shadow: 0 0 0 2px #3b82f6;
+}
+
+.timeline-approved .timeline-dot {
+  background: #16a34a;
+  box-shadow: 0 0 0 2px #16a34a;
+}
+
+.timeline-declined .timeline-dot {
+  background: #dc2626;
+  box-shadow: 0 0 0 2px #dc2626;
+}
+
+.timeline-withdrawn .timeline-dot {
+  background: #64748b;
+  box-shadow: 0 0 0 2px #64748b;
+}
+
+.timeline-body {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.timeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.timeline-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.timeline-badge.badge-submitted {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.timeline-badge.badge-approved {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.timeline-badge.badge-declined {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.timeline-badge.badge-withdrawn {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.timeline-time {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.timeline-author {
+  font-size: 12.5px;
+  color: #334155;
+  margin-bottom: 4px;
+}
+
+.timeline-notes {
+  font-size: 12.5px;
+  font-style: italic;
+  color: #475569;
+  background: #ffffff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #f1f5f9;
+}
+
+.timeline-reason {
+  font-size: 12.5px;
+  color: #991b1b;
+  background: #fef2f2;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #fecaca;
+  margin-top: 4px;
+}

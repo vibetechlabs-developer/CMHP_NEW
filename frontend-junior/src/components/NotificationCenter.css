@@ -1,0 +1,670 @@
+/*
+============================================================
+NOTIFICATION HOST
+============================================================
+*/
+
+.cmhp-notification-host {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  z-index: 1200;
+}
+
+
+/*
+============================================================
+WRAPPER
+============================================================
+*/
+
+.notification-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+
+/*
+============================================================
+BELL
+============================================================
+*/
+
+.notification-trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+.notification-count {
+  position: absolute;
+
+  top: -5px;
+  right: -5px;
+
+  min-width: 17px;
+  height: 17px;
+
+  padding: 0 4px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 2px solid #fff;
+  border-radius: 999px;
+
+  background: #ef4444;
+  color: #fff;
+
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 900;
+
+  z-index: 10;
+}
+
+
+/*
+============================================================
+BACKDROP
+============================================================
+*/
+
+.notification-backdrop {
+  position: fixed;
+  inset: 0;
+
+  z-index: 1190;
+
+  border: 0;
+  padding: 0;
+
+  background: transparent;
+
+  cursor: default;
+}
+
+
+/*
+============================================================
+PANEL
+============================================================
+*/
+
+.notification-panel {
+  position: absolute;
+
+  top: calc(100% + 12px);
+  right: 0;
+
+  z-index: 1210;
+
+  width: min(
+    450px,
+    calc(100vw - 30px)
+  );
+
+  max-height: min(
+    650px,
+    calc(100vh - 110px)
+  );
+
+  overflow: hidden;
+
+  border:
+    1px solid #d9e7ef;
+
+  border-radius: 16px;
+
+  background: #fff;
+
+  box-shadow:
+    0 24px 60px
+    rgba(25, 74, 106, .18),
+
+    0 6px 18px
+    rgba(25, 74, 106, .08);
+
+  animation:
+    notificationPanelIn
+    .18s
+    ease-out;
+}
+
+
+@keyframes notificationPanelIn {
+
+  from {
+    opacity: 0;
+    transform:
+      translateY(-7px);
+  }
+
+  to {
+    opacity: 1;
+    transform:
+      translateY(0);
+  }
+
+}
+
+
+/*
+============================================================
+HEADER
+============================================================
+*/
+
+.notification-panel-head {
+  min-height: 70px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 14px;
+
+  padding:
+    15px 17px;
+
+  border-bottom:
+    1px solid #e7eff4;
+
+  background:
+    linear-gradient(
+      180deg,
+      #ffffff 0%,
+      #fafdff 100%
+    );
+}
+
+
+.notification-panel-head > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+
+.notification-panel-head strong {
+  color: #143d62;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+
+.notification-panel-head span {
+  color: #7890a5;
+  font-size: 12px;
+}
+
+
+.notification-head-actions {
+  display: flex !important;
+  align-items: center;
+  gap: 5px;
+}
+
+
+.notification-head-actions button {
+  border: 0;
+
+  border-radius: 7px;
+
+  padding:
+    7px 8px;
+
+  background:
+    #f1f7fb;
+
+  color:
+    #1476c9;
+
+  font-size: 11px;
+  font-weight: 800;
+
+  cursor: pointer;
+}
+
+
+.notification-head-actions button:hover {
+  background:
+    #e5f2fa;
+}
+
+
+/*
+============================================================
+FILTERS
+============================================================
+*/
+
+.notification-filters {
+  display: flex;
+
+  gap: 6px;
+
+  padding:
+    10px 12px;
+
+  overflow-x: auto;
+
+  border-bottom:
+    1px solid #edf3f6;
+
+  scrollbar-width: thin;
+}
+
+
+.notification-filters button {
+  flex-shrink: 0;
+
+  border:
+    1px solid #dce8ef;
+
+  border-radius:
+    999px;
+
+  padding:
+    6px 11px;
+
+  background:
+    #fff;
+
+  color:
+    #6b8295;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    all .15s ease;
+}
+
+
+.notification-filters button:hover {
+  background:
+    #f6fbfe;
+
+  color:
+    #1476c9;
+}
+
+
+.notification-filters button.active {
+  border-color:
+    #b9dff5;
+
+  background:
+    #eaf6ff;
+
+  color:
+    #1476c9;
+}
+
+
+/*
+============================================================
+LIST
+============================================================
+*/
+
+.notification-list {
+  max-height: 500px;
+
+  overflow-y: auto;
+
+  scrollbar-width: thin;
+}
+
+
+.notification-item {
+  position: relative;
+
+  width: 100%;
+
+  display: grid;
+
+  grid-template-columns:
+    38px
+    minmax(0, 1fr)
+    7px;
+
+  align-items: start;
+
+  gap: 11px;
+
+  padding:
+    13px 15px;
+
+  border: 0;
+
+  border-bottom:
+    1px solid #edf3f6;
+
+  background:
+    #fff;
+
+  text-align: left;
+
+  cursor: pointer;
+
+  transition:
+    background .15s ease;
+}
+
+
+.notification-item:hover {
+  background:
+    #f6fbfe;
+}
+
+
+.notification-item.unread {
+  background:
+    #f8fcff;
+}
+
+
+.notification-item.read {
+  opacity:
+    .78;
+}
+
+
+/*
+============================================================
+ICON
+============================================================
+*/
+
+.notification-item-icon {
+  width: 36px;
+  height: 36px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 10px;
+
+  font-size: 13px;
+  font-weight: 900;
+}
+
+
+/*
+============================================================
+TYPES
+============================================================
+*/
+
+.notification-leave {
+  background:
+    #eaf8ef;
+
+  color:
+    #178447;
+}
+
+
+.notification-inventory {
+  background:
+    #fff4df;
+
+  color:
+    #bd7600;
+}
+
+
+.notification-supply {
+  background:
+    #eaf8ff;
+
+  color:
+    #1476c9;
+}
+
+
+.notification-operations {
+  background:
+    #edf5ff;
+
+  color:
+    #3978c7;
+}
+
+
+.notification-invoice {
+  background:
+    #eef2ff;
+
+  color:
+    #5b57c7;
+}
+
+
+.notification-quality {
+  background:
+    #f0edff;
+
+  color:
+    #7058d8;
+}
+
+
+.notification-payroll {
+  background:
+    #e8f6ff;
+
+  color:
+    #1174bc;
+}
+
+
+/*
+============================================================
+COPY
+============================================================
+*/
+
+.notification-item-copy {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 4px;
+}
+
+
+.notification-title-row {
+  display: flex;
+
+  align-items: center;
+
+  gap: 6px;
+}
+
+
+.notification-item-copy strong {
+  min-width: 0;
+
+  color:
+    #173e60;
+
+  font-size:
+    13px;
+
+  font-weight:
+    800;
+
+  line-height:
+    18px;
+}
+
+
+.notification-item-copy > span:not(.notification-title-row) {
+  color:
+    #71879a;
+
+  font-size:
+    12px;
+
+  line-height:
+    1.45;
+}
+
+
+.notification-item-copy small {
+  color:
+    #9aabba;
+
+  font-size:
+    10px;
+}
+
+
+.notification-unread-dot {
+  width: 7px;
+  height: 7px;
+
+  flex-shrink: 0;
+
+  border-radius: 50%;
+
+  background:
+    #147fe3;
+}
+
+
+.notification-unread-side {
+  width: 7px;
+  height: 7px;
+
+  margin-top:
+    4px;
+
+  border-radius:
+    50%;
+
+  background:
+    #147fe3;
+}
+
+
+/*
+============================================================
+EMPTY
+============================================================
+*/
+
+.notification-empty {
+  min-height:
+    250px;
+
+  display: grid;
+
+  place-items:
+    center;
+
+  align-content:
+    center;
+
+  gap:
+    8px;
+
+  padding:
+    30px 24px;
+
+  text-align:
+    center;
+}
+
+
+.notification-empty-icon {
+  width: 48px;
+  height: 48px;
+
+  display:
+    grid;
+
+  place-items:
+    center;
+
+  border-radius:
+    50%;
+
+  background:
+    #eef7fc;
+
+  font-size:
+    22px;
+}
+
+
+.notification-empty strong {
+  color:
+    #173e60;
+
+  font-size:
+    14px;
+}
+
+
+.notification-empty span {
+  max-width:
+    280px;
+
+  color:
+    #7890a5;
+
+  font-size:
+    12px;
+
+  line-height:
+    1.5;
+}
+
+
+/*
+============================================================
+MOBILE
+============================================================
+*/
+
+@media (
+  max-width: 700px
+) {
+
+  .notification-panel {
+
+    position: fixed;
+
+    top: 70px;
+
+    right: 12px;
+    left: 12px;
+
+    width: auto;
+
+    max-width: none;
+
+  }
+
+  .notification-list {
+
+    max-height:
+      calc(
+        100vh - 190px
+      );
+
+  }
+
+}

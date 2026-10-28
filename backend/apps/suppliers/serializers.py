@@ -44,11 +44,14 @@ def _reject_prohibited_fields(initial_data, prohibited):
 
 
 class SupplierSerializer(serializers.ModelSerializer):
+    name = serializers.SerializerMethodField()
+
     class Meta:
         model = Supplier
         fields = [
             "id",
             "code",
+            "name",
             "legal_name",
             "display_name",
             "contact_name",
@@ -65,6 +68,9 @@ class SupplierSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = fields
+
+    def get_name(self, obj):
+        return obj.display_name or obj.legal_name
 
 
 class SupplierCreateSerializer(serializers.ModelSerializer):

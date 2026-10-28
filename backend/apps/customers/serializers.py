@@ -25,7 +25,7 @@ _CUSTOMER_ALWAYS_PROHIBITED = {
 _CUSTOMER_CREATE_PROHIBITED = _CUSTOMER_ALWAYS_PROHIBITED
 _CUSTOMER_UPDATE_PROHIBITED = _CUSTOMER_ALWAYS_PROHIBITED | {"code"}
 
-_OPTIONAL_TEXT_FIELDS = ["contact_person", "phone", "billing_address", "shipping_address", "notes"]
+_OPTIONAL_TEXT_FIELDS = ["contact_person", "phone", "city", "gst_number", "billing_address", "shipping_address", "notes"]
 
 
 def _reject_prohibited_fields(initial_data, prohibited):
@@ -50,6 +50,7 @@ def _validate_optional_email(value):
 class CustomerSerializer(serializers.ModelSerializer):
     company_id = serializers.IntegerField(source="company.id", read_only=True)
     company_code = serializers.CharField(source="company.code", read_only=True)
+    gst_no = serializers.CharField(source="gst_number", read_only=True)
 
     class Meta:
         model = Customer
@@ -62,6 +63,9 @@ class CustomerSerializer(serializers.ModelSerializer):
             "contact_person",
             "email",
             "phone",
+            "city",
+            "gst_number",
+            "gst_no",
             "billing_address",
             "shipping_address",
             "notes",
@@ -79,6 +83,8 @@ class CustomerCreateSerializer(serializers.ModelSerializer):
     create; PATCH cannot change it (see CustomerUpdateSerializer below).
     """
 
+    gst_no = serializers.CharField(required=False, allow_blank=True, write_only=True)
+
     class Meta:
         model = Customer
         fields = [
@@ -87,6 +93,9 @@ class CustomerCreateSerializer(serializers.ModelSerializer):
             "contact_person",
             "email",
             "phone",
+            "city",
+            "gst_number",
+            "gst_no",
             "billing_address",
             "shipping_address",
             "notes",
@@ -101,6 +110,9 @@ class CustomerCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         _reject_prohibited_fields(self.initial_data, _CUSTOMER_CREATE_PROHIBITED)
+        gst_no = attrs.pop("gst_no", None)
+        if gst_no and not attrs.get("gst_number"):
+            attrs["gst_number"] = gst_no
         return attrs
 
 
@@ -121,6 +133,9 @@ class CustomerUpdateSerializer(serializers.Serializer):
     contact_person = serializers.CharField(required=False, allow_blank=True, max_length=150)
     email = serializers.CharField(required=False, allow_blank=True)
     phone = serializers.CharField(required=False, allow_blank=True, max_length=32)
+    city = serializers.CharField(required=False, allow_blank=True, max_length=100)
+    gst_number = serializers.CharField(required=False, allow_blank=True, max_length=32)
+    gst_no = serializers.CharField(required=False, allow_blank=True, write_only=True, max_length=32)
     billing_address = serializers.CharField(required=False, allow_blank=True)
     shipping_address = serializers.CharField(required=False, allow_blank=True)
     notes = serializers.CharField(required=False, allow_blank=True)
@@ -135,6 +150,9 @@ class CustomerUpdateSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         _reject_prohibited_fields(self.initial_data, _CUSTOMER_UPDATE_PROHIBITED)
+        gst_no = attrs.pop("gst_no", None)
+        if gst_no is not None and "gst_number" not in attrs:
+            attrs["gst_number"] = gst_no
         return attrs
 
 

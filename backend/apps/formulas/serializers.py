@@ -19,11 +19,11 @@ _FORMULA_UPDATE = {"expected_version", "name", "notes"}
 _REVISION_CREATE = {"base_output_quantity", "notes", "output_uom_id"}
 _REVISION_UPDATE = {"expected_version", "base_output_quantity", "notes", "lines"}
 _LINE_ALLOWED = {
-    "id", "material_id", "quantity", "notes", "label_claim", "ar_no", "special_value",
-    "calculation_mode", "label_claim_quantity", "label_claim_uom_id",
+    "id", "material_id", "quantity", "notes", "potency", "label_claim", "ar_no", "special_value",
+    "calculation_mode", "label_claim_quantity", "label_claim_uom_id", "unit_code",
 }
 _MAX_LINES = 200
-_APPROVE = {"expected_version"}
+_APPROVE = {"expected_version", "approval_remarks"}
 _POLICY_UPDATE = {"expected_version", "allow_self_approval"}
 
 
@@ -42,6 +42,7 @@ _QUANTITY = dict(max_digits=14, decimal_places=3, min_value=Decimal("0.001"))
 
 class FormulaLineSerializer(serializers.ModelSerializer):
     material_id = serializers.IntegerField(read_only=True)
+    potency = serializers.CharField(read_only=True)
     label_claim = serializers.CharField(read_only=True)
     ar_no = serializers.CharField(read_only=True)
     special_value = serializers.CharField(read_only=True)
@@ -52,6 +53,7 @@ class FormulaLineSerializer(serializers.ModelSerializer):
     unit_code = serializers.CharField(source="unit_code_snapshot", read_only=True)
     unit_name = serializers.CharField(source="unit_name_snapshot", read_only=True)
     material_is_active = serializers.BooleanField(source="material.is_active", read_only=True)
+    material_alcohol_percentage = serializers.DecimalField(source="material.alcohol_percentage", max_digits=5, decimal_places=2, read_only=True, default=Decimal("0.00"))
     unit_is_active = serializers.BooleanField(source="unit.is_active", read_only=True)
     label_claim_uom_id = serializers.IntegerField(read_only=True)
     label_claim_uom_code = serializers.CharField(source="label_claim_uom.code", read_only=True, default=None)
@@ -66,6 +68,7 @@ class FormulaLineSerializer(serializers.ModelSerializer):
             "material_code",
             "material_name",
             "material_type",
+            "material_alcohol_percentage",
             "unit_id",
             "unit_code",
             "unit_name",
@@ -73,6 +76,7 @@ class FormulaLineSerializer(serializers.ModelSerializer):
             "unit_is_active",
             "quantity",
             "notes",
+            "potency",
             "label_claim",
             "ar_no",
             "special_value",
@@ -121,6 +125,7 @@ class FormulaRevisionSummarySerializer(_RevisionBase):
             "approved_by_id",
             "approved_at",
             "approval_policy_version",
+            "approval_remarks",
         ]
         read_only_fields = fields
 
@@ -151,6 +156,8 @@ class FormulaSerializer(serializers.ModelSerializer):
     product_id = serializers.IntegerField(read_only=True)
     product_code = serializers.CharField(source="product.code", read_only=True)
     product_name = serializers.CharField(source="product.name", read_only=True)
+    product_type = serializers.CharField(source="product.product_type", read_only=True)
+    product_bmr_no = serializers.CharField(source="product.bmr_no", read_only=True)
     product_is_active = serializers.BooleanField(source="product.is_active", read_only=True)
     revisions = FormulaRevisionSummarySerializer(many=True, read_only=True)
 
@@ -162,6 +169,8 @@ class FormulaSerializer(serializers.ModelSerializer):
             "product_id",
             "product_code",
             "product_name",
+            "product_type",
+            "product_bmr_no",
             "product_is_active",
             "code",
             "name",
@@ -228,9 +237,11 @@ class FormulaLineInputSerializer(serializers.Serializer):
     material_id = serializers.IntegerField()
     quantity = serializers.DecimalField(**_QUANTITY)
     notes = serializers.CharField(required=False, allow_blank=True, max_length=500)
+    potency = serializers.CharField(required=False, allow_blank=True, max_length=60)
     label_claim = serializers.CharField(required=False, allow_blank=True, max_length=100)
     ar_no = serializers.CharField(required=False, allow_blank=True, max_length=100)
     special_value = serializers.CharField(required=False, allow_blank=True, max_length=60)
+    unit_code = serializers.CharField(required=False, allow_blank=True, max_length=20)
     # How this line's requirement is calculated (default: AS_PER_FORMULA,
     # unchanged proportional behaviour). AS_PER_LABEL_CLAIM requires both
     # label_claim_quantity and label_claim_uom_id together - validated in
@@ -260,6 +271,7 @@ class RevisionUpdateSerializer(serializers.Serializer):
 
 class RevisionApproveSerializer(serializers.Serializer):
     expected_version = serializers.IntegerField(min_value=1)
+    approval_remarks = serializers.CharField(required=False, allow_blank=True, max_length=2000, default="")
 
     def validate(self, attrs):
         _reject_unknown_fields(self.initial_data, _APPROVE)

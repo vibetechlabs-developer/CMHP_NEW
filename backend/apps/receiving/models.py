@@ -3,9 +3,61 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from apps.catalog.models import Material, UnitOfMeasure
-from apps.companies.models import Company
+from apps.companies.models import Company, normalize_code
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderIssueLineSnapshot
 from apps.stores.models import SharedStore
+
+
+class ContainerType(models.Model):
+    """A shared, company/store-independent packaging container identity
+    (e.g. Bag, Drum, Tin, Bottle, Box, Other) - mirrors UnitOfMeasure's own
+    shape (code/name/is_active/timestamps) exactly, for the same reason:
+    this is reference data, not business data, and gets the same
+    activate/deactivate lifecycle as every other reference-data model in
+    this project rather than a one-off shape of its own.
+
+    Deliberately NOT a unit of measure and carries no conversion factor of
+    its own - "a drum is packaging, not a conversion factor." A container
+    type only ever describes how material was bundled on one
+    GoodsReceiptLine (`container_type`/`container_quantity`) or a
+    Material's own `default_container_type` suggestion; it never
+    participates in any quantity calculation.
+    """
+
+    code = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.CharField(max_length=255, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["code"]
+        verbose_name = "container type"
+        verbose_name_plural = "container types"
+
+    def __str__(self):
+        return self.code
+
+    def clean(self):
+        self.code = normalize_code(self.code)
+        self.name = (self.name or "").strip()
+        self.description = (self.description or "").strip()
+        errors = {}
+        if not self.code:
+            errors["code"] = "Code is required."
+        if not self.name:
+            errors["name"] = "Name is required."
+        if self.pk:
+            original_code = ContainerType.objects.filter(pk=self.pk).values_list("code", flat=True).first()
+            if original_code is not None and original_code != self.code:
+                errors["code"] = "Code cannot be changed after creation."
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
 
 
 class GoodsReceipt(models.Model):
@@ -59,11 +111,28 @@ class GoodsReceipt(models.Model):
     idempotency_key = models.CharField(max_length=100, blank=True)
     store = models.ForeignKey(SharedStore, on_delete=models.PROTECT, related_name="goods_receipts")
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="goods_receipts")
+    # Nullable - a manual (non-PO) receipt (see MANUAL ENTRY MODE below)
+    # has nothing to link here. A PO-based receipt (the original, still
+    # default path) always has one, unchanged from before.
     source_purchase_order = models.ForeignKey(
-        PurchaseOrder, on_delete=models.PROTECT, related_name="goods_receipts"
+        PurchaseOrder, on_delete=models.PROTECT, related_name="goods_receipts", null=True, blank=True
     )
+    # MANUAL ENTRY MODE (added after Task 09A): free-text, supplier-
+    # supplied only, exactly like GoodsReceiptLine.lot_reference's own
+    # precedent below - never a claim that this name exists in the real
+    # Supplier catalog. Used only when source_purchase_order is null;
+    # left blank for a PO-based receipt, which keeps deriving its
+    # supplier display from the PO's own real, catalog-linked supplier
+    # instead (no change to that existing, unambiguous path).
+    supplier_name = models.CharField(max_length=255, blank=True)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
     arrived_at = models.DateTimeField()
+    # Independent references, never one standing in for the other: a
+    # supplier invoice number when the invoice has actually arrived with
+    # (or before) the goods, and a delivery/reference note for when it has
+    # not - both optional, both blank by default, neither inferred from
+    # the other.
+    supplier_invoice_reference = models.CharField(max_length=100, blank=True)
     delivery_note_reference = models.CharField(max_length=100, blank=True)
     notes = models.CharField(max_length=2000, blank=True)
     created_by = models.ForeignKey(
@@ -104,10 +173,12 @@ class GoodsReceipt(models.Model):
         return self.reference
 
     def clean(self):
+        self.supplier_invoice_reference = (self.supplier_invoice_reference or "").strip()
         self.delivery_note_reference = (self.delivery_note_reference or "").strip()
         self.notes = (self.notes or "").strip()
         self.cancellation_reason = (self.cancellation_reason or "").strip()
         self.idempotency_key = (self.idempotency_key or "").strip()
+        self.supplier_name = (self.supplier_name or "").strip()
         errors = {}
         if not self.reference:
             errors["reference"] = "Reference is required."
@@ -175,17 +246,30 @@ class GoodsReceiptLine(models.Model):
 
     goods_receipt = models.ForeignKey(GoodsReceipt, on_delete=models.CASCADE, related_name="lines")
     line_number = models.PositiveIntegerField()
+    # Nullable - null on a MANUAL ENTRY MODE line (see unit_price/
+    # currency_code below), set on a PO-based line exactly as before.
     source_po_line = models.ForeignKey(
-        PurchaseOrderIssueLineSnapshot, on_delete=models.PROTECT, related_name="goods_receipt_lines"
+        PurchaseOrderIssueLineSnapshot, on_delete=models.PROTECT, related_name="goods_receipt_lines",
+        null=True, blank=True,
     )
     material = models.ForeignKey(Material, on_delete=models.PROTECT, related_name="goods_receipt_lines")
     unit = models.ForeignKey(UnitOfMeasure, on_delete=models.PROTECT, related_name="goods_receipt_lines")
     received_quantity = models.DecimalField(max_digits=14, decimal_places=3)
     lot_reference = models.CharField(max_length=100, blank=True)
+    container_type = models.ForeignKey(ContainerType, on_delete=models.PROTECT, null=True, blank=True, related_name="goods_receipt_lines")
+    container_quantity = models.PositiveIntegerField(null=True, blank=True)
     material_code_snapshot = models.CharField(max_length=32, blank=True)
     material_name_snapshot = models.CharField(max_length=255, blank=True)
     unit_code_snapshot = models.CharField(max_length=20, blank=True)
     unit_name_snapshot = models.CharField(max_length=100, blank=True)
+    # MANUAL ENTRY MODE ONLY (source_po_line is null): a directly-entered
+    # price, never independently settable on a PO-based line - that line
+    # keeps deriving price from source_po_line.issue_snapshot exactly as
+    # before (see apps.receiving.services.create_goods_receipt's own
+    # "price read-only, never editable here" rule, which still applies
+    # unchanged to every PO-based line).
+    unit_price = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
+    currency_code = models.CharField(max_length=3, blank=True)
 
     class Meta:
         ordering = ["line_number", "id"]
@@ -194,6 +278,11 @@ class GoodsReceiptLine(models.Model):
             models.CheckConstraint(
                 check=models.Q(received_quantity__gt=0), name="goods_receipt_line_quantity_positive"
             ),
+            models.CheckConstraint(
+                check=models.Q(source_po_line__isnull=False, unit_price__isnull=True, currency_code="")
+                | models.Q(source_po_line__isnull=True),
+                name="goods_receipt_line_po_price_not_independently_set",
+            ),
         ]
 
     def __str__(self):
@@ -201,9 +290,12 @@ class GoodsReceiptLine(models.Model):
 
     def clean(self):
         self.lot_reference = (self.lot_reference or "").strip()
+        self.currency_code = (self.currency_code or "").strip().upper()
         errors = {}
         if self.received_quantity is not None and self.received_quantity <= 0:
             errors["received_quantity"] = "Received quantity must be greater than zero."
+        if self.source_po_line_id and (self.unit_price is not None or self.currency_code):
+            errors["unit_price"] = "Price cannot be set directly on a PO-based line - it is derived from the purchase order."
         if errors:
             raise ValidationError(errors)
 

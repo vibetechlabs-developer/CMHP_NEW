@@ -251,10 +251,11 @@ class SupplierAuthorizationTests(SupplierTestCase):
         response = self.client_.delete(SUPPLIERS_URL, **bearer(self.superuser_token))
         self.assertEqual(response.status_code, 405)
 
-    def test_delete_not_allowed_on_detail(self):
+    def test_delete_supplier_success(self):
         supplier = make_supplier("ACME")
         response = self.client_.delete(supplier_url(supplier.id), **bearer(self.superuser_token))
-        self.assertEqual(response.status_code, 405)
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(Supplier.objects.filter(id=supplier.id).exists())
 
     def test_missing_supplier_returns_404(self):
         response = get_json(self.client_, supplier_url(999999), self.superuser_token)

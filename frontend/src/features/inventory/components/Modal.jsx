@@ -14,7 +14,7 @@ const FOCUSABLE =
 // Layout is three regions: head (auto), body (scrolls), footer (auto).
 // subheader sits inside the head region so it never scrolls away or
 // overlaps the footer.
-export default function Modal({ title, onClose, children, footer, subheader, size = 'md' }) {
+export default function Modal({ title, onClose, children, footer, subheader, size = 'md', className }) {
   const dialogRef = useRef(null)
   const onCloseRef = useRef(onClose)
 
@@ -71,7 +71,7 @@ export default function Modal({ title, onClose, children, footer, subheader, siz
   }, [])
 
   return (
-    <div className="inv-modal-overlay" onClick={() => onCloseRef.current?.()}>
+    <div className={['inv-modal-overlay', className].filter(Boolean).join(' ')} onClick={() => onCloseRef.current?.()}>
       <div
         ref={dialogRef}
         className={`inv-modal inv-modal-${size}`}

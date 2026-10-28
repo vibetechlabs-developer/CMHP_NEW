@@ -387,31 +387,40 @@ def update_formula_revision(*, actor, revision_id, expected_version, data):
         seen_ids = set()
         for index, item in enumerate(data["lines"], start=1):
             notes = (item.get("notes") or "").strip()
+            potency = (item.get("potency") or "").strip()
             label_claim = (item.get("label_claim") or "").strip()
             ar_no = (item.get("ar_no") or "").strip()
             special_value = (item.get("special_value") or "").strip()
             calc_mode, label_claim_quantity, label_claim_uom = _resolve_calculation_mode(
                 item, revision.output_uom, index
             )
+            unit_code = (item.get("unit_code") or item.get("unit") or "").strip()
+            override_unit = UnitOfMeasure.objects.filter(code__iexact=unit_code).first() if unit_code else None
             line_id = item.get("id")
             if line_id is None:
                 material = _resolve_line_material(item["material_id"], index)
-                _check_whole_for_count(material.base_unit, item["quantity"], ("lines", f"Line {index}"))
+                effective_unit = override_unit or material.base_unit
+                _check_whole_for_count(effective_unit, item["quantity"], ("lines", f"Line {index}"))
                 new_lines.append(
                     FormulaLine(
                         revision=revision,
                         line_number=index,
                         material=material,
                         quantity=item["quantity"],
-                        unit=material.base_unit,
+                        unit=effective_unit,
                         notes=notes,
+                        potency=potency,
                         label_claim=label_claim,
                         ar_no=ar_no,
                         special_value=special_value,
                         calculation_mode=calc_mode,
                         label_claim_quantity=label_claim_quantity,
                         label_claim_uom=label_claim_uom,
-                        **_material_snapshot_fields(material),
+                        material_code_snapshot=material.code,
+                        material_name_snapshot=material.name,
+                        material_kind_snapshot=material.kind,
+                        unit_code_snapshot=effective_unit.code,
+                        unit_name_snapshot=effective_unit.name,
                     )
                 )
                 continue
@@ -425,26 +434,37 @@ def update_formula_revision(*, actor, revision_id, expected_version, data):
                 item["material_id"] == line.material_id
                 and item["quantity"] == line.quantity
                 and notes == line.notes
+                and potency == line.potency
                 and label_claim == line.label_claim
                 and ar_no == line.ar_no
                 and special_value == line.special_value
                 and calc_mode == line.calculation_mode
                 and label_claim_quantity == line.label_claim_quantity
                 and (label_claim_uom.id if label_claim_uom else None) == line.label_claim_uom_id
+                and (not unit_code or unit_code.upper() == line.unit_code_snapshot.upper())
             )
             if not unchanged:
                 material = _resolve_line_material(item["material_id"], index)
-                _check_whole_for_count(material.base_unit, item["quantity"], ("lines", f"Line {index}"))
+                effective_unit = override_unit or (line.unit if material.id == line.material_id else material.base_unit)
+                _check_whole_for_count(effective_unit, item["quantity"], ("lines", f"Line {index}"))
                 if material.id != line.material_id:
                     line.material = material
-                    line.unit = material.base_unit
+                    line.unit = override_unit or material.base_unit
                     for field, value in _material_snapshot_fields(material).items():
                         setattr(line, field, value)
+                    if override_unit:
+                        line.unit_code_snapshot = override_unit.code
+                        line.unit_name_snapshot = override_unit.name
+                elif override_unit and override_unit.id != line.unit_id:
+                    line.unit = override_unit
+                    line.unit_code_snapshot = override_unit.code
+                    line.unit_name_snapshot = override_unit.name
                 line.quantity = item["quantity"]
                 line.calculation_mode = calc_mode
                 line.label_claim_quantity = label_claim_quantity
                 line.label_claim_uom = label_claim_uom
                 line.notes = notes
+                line.potency = potency
                 line.label_claim = label_claim
                 line.ar_no = ar_no
                 line.special_value = special_value
@@ -480,12 +500,7 @@ def update_formula_revision(*, actor, revision_id, expected_version, data):
                     "quantity",
                     "unit",
                     "notes",
-                    # Pre-existing bug fixed here: these three were being set
-                    # on the in-memory `line` object above (so a same-request
-                    # response looked correct) but were never in this list, so
-                    # bulk_update never actually wrote them - any edit to an
-                    # EXISTING line's Special value/Label claim/AR No. was
-                    # silently lost the moment the revision was reloaded.
+                    "potency",
                     "label_claim",
                     "ar_no",
                     "special_value",

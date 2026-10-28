@@ -96,9 +96,30 @@ def bearer(user):
     return {"HTTP_AUTHORIZATION": f"Bearer {AccessToken.for_user(user)}"}
 
 
+def _ensure_permissions_seeded(codes, scope):
+    """Defensive, idempotent re-seed - see tests.test_stock_movements'
+    identical helper for the full explanation (a TransactionTestCase in
+    this same file, ConcurrencyTests below, flushes PermissionDefinition
+    rows on teardown; Django's TestCase-before-TransactionTestCase
+    reordering only protects within one invocation, not across separate
+    --keepdb runs). get_or_create is a no-op whenever real seed data is
+    already present.
+    """
+    from apps.permissions.models import PermissionDefinition
+
+    for code in codes:
+        PermissionDefinition.objects.get_or_create(
+            code=code,
+            defaults={"name": code, "module": code.split(".")[0], "scope": scope, "is_active": True},
+        )
+
+
 def grant_company_permission(actor, user, company, *codes):
+    from apps.permissions.models import PermissionDefinition
+
     membership, _ = assign_company_membership(actor=actor, user=user, company=company)
     if codes:
+        _ensure_permissions_seeded(codes, PermissionDefinition.Scope.COMPANY)
         role = create_company_role(actor=actor, company=company, code=f"CROLE{user.id}{company.id}", name="Role")
         replace_role_permissions(actor=actor, role=role, permission_codes=list(codes))
         assign_membership_role(actor=actor, membership=membership, role=role)
@@ -106,8 +127,11 @@ def grant_company_permission(actor, user, company, *codes):
 
 
 def grant_store_permission(actor, user, store, *codes):
+    from apps.permissions.models import PermissionDefinition
+
     membership, _ = assign_store_membership(actor=actor, user=user, store=store)
     if codes:
+        _ensure_permissions_seeded(codes, PermissionDefinition.Scope.STORE)
         role = create_store_role(actor=actor, store=store, code=f"SROLE{user.id}{store.id}", name="Role")
         replace_store_role_permissions(actor=actor, role=role, permission_codes=list(codes))
         assign_store_membership_role(actor=actor, membership=membership, role=role)

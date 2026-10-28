@@ -126,7 +126,28 @@ def patch_json(client, url, payload, token):
     return client.patch(url, data=json.dumps(payload), content_type="application/json", **bearer(token))
 
 
+def _ensure_permissions_seeded(codes, scope):
+    """Defensive, idempotent re-seed - see the identical helper and its
+    full explanation in tests.test_stock_movements. get_or_create is a
+    true no-op whenever the real seed-migration data is already present
+    (the normal case), so this never masks a genuine missing-permission
+    bug in application code - only an earlier TransactionTestCase's
+    flush, which Django's own TestCase-before-TransactionTestCase
+    reordering does not protect against across separate --keepdb runs.
+    """
+    from apps.permissions.models import PermissionDefinition
+
+    for code in codes:
+        PermissionDefinition.objects.get_or_create(
+            code=code,
+            defaults={"name": code, "module": code.split(".")[0], "scope": scope, "is_active": True},
+        )
+
+
 def grant_company_permission(actor, user, company, *permission_codes):
+    from apps.permissions.models import PermissionDefinition
+
+    _ensure_permissions_seeded(permission_codes, PermissionDefinition.Scope.COMPANY)
     membership, _ = assign_company_membership(actor=actor, user=user, company=company)
     role = create_company_role(actor=actor, company=company, code=f"CROLE{user.id}{company.id}", name="Role")
     role, _ = replace_role_permissions(actor=actor, role=role, permission_codes=list(permission_codes))
@@ -135,6 +156,9 @@ def grant_company_permission(actor, user, company, *permission_codes):
 
 
 def grant_store_permission(actor, user, store, *permission_codes):
+    from apps.permissions.models import PermissionDefinition
+
+    _ensure_permissions_seeded(permission_codes, PermissionDefinition.Scope.STORE)
     membership, _ = assign_store_membership(actor=actor, user=user, store=store)
     role = create_store_role(actor=actor, store=store, code=f"SROLE{user.id}{store.id}", name="Role")
     role, _ = replace_store_role_permissions(actor=actor, role=role, permission_codes=list(permission_codes))
@@ -610,6 +634,137 @@ class GoodsReceiptCreateTests(GoodsReceiptTestCase):
         po.refresh_from_db()
         self.assertEqual(po.status, "ISSUED")
         self.assertEqual(po.version, before_version)
+
+
+# ---------------------------------------------------------------------------
+# Container fields and supplier invoice reference (additive to the above -
+# a prior, in-progress change had the model/validation/save path working
+# but no way for any caller to discover a ContainerType id to send; see
+# tests.test_container_types for the now-completed ContainerType API).
+# ---------------------------------------------------------------------------
+
+
+class GoodsReceiptContainerAndInvoiceReferenceTests(GoodsReceiptTestCase):
+    def setUp(self):
+        super().setUp()
+        from apps.receiving.models import ContainerType
+
+        self.bag = ContainerType.objects.get(code="BAG")
+        self.inactive_container = ContainerType.objects.create(code="GRCINACTIVE", name="Inactive", is_active=False)
+
+    def test_create_with_container_type_and_quantity(self):
+        po = self._issued_po(quantity=Decimal("100"))
+        po_line_id = po.issue_snapshot.lines.get().id
+        response = post_json(
+            self.client_, goods_receipts_url(self.store.id),
+            {
+                "source_purchase_order_id": po.id,
+                "arrived_at": timezone.now().isoformat(),
+                "supplier_invoice_reference": "INV-9001",
+                "lines": [
+                    {
+                        "source_po_line_id": po_line_id,
+                        "received_quantity": "60",
+                        "container_type_id": self.bag.id,
+                        "container_quantity": 3,
+                    }
+                ],
+            },
+            self.token,
+        )
+        self.assertEqual(response.status_code, 201, response.content[:300])
+        body = response.json()
+        self.assertEqual(body["supplier_invoice_reference"], "INV-9001")
+        line = body["lines"][0]
+        self.assertEqual(line["container_type_id"], self.bag.id)
+        self.assertEqual(line["container_type_code"], "BAG")
+        self.assertEqual(line["container_quantity"], 3)
+
+    def test_supplier_invoice_reference_and_delivery_note_reference_are_independent(self):
+        po = self._issued_po()
+        po_line_id = po.issue_snapshot.lines.get().id
+        response = post_json(
+            self.client_, goods_receipts_url(self.store.id),
+            {
+                "source_purchase_order_id": po.id,
+                "arrived_at": timezone.now().isoformat(),
+                "delivery_note_reference": "DN-1",
+                "lines": [{"source_po_line_id": po_line_id, "received_quantity": "1"}],
+            },
+            self.token,
+        )
+        body = response.json()
+        self.assertEqual(body["delivery_note_reference"], "DN-1")
+        self.assertEqual(body["supplier_invoice_reference"], "")
+
+    def test_unknown_container_type_id_rejected(self):
+        po = self._issued_po()
+        po_line_id = po.issue_snapshot.lines.get().id
+        response = post_json(
+            self.client_, goods_receipts_url(self.store.id),
+            {
+                "source_purchase_order_id": po.id,
+                "arrived_at": timezone.now().isoformat(),
+                "lines": [{"source_po_line_id": po_line_id, "received_quantity": "1", "container_type_id": 999999}],
+            },
+            self.token,
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_inactive_container_type_rejected(self):
+        po = self._issued_po()
+        po_line_id = po.issue_snapshot.lines.get().id
+        response = post_json(
+            self.client_, goods_receipts_url(self.store.id),
+            {
+                "source_purchase_order_id": po.id,
+                "arrived_at": timezone.now().isoformat(),
+                "lines": [
+                    {
+                        "source_po_line_id": po_line_id,
+                        "received_quantity": "1",
+                        "container_type_id": self.inactive_container.id,
+                    }
+                ],
+            },
+            self.token,
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_container_quantity_must_be_positive(self):
+        po = self._issued_po()
+        po_line_id = po.issue_snapshot.lines.get().id
+        response = post_json(
+            self.client_, goods_receipts_url(self.store.id),
+            {
+                "source_purchase_order_id": po.id,
+                "arrived_at": timezone.now().isoformat(),
+                "lines": [{"source_po_line_id": po_line_id, "received_quantity": "1", "container_quantity": 0}],
+            },
+            self.token,
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_update_can_add_container_fields_to_an_existing_draft_line(self):
+        po = self._issued_po(quantity=Decimal("100"))
+        created = self._create_receipt(po, quantity=Decimal("10"))
+        self.assertEqual(created.status_code, 201)
+        body = created.json()
+        po_line_id = po.issue_snapshot.lines.get().id
+        response = patch_json(
+            self.client_, goods_receipt_url(self.store.id, body["id"]),
+            {
+                "expected_version": body["version"],
+                "lines": [
+                    {"source_po_line_id": po_line_id, "received_quantity": "10", "container_type_id": self.bag.id, "container_quantity": 2}
+                ],
+            },
+            self.token,
+        )
+        self.assertEqual(response.status_code, 200, response.content[:300])
+        line = response.json()["lines"][0]
+        self.assertEqual(line["container_type_id"], self.bag.id)
+        self.assertEqual(line["container_quantity"], 2)
 
 
 # ---------------------------------------------------------------------------
@@ -1129,3 +1284,193 @@ class ConcurrentPostingTests(TransactionTestCase):
             source_po_line_id=po_line_id, goods_receipt__status="POSTED"
         ).count()
         self.assertEqual(total_posted, 1)
+
+
+# ---------------------------------------------------------------------------
+# Manual entry mode (added after Task 09A, at explicit user request: the
+# client's real inward-entry process has no purchase order step - free-text
+# supplier, directly-entered price). Mutually exclusive with the PO-based
+# path exercised by every test class above, which stays completely
+# unchanged - these tests exist to prove the new path works AND that it
+# never silently bypasses or weakens the PO-based path's own rules.
+# ---------------------------------------------------------------------------
+
+
+class GoodsReceiptManualEntryModeTests(GoodsReceiptTestCase):
+    def _create_manual_receipt(self, company=None, material=None, quantity="60", unit_price=None, token=None, arrived_at=None, **extra):
+        # arrived_at defaults to a fresh timezone.now() each call unless
+        # pinned by the caller - an idempotency-retry test MUST pin it
+        # (same trap, same fix, as test_material_issues.py's own
+        # idempotency test: two separately-computed timezone.now() calls
+        # are never truly identical, which would make a "retry with
+        # identical content" test send genuinely different content).
+        payload = {
+            "company_id": (company or self.company).id,
+            "supplier_name": "Nenshi Healthcare",
+            "arrived_at": (arrived_at or (timezone.now() - timedelta(hours=1))).isoformat(),
+            "lines": [
+                {
+                    "material_id": (material or self.material).id,
+                    "received_quantity": quantity,
+                    **({"unit_price": unit_price, "currency_code": "INR"} if unit_price else {}),
+                }
+            ],
+            **extra,
+        }
+        return post_json(self.client_, goods_receipts_url(self.store.id), payload, token or self.token)
+
+    def test_create_manual_receipt_with_no_purchase_order(self):
+        response = self._create_manual_receipt(quantity="60", unit_price="185.0000")
+        self.assertEqual(response.status_code, 201)
+        body = response.json()
+        self.assertEqual(body["status"], "DRAFT")
+        self.assertIsNone(body.get("source_purchase_order_id"))
+        self.assertEqual(body["supplier_name"], "Nenshi Healthcare")
+        self.assertEqual(body["lines"][0]["material_id"], self.material.id)
+        self.assertEqual(Decimal(body["lines"][0]["unit_price"]), Decimal("185.0000"))
+        self.assertEqual(body["lines"][0]["currency_code"], "INR")
+
+    def test_rejects_both_source_purchase_order_id_and_company_id(self):
+        po = self._issued_po()
+        payload = {
+            "source_purchase_order_id": po.id,
+            "company_id": self.company.id,
+            "arrived_at": timezone.now().isoformat(),
+            "lines": [],
+        }
+        response = post_json(self.client_, goods_receipts_url(self.store.id), payload, self.token)
+        self.assertEqual(response.status_code, 400)
+
+    def test_rejects_neither_source_purchase_order_id_nor_company_id(self):
+        payload = {"arrived_at": timezone.now().isoformat(), "lines": []}
+        response = post_json(self.client_, goods_receipts_url(self.store.id), payload, self.token)
+        self.assertEqual(response.status_code, 400)
+
+    def test_rejects_line_with_both_source_po_line_id_and_material_id(self):
+        po = self._issued_po()
+        po_line_id = po.issue_snapshot.lines.get().id
+        payload = {
+            "company_id": self.company.id,
+            "arrived_at": timezone.now().isoformat(),
+            "lines": [{"source_po_line_id": po_line_id, "material_id": self.material.id, "received_quantity": "1"}],
+        }
+        response = post_json(self.client_, goods_receipts_url(self.store.id), payload, self.token)
+        self.assertEqual(response.status_code, 400)
+
+    def test_rejects_line_with_neither_source_po_line_id_nor_material_id(self):
+        payload = {
+            "company_id": self.company.id,
+            "arrived_at": timezone.now().isoformat(),
+            "lines": [{"received_quantity": "1"}],
+        }
+        response = post_json(self.client_, goods_receipts_url(self.store.id), payload, self.token)
+        self.assertEqual(response.status_code, 400)
+
+    def test_rejects_price_on_a_po_based_line(self):
+        po = self._issued_po()
+        po_line_id = po.issue_snapshot.lines.get().id
+        payload = {
+            "source_purchase_order_id": po.id,
+            "arrived_at": timezone.now().isoformat(),
+            "lines": [
+                {"source_po_line_id": po_line_id, "received_quantity": "1", "unit_price": "10.0000"}
+            ],
+        }
+        response = post_json(self.client_, goods_receipts_url(self.store.id), payload, self.token)
+        self.assertEqual(response.status_code, 400)
+
+    def test_price_is_optional_on_a_manual_line(self):
+        response = self._create_manual_receipt(quantity="60")
+        self.assertEqual(response.status_code, 201)
+        body = response.json()
+        self.assertIsNone(body["lines"][0]["unit_price"])
+
+    def test_inaccessible_company_id_is_404_not_a_silent_bypass(self):
+        outsider_company = make_company(_unique("NOACCESS"))
+        response = self._create_manual_receipt(company=outsider_company)
+        self.assertEqual(response.status_code, 404)
+
+    def test_no_over_receipt_check_applies_to_a_manual_line(self):
+        """A manual line has no purchase order to check against - posting
+        any positive quantity succeeds, unlike the PO-based path's own
+        strict rejection above its ordered quantity.
+        """
+        created = self._create_manual_receipt(quantity="999999").json()
+        posted = post_json(
+            self.client_, goods_receipt_post_url(self.store.id, created["id"]),
+            {"expected_version": created["version"]}, self.token,
+        )
+        self.assertEqual(posted.status_code, 200)
+        self.assertEqual(posted.json()["status"], "POSTED")
+
+    def test_posting_a_manual_receipt_creates_a_real_stock_movement_with_its_own_price(self):
+        from apps.stock_movements.models import StockMovement
+
+        created = self._create_manual_receipt(quantity="60", unit_price="185.0000").json()
+        post_json(
+            self.client_, goods_receipt_post_url(self.store.id, created["id"]),
+            {"expected_version": created["version"]}, self.token,
+        )
+        movement = StockMovement.objects.get(source_goods_receipt_id=created["id"])
+        self.assertEqual(movement.quantity, Decimal("60.000"))
+        self.assertEqual(movement.material_id, self.material.id)
+
+    def test_manual_receipt_movement_serializes_price_and_supplier_without_crashing(self):
+        """Exercises the exact fields that previously assumed a PO existed
+        unconditionally (get_supplier_name/get_unit_price/get_currency_code
+        on StockMovementSerializer) - this is the regression this test
+        guards against. Calls the serializer directly rather than through
+        the stock-movements list endpoint, which needs an unrelated
+        stock.view store permission this test case does not grant.
+        """
+        from apps.stock_movements.models import StockMovement
+        from apps.stock_movements.serializers import StockMovementSerializer
+
+        created = self._create_manual_receipt(quantity="60", unit_price="185.0000").json()
+        post_json(
+            self.client_, goods_receipt_post_url(self.store.id, created["id"]),
+            {"expected_version": created["version"]}, self.token,
+        )
+        movement = StockMovement.objects.get(source_goods_receipt_id=created["id"])
+        data = StockMovementSerializer(movement).data
+        self.assertEqual(data["supplier_name"], "Nenshi Healthcare")
+        self.assertEqual(Decimal(data["unit_price"]), Decimal("185.0000"))
+        self.assertEqual(data["currency_code"], "INR")
+
+    def test_idempotency_key_retry_same_manual_content_returns_existing(self):
+        key = _unique("manual-retry-key-")
+        arrived_at = timezone.now() - timedelta(hours=1)
+        first = self._create_manual_receipt(quantity="40", idempotency_key=key, arrived_at=arrived_at)
+        self.assertEqual(first.status_code, 201)
+        second = self._create_manual_receipt(quantity="40", idempotency_key=key, arrived_at=arrived_at)
+        self.assertEqual(second.status_code, 201)
+        self.assertEqual(first.json()["id"], second.json()["id"])
+        self.assertEqual(GoodsReceipt.objects.filter(idempotency_key=key).count(), 1)
+
+    def test_idempotency_key_retry_different_manual_content_conflict(self):
+        key = _unique("manual-retry-key-")
+        first = self._create_manual_receipt(quantity="40", idempotency_key=key)
+        self.assertEqual(first.status_code, 201)
+        second = self._create_manual_receipt(quantity="41", idempotency_key=key)
+        self.assertEqual(second.status_code, 409)
+
+    def test_update_manual_draft_quantity_and_price(self):
+        created = self._create_manual_receipt(quantity="60", unit_price="185.0000").json()
+        response = patch_json(
+            self.client_, goods_receipt_url(self.store.id, created["id"]),
+            {
+                "expected_version": created["version"],
+                "lines": [{"material_id": self.material.id, "received_quantity": "75", "unit_price": "190.0000", "currency_code": "INR"}],
+            },
+            self.token,
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(Decimal(body["lines"][0]["received_quantity"]), Decimal("75.000"))
+        self.assertEqual(Decimal(body["lines"][0]["unit_price"]), Decimal("190.0000"))
+
+    def test_inactive_material_rejected(self):
+        self.material.is_active = False
+        self.material.save(update_fields=["is_active"])
+        response = self._create_manual_receipt(quantity="10")
+        self.assertEqual(response.status_code, 400)

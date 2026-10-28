@@ -20,13 +20,16 @@ from apps.customers.serializers import CustomerCreateSerializer
 from apps.customers.services import create_customer
 
 MAX_ROWS = 500
-FIELDS = ["code", "name", "contact_person", "email", "phone", "billing_address", "shipping_address", "notes"]
+FIELDS = ["code", "name", "contact_person", "email", "phone", "city", "gst_number", "billing_address", "shipping_address", "notes"]
 
 
 def _normalise_row(raw):
     if not isinstance(raw, dict):
         return {}
-    return {field: ("" if raw.get(field) is None else str(raw.get(field)).strip()) for field in FIELDS}
+    row = {field: ("" if raw.get(field) is None else str(raw.get(field)).strip()) for field in FIELDS}
+    if not row["gst_number"] and raw.get("gst_no"):
+        row["gst_number"] = str(raw.get("gst_no")).strip()
+    return row
 
 
 def preview_customer_rows(company, rows):

@@ -1,0 +1,540 @@
+/* =========================================================
+   DROPS RM REQUISITION ATTACHMENT 1 MASTER FORMAT
+   Exact 1:1 Pixel & Document Structure Match to
+   Drops RM Requistion ATTACHMENT 1 MASTER FORMAT.docx.pdf
+   ========================================================= */
+
+.bmr-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.bmr-modal-container {
+  background: #1e293b;
+  border-radius: 10px;
+  width: 100%;
+  max-width: 950px;
+  max-height: 94vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  border: 1px solid #475569;
+}
+
+.bmr-modal-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: #0f172a;
+  border-bottom: 1px solid #334155;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.bmr-toolbar-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bmr-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bmr-slip-wrapper {
+  padding: 24px;
+  overflow-y: auto;
+  background: #64748b;
+  display: flex;
+  justify-content: center;
+  flex: 1 1 auto;
+}
+
+/* =========================================================
+   A4 DOCUMENT SHEET (CLEAN WHITE, EXACT PHARMA BMR STYLING)
+   ========================================================= */
+.bmr-exact-document-sheet {
+  background: #ffffff;
+  width: 100%;
+  max-width: 794px; /* A4 width at 96 DPI */
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  font-family: Arial, Helvetica, sans-serif;
+  color: #000000;
+  line-height: 1.25;
+  box-sizing: border-box;
+}
+
+.bmr-exact-page {
+  padding: 38px 45px 32px;
+  background: #ffffff;
+  box-sizing: border-box;
+  min-height: 1100px; /* Standard A4 page height */
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Screen divider between Page 1 and Page 2 */
+.bmr-screen-page-divider {
+  background: #475569;
+  padding: 10px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: bold;
+  color: #f1f5f9;
+  letter-spacing: 1.5px;
+  border-top: 2px dashed #94a3b8;
+  border-bottom: 2px dashed #94a3b8;
+}
+
+/* =========================================================
+   HEADER BOX (MATCHES EXACT PDF HEADER)
+   ========================================================= */
+.bmr-exact-header-box {
+  border: 1.5px solid #000000;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.bmr-exact-top-banner {
+  display: flex;
+  align-items: center;
+  position: relative;
+  min-height: 95px;
+  padding: 6px 14px;
+  box-sizing: border-box;
+}
+
+.bmr-exact-logo-wrap {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.bmr-exact-logo-img {
+  max-height: 48px;
+  max-width: 140px;
+  object-fit: contain;
+  display: block;
+}
+
+.bmr-exact-company-title {
+  width: 100%;
+  text-align: center;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 22px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  color: #000000;
+}
+
+.bmr-exact-dept-bar {
+  border-top: 1.5px solid #000000;
+  border-bottom: 1.5px solid #000000;
+  text-align: center;
+  font-size: 13px;
+  font-weight: bold;
+  padding: 4px 6px;
+  letter-spacing: 0.5px;
+  background: #ffffff;
+}
+
+.bmr-exact-bmr-bar {
+  border-bottom: 1.5px solid #000000;
+  text-align: center;
+  font-size: 13px;
+  font-weight: bold;
+  padding: 4px 6px;
+  letter-spacing: 0.5px;
+  background: #ffffff;
+}
+
+.bmr-exact-meta-grid {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.bmr-exact-meta-grid td {
+  border: 1px solid #000000;
+  padding: 3.5px 8px;
+  font-size: 12px;
+  font-weight: bold;
+  vertical-align: middle;
+  line-height: 1.25;
+}
+
+.bmr-field-lbl {
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.bmr-field-val {
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.bmr-exact-input {
+  border: 1px dashed #94a3b8;
+  background: #f8fafc;
+  padding: 1px 4px;
+  font-size: 11.5px;
+  font-family: inherit;
+  font-weight: bold;
+  color: #000000;
+}
+
+/* =========================================================
+   ATTACHMENT TITLES (UNDERLINED & INDENTED)
+   ========================================================= */
+.bmr-exact-attachment-block {
+  margin: 18px 0 10px 38px;
+  display: flex;
+  flex-direction: column;
+}
+
+.bmr-exact-att-num {
+  font-size: 13px;
+  font-weight: bold;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.bmr-exact-att-title {
+  font-size: 13px;
+  font-weight: bold;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  margin-top: 14px;
+}
+
+.bmr-exact-batch-title {
+  font-size: 13px;
+  font-weight: bold;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  margin-top: 3px;
+}
+
+/* =========================================================
+   RAW MATERIAL REQUISITION TABLE
+   ========================================================= */
+.bmr-exact-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1.5px solid #000000;
+  margin-top: 4px;
+}
+
+.bmr-exact-table th {
+  border: 1px solid #000000;
+  padding: 4px 4px;
+  font-weight: bold;
+  font-size: 12px;
+  text-align: center;
+  vertical-align: middle;
+  line-height: 1.2;
+  background: #ffffff;
+}
+
+.bmr-exact-table td {
+  border: 1px solid #000000;
+  padding: 4px 4px;
+  font-size: 12px;
+  text-align: center;
+  vertical-align: middle;
+  height: 25px;
+  box-sizing: border-box;
+  line-height: 1.2;
+}
+
+.bmr-exact-row-empty td {
+  height: 24px;
+}
+
+.bmr-exact-repeat-header th {
+  border: 1px solid #000000;
+  padding: 4px 4px;
+  font-weight: bold;
+  font-size: 12px;
+  text-align: center;
+  vertical-align: middle;
+  line-height: 1.2;
+}
+
+.bmr-exact-excipients-span-row td {
+  border: 1px solid #000000;
+  font-weight: bold;
+  font-size: 12.5px;
+  text-align: center;
+  padding: 3.5px 4px;
+}
+
+/* =========================================================
+   SIGNATURE BOX (4-COLUMNS, EXACT PDF LAYOUT)
+   ========================================================= */
+.bmr-exact-sign-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1.5px solid #000000;
+  margin-top: 26px;
+}
+
+.bmr-exact-sign-table th {
+  border: 1px solid #000000;
+  padding: 5px 4px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: bold;
+  line-height: 1.25;
+  vertical-align: middle;
+  background: #ffffff;
+}
+
+.bmr-exact-sign-corner-th {
+  background: #d9d9d9 !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+.bmr-exact-sign-side-lbl {
+  border: 1px solid #000000;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: normal;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.bmr-exact-sign-table td {
+  border: 1px solid #000000;
+  height: 26px;
+  padding: 2px 4px;
+  vertical-align: middle;
+  text-align: center;
+}
+
+/* =========================================================
+   FOOTER (FORM NUMBER & PAGE NUMBER)
+   ========================================================= */
+.bmr-exact-footer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  margin-top: 6px;
+  padding: 2px 0;
+}
+
+.bmr-exact-form-no {
+  font-weight: bold;
+  letter-spacing: 0.3px;
+}
+
+.bmr-exact-page-no {
+  letter-spacing: 0.3px;
+}
+
+/* =========================================================
+   PAGE 2 SPECIFICS
+   ========================================================= */
+.bmr-exact-table-p2 {
+  margin-top: 14px;
+}
+
+.bmr-exact-verifications {
+  margin-top: 20px;
+  margin-left: 38px;
+  font-size: 13px;
+  line-height: 2.1;
+}
+
+.bmr-exact-p2-sign-wrapper {
+  margin-top: auto; /* Push to bottom of page 2 if flex */
+  padding-top: 300px; /* Space matching PDF page 2 */
+}
+
+.print-only {
+  display: none;
+}
+
+/* =========================================================
+   PRINT / PDF GENERATION STYLING
+   ========================================================= */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm 10mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .bmr-modal-overlay,
+  .bmr-modal-container,
+  .bmr-slip-wrapper,
+  .bmr-exact-document-sheet,
+  .bmr-exact-document-sheet * {
+    visibility: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .bmr-modal-overlay {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    display: block !important;
+    overflow: visible !important;
+  }
+
+  .bmr-modal-container {
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  .bmr-slip-wrapper {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  .bmr-exact-document-sheet {
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .bmr-exact-page {
+    padding: 0 !important;
+    min-height: auto !important;
+  }
+
+  .bmr-exact-page-2 {
+    page-break-before: always !important;
+    break-before: page !important;
+    margin-top: 20mm !important;
+  }
+
+  .bmr-exact-p2-sign-wrapper {
+    padding-top: 360px !important;
+  }
+
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: inline !important;
+  }
+
+  .bmr-exact-sign-corner-th {
+    background: #d9d9d9 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .bmr-exact-header-box,
+  .bmr-exact-table,
+  .bmr-exact-sign-table {
+    border-color: #000000 !important;
+  }
+}
+
+/* =========================================================
+   ATTACHMENT 4 & TAB SWITCHER STYLING
+   ========================================================= */
+.bmr-toolbar-tabs {
+  display: flex;
+  gap: 6px;
+  background: #1e293b;
+  padding: 3px;
+  border-radius: 6px;
+  border: 1px solid #475569;
+}
+
+.bmr-tab-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bmr-tab-btn:hover {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.bmr-tab-btn.active {
+  background: #0284c7;
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.bmr-exact-pm-table th {
+  font-size: 11.5px;
+  padding: 4px 4px;
+}
+
+.bmr-exact-pm-checked {
+  margin-top: 14px;
+  margin-left: 20px;
+  font-size: 13px;
+  font-weight: bold;
+  color: #000000;
+}
+
+.bmr-exact-pm-p2-verifications {
+  margin-top: 24px;
+  margin-left: 38px;
+  font-size: 13px;
+  line-height: 2.3;
+  font-weight: bold;
+  color: #000000;
+}

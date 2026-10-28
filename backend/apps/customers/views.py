@@ -91,6 +91,8 @@ class CustomerListCreateView(generics.ListCreateAPIView):
                 | Q(contact_person__icontains=search)
                 | Q(email__icontains=search)
                 | Q(phone__icontains=search)
+                | Q(city__icontains=search)
+                | Q(gst_number__icontains=search)
             )
 
         is_active_param = self.request.query_params.get("is_active")

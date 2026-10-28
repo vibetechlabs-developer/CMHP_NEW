@@ -340,6 +340,26 @@ class ProductCreateTests(ProductAccessTestCase):
         self.assertEqual(response.status_code, 201, response.content)
         self.assertEqual(response.json()["bmr_no"], "")
 
+    def test_create_with_pack_size(self):
+        response = post_json(
+            self.client_,
+            products_url(self.company.id),
+            {"code": "PACK1", "name": "Tablet Pack", "pack_size": "10x10 Tablets", "sales_uom_id": self.unit.id},
+            self.token,
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(response.json()["pack_size"], "10x10 Tablets")
+
+    def test_create_without_pack_size_defaults_to_blank(self):
+        response = post_json(
+            self.client_,
+            products_url(self.company.id),
+            {"code": "PACK2", "name": "No Pack", "sales_uom_id": self.unit.id},
+            self.token,
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(response.json()["pack_size"], "")
+
     def test_create_records_audit_entry(self):
         response = post_json(
             self.client_,
@@ -389,9 +409,10 @@ class ProductCreateTests(ProductAccessTestCase):
         )
         self.assertEqual(response.status_code, 400)
 
-    def test_create_requires_sales_uom_id(self):
+    def test_create_omitting_sales_uom_id_succeeds_with_default(self):
         response = post_json(self.client_, products_url(self.company.id), {"code": "REJ6", "name": "X"}, self.token)
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 201)
+        self.assertIsNotNone(response.json()["sales_uom_id"])
 
     def test_create_unknown_sales_uom_returns_404(self):
         response = post_json(
@@ -619,6 +640,17 @@ class ProductUpdateTests(ProductAccessTestCase):
         )
         self.assertEqual(response.status_code, 200, response.content)
         self.assertEqual(response.json()["bmr_no"], "BMR-0099")
+        self.assertEqual(response.json()["version"], 2)
+
+    def test_update_pack_size(self):
+        response = patch_json(
+            self.client_,
+            product_url(self.company.id, self.product.id),
+            {"expected_version": 1, "pack_size": "20x10 Blister"},
+            self.token,
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["pack_size"], "20x10 Blister")
         self.assertEqual(response.json()["version"], 2)
 
     def test_update_rejects_code(self):

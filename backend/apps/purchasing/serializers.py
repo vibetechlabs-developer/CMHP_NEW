@@ -473,6 +473,7 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
     lines = PurchaseOrderLineSerializer(many=True, read_only=True)
     subtotal = serializers.SerializerMethodField()
     issue_snapshot = serializers.SerializerMethodField()
+    delivery_progress = serializers.SerializerMethodField()
 
     class Meta:
         model = PurchaseOrder
@@ -501,6 +502,7 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
             "lines",
             "subtotal",
             "issue_snapshot",
+            "delivery_progress",
         ]
         read_only_fields = fields
 
@@ -531,26 +533,105 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
         """
         return str(sum((line.line_amount for line in obj.lines.all()), Decimal("0.00")))
 
+    def get_delivery_progress(self, obj):
+        """Tracks ordered, posted received, pending drafts, and remaining quantities per line."""
+        if obj.status != PurchaseOrder.Status.ISSUED:
+            return []
+        try:
+            snapshot = obj.issue_snapshot
+        except Exception:
+            return []
+
+        from django.db.models import Sum
+        from apps.receiving.models import GoodsReceipt, GoodsReceiptLine
+
+        snapshot_lines = list(snapshot.lines.all().order_by("line_number"))
+        if not snapshot_lines:
+            return []
+
+        posted_map = dict(
+            GoodsReceiptLine.objects.filter(
+                source_po_line__in=snapshot_lines,
+                goods_receipt__status=GoodsReceipt.Status.POSTED,
+            )
+            .values("source_po_line_id")
+            .annotate(total=Sum("received_quantity"))
+            .values_list("source_po_line_id", "total")
+        )
+
+        draft_map = dict(
+            GoodsReceiptLine.objects.filter(
+                source_po_line__in=snapshot_lines,
+                goods_receipt__status=GoodsReceipt.Status.DRAFT,
+            )
+            .values("source_po_line_id")
+            .annotate(total=Sum("received_quantity"))
+            .values_list("source_po_line_id", "total")
+        )
+
+        result = []
+        for sl in snapshot_lines:
+            ordered = sl.quantity_snapshot or Decimal("0")
+            posted = posted_map.get(sl.id) or Decimal("0")
+            draft = draft_map.get(sl.id) or Decimal("0")
+            remaining = max(Decimal("0"), ordered - posted)
+            status = "COMPLETED" if posted >= ordered else ("PARTIAL" if posted > 0 else "PENDING")
+            result.append(
+                {
+                    "source_po_line_id": sl.id,
+                    "line_number": sl.line_number,
+                    "material_code": sl.material_code_snapshot,
+                    "material_name": sl.material_name_snapshot,
+                    "unit_code": sl.unit_code_snapshot,
+                    "ordered_quantity": str(ordered),
+                    "received_quantity": str(posted),
+                    "pending_draft_quantity": str(draft),
+                    "remaining_quantity": str(remaining),
+                    "delivery_status": status,
+                    "unit_price": str(sl.unit_price_snapshot),
+                    "currency_code": snapshot.currency_code_snapshot,
+                }
+            )
+        return result
+
+
+class PurchaseOrderLineCreateInputSerializer(serializers.Serializer):
+    material_id = serializers.IntegerField()
+    unit_id = serializers.IntegerField(required=False)
+    quantity = serializers.DecimalField(max_digits=14, decimal_places=3, min_value=Decimal("0.001"))
+    unit_price = serializers.DecimalField(
+        max_digits=14, decimal_places=4, min_value=Decimal("0"), required=False, default=Decimal("0")
+    )
+
 
 class PurchaseOrderCreateSerializer(serializers.Serializer):
     """`company` is deliberately absent - it comes exclusively from the
     URL (`company_id`), resolved and permission-checked by the view
-    before this serializer ever runs, and is always set equal to the
-    source purchase request's own company (see apps.purchasing.services.
-    create_purchase_order - cross-company purchasing is not supported in
-    this slice). `lines` is deliberately absent too - every line is
-    always derived from the source request's approved round, never
-    client-supplied (see that same service for why).
+    before this serializer ever runs.
+
+    If `source_purchase_request_id` is supplied, every line is copied from the
+    source request's approved round. If omitted, `lines` must be supplied
+    with at least one line.
     """
 
-    source_purchase_request_id = serializers.IntegerField()
+    source_purchase_request_id = serializers.IntegerField(required=False)
     supplier_id = serializers.IntegerField()
     currency_code = serializers.CharField(max_length=3)
     expected_delivery_date = serializers.DateField(required=False, allow_null=True)
     notes = serializers.CharField(required=False, allow_blank=True, max_length=2000, default="")
+    lines = PurchaseOrderLineCreateInputSerializer(many=True, required=False)
 
     def validate(self, attrs):
-        _reject_prohibited_fields(self.initial_data, _PO_HEADER_CREATE_PROHIBITED)
+        source_pr = attrs.get("source_purchase_request_id")
+        prohibited = set(_PO_HEADER_ALWAYS_PROHIBITED)
+        if source_pr is not None:
+            prohibited.add("lines")
+        _reject_prohibited_fields(self.initial_data, prohibited)
+
+        if source_pr is None:
+            lines = attrs.get("lines")
+            if not lines:
+                raise serializers.ValidationError({"lines": "At least one order line is required."})
         return attrs
 
 

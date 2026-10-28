@@ -1,0 +1,915 @@
+/* =========================================================
+   CMHP PHARMA
+   WORKSPACE SELECTION
+   ========================================================= */
+
+.workspace-page {
+
+  position: relative;
+
+  display: flex;
+
+  flex-direction: column;
+
+  width: 100%;
+
+  min-height: 100vh;
+
+  overflow: hidden;
+
+  color: #163d57;
+
+  background:
+    radial-gradient(
+      circle at 8% 12%,
+      rgba(20, 120, 201, 0.08),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 92% 88%,
+      rgba(23, 169, 159, 0.08),
+      transparent 30%
+    ),
+    linear-gradient(
+      135deg,
+      #f8fcfe 0%,
+      #ffffff 48%,
+      #f4fafc 100%
+    );
+}
+
+
+/* =========================================================
+   DECORATIVE ORBS
+   ========================================================= */
+
+.workspace-orb {
+
+  position: absolute;
+
+  pointer-events: none;
+
+  border-radius: 50%;
+
+  opacity: 0.7;
+
+}
+
+
+.workspace-orb-one {
+
+  top: -180px;
+
+  right: -120px;
+
+  width: 390px;
+
+  height: 390px;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(20, 120, 201, 0.10),
+      rgba(20, 120, 201, 0)
+    );
+
+}
+
+
+.workspace-orb-two {
+
+  bottom: -180px;
+
+  left: -120px;
+
+  width: 380px;
+
+  height: 380px;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(23, 169, 159, 0.09),
+      rgba(23, 169, 159, 0)
+    );
+
+}
+
+
+/* =========================================================
+   TOP BAR
+   ========================================================= */
+
+.workspace-topbar {
+
+  position: relative;
+
+  z-index: 5;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  width: 100%;
+
+  min-height: 76px;
+
+  padding:
+    12px
+    clamp(22px, 5vw, 70px);
+
+  background:
+    rgba(255, 255, 255, 0.82);
+
+  border-bottom:
+    1px solid #e3edf2;
+
+  backdrop-filter:
+    blur(14px);
+
+}
+
+
+.workspace-brand {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 11px;
+
+}
+
+
+.workspace-brand-logo {
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  width: 42px;
+
+  height: 42px;
+
+  padding: 3px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #1478c9,
+      #1aa99e
+    );
+
+  border-radius: 11px;
+
+  box-shadow:
+    0 8px 20px
+    rgba(20, 120, 201, 0.17);
+
+}
+
+
+.workspace-brand-logo img {
+
+  width: 100%;
+
+  height: 100%;
+
+  object-fit: contain;
+
+  border-radius: 8px;
+
+}
+
+
+.workspace-brand strong {
+
+  display: block;
+
+  color: #173f5b;
+
+  font-size: 15px;
+
+  line-height: 1.15;
+
+  font-weight: 850;
+
+}
+
+
+.workspace-brand span {
+
+  display: block;
+
+  margin-top: 3px;
+
+  color: #8ba0ae;
+
+  font-size: 9px;
+
+}
+
+
+/* =========================================================
+   LOGOUT
+   ========================================================= */
+
+.workspace-logout {
+
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 7px;
+
+  min-height: 36px;
+
+  padding:
+    0 13px;
+
+  color: #5d7483;
+
+  background: #ffffff;
+
+  border: 1px solid #dce8ee;
+
+  border-radius: 9px;
+
+  cursor: pointer;
+
+  font-size: 10px;
+
+  font-weight: 750;
+
+  transition:
+    0.18s ease;
+}
+
+
+.workspace-logout:hover {
+
+  color: #1478c9;
+
+  border-color: #b9d8e8;
+
+  background: #f6fbfe;
+
+  transform:
+    translateY(-1px);
+
+}
+
+
+/* =========================================================
+   MAIN
+   ========================================================= */
+
+.workspace-main {
+
+  position: relative;
+
+  z-index: 2;
+
+  display: flex;
+
+  flex: 1;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  justify-content: center;
+
+  width: 100%;
+
+  max-width: 1120px;
+
+  margin: 0 auto;
+
+  padding:
+    55px 28px 45px;
+
+}
+
+
+/* =========================================================
+   HEADING
+   ========================================================= */
+
+.workspace-heading {
+
+  width: 100%;
+
+  max-width: 760px;
+
+  margin-bottom: 35px;
+
+  text-align: center;
+
+}
+
+
+.workspace-eyebrow {
+
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 7px;
+
+  padding:
+    6px 10px;
+
+  color: #1478c9;
+
+  background:
+    #eaf5fb;
+
+  border:
+    1px solid #d6eaf5;
+
+  border-radius: 999px;
+
+  font-size: 8px;
+
+  line-height: 1;
+
+  font-weight: 850;
+
+  letter-spacing: 1.2px;
+
+}
+
+
+.workspace-eyebrow::before {
+
+  content: "";
+
+  width: 5px;
+
+  height: 5px;
+
+  background: #18a994;
+
+  border-radius: 50%;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(24, 169, 148, 0.12);
+
+}
+
+
+.workspace-heading h1 {
+
+  margin:
+    15px 0 8px;
+
+  color: #143e5a;
+
+  font-size:
+    clamp(27px, 3vw, 40px);
+
+  line-height: 1.1;
+
+  letter-spacing: -1px;
+
+  font-weight: 850;
+
+}
+
+
+.workspace-heading h1 span {
+
+  color: #1478c9;
+
+}
+
+
+.workspace-heading p {
+
+  max-width: 650px;
+
+  margin: 0 auto;
+
+  color: #8196a5;
+
+  font-size: 12px;
+
+  line-height: 1.65;
+
+}
+
+
+/* =========================================================
+   WORKSPACE GRID
+   ========================================================= */
+
+.workspace-grid {
+
+  display: grid;
+
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+
+  gap: 16px;
+
+  width: 100%;
+
+}
+
+
+.workspace-grid-2 {
+
+  grid-template-columns:
+    repeat(2, minmax(0, 360px));
+
+  justify-content: center;
+
+}
+
+
+.workspace-grid-1 {
+
+  grid-template-columns:
+    minmax(0, 380px);
+
+  justify-content: center;
+
+}
+
+
+/* =========================================================
+   CARD
+   ========================================================= */
+
+.workspace-card {
+
+  position: relative;
+
+  display: flex;
+
+  align-items: center;
+
+  min-height: 205px;
+
+  padding: 25px;
+
+  overflow: hidden;
+
+  color: #204c66;
+
+  background:
+    rgba(255, 255, 255, 0.94);
+
+  border:
+    1px solid #dce9ef;
+
+  border-radius: 18px;
+
+  box-shadow:
+    0 10px 30px
+    rgba(24, 76, 105, 0.07);
+
+  cursor: pointer;
+
+  text-align: left;
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+
+.workspace-card::before {
+
+  content: "";
+
+  position: absolute;
+
+  top: 0;
+
+  left: 0;
+
+  width: 100%;
+
+  height: 4px;
+
+  background:
+    linear-gradient(
+      90deg,
+      #1478c9,
+      #1aa99e
+    );
+
+}
+
+
+.workspace-card:hover {
+
+  transform:
+    translateY(-5px);
+
+  border-color:
+    #b9dce9;
+
+  box-shadow:
+    0 18px 40px
+    rgba(20, 103, 139, 0.13);
+
+}
+
+
+/* =========================================================
+   COMMON INVENTORY CARD
+   ========================================================= */
+
+.workspace-card-common_inventory::before {
+
+  background:
+    linear-gradient(
+      90deg,
+      #16a085,
+      #36b99e
+    );
+
+}
+
+
+.workspace-card-common_inventory
+.workspace-card-icon {
+
+  color: #159b72;
+
+  background: #effaf6;
+
+  border-color: #d6eee5;
+
+}
+
+
+/* =========================================================
+   ICON
+   ========================================================= */
+
+.workspace-card-icon {
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  flex: 0 0 62px;
+
+  width: 62px;
+
+  height: 62px;
+
+  margin-right: 18px;
+
+  color: #1478c9;
+
+  background:
+    #edf7fc;
+
+  border:
+    1px solid #d8ebf5;
+
+  border-radius: 16px;
+
+  transition:
+    transform 0.2s ease;
+}
+
+
+.workspace-card:hover
+.workspace-card-icon {
+
+  transform:
+    scale(1.05);
+
+}
+
+
+/* =========================================================
+   CARD CONTENT
+   ========================================================= */
+
+.workspace-card-content {
+
+  display: flex;
+
+  flex: 1;
+
+  flex-direction: column;
+
+  min-width: 0;
+
+}
+
+
+.workspace-card-label {
+
+  margin-bottom: 6px;
+
+  color: #91a5b1;
+
+  font-size: 7.5px;
+
+  line-height: 1;
+
+  font-weight: 850;
+
+  letter-spacing: 1px;
+
+}
+
+
+.workspace-card-title {
+
+  color: #173f5b;
+
+  font-size: 19px;
+
+  line-height: 1.25;
+
+  font-weight: 850;
+
+}
+
+
+.workspace-card-description {
+
+  max-width: 230px;
+
+  margin-top: 7px;
+
+  color: #8a9da9;
+
+  font-size: 10px;
+
+  line-height: 1.5;
+
+}
+
+
+/* =========================================================
+   ARROW
+   ========================================================= */
+
+.workspace-card-arrow {
+
+  position: absolute;
+
+  right: 18px;
+
+  bottom: 18px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  width: 32px;
+
+  height: 32px;
+
+  color: #7d96a6;
+
+  background: #f4f8fa;
+
+  border:
+    1px solid #e1ebef;
+
+  border-radius: 9px;
+
+  transition:
+    0.2s ease;
+}
+
+
+.workspace-card:hover
+.workspace-card-arrow {
+
+  color: #ffffff;
+
+  background: #1478c9;
+
+  border-color: #1478c9;
+
+  transform:
+    translateX(3px);
+
+}
+
+
+/* =========================================================
+   SECURITY
+   ========================================================= */
+
+.workspace-security {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 9px;
+
+  margin-top: 26px;
+
+  padding:
+    10px 14px;
+
+  color: #8196a4;
+
+  background:
+    rgba(255, 255, 255, 0.65);
+
+  border:
+    1px solid #e1edf2;
+
+  border-radius: 9px;
+
+  font-size: 9px;
+
+}
+
+
+.workspace-security-icon {
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  color: #159b72;
+
+}
+
+
+/* =========================================================
+   FOOTER
+   ========================================================= */
+
+.workspace-footer {
+
+  position: relative;
+
+  z-index: 2;
+
+  padding:
+    14px;
+
+  color: #a0b0ba;
+
+  text-align: center;
+
+  font-size: 8px;
+
+  border-top:
+    1px solid #e8f0f3;
+
+}
+
+
+/* =========================================================
+   TABLET
+   ========================================================= */
+
+@media (max-width: 850px) {
+
+  .workspace-main {
+
+    padding:
+      40px 20px;
+
+  }
+
+
+  .workspace-grid {
+
+    grid-template-columns:
+      1fr;
+
+    max-width: 480px;
+
+  }
+
+
+  .workspace-grid-2 {
+
+    grid-template-columns:
+      1fr;
+
+  }
+
+
+  .workspace-card {
+
+    min-height: 165px;
+
+  }
+
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 520px) {
+
+  .workspace-topbar {
+
+    min-height: 68px;
+
+    padding:
+      10px 15px;
+
+  }
+
+
+  .workspace-brand-logo {
+
+    width: 37px;
+
+    height: 37px;
+
+  }
+
+
+  .workspace-brand strong {
+
+    font-size: 13px;
+
+  }
+
+
+  .workspace-main {
+
+    justify-content: flex-start;
+
+    padding:
+      42px 16px 30px;
+
+  }
+
+
+  .workspace-heading {
+
+    margin-bottom: 25px;
+
+  }
+
+
+  .workspace-heading h1 {
+
+    font-size: 27px;
+
+  }
+
+
+  .workspace-heading p {
+
+    font-size: 10px;
+
+  }
+
+
+  .workspace-card {
+
+    min-height: 150px;
+
+    padding: 20px;
+
+  }
+
+
+  .workspace-card-icon {
+
+    flex-basis: 52px;
+
+    width: 52px;
+
+    height: 52px;
+
+    margin-right: 14px;
+
+  }
+
+
+  .workspace-card-title {
+
+    font-size: 16px;
+
+  }
+
+}

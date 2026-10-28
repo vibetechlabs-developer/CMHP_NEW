@@ -11,6 +11,7 @@ from apps.catalog.views import (
     MaterialDeactivateView,
     MaterialDetailView,
     MaterialListCreateView,
+    MaterialSupplierOptionsView,
     UnitOfMeasureActivateView,
     UnitOfMeasureDeactivateView,
     UnitOfMeasureDetailView,
@@ -45,6 +46,7 @@ urlpatterns = [
         name="material-category-deactivate",
     ),
     path("materials/", MaterialListCreateView.as_view(), name="material-list-create"),
+    path("materials/suppliers/", MaterialSupplierOptionsView.as_view(), name="material-supplier-options"),
     path("materials/<int:material_id>/", MaterialDetailView.as_view(), name="material-detail"),
     path(
         "materials/<int:material_id>/activate/",
