@@ -4,7 +4,6 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ProductsPanel from './ProductsPanel'
-import usePermissions from '../../hooks/usePermissions'
 import { listProducts } from './productsService'
 
 let granted = new Set()

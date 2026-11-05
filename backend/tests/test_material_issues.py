@@ -110,23 +110,31 @@ def _ensure_permissions_seeded(codes, scope):
 
 
 def grant_company_permission(actor, user, company, *permission_codes):
-    from apps.permissions.models import PermissionDefinition
+    from apps.permissions.models import CompanyRole, PermissionDefinition
 
     _ensure_permissions_seeded(permission_codes, PermissionDefinition.Scope.COMPANY)
     membership, _ = assign_company_membership(actor=actor, user=user, company=company)
-    role = create_company_role(actor=actor, company=company, code=f"CROLE{user.id}{company.id}", name="Role")
-    role, _ = replace_role_permissions(actor=actor, role=role, permission_codes=list(permission_codes))
+    code = f"CROLE{user.id}{company.id}"
+    role = CompanyRole.objects.filter(company=company, code=code).first()
+    if role is None:
+        role = create_company_role(actor=actor, company=company, code=code, name="Role")
+    merged = list(dict.fromkeys([*role.permissions.values_list("code", flat=True), *permission_codes]))
+    role, _ = replace_role_permissions(actor=actor, role=role, permission_codes=merged)
     assign_membership_role(actor=actor, membership=membership, role=role)
     return membership, role
 
 
 def grant_store_permission(actor, user, store, *permission_codes):
-    from apps.permissions.models import PermissionDefinition
+    from apps.permissions.models import PermissionDefinition, StoreRole
 
     _ensure_permissions_seeded(permission_codes, PermissionDefinition.Scope.STORE)
     membership, _ = assign_store_membership(actor=actor, user=user, store=store)
-    role = create_store_role(actor=actor, store=store, code=f"SROLE{user.id}{store.id}", name="Role")
-    role, _ = replace_store_role_permissions(actor=actor, role=role, permission_codes=list(permission_codes))
+    code = f"SROLE{user.id}{store.id}"
+    role = StoreRole.objects.filter(store=store, code=code).first()
+    if role is None:
+        role = create_store_role(actor=actor, store=store, code=code, name="Role")
+    merged = list(dict.fromkeys([*role.permissions.values_list("code", flat=True), *permission_codes]))
+    role, _ = replace_store_role_permissions(actor=actor, role=role, permission_codes=merged)
     assign_store_membership_role(actor=actor, membership=membership, role=role)
     return membership, role
 
@@ -203,6 +211,36 @@ class MaterialIssueTestCase(TestCase):
             self.client_, f"{goods_receipts_url(self.store.id)}{receipt_id}/post/",
             {"expected_version": res.json()["version"]}, self.token,
         )
+        from apps.stock_movements.services import approve_receipt_lots
+        approve_receipt_lots(actor=self.user, goods_receipt_id=receipt_id)
+
+    def _ensure_sales_order(self):
+        if getattr(self, "_sales_order_id", None):
+            return self._sales_order_id
+        from apps.customers.models import Customer
+        from apps.products.models import Product
+        from apps.sales_orders.services import create_sales_order
+
+        grant_company_permission(
+            self.superuser, self.user, self.company,
+            "purchase_orders.view", "sales_orders.view", "sales_orders.create",
+        )
+        customer = Customer.objects.create(
+            company=self.company, code="CUST1", name="Test Customer", created_by=self.superuser,
+        )
+        product = Product.objects.create(
+            company=self.company, code="PROD1", name="Test Product", sales_uom=self.unit, created_by=self.superuser,
+        )
+        order = create_sales_order(
+            actor=self.user,
+            company=self.company,
+            customer_id=customer.id,
+            order_date=timezone.now().date(),
+            currency="INR",
+            lines=[{"product_id": product.id, "quantity": Decimal("10"), "unit_price": Decimal("1.00")}],
+        )
+        self._sales_order_id = order.id
+        return self._sales_order_id
 
     def _create_issue(self, quantity="20", token=None, **extra):
         payload = {
@@ -212,6 +250,7 @@ class MaterialIssueTestCase(TestCase):
             "issued_at": (timezone.now() - timedelta(minutes=5)).isoformat(),
             "batch_reference": "BATCH-01",
             "product_reference": "Test Product",
+            "sales_order_id": self._ensure_sales_order(),
             **extra,
         }
         return post_json(self.client_, material_issues_url(self.store.id), payload, token or self.token)

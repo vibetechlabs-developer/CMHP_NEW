@@ -74,6 +74,17 @@ export async function confirmSalesOrder(companyId, orderId, expectedVersion) {
   return response.data
 }
 
+// Inline lifecycle stage update - patches only the status field.
+// Used by the inline stage changer dropdown in the Sales Orders table.
+// `expectedVersion` must be the current `order.version` to prevent conflicts.
+export async function updateOrderStatus(companyId, orderId, status, expectedVersion) {
+  const response = await api.patch(`${basePath(companyId)}/${orderId}/`, {
+    status,
+    expected_version: expectedVersion,
+  })
+  return response.data
+}
+
 // Deletes a DRAFT sales order that has no batch plans. The backend requires
 // sales_orders.delete and a current expected_version; a conflict or refusal is
 // returned to the caller as an error, never retried silently.

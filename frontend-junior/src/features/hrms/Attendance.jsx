@@ -529,8 +529,10 @@ export default function Attendance() {
     let halfDay = 0
     let onLeave = 0
 
-    roster.forEach(({ employee, attendance }) => {
-      const status = attendance?.status
+    ;(roster || []).forEach((row) => {
+      const employee = row?.employee
+      if (!employee) return
+      const status = row.attendance?.status
       const contextBadge = getContextualDayBadge(employee, date)
       if (contextBadge?.status === 'LEAVE' || status === 'LEAVE') {
         onLeave++
@@ -550,7 +552,11 @@ export default function Attendance() {
 
   // Filtered Roster
   const filteredRoster = useMemo(() => {
-    return roster.filter(({ employee, attendance }) => {
+    return (roster || []).filter((row) => {
+      const employee = row?.employee
+      const attendance = row?.attendance
+      if (!employee) return false
+
       if (deptFilter !== 'ALL') {
         const empDept = employee.department?.id || employee.department
         if (Number(empDept) !== Number(deptFilter)) return false

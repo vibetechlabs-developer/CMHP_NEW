@@ -23,12 +23,14 @@ from apps.stock_movements.serializers import (
     CutoverStockDraftCreateSerializer,
     CutoverStockDraftSerializer,
     IssuedBalanceSerializer,
+    LotQualityStatusSerializer,
     MaterialIssueCancelSerializer,
     MaterialIssueCreateSerializer,
     MaterialIssueMovementSerializer,
     MaterialIssueSerializer,
     MaterialIssueUpdateSerializer,
     MaterialIssueVersionSerializer,
+    MaterialReturnDispositionSerializer,
     MaterialReturnSerializer,
     NetBalanceSerializer,
     NetRecordedBalanceSerializer,
@@ -50,6 +52,7 @@ from apps.stock_movements.services import (
     create_cutover_stock_draft,
     create_material_issue,
     create_physical_count_draft,
+    decide_material_return_disposition,
     list_cutover_stock_drafts,
     list_physical_count_drafts,
     list_production_custodies,
@@ -61,6 +64,7 @@ from apps.stock_movements.services import (
     record_disposal,
     record_production_consumption,
     record_unused_or_defective_return,
+    set_lot_quality_status,
     stock_movements_queryset,
     update_material_issue,
 )
@@ -367,8 +371,9 @@ def _check_issue_company_access(user, material_issue):
 
 def _material_issue_queryset():
     return MaterialIssue.objects.select_related(
-        "store", "source_company", "material", "unit", "created_by", "posted_by", "cancelled_by"
-    )
+        "store", "source_company", "material", "unit", "batch_plan", "sales_order",
+        "created_by", "posted_by", "cancelled_by",
+    ).prefetch_related("lines")
 
 
 @method_decorator(never_cache, name="dispatch")
@@ -459,18 +464,21 @@ class MaterialIssueListCreateView(generics.ListCreateAPIView):
                 actor=request.user,
                 store=store,
                 source_company_id=company.id,
-                material_id=data["material_id"],
+                material_id=data.get("material_id"),
                 unit_id=data.get("unit_id"),
-                issued_quantity=data["issued_quantity"],
+                issued_quantity=data.get("issued_quantity"),
                 issued_at=data["issued_at"],
                 batch_reference=data.get("batch_reference", ""),
                 product_reference=data.get("product_reference", ""),
                 remarks=data.get("remarks", ""),
                 idempotency_key=data.get("idempotency_key", ""),
+                batch_plan_id=data.get("batch_plan_id"),
+                sales_order_id=data.get("sales_order_id"),
+                lines=data.get("lines"),
             )
         except DjangoValidationError as exc:
             raise translate_django_validation_error(exc) from exc
-        material_issue = _material_issue_queryset().get(pk=material_issue.pk)
+        material_issue = _material_issue_queryset().prefetch_related("lines").get(pk=material_issue.pk)
         return Response(MaterialIssueSerializer(material_issue).data, status=201)
 
 
@@ -812,6 +820,72 @@ class MaterialReturnListView(generics.ListAPIView):
             queryset = queryset.filter(created_at__date__lte=date_to)
 
         return queryset.order_by("-created_at", "-id")
+
+
+@method_decorator(never_cache, name="dispatch")
+class MaterialReturnDispositionView(APIView):
+    """HELD_UNASSESSED -> RELEASED_USABLE | QUARANTINE_REJECTED."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, store_id, return_id):
+        store = _get_store_for_action(request, store_id, STOCK_ISSUE_VIEW, STOCK_ISSUE_POST)
+        companies = companies_with_receipt_view_access(request.user)
+        material_return = get_object_or_404(
+            MaterialReturn, pk=return_id, store=store, source_company__in=companies
+        )
+        serializer = MaterialReturnDispositionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        try:
+            updated = decide_material_return_disposition(
+                actor=request.user,
+                return_id=material_return.id,
+                disposition=data["disposition"],
+                reason=data.get("reason", ""),
+            )
+        except DjangoValidationError as exc:
+            raise translate_django_validation_error(exc) from exc
+        return Response(MaterialReturnSerializer(updated).data)
+
+
+@method_decorator(never_cache, name="dispatch")
+class LotQualityStatusView(APIView):
+    """Set QC release / quarantine status for one receipt StockMovement."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, store_id, movement_id):
+        store = _get_store_for_action(request, store_id, STOCK_VIEW)
+        from apps.stock_movements.models import StockMovement
+
+        movement = get_object_or_404(StockMovement, pk=movement_id, store=store)
+        companies = companies_with_receipt_view_access(request.user)
+        if movement.source_company not in companies:
+            raise exceptions.NotFound("Stock movement not found.")
+        serializer = LotQualityStatusSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        try:
+            status_row = set_lot_quality_status(
+                actor=request.user,
+                stock_movement_id=movement.id,
+                status=data["status"],
+                ar_no=data.get("ar_no", ""),
+                chemist=data.get("chemist", ""),
+                remarks=data.get("remarks", ""),
+            )
+        except DjangoValidationError as exc:
+            raise translate_django_validation_error(exc) from exc
+        return Response({
+            "id": status_row.id,
+            "stock_movement_id": status_row.stock_movement_id,
+            "status": status_row.status,
+            "ar_no": status_row.ar_no,
+            "chemist": status_row.chemist,
+            "remarks": status_row.remarks,
+            "decided_at": status_row.decided_at,
+        })
 
 
 # ---------------------------------------------------------------------------

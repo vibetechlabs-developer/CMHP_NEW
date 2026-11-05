@@ -640,8 +640,13 @@ function MaterialFormModal({ material, onClose, onSaved }) {
     material?.alcohol_percentage != null ? String(material.alcohol_percentage) : ''
   )
   const [createReorderLevel, setCreateReorderLevel] = useState('')
+  const [createReorderUnit, setCreateReorderUnit] = useState('count')
   const [createStoreList, setCreateStoreList] = useState([])
   const [createStoreId, setCreateStoreId] = useState(null)
+  const [location, setLocation] = useState(() => {
+    if (!material?.code && !material?.id) return ''
+    return localStorage.getItem(`mat-loc-${material?.code || material?.id}`) || ''
+  })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
@@ -720,6 +725,7 @@ function MaterialFormModal({ material, onClose, onSaved }) {
           payload.category_id = categoryId === '' ? null : Number(categoryId)
         }
         await updateMaterial(material.id, payload)
+        if (location.trim()) localStorage.setItem(`mat-loc-${code.trim()}`, location.trim())
         onSaved(`${code.trim()} saved.`)
       } else {
         const payload = {
@@ -744,6 +750,7 @@ function MaterialFormModal({ material, onClose, onSaved }) {
           }
         }
         onSaved(`Material ${code.trim()} created.`)
+        if (location.trim()) localStorage.setItem(`mat-loc-${code.trim()}`, location.trim())
       }
     } catch (err) {
       setError(writeMessage(err))
@@ -830,7 +837,7 @@ function MaterialFormModal({ material, onClose, onSaved }) {
           {fieldErrors.name && <p className="field-error">{fieldErrors.name}</p>}
         </div>
 
-        {/* Row 3: Base unit + Default container type side-by-side */}
+        {/* Row 3: Base unit + Location side-by-side */}
         <div className="inv-modal-form-row">
           <div className="company-field">
             <label className="inv-modal-field-label">Base unit</label>
@@ -846,17 +853,30 @@ function MaterialFormModal({ material, onClose, onSaved }) {
 
           <div className="company-field">
             <label className="inv-modal-field-label">
-              Default container type <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 11, color: '#7a96aa' }}>(optional)</span>
+              Location <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 11, color: '#7a96aa' }}>(optional)</span>
             </label>
-            <select className="company-input" value={defaultContainerTypeId} onChange={(e) => setDefaultContainerTypeId(e.target.value)}>
-              <option value="">None</option>
-              {containerTypes.map((ct) => (
-                <option key={ct.id} value={ct.id}>{ct.name} ({ct.code})</option>
-              ))}
-            </select>
-            {containerTypesError && <p className="field-error">{containerTypesError}</p>}
-            <p className="inv-modal-hint">Packaging suggestion only — not a unit conversion.</p>
+            <input
+              className="company-input"
+              placeholder="e.g. Rack A-3, Cold Storage, Shelf 2"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+            />
           </div>
+        </div>
+
+        {/* Default container type (below) */}
+        <div className="company-field">
+          <label className="inv-modal-field-label">
+            Default container type <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 11, color: '#7a96aa' }}>(optional)</span>
+          </label>
+          <select className="company-input" value={defaultContainerTypeId} onChange={(e) => setDefaultContainerTypeId(e.target.value)}>
+            <option value="">None</option>
+            {containerTypes.map((ct) => (
+              <option key={ct.id} value={ct.id}>{ct.name} ({ct.code})</option>
+            ))}
+          </select>
+          {containerTypesError && <p className="field-error">{containerTypesError}</p>}
+          <p className="inv-modal-hint">Packaging suggestion only — not a unit conversion.</p>
         </div>
 
         {/* Row: Alcohol Content % (Only for Raw Materials and Mother Tinctures) */}
@@ -940,6 +960,16 @@ function MaterialFormModal({ material, onClose, onSaved }) {
                 onChange={(e) => setCreateReorderLevel(e.target.value)}
                 style={{ flex: 1 }}
               />
+              <select
+                className="company-input"
+                value={createReorderUnit}
+                onChange={(e) => setCreateReorderUnit(e.target.value)}
+                style={{ maxWidth: 90 }}
+              >
+                {['count', 'kg', 'gm', 'l', 'ml'].map((u) => (
+                  <option key={u} value={u}>{u}</option>
+                ))}
+              </select>
             </div>
           </div>
         )}
@@ -963,9 +993,12 @@ function ReorderLevelSection({ materialId, baseUnitCode }) {
   const [storeId, setStoreId] = useState(null)
   const [setting, setSetting] = useState({ status: 'idle', reorderLevel: null, error: '' })
   const [draft, setDraft] = useState('')
+  const [draftUnit, setDraftUnit] = useState(baseUnitCode || 'count')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [saveNotice, setSaveNotice] = useState('')
+
+  const LOW_STOCK_UNITS = ['count', 'kg', 'gm', 'l', 'ml']
 
   useEffect(() => {
     getMyStores()
@@ -1047,7 +1080,7 @@ function ReorderLevelSection({ materialId, baseUnitCode }) {
               {setting.status === 'error' && <p className="field-error">{setting.error}</p>}
               {setting.status === 'ready' && (
                 <>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     <input
                       className="company-input"
                       type="number"
@@ -1058,7 +1091,16 @@ function ReorderLevelSection({ materialId, baseUnitCode }) {
                       style={{ maxWidth: 140 }}
                       placeholder="Not configured"
                     />
-                    <span style={{ fontSize: 12, color: '#64748b' }}>{baseUnitCode}</span>
+                    <select
+                      className="company-input"
+                      value={draftUnit}
+                      onChange={(e) => setDraftUnit(e.target.value)}
+                      style={{ maxWidth: 100 }}
+                    >
+                      {LOW_STOCK_UNITS.map((u) => (
+                        <option key={u} value={u}>{u}</option>
+                      ))}
+                    </select>
                     <Button type="button" variant="secondary" onClick={save} loading={saving} disabled={saving}>
                       Save reorder level
                     </Button>

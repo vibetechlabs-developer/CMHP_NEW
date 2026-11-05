@@ -3,12 +3,14 @@ from django.urls import path
 from apps.stock_movements.views import (
     AvailableToIssueView,
     CutoverStockDraftListCreateView,
+    LotQualityStatusView,
     MaterialIssueCancelView,
     MaterialIssueDetailView,
     MaterialIssueListCreateView,
     MaterialIssueMovementListView,
     MaterialIssuePostView,
     MaterialRegisterView,
+    MaterialReturnDispositionView,
     MaterialReturnListView,
     PhysicalCountDraftListCreateView,
     ProductionCustodyClassifyDefectView,
@@ -101,6 +103,16 @@ urlpatterns = [
         "<int:store_id>/material-returns/",
         MaterialReturnListView.as_view(),
         name="material-return-list",
+    ),
+    path(
+        "<int:store_id>/material-returns/<int:return_id>/disposition/",
+        MaterialReturnDispositionView.as_view(),
+        name="material-return-disposition",
+    ),
+    path(
+        "<int:store_id>/stock-movements/<int:movement_id>/quality-status/",
+        LotQualityStatusView.as_view(),
+        name="lot-quality-status",
     ),
     path(
         "<int:store_id>/physical-count-drafts/",

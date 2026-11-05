@@ -13,6 +13,7 @@ import {
 import { commitDocumentNumber } from '../../utils/documentNumbers'
 import { recordAudit } from '../../utils/audit'
 import { getScopedCompanyId } from '../../utils/companyScope'
+import { qaPipelineService } from './qaPipelineService'
 
 function hydrateBatch(b, state) {
   const company = state.companies.find((c) => c.id === Number(b.company))
@@ -66,7 +67,7 @@ export const qualityService = {
     return delay(rows.map((b) => hydrateBatch(b, state)))
   },
 
-  qcDecision: (batchId, payload) => {
+  qcDecision: async (batchId, payload) => {
     store.dispatch(setBatchQc({ batchId, decision: payload.decision, remarks: payload.remarks }))
     recordAudit({
       action: 'qc/batchDecision',
@@ -74,10 +75,28 @@ export const qualityService = {
       entityId: batchId,
       payload,
     })
+    // Approve OR reject — both go to QA Bulk Release inbox
+    const state = store.getState().erp
+    const batch =
+      (state.batches || []).find((b) => Number(b.id) === Number(batchId)) ||
+      (state.byCompany?.cmhp?.batches || []).find((b) => Number(b.id) === Number(batchId)) ||
+      (state.byCompany?.tej?.batches || []).find((b) => Number(b.id) === Number(batchId))
+    const product = batch
+      ? (state.products || []).find((p) => Number(p.id) === Number(batch.product))
+      : null
+    const qcDecision = payload.decision === 'APPROVE' ? 'APPROVED' : 'REJECTED'
+    await qaPipelineService.enqueueBulkReleaseFromQc({
+      batchId,
+      batchNumber: batch?.number,
+      productName: product?.name || batch?.product_name,
+      companyId: batch?.company || getScopedCompanyId(),
+      qcDecision,
+      qcRemarks: payload.remarks || '',
+    })
     return delay(null)
   },
 
-  qaDecision: (batchId, payload) => {
+  qaDecision: async (batchId, payload) => {
     store.dispatch(setBatchQa({ batchId, decision: payload.decision, remarks: payload.remarks }))
     recordAudit({
       action: 'qa/batchDecision',
@@ -85,6 +104,14 @@ export const qualityService = {
       entityId: batchId,
       payload,
     })
+    try {
+      await qaPipelineService.decide('BULK_RELEASE', batchId, {
+        decision: payload.decision === 'RELEASE' ? 'APPROVE' : 'REJECT',
+        remarks: payload.remarks || '',
+      })
+    } catch {
+      // Pipeline row may not exist for legacy batches — batch QA still applies
+    }
     return delay(null)
   },
 

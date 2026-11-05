@@ -89,6 +89,46 @@ class SalesOrderListCreateView(generics.ListCreateAPIView):
     def get_serializer_class(self):
         return SalesOrderCreateSerializer if self.request.method == "POST" else SalesOrderListSerializer
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        if self.request.method != "GET":
+            return context
+        company = active_companies_for_user(self.request.user).filter(pk=self.kwargs["company_id"]).first()
+        if company is None:
+            return context
+        # Page queryset ids are not known yet here; filled in list() below when paginating.
+        context.setdefault("sample_qty_by_order", {})
+        context.setdefault("sample_unit_by_order", {})
+        return context
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        company = _get_company_for_action(request, self.kwargs["company_id"], SALES_ORDERS_VIEW)
+        results = response.data.get("results") if isinstance(response.data, dict) else None
+        if not results:
+            return response
+        order_ids = [row.get("id") for row in results if row.get("id")]
+        try:
+            from apps.quality.control_sample_services import sample_qty_by_sales_order
+            from apps.quality.models import ControlSample
+
+            totals = sample_qty_by_sales_order(company=company, sales_order_ids=order_ids)
+            units = {}
+            for sample in (
+                ControlSample.objects.filter(company=company, sales_order_id__in=order_ids)
+                .exclude(status=ControlSample.Status.DISPOSED)
+                .order_by("sales_order_id", "id")
+            ):
+                units.setdefault(sample.sales_order_id, sample.unit)
+            for row in results:
+                oid = row.get("id")
+                total = totals.get(oid)
+                row["sample_qty"] = str(total) if total is not None else None
+                row["sample_unit"] = units.get(oid)
+        except Exception:
+            pass
+        return response
+
     def get_queryset(self):
         company = _get_company_for_action(self.request, self.kwargs["company_id"], SALES_ORDERS_VIEW)
         params = self.request.query_params

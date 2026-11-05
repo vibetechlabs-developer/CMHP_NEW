@@ -45,6 +45,9 @@ function attachAuthHeaders(config) {
   if (csrfToken) {
     config.headers['X-CSRFToken'] = csrfToken
   }
+  if (config.data instanceof FormData) {
+    delete config.headers['Content-Type']
+  }
   return config
 }
 

@@ -35,7 +35,7 @@ from apps.receiving.admin import GoodsReceiptAdmin
 from apps.receiving.models import GoodsReceipt, GoodsReceiptLine
 from apps.receiving.services import create_goods_receipt, delivery_progress_for_purchase_order, post_goods_receipt
 from apps.stock_movements.admin import StockMovementAdmin
-from apps.stock_movements.models import StockMovement
+from apps.stock_movements.models import LotQualityStatus, StockMovement
 from apps.stock_movements.services import compute_stock_balances, create_receipt_in_movements
 from apps.stores.models import SharedStore
 from apps.stores.services import assign_store_membership, assign_store_membership_role
@@ -245,6 +245,7 @@ class PostingIntegrationTests(StockMovementTestCase):
         receipt = self._create_and_post_receipt(po, quantity=Decimal("60"), actor=self.receiver)
         line = receipt.lines.get()
         movement = StockMovement.objects.get(source_receipt_line=line)
+        self.assertEqual(movement.quality_status.status, LotQualityStatus.Status.UNDER_TEST)
         self.assertEqual(movement.movement_type, StockMovement.MovementType.RECEIPT_IN)
         self.assertEqual(movement.source_goods_receipt_id, receipt.id)
         self.assertEqual(movement.store_id, self.store.id)

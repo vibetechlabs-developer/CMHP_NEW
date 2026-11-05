@@ -1,4 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSelector, useDispatch } from 'react-redux'
+import { selectActiveCompanyKey, selectActiveCompanyId } from '../../utils/companySelectors'
+import { computeSheetGrandTotal, resolveDueDate } from './invoiceService'
+import { useLocation, useNavigate } from 'react-router-dom'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
 import Input from '../../components/Input'
@@ -80,7 +84,94 @@ function statusTone(status) {
 
 export default function Invoice() {
   const { user } = useAuth()
-  const [invoices, setInvoices] = useState([])
+  const location = useLocation()
+  const navigate = useNavigate()
+  const dispatch = useDispatch()
+  const [highlightedId, setHighlightedId] = useState(null)
+
+  const compKey = useSelector(selectActiveCompanyKey)
+  const compId = useSelector(selectActiveCompanyId)
+  const reduxInvoices = useSelector((state) => state.erp.byCompany?.[compKey]?.invoices || state.erp.invoices || [])
+  const reduxOrders = useSelector((state) => state.erp.byCompany?.[compKey]?.orders || state.erp.orders || [])
+  const reduxCustomers = useSelector((state) => state.erp.customers || [])
+  const reduxPayments = useSelector((state) => state.erp.byCompany?.[compKey]?.payments || state.erp.payments || [])
+  const savedOrderInvoices = useSelector((state) => state.erp.orderInvoices || {})
+
+  // Redux-derived live invoices (Single source of truth)
+  const invoices = useMemo(() => {
+    const list = (reduxInvoices || []).filter((inv) => !inv.company || Number(inv.company) === Number(compId))
+    return list.slice().reverse().map((inv) => {
+      const orderId = inv.order || inv.order_id
+      const order = (reduxOrders || []).find((o) =>
+        (orderId && (String(o.id) === String(orderId) || String(o.number) === String(orderId))) ||
+        (inv.order_number && (String(o.number) === String(inv.order_number) || String(o.id) === String(inv.order_number)))
+      )
+      const custId = inv.customer || order?.customer
+      const custName = inv.customer_name || order?.customer_name
+      const customer = (reduxCustomers || []).find((c) =>
+        (custId && String(c.id) === String(custId)) || (custName && c.name === custName)
+      )
+      const savedSheet =
+        (order?.id && savedOrderInvoices[String(order.id)]) ||
+        (inv.order && savedOrderInvoices[String(inv.order)]) ||
+        (inv.id && savedOrderInvoices[String(inv.id)]) ||
+        inv.sheetData
+
+      let grandTotal = 0
+      if (savedSheet) {
+        grandTotal = computeSheetGrandTotal(savedSheet)
+      } else if (inv.total !== undefined && inv.total !== null && Number(inv.total) > 0) {
+        grandTotal = Math.round(Number(inv.total))
+      } else if (inv.total_amount !== undefined && inv.total_amount !== null && Number(inv.total_amount) > 0) {
+        grandTotal = Math.round(Number(inv.total_amount))
+      } else if (order?.total_amount !== undefined && order?.total_amount !== null && Number(order.total_amount) > 0) {
+        grandTotal = Math.round(Number(order.total_amount))
+      }
+
+      const number = inv.number || inv.invoice_no || savedSheet?.invoice_no || `INV-${inv.id || Date.now()}`
+      const customerName = order?.customer_name || savedSheet?.consignee_name || customer?.name || inv.customer_name || '—'
+
+      const invoicePayments = (reduxPayments || []).filter(
+        (p) =>
+          (p.invoice_id && String(p.invoice_id) === String(inv.id)) ||
+          (p.invoice_number && (String(p.invoice_number) === String(number) || String(p.invoice_number) === String(inv.number)))
+      )
+      const totalPaid = invoicePayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) + (inv.status === 'PAID' && invoicePayments.length === 0 ? grandTotal : (Number(inv.total_paid) || 0))
+      const balanceDue = Math.max(grandTotal - totalPaid, 0)
+
+      const dueDate = resolveDueDate(inv, order, customer)
+
+      const today = new Date().toISOString().slice(0, 10)
+      let status = 'ISSUED'
+      if (inv.status === 'CANCELLED') {
+        status = 'CANCELLED'
+      } else if (balanceDue === 0 && (grandTotal > 0 || totalPaid > 0 || inv.status === 'PAID')) {
+        status = 'PAID'
+      } else if (dueDate && dueDate < today && balanceDue > 0) {
+        status = 'OVERDUE'
+      } else {
+        status = 'ISSUED'
+      }
+
+      return {
+        ...inv,
+        id: inv.id,
+        number,
+        invoice_no: number,
+        customer_name: customerName,
+        company_name: Number(inv.company) === 2 ? 'Tej Biocare' : 'CMHP Pharma',
+        order_number: order?.number || inv.order_number || (order?.id ? `ORD-${order.id}` : '—'),
+        total: grandTotal,
+        total_amount: grandTotal,
+        total_paid: totalPaid,
+        balance_due: balanceDue,
+        due_date: dueDate,
+        status,
+        sheetData: savedSheet || inv.sheetData,
+        payments: invoicePayments,
+      }
+    })
+  }, [reduxInvoices, compId, reduxOrders, reduxCustomers, savedOrderInvoices, reduxPayments])
   const [companies, setCompanies] = useState([])
   const [customers, setCustomers] = useState([])
   const [orders, setOrders] = useState([])
@@ -139,8 +230,7 @@ export default function Invoice() {
         qualityService.getQaRecords(),
       ])
 
-      setInvoices(listData(invRes))
-      setCompanies(listData(companyRes))
+            setCompanies(listData(companyRes))
       setCustomers(listData(customerRes))
       setOrders(listData(orderRes))
       setProducts(listData(productRes))
@@ -155,6 +245,35 @@ export default function Invoice() {
   useEffect(() => {
     load()
   }, [])
+
+  // Auto-scroll and highlight target invoice when redirected from Production (2-second highlight)
+  useEffect(() => {
+    const targetId = location.state?.highlightInvoiceId
+    if (targetId) {
+      setSearch('')
+      setStatusFilter('ALL')
+      setHighlightedId(targetId)
+
+      // Clear navigation state so refresh or back button will not re-trigger highlight
+      window.history.replaceState({}, document.title)
+
+      const timerScroll = setTimeout(() => {
+        const row = document.getElementById(`invoice-row-${targetId}`)
+        if (row) {
+          row.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 150)
+
+      const timerHighlight = setTimeout(() => {
+        setHighlightedId(null)
+      }, 2000)
+
+      return () => {
+        clearTimeout(timerScroll)
+        clearTimeout(timerHighlight)
+      }
+    }
+  }, [location.state])
 
   const filteredInvoices = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -176,41 +295,43 @@ export default function Invoice() {
   }, [invoices, search, statusFilter])
 
   const kpis = useMemo(() => {
-    const totalInvoiced = invoices.reduce(
+    const activeInvoices = invoices.filter((i) => i.status !== 'CANCELLED')
+
+    // Total Invoiced = sum of totals, with the invoice count.
+    const totalInvoiced = activeInvoices.reduce(
       (sum, i) => sum + (Number(i.total) || 0),
       0
     )
+    const activeCount = activeInvoices.length
 
+    // Collected / Paid = sum of paid amounts, with the count of fully settled invoices.
     const paid = invoices.reduce(
-      (sum, i) => sum + (Number(i.total_paid) || (i.status === 'PAID' ? Number(i.total) || 0 : 0)),
+      (sum, i) => sum + (Number(i.total_paid) || 0),
       0
     )
+    const paidCount = activeInvoices.filter((i) => i.status === 'PAID').length
 
-    const outstanding = invoices
-      .filter((i) => i.status !== 'PAID' && i.status !== 'CANCELLED')
-      .reduce((sum, i) => sum + (Number(i.balance_due !== undefined ? i.balance_due : i.total) || 0), 0)
-
+    // Overdue Amount = balance of overdue invoices, with the count.
     const today = new Date().toISOString().slice(0, 10)
-    const overdueInvoices = invoices.filter((i) => {
-      if (i.status === 'PAID' || i.status === 'CANCELLED') return false
+    const overdueInvoices = activeInvoices.filter((i) => {
       if (i.status === 'OVERDUE') return true
-      return Boolean(i.due_date && i.due_date < today)
+      return Boolean(i.due_date && i.due_date < today && (Number(i.balance_due) > 0))
     })
-
     const overdueAmount = overdueInvoices.reduce(
       (sum, i) => sum + (Number(i.balance_due !== undefined ? i.balance_due : i.total) || 0),
       0
     )
-
-    const activeCount = invoices.filter(
-      (i) => i.status !== 'CANCELLED'
-    ).length
-
-    const paidCount = invoices.filter((i) => i.status === 'PAID').length
     const overdueCount = overdueInvoices.length
-    const pendingCount = invoices.filter(
-      (i) => i.status !== 'PAID' && i.status !== 'CANCELLED' && !overdueInvoices.includes(i)
-    ).length
+
+    // Pending / Outstanding = balance of unpaid and not-yet-overdue invoices, with the count.
+    const pendingInvoices = activeInvoices.filter(
+      (i) => i.status !== 'PAID' && !overdueInvoices.includes(i)
+    )
+    const outstanding = pendingInvoices.reduce(
+      (sum, i) => sum + (Number(i.balance_due !== undefined ? i.balance_due : i.total) || 0),
+      0
+    )
+    const pendingCount = pendingInvoices.length
 
     return {
       totalInvoiced,
@@ -234,27 +355,7 @@ export default function Invoice() {
   }, [orders])
 
   const openCreate = () => {
-    setError('')
-    setSuccess('')
-    const defaultCompany = companies[0]?.id || '1'
-    const previewNum = defaultCompany ? previewDocumentNumber('INVOICE', defaultCompany) : ''
-
-    const initialMode = qaApprovedOrders.length > 0 ? 'ORDER' : 'DIRECT'
-    setCreateMode(initialMode)
-
-    setForm({
-      ...emptyForm,
-      company: defaultCompany,
-      number: previewNum,
-    })
-
-    if (initialMode === 'ORDER' && qaApprovedOrders.length > 0) {
-      applyOrderToForm(qaApprovedOrders[0], defaultCompany)
-    } else {
-      setLines([emptyLine()])
-    }
-
-    setModal('create')
+    navigate('/invoices/new')
   }
 
   const applyOrderToForm = (order, compId) => {
@@ -320,9 +421,7 @@ export default function Invoice() {
   }
 
   const openView = (invoice) => {
-    setViewing(invoice)
-    setActiveViewTab('invoice')
-    setModal('view')
+    navigate('/invoices/view/' + invoice.id)
   }
 
   const close = () => {
@@ -655,11 +754,12 @@ export default function Invoice() {
 
   return (
     <div className="inv">
-      <div className="inv-header">
+      <div className="inv-header top-banner">
         <div>
+          <span className="page-hero-pill">ENTERPRISE TAX INVOICING &amp; BILLING</span>
           <h1>Invoicing</h1>
           <p>
-            Enterprise GST Tax Invoicing connected to Orders, QC & QA with automated payments and A4 printing.
+            Enterprise GST Tax Invoicing connected to Orders, QC &amp; QA with automated payments and A4 printing.
           </p>
         </div>
       </div>
@@ -715,18 +815,44 @@ export default function Invoice() {
 
       <div className="inv-panel">
         <div className="inv-toolbar">
-          <h3>Invoices & Billing Register</h3>
+          <h3 className="inv-toolbar-title">Invoices & Billing Register</h3>
 
           <div className="invoice-toolbar-controls">
-            <input
-              className="field-input invoice-search-input"
-              placeholder="Search invoice #, customer, order…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+            <div className="inv-search-wrap">
+              <svg
+                className="inv-search-icon"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input
+                className="invoice-search-input"
+                placeholder="Search invoice #, customer, order…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              {search && (
+                <button
+                  type="button"
+                  className="inv-search-clear-btn"
+                  onClick={() => setSearch('')}
+                  title="Clear search"
+                >
+                  ×
+                </button>
+              )}
+            </div>
 
             <select
-              className="field-input invoice-status-filter"
+              className="invoice-status-filter"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
@@ -760,7 +886,12 @@ export default function Invoice() {
 
             <tbody>
               {filteredInvoices.map((inv) => (
-                <tr key={inv.id}>
+                <tr
+                  key={inv.id}
+                  id={`invoice-row-${inv.id}`}
+                  className={`inv-row ${String(highlightedId) === String(inv.id) ? "invoice-row-highlight" : ""}`}
+                  onClick={() => openView(inv)}
+                >
                   <td className="cell-strong">
                     <span
                       style={{ cursor: 'pointer', color: '#0b73df', fontWeight: 700 }}
@@ -792,7 +923,7 @@ export default function Invoice() {
                   <td>{inv.customer_name}</td>
                   <td>{formatDateIN(inv.invoice_date)}</td>
                   <td>{inv.due_date ? formatDateIN(inv.due_date) : '—'}</td>
-                  <td className="cell-strong">₹{formatINR(inv.total)}</td>
+                  <td className="cell-strong">{formatINR(inv.total)}</td>
                   <td>
                     {inv.status === 'PAID' ? (
                       <span style={{ color: '#059669', fontWeight: 600 }}>₹0.00 (Settled)</span>
@@ -800,7 +931,7 @@ export default function Invoice() {
                       <span style={{ color: '#94a3b8' }}>Cancelled</span>
                     ) : (
                       <span style={{ color: '#dc2626', fontWeight: 700 }}>
-                        ₹{formatINR(inv.balance_due !== undefined ? inv.balance_due : inv.total)}
+                        {formatINR(inv.balance_due !== undefined ? inv.balance_due : inv.total)}
                       </span>
                     )}
                   </td>
@@ -809,19 +940,30 @@ export default function Invoice() {
                       {inv.status || 'ISSUED'}
                     </StatusPill>
                   </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <Button variant="secondary" onClick={() => openView(inv)}>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <div className="inv-actions-cell">
+                      <button
+                        type="button"
+                        className="inv-action-btn inv-btn-view"
+                        onClick={() => openView(inv)}
+                      >
                         View
-                      </Button>
+                      </button>
+                      <button
+                        type="button"
+                        className="inv-action-btn inv-btn-print"
+                        onClick={() => navigate('/invoices/view/' + inv.id + '?autoPrint=true')}
+                      >
+                        Print
+                      </button>
                       {inv.status !== 'PAID' && inv.status !== 'CANCELLED' && (
-                        <Button
-                          variant="secondary"
+                        <button
+                          type="button"
+                          className="inv-action-btn inv-btn-pay"
                           onClick={() => openRecordPayment(inv)}
-                          style={{ color: '#059669', borderColor: '#a7f3d0' }}
                         >
                           Pay
-                        </Button>
+                        </button>
                       )}
                     </div>
                   </td>
@@ -831,322 +973,35 @@ export default function Invoice() {
           </table>
 
           {!loading && filteredInvoices.length === 0 && (
-            <p className="inv-empty">
-              No invoices match this filter criteria. Click "+ Create Invoice" to generate one.
-            </p>
+            <div className="inv-empty-card">
+              <div className="inv-empty-icon">
+                <ReceiptIcon size={32} />
+              </div>
+              <h4 className="inv-empty-title">No Invoices Found</h4>
+              <p className="inv-empty-desc">
+                {search || statusFilter !== 'ALL'
+                  ? 'No invoices match your current search or status filter criteria.'
+                  : 'No invoices have been recorded yet. Click "+ Create Invoice" to generate your first tax invoice.'}
+              </p>
+              {search || statusFilter !== 'ALL' ? (
+                <button
+                  type="button"
+                  className="inv-action-btn inv-btn-view"
+                  style={{ padding: '6px 16px', fontSize: '13px' }}
+                  onClick={() => {
+                    setSearch('')
+                    setStatusFilter('ALL')
+                  }}
+                >
+                  Clear Filters
+                </button>
+              ) : (
+                <Button onClick={openCreate}>+ Create Invoice</Button>
+              )}
+            </div>
           )}
         </div>
       </div>
-
-      {/* ========================================================
-          CREATE INVOICE MODAL
-          ======================================================== */}
-      {modal === 'create' && (
-        <Modal
-          title="Create Commercial Tax Invoice"
-          onClose={close}
-          footer={
-            <>
-              <Button variant="secondary" onClick={close} disabled={saving}>
-                Cancel
-              </Button>
-              <Button loading={saving} onClick={submitInvoice}>
-                Issue Invoice
-              </Button>
-            </>
-          }
-        >
-          {error && <Alert type="error">{error}</Alert>}
-
-          {/* Mode Switcher */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-            <button
-              type="button"
-              className={`inv-tab-btn ${createMode === 'ORDER' ? 'active' : ''}`}
-              onClick={() => {
-                setCreateMode('ORDER')
-                if (qaApprovedOrders.length > 0) {
-                  applyOrderToForm(qaApprovedOrders[0], form.company)
-                }
-              }}
-            >
-              From QA-Approved Order ({qaApprovedOrders.length} Available)
-            </button>
-            <button
-              type="button"
-              className={`inv-tab-btn ${createMode === 'DIRECT' ? 'active' : ''}`}
-              onClick={() => {
-                setCreateMode('DIRECT')
-                setForm((prev) => ({ ...prev, order: '', batch: '' }))
-                setLines([emptyLine()])
-              }}
-            >
-              Direct Commercial Invoice
-            </button>
-          </div>
-
-          <form onSubmit={submitInvoice}>
-            <div className="inv-form-grid">
-              <div className="field">
-                <label className="field-label">Company</label>
-                <select
-                  className="field-input"
-                  value={form.company}
-                  onChange={(e) => {
-                    const compId = e.target.value
-                    setForm({
-                      ...form,
-                      company: compId,
-                      number: compId ? previewDocumentNumber('INVOICE', compId) : '',
-                    })
-                  }}
-                  required
-                >
-                  <option value="">Select company</option>
-                  {companies.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {createMode === 'ORDER' ? (
-                <div className="field">
-                  <label className="field-label">QA-Approved Order *</label>
-                  <select
-                    className="field-input"
-                    value={form.order}
-                    onChange={(e) => {
-                      const selected = orders.find((o) => String(o.id) === String(e.target.value))
-                      if (selected) applyOrderToForm(selected, form.company)
-                    }}
-                    required
-                  >
-                    <option value="">Select QA-Approved Order</option>
-                    {qaApprovedOrders.map((o) => (
-                      <option key={o.id} value={o.id}>
-                        {o.number} — {o.customer_name} ({o.product_name})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : null}
-
-              <div className="field">
-                <label className="field-label">Customer *</label>
-                <select
-                  className="field-input"
-                  value={form.customer}
-                  onChange={(e) => {
-                    const custId = e.target.value
-                    const cust = customers.find((c) => String(c.id) === String(custId))
-                    setForm({
-                      ...form,
-                      customer: custId,
-                      payment_terms: cust?.payment_terms || 'Net 30',
-                    })
-                  }}
-                  required
-                >
-                  <option value="">Select customer</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.code || 'CUST'}) - GSTIN: {c.gstin || 'Unregistered'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <Input
-                label="Invoice Number (Indian FY Sequential)"
-                value={form.number}
-                disabled
-                readOnly
-              />
-
-              <Input
-                label="Invoice Date"
-                type="date"
-                value={form.invoice_date}
-                onChange={(e) => setField('invoice_date', e.target.value)}
-                required
-              />
-
-              <Input
-                label="Due Date"
-                type="date"
-                value={form.due_date}
-                onChange={(e) => setField('due_date', e.target.value)}
-                required
-              />
-
-              <div className="field">
-                <label className="field-label">Payment Terms</label>
-                <input
-                  className="field-input"
-                  value={form.payment_terms}
-                  onChange={(e) => setField('payment_terms', e.target.value)}
-                  placeholder="e.g. Net 30, Immediate"
-                />
-              </div>
-
-              <div className="field" style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '24px' }}>
-                <input
-                  type="checkbox"
-                  id="tax_exempt_chk"
-                  checked={form.tax_exempt}
-                  onChange={(e) => setField('tax_exempt', e.target.checked)}
-                />
-                <label htmlFor="tax_exempt_chk" style={{ fontSize: '13px', cursor: 'pointer', fontWeight: 600 }}>
-                  Tax Exempt / Tax Off (Zero GST)
-                </label>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
-              <h4 className="invoice-lines-title" style={{ margin: 0 }}>
-                Billable Line Items
-              </h4>
-              <Button type="button" variant="secondary" onClick={addLine}>
-                + Add Line
-              </Button>
-            </div>
-
-            <div className="inv-table-scroll" style={{ marginTop: '8px' }}>
-              <table className="inv-table">
-                <thead>
-                  <tr>
-                    <th>Product</th>
-                    <th>HSN</th>
-                    <th>Qty</th>
-                    <th>Unit</th>
-                    <th>Rate (₹)</th>
-                    <th>Discount (₹)</th>
-                    <th>Taxable (₹)</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lines.map((line) => (
-                    <tr key={line.id}>
-                      <td style={{ minWidth: '180px' }}>
-                        <select
-                          className="field-input"
-                          value={line.product}
-                          onChange={(e) => setLineField(line.id, 'product', e.target.value)}
-                        >
-                          <option value="">Custom Formulation / Item</option>
-                          {products.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name || p.code} ({p.code})
-                            </option>
-                          ))}
-                        </select>
-                        <input
-                          className="field-input"
-                          style={{ marginTop: '4px' }}
-                          placeholder="Item Description"
-                          value={line.product_name}
-                          onChange={(e) => setLineField(line.id, 'product_name', e.target.value)}
-                        />
-                      </td>
-                      <td style={{ width: '100px' }}>
-                        <input
-                          className="field-input"
-                          value={line.hsn_code}
-                          onChange={(e) => setLineField(line.id, 'hsn_code', e.target.value)}
-                        />
-                      </td>
-                      <td style={{ width: '90px' }}>
-                        <input
-                          className="field-input"
-                          type="number"
-                          min="1"
-                          step="1"
-                          value={line.quantity}
-                          onChange={(e) => setLineField(line.id, 'quantity', e.target.value)}
-                          required
-                        />
-                      </td>
-                      <td style={{ width: '80px' }}>
-                        <input
-                          className="field-input"
-                          value={line.unit}
-                          onChange={(e) => setLineField(line.id, 'unit', e.target.value)}
-                        />
-                      </td>
-                      <td style={{ width: '105px' }}>
-                        <input
-                          className="field-input"
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={line.rate}
-                          onChange={(e) => setLineField(line.id, 'rate', e.target.value)}
-                          required
-                        />
-                      </td>
-                      <td style={{ width: '90px' }}>
-                        <input
-                          className="field-input"
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={line.discount}
-                          onChange={(e) => setLineField(line.id, 'discount', e.target.value)}
-                        />
-                      </td>
-                      <td className="cell-strong" style={{ width: '110px' }}>
-                        ₹{formatINR(Math.max((Number(line.quantity) || 0) * (Number(line.rate) || 0) - (Number(line.discount) || 0), 0))}
-                      </td>
-                      <td style={{ width: '40px' }}>
-                        <button
-                          type="button"
-                          className="invoice-remove-line"
-                          onClick={() => removeLine(line.id)}
-                          aria-label="Remove line"
-                        >
-                          ×
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="field field-full" style={{ marginTop: '16px' }}>
-              <label className="field-label">Terms & Notes</label>
-              <textarea
-                className="field-input"
-                rows={2}
-                value={form.notes}
-                onChange={(e) => setField('notes', e.target.value)}
-              />
-            </div>
-
-            <div className="invoice-totals">
-              <div>
-                <span>Taxable Subtotal:</span>
-                <strong>₹{formatINR(computedTotals.subtotal)}</strong>
-              </div>
-              <div>
-                <span>GST Tax {!form.tax_exempt ? `(${form.tax_percent}%)` : '(Exempt)'}:</span>
-                <strong>₹{formatINR(computedTotals.taxAmount)}</strong>
-              </div>
-              <div>
-                <span>Round Off:</span>
-                <strong>₹{formatINR(computedTotals.roundOff)}</strong>
-              </div>
-              <div className="invoice-grand-total">
-                <span>Total Amount:</span>
-                <strong>₹{formatINR(computedTotals.total)}</strong>
-              </div>
-            </div>
-          </form>
-        </Modal>
-      )}
 
       {/* ========================================================
           VIEW INVOICE MODAL

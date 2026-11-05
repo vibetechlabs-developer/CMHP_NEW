@@ -120,7 +120,7 @@ export async function searchMaterials(term, kind, pageSize = 100) {
 // Builds the FULL final line list for the revision PATCH. Lines of the other
 // material kind are sent unchanged; lines of this kind come from the table
 // rows. Existing line ids are kept so the backend updates them in place.
-export function buildRevisionLinesPayload({ allLines = [], kind, rows = [] }) {
+export function buildRevisionLinesPayload({ allLines = [], kind, rows = [], isTwoPart = false }) {
   const other = allLines
     .filter((line) => line.material_type !== kind)
     .map((line) => ({ id: line.id, material_id: line.material_id, quantity: line.quantity, notes: line.notes || '' }))
@@ -163,8 +163,16 @@ export function buildRevisionLinesPayload({ allLines = [], kind, rows = [] }) {
     if (isNA) {
       noteParts.push(`QTY_TEXT:${displayQtyText}`)
     }
-    if (row.notes && !row.notes.startsWith('RECV:') && !row.notes.startsWith('QTY_TEXT:') && !row.notes.includes('|')) {
-      noteParts.push(row.notes)
+    if (isTwoPart && (kind === 'RAW_MATERIAL' || kind === 'RAW')) {
+      noteParts.push(`PART:${row.part || 1}`)
+    }
+    if (row.notes) {
+      const parts = row.notes.split('|').map((s) => s.trim())
+      for (const p of parts) {
+        if (!p.startsWith('RECV:') && !p.startsWith('QTY_TEXT:') && !p.startsWith('PART:') && p !== '') {
+          noteParts.push(p)
+        }
+      }
     }
     const finalNotes = noteParts.join(' | ')
 

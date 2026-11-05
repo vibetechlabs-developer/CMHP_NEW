@@ -14,5 +14,9 @@ export default defineConfig(({ command }) => ({
   test: {
     environment: 'jsdom',
     include: ['src/**/*.test.jsx', 'src/**/*.test.js'],
+    // Multi-step DOM tests (e.g. FormulasPage.revision) take ~0.7s alone but
+    // exceed vitest's 5s default once the whole suite runs the jsdom
+    // environments in parallel, producing a false failure. Give them headroom.
+    testTimeout: 15000,
   },
 }))

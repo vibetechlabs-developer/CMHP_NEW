@@ -1,124 +1,71 @@
-const STORAGE_KEY = 'cmhp_payroll_payments_v2'
+import api from '../../api/axios'
+import { getScopedCompanyId } from '../../utils/companyScope'
 
-function read() {
+function getCompanyId() {
+  const companyId = getScopedCompanyId()
+  return companyId ? Number(companyId) : 2
+}
+
+const hrmsBase = (cid) => `/v1/companies/${cid}/hrms`
+
+export function payrollKey(month, userId) {
+  return `${month}|${userId}`
+}
+
+export async function getPayrollPayment(month, userId) {
+  const payments = await getPayrollPayments()
+  return payments[payrollKey(month, userId)] || null
+}
+
+export async function getPayrollPayments() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    const parsed = raw ? JSON.parse(raw) : {}
-
-    return parsed && typeof parsed === 'object'
-      ? parsed
-      : {}
-  } catch {
+    const cid = getCompanyId()
+    const res = await api.get(`${hrmsBase(cid)}/payroll/records/`)
+    const records = Array.isArray(res.data) ? res.data : res.data.results || []
+    const map = {}
+    records.forEach((r) => {
+      const key = payrollKey(r.month, r.user)
+      map[key] = {
+        month: r.month,
+        userId: Number(r.user),
+        amount: Number(r.net_salary || 0),
+        company: r.company,
+        status: r.status,
+        paidAt: r.payment_date,
+      }
+    })
+    return map
+  } catch (err) {
     return {}
   }
 }
 
-function write(data) {
-  try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(data)
-    )
-  } catch {
-    // Ignore localStorage errors in local/mock mode.
-  }
-}
-
-export function payrollKey(
-  month,
-  userId
-) {
-  return `${month}|${userId}`
-}
-
-export function getPayrollPayment(
-  month,
-  userId
-) {
-  const data = read()
-
-  return (
-    data[
-      payrollKey(month, userId)
-    ] || null
-  )
-}
-
-export function getPayrollPayments() {
-  return read()
-}
-
-export function markPayrollPaid({
-  month,
-  userId,
-  amount,
-  company,
-}) {
-  const data = read()
-
-  const key =
-    payrollKey(
-      month,
-      userId
-    )
-
-  const existing =
-    data[key] || {}
-
-  data[key] = {
-    ...existing,
-
+export async function markPayrollPaid({ month, userId, amount, company }) {
+  const cid = company ? Number(company) : getCompanyId()
+  const res = await api.post(`${hrmsBase(cid)}/payroll/mark-paid/`, {
     month,
-
-    userId:
-      Number(userId),
-
-    amount:
-      Number(amount) || 0,
-
-    company:
-      Number(company) || null,
-
-    status:
-      'PAID',
-
-    paidAt:
-      existing.paidAt ||
-      new Date().toISOString(),
-  }
-
-  write(data)
-
-  return data[key]
-}
-
-export function markPayrollUnpaid(
-  month,
-  userId
-) {
-  const data = read()
-
-  const key =
-    payrollKey(
-      month,
-      userId
-    )
-
-  if (data[key]) {
-    delete data[key]
-
-    write(data)
+    user_id: userId,
+    amount,
+  })
+  return {
+    month,
+    userId: Number(userId),
+    amount: Number(amount) || 0,
+    company: cid,
+    status: 'PAID',
+    paidAt: res.data?.payment_date || new Date().toISOString(),
   }
 }
 
-export function isPayrollPaid(
-  month,
-  userId
-) {
-  return (
-    getPayrollPayment(
-      month,
-      userId
-    )?.status === 'PAID'
-  )
+export async function markPayrollUnpaid(month, userId) {
+  const cid = getCompanyId()
+  await api.post(`${hrmsBase(cid)}/payroll/mark-unpaid/`, {
+    month,
+    user_id: userId,
+  })
+}
+
+export async function isPayrollPaid(month, userId) {
+  const payment = await getPayrollPayment(month, userId)
+  return payment?.status === 'PAID'
 }

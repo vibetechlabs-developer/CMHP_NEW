@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     "apps.bmr",
     "apps.suppliers",
     "apps.users",
+    "apps.hrms",
 ]
 
 MIDDLEWARE = [

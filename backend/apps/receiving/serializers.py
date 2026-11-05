@@ -88,6 +88,7 @@ class GoodsReceiptLineSerializer(serializers.ModelSerializer):
     unit_id = serializers.IntegerField(source="unit.id", read_only=True)
     unit_code = serializers.CharField(source="unit.code", read_only=True)
     unit_name = serializers.CharField(source="unit.name", read_only=True)
+    material_kind = serializers.CharField(source="material.kind", read_only=True)
     container_type_id = serializers.IntegerField(source="container_type.id", read_only=True)
     container_type_code = serializers.CharField(source="container_type.code", read_only=True)
     container_quantity = serializers.IntegerField(read_only=True)
@@ -108,6 +109,7 @@ class GoodsReceiptLineSerializer(serializers.ModelSerializer):
             "material_id",
             "material_code",
             "material_name",
+            "material_kind",
             "unit_id",
             "unit_code",
             "unit_name",
@@ -136,8 +138,11 @@ class GoodsReceiptSerializer(serializers.ModelSerializer):
 
     store_id = serializers.IntegerField(source="store.id", read_only=True)
     store_code = serializers.CharField(source="store.code", read_only=True)
+    store_name = serializers.CharField(source="store.name", read_only=True)
     company_id = serializers.IntegerField(source="company.id", read_only=True)
     company_code = serializers.CharField(source="company.code", read_only=True)
+    company_legal_name = serializers.CharField(source="company.legal_name", read_only=True)
+    company_display_name = serializers.CharField(source="company.display_name", read_only=True)
     source_purchase_order_id = serializers.IntegerField(source="source_purchase_order.id", read_only=True)
     source_purchase_order_reference = serializers.CharField(
         source="source_purchase_order.reference", read_only=True
@@ -148,6 +153,7 @@ class GoodsReceiptSerializer(serializers.ModelSerializer):
     # real Supplier catalog (see GoodsReceipt.supplier_name's own
     # docstring).
     supplier_name = serializers.CharField(read_only=True)
+    supplier_display = serializers.SerializerMethodField()
     created_by_id = serializers.IntegerField(source="created_by.id", read_only=True)
     posted_by_id = serializers.SerializerMethodField()
     cancelled_by_id = serializers.SerializerMethodField()
@@ -161,11 +167,15 @@ class GoodsReceiptSerializer(serializers.ModelSerializer):
             "idempotency_key",
             "store_id",
             "store_code",
+            "store_name",
             "company_id",
             "company_code",
+            "company_legal_name",
+            "company_display_name",
             "source_purchase_order_id",
             "source_purchase_order_reference",
             "supplier_name",
+            "supplier_display",
             "status",
             "arrived_at",
             "supplier_invoice_reference",
@@ -189,6 +199,16 @@ class GoodsReceiptSerializer(serializers.ModelSerializer):
 
     def get_cancelled_by_id(self, obj):
         return obj.cancelled_by_id
+
+    def get_supplier_display(self, obj):
+        name = (obj.supplier_name or "").strip()
+        if name:
+            return name
+        purchase_order = obj.source_purchase_order
+        supplier = getattr(purchase_order, "supplier", None) if purchase_order else None
+        if not supplier:
+            return ""
+        return (supplier.display_name or supplier.legal_name or supplier.code or "").strip()
 
 
 class GoodsReceiptLineInputSerializer(serializers.Serializer):

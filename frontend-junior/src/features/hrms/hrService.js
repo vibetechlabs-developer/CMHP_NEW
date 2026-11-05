@@ -1,2523 +1,386 @@
-import { store } from '../../store/store'
-import { delay } from '../../store/mockApi'
-
-import {
-    addUser,
-    editUserAccess,
-    setUserStatus,
-    deleteUser,
-
-    addDesignation,
-    editDesignation,
-    deleteDesignation,
-    setDesignationStatus,
-
-    addShift,
-    editShift,
-    deleteShift,
-    setShiftStatus,
-
-    addHoliday,
-    editHoliday,
-    deleteHoliday,
-
-    addLeaveType,
-    editLeaveType,
-    deleteLeaveType,
-    setLeaveTypeStatus,
-
-    checkIn,
-    checkOut,
-    markAttendance,
-    editAttendance,
-    deleteAttendance,
-
-    applyLeave,
-    decideLeave,
-    cancelLeave,
-    deleteLeaveRequest,
-
-    addSalaryStructure,
-    editSalaryStructure,
-    deleteSalaryStructure,
-} from '../../store/erpSlice'
-
-import {
-    getScopedCompanyId,
-    enforceCompanyPayload,
-} from '../../utils/companyScope'
-
-
-const ROLE_LABELS = {
-    SUPER_ADMIN: 'Super Admin',
-    MANAGEMENT: 'Management',
-    HR_ADMINISTRATOR: 'HR Administrator',
-    HR_MANAGER: 'HR Manager',
-    DEPARTMENT_MANAGER: 'Department Manager',
-    STORES_MANAGER: 'Stores Manager',
-    STORES_USER: 'Stores User',
-    EMPLOYEE: 'Employee',
-    VIEWER: 'Viewer',
-}
-
-
-// ===========================================================================
-// SCOPE HELPERS
-// ===========================================================================
+import api from '../../api/axios'
+import { getScopedCompanyId } from '../../utils/companyScope'
 
 function getCompanyId() {
-
-    const companyId =
-        getScopedCompanyId()
-
-    if (!companyId) {
-        throw new Error(
-            'No active company is selected.'
-        )
-    }
-
-    return Number(companyId)
+  const companyId = getScopedCompanyId()
+  if (!companyId) {
+    throw new Error('No active company is selected.')
+  }
+  return Number(companyId)
 }
 
-
-function inScope(
-    companyId
-) {
-
-    const activeCompanyId =
-        getCompanyId()
-
-    return (
-        Number(companyId) ===
-        Number(activeCompanyId)
-    )
-}
-
-
-function today() {
-    return new Date()
-        .toISOString()
-        .slice(0, 10)
-}
-
-
-// ===========================================================================
-// HYDRATION
-// ===========================================================================
-
-function hydrateEmployee(
-    user,
-    state
-) {
-
-    const company =
-        state.companies.find(
-            (c) =>
-                Number(c.id) ===
-                Number(
-                    user.primary_company
-                )
-        ) || null
-
-
-    const department =
-        state.departments.find(
-            (d) =>
-                Number(d.id) ===
-                Number(
-                    user.department
-                )
-        ) || null
-
-
-    const shift =
-        state.shifts.find(
-            (s) =>
-                Number(s.id) ===
-                Number(
-                    user.shift
-                )
-        ) || null
-
-
-    const manager =
-        state.users.find(
-            (u) =>
-                Number(u.id) ===
-                Number(
-                    user.reporting_manager
-                )
-        ) || null
-
-
-    return {
-
-        ...user,
-
-        role_label:
-            ROLE_LABELS[
-            user.role
-            ] ||
-            user.role,
-
-        company,
-
-        department,
-
-        shift,
-
-        reporting_manager_name:
-            manager
-                ? (
-                    `${manager.first_name || ''} ${manager.last_name || ''}`
-                ).trim() ||
-                manager.username
-                : null,
-
-        display_name:
-            (
-                `${user.first_name || ''} ${user.last_name || ''}`
-            ).trim() ||
-            user.username,
-
-    }
-}
-
-
-function hydrateAttendance(
-    record,
-    state
-) {
-
-    const employee =
-        state.users.find(
-            (u) =>
-                Number(u.id) ===
-                Number(record.user)
-        )
-
-
-    return {
-
-        ...record,
-
-        employee_name:
-            employee
-                ? (
-                    `${employee.first_name || ''} ${employee.last_name || ''}`
-                ).trim() ||
-                employee.username
-                : `Employee #${record.user}`,
-
-        employee_code:
-            employee?.employee_id ||
-            '',
-
-    }
-}
-
-
-function hydrateLeave(
-    record,
-    state
-) {
-
-    const employee =
-        state.users.find(
-            (u) =>
-                Number(u.id) ===
-                Number(record.user)
-        )
-
-
-    const leaveType =
-        state.leaveTypes.find(
-            (t) =>
-                Number(t.id) ===
-                Number(
-                    record.leave_type
-                )
-        )
-
-
-    return {
-
-        ...record,
-
-        employee_name:
-            employee
-                ? (
-                    `${employee.first_name || ''} ${employee.last_name || ''}`
-                ).trim() ||
-                employee.username
-                : `Employee #${record.user}`,
-
-        employee_code:
-            employee?.employee_id ||
-            '',
-
-        leave_type_name:
-            leaveType?.name ||
-            '—',
-
-    }
-}
-
-
-// ===========================================================================
-// EMPLOYEE COMPANY VALIDATION
-// ===========================================================================
-
-function assertEmployeeCompany(
-    id
-) {
-
-    const state =
-        store.getState().erp
-
-    const companyId =
-        getCompanyId()
-
-
-    const employee =
-        state.users.find(
-            (user) =>
-                Number(user.id) ===
-                Number(id)
-        )
-
-
-    if (
-        !employee ||
-        Number(
-            employee.primary_company
-        ) !==
-        Number(companyId)
-    ) {
-
-        throw new Error(
-            'This employee does not belong to the active company.'
-        )
-
-    }
-
-
-    return employee
-}
-
-
-// ===========================================================================
-// GENERIC COMPANY RECORD VALIDATION
-// ===========================================================================
-
-function assertCompanyRecord(
-    collection,
-    id
-) {
-
-    const state =
-        store.getState().erp
-
-    const companyId =
-        getCompanyId()
-
-
-    const record =
-        (
-            Array.isArray(
-                state[collection]
-            )
-                ? state[collection]
-                : []
-        ).find(
-            (row) =>
-                Number(row.id) ===
-                Number(id)
-        )
-
-
-    if (
-        !record ||
-        Number(record.company) !==
-        Number(companyId)
-    ) {
-
-        throw new Error(
-            'This record does not belong to the active company.'
-        )
-
-    }
-
-
-    return record
-}
-
-
-// ===========================================================================
-// SERVICE
-// ===========================================================================
+const hrmsBase = (cid) => `/v1/companies/${cid}/hrms`
 
 export const hrService = {
-
-    // =========================================================================
-    // EMPLOYEES
-    // =========================================================================
-
-    getEmployees() {
-
-        const state =
-            store.getState().erp
-
-        const companyId =
-            getCompanyId()
-
-
-        const rows =
-            state.users
-
-                .filter(
-                    (user) =>
-                        Number(
-                            user.primary_company
-                        ) ===
-                        Number(
-                            companyId
-                        )
-                )
-
-                .map(
-                    (user) =>
-                        hydrateEmployee(
-                            user,
-                            state
-                        )
-                )
-
-
-        return delay(rows)
-    },
-
-
-    getEmployee(
-        id
-    ) {
-
-        const state =
-            store.getState().erp
-
-        const employee =
-            assertEmployeeCompany(
-                id
-            )
-
-
-        return delay(
-            hydrateEmployee(
-                employee,
-                state
-            )
-        )
-    },
-
-
-    createEmployee(
-        payload
-    ) {
-
-        const scoped =
-            enforceCompanyPayload(
-                payload
-            )
-
-        const companyId =
-            Number(
-                scoped.company
-            )
-
-
-        const salary =
-            payload.monthly_salary === '' ||
-                payload.monthly_salary === null ||
-                payload.monthly_salary === undefined
-                ? null
-                : Number(
-                    payload.monthly_salary
-                )
-
-
-        const safeSalary =
-            Number.isFinite(salary) &&
-                salary > 0
-                ? salary
-                : null
-
-
-        store.dispatch(
-            addUser({
-
-                ...payload,
-
-                primary_company:
-                    companyId,
-
-                companies:
-                    [
-                        companyId,
-                    ],
-
-                is_active:
-                    true,
-
-                /*
-                 * Keep the employee salary on
-                 * the employee record.
-                 */
-                monthly_salary:
-                    safeSalary,
-
-            })
-        )
-
-
-        /*
-         * Find the newly created employee.
-         */
-        const state =
-            store.getState().erp
-
-
-        const employee =
-            [...state.users]
-                .reverse()
-                .find(
-                    (user) =>
-                        Number(
-                            user.primary_company
-                        ) ===
-                        Number(
-                            companyId
-                        ) &&
-                        user.username ===
-                        payload.username
-                )
-
-
-        /*
-         * Automatically create Payroll salary
-         * structure.
-         */
-        if (
-            employee &&
-            safeSalary !== null
-        ) {
-
-            store.dispatch(
-                addSalaryStructure({
-
-                    user:
-                        Number(
-                            employee.id
-                        ),
-
-                    company:
-                        companyId,
-
-                    effective_from:
-                        today(),
-
-                    basic:
-                        safeSalary,
-
-                    allowances:
-                        0,
-
-                    incentives:
-                        0,
-
-                    bonus:
-                        0,
-
-                    other:
-                        0,
-
-                    deductions:
-                        0,
-
-                    note:
-                        'Automatically created from Employee salary.',
-
-                })
-            )
-
-        }
-
-
-        return delay(null)
-    },
-
-
-    updateEmployee(
-        id,
-        payload
-    ) {
-
-        const employee =
-            assertEmployeeCompany(
-                id
-            )
-
-
-        const companyId =
-            getCompanyId()
-
-
-        const patch = {
-            ...payload,
-
-            primary_company:
-                Number(
-                    companyId
-                ),
-
-            companies:
-                [
-                    Number(
-                        companyId
-                    ),
-                ],
-        }
-
-
-        delete patch.company
-
-
-        const salaryProvided =
-            Object.prototype.hasOwnProperty.call(
-                payload,
-                'monthly_salary'
-            )
-
-
-        const salary =
-            payload.monthly_salary === '' ||
-                payload.monthly_salary === null ||
-                payload.monthly_salary === undefined
-                ? null
-                : Number(
-                    payload.monthly_salary
-                )
-
-
-        const safeSalary =
-            Number.isFinite(salary) &&
-                salary > 0
-                ? salary
-                : null
-
-
-        if (
-            salaryProvided
-        ) {
-
-            patch.monthly_salary =
-                safeSalary
-
-        }
-
-
-        store.dispatch(
-            editUserAccess({
-
-                id,
-
-                payload:
-                    patch,
-
-            })
-        )
-
-
-        /*
-         * Keep Payroll synchronized.
-         */
-        if (
-            salaryProvided
-        ) {
-
-            const state =
-                store.getState().erp
-
-
-            const structures =
-                state.salaryStructures.filter(
-                    (structure) =>
-                        Number(
-                            structure.user
-                        ) ===
-                        Number(id) &&
-                        Number(
-                            structure.company
-                        ) ===
-                        Number(companyId)
-                )
-
-
-            if (
-                safeSalary === null
-            ) {
-
-                /*
-                 * Salary removed from employee:
-                 * remove payroll structures too.
-                 */
-                structures.forEach(
-                    (structure) => {
-
-                        store.dispatch(
-                            deleteSalaryStructure({
-                                id:
-                                    structure.id,
-                            })
-                        )
-
-                    }
-                )
-
-            } else if (
-                structures.length === 0
-            ) {
-
-                /*
-                 * Salary exists but Payroll structure
-                 * does not.
-                 */
-                store.dispatch(
-                    addSalaryStructure({
-
-                        user:
-                            Number(id),
-
-                        company:
-                            Number(companyId),
-
-                        effective_from:
-                            today(),
-
-                        basic:
-                            safeSalary,
-
-                        allowances:
-                            0,
-
-                        incentives:
-                            0,
-
-                        bonus:
-                            0,
-
-                        other:
-                            0,
-
-                        deductions:
-                            0,
-
-                        note:
-                            'Automatically created from Employee salary.',
-
-                    })
-                )
-
-            } else {
-
-                /*
-                 * Update the latest salary structure.
-                 */
-                const latest =
-                    structures
-                        .slice()
-                        .sort(
-                            (a, b) =>
-                                Number(b.id) -
-                                Number(a.id)
-                        )[0]
-
-
-                store.dispatch(
-                    editSalaryStructure({
-
-                        id:
-                            latest.id,
-
-                        payload: {
-
-                            basic:
-                                safeSalary,
-
-                        },
-
-                    })
-                )
-
-            }
-
-        }
-
-
-        return delay(null)
-    },
-
-
-    deactivateEmployee(
-        id
-    ) {
-
-        assertEmployeeCompany(
-            id
-        )
-
-        store.dispatch(
-            setUserStatus({
-
-                id,
-
-                is_active:
-                    false,
-
-            })
-        )
-
-        return delay(null)
-    },
-
-
-    reactivateEmployee(
-        id
-    ) {
-
-        assertEmployeeCompany(
-            id
-        )
-
-        store.dispatch(
-            setUserStatus({
-
-                id,
-
-                is_active:
-                    true,
-
-            })
-        )
-
-        return delay(null)
-    },
-
-
-    deleteEmployee(
-        id
-    ) {
-
-        assertEmployeeCompany(
-            id
-        )
-
-        store.dispatch(
-            deleteUser({
-                id,
-            })
-        )
-
-        return delay(null)
-    },
-
-
-    // =========================================================================
-    // DESIGNATIONS
-    // =========================================================================
-
-    getDesignations() {
-
-        const state =
-            store.getState().erp
-
-        const companyId =
-            getCompanyId()
-
-
-        const rows =
-            state.designations
-                .filter(
-                    (designation) =>
-                        Number(
-                            designation.company
-                        ) ===
-                        Number(
-                            companyId
-                        )
-                )
-
-
-        return delay(rows)
-    },
-
-
-    createDesignation(
-        payload
-    ) {
-
-        store.dispatch(
-            addDesignation(
-                enforceCompanyPayload(
-                    payload
-                )
-            )
-        )
-
-        return delay(null)
-    },
-
-
-    updateDesignation(
-        id,
-        payload
-    ) {
-
-        assertCompanyRecord(
-            'designations',
-            id
-        )
-
-
-        const safePayload = {
-            ...payload,
-        }
-
-        delete safePayload.company
-
-
-        store.dispatch(
-            editDesignation({
-
-                id,
-
-                payload:
-                    safePayload,
-
-            })
-        )
-
-        return delay(null)
-    },
-
-
-    deactivateDesignation(
-        id
-    ) {
-
-        assertCompanyRecord(
-            'designations',
-            id
-        )
-
-        store.dispatch(
-            setDesignationStatus({
-
-                id,
-
-                is_active:
-                    false,
-
-            })
-        )
-
-        return delay(null)
-    },
-
-
-    reactivateDesignation(
-        id
-    ) {
-
-        assertCompanyRecord(
-            'designations',
-            id
-        )
-
-        store.dispatch(
-            setDesignationStatus({
-
-                id,
-
-                is_active:
-                    true,
-
-            })
-        )
-
-        return delay(null)
-    },
-
-
-    deleteDesignation(
-        id
-    ) {
-
-        assertCompanyRecord(
-            'designations',
-            id
-        )
-
-        store.dispatch(
-            deleteDesignation({
-                id,
-            })
-        )
-
-        return delay(null)
-    },
-
-
-    // =========================================================================
-    // SHIFTS
-    // =========================================================================
-
-    getShifts() {
-
-        const state =
-            store.getState().erp
-
-        const companyId =
-            getCompanyId()
-
-
-        const rows =
-            state.shifts.filter(
-                (shift) =>
-                    Number(
-                        shift.company
-                    ) ===
-                    Number(
-                        companyId
-                    )
-            )
-
-
-        return delay(rows)
-    },
-
-
-    createShift(
-        payload
-    ) {
-
-        store.dispatch(
-            addShift(
-                enforceCompanyPayload(
-                    payload
-                )
-            )
-        )
-
-        return delay(null)
-    },
-
-
-    updateShift(
-        id,
-        payload
-    ) {
-
-        assertCompanyRecord(
-            'shifts',
-            id
-        )
-
-
-        const safePayload = {
-            ...payload,
-        }
-
-        delete safePayload.company
-
-
-        store.dispatch(
-            editShift({
-
-                id,
-
-                payload:
-                    safePayload,
-
-            })
-        )
-
-        return delay(null)
-    },
-
-
-    deactivateShift(
-        id
-    ) {
-
-        assertCompanyRecord(
-            'shifts',
-            id
-        )
-
-        store.dispatch(
-            setShiftStatus({
-
-                id,
-
-                is_active:
-                    false,
-
-            })
-        )
-
-        return delay(null)
-    },
-
-
-    reactivateShift(
-        id
-    ) {
-
-        assertCompanyRecord(
-            'shifts',
-            id
-        )
-
-        store.dispatch(
-            setShiftStatus({
-
-                id,
-
-                is_active:
-                    true,
-
-            })
-        )
-
-        return delay(null)
-    },
-
-
-    deleteShift(
-        id
-    ) {
-
-        assertCompanyRecord(
-            'shifts',
-            id
-        )
-
-        store.dispatch(
-            deleteShift({
-                id,
-            })
-        )
-
-        return delay(null)
-    },
-
-
-    // =========================================================================
-    // HOLIDAYS
-    // =========================================================================
-
-    getHolidays() {
-
-        const state =
-            store.getState().erp
-
-        const companyId =
-            getCompanyId()
-
-
-        const rows =
-            state.holidays
-
-                .filter(
-                    (holiday) =>
-                        Number(
-                            holiday.company
-                        ) ===
-                        Number(
-                            companyId
-                        )
-                )
-
-                .slice()
-
-                .sort(
-                    (a, b) =>
-                        new Date(a.date) -
-                        new Date(b.date)
-                )
-
-
-        return delay(rows)
-    },
-
-
-    createHoliday(
-        payload
-    ) {
-
-        store.dispatch(
-            addHoliday(
-                enforceCompanyPayload(
-                    payload
-                )
-            )
-        )
-
-        return delay(null)
-    },
-
-
-    updateHoliday(
-        id,
-        payload
-    ) {
-
-        assertCompanyRecord(
-            'holidays',
-            id
-        )
-
-
-        const safePayload = {
-            ...payload,
-        }
-
-        delete safePayload.company
-
-
-        store.dispatch(
-            editHoliday({
-
-                id,
-
-                payload:
-                    safePayload,
-
-            })
-        )
-
-        return delay(null)
-    },
-
-
-    deleteHoliday(
-        id
-    ) {
-
-        assertCompanyRecord(
-            'holidays',
-            id
-        )
-
-        store.dispatch(
-            deleteHoliday({
-                id,
-            })
-        )
-
-        return delay(null)
-    },
-
-
-    // =========================================================================
-    // LEAVE TYPES
-    // =========================================================================
-
-    getLeaveTypes() {
-
-        const state =
-            store.getState().erp
-
-        const companyId =
-            getCompanyId()
-
-
-        const rows =
-            state.leaveTypes.filter(
-                (leaveType) =>
-                    Number(
-                        leaveType.company
-                    ) ===
-                    Number(
-                        companyId
-                    )
-            )
-
-
-        return delay(rows)
-    },
-
-
-    createLeaveType(
-        payload
-    ) {
-
-        store.dispatch(
-            addLeaveType(
-                enforceCompanyPayload(
-                    payload
-                )
-            )
-        )
-
-        return delay(null)
-    },
-
-
-    updateLeaveType(
-        id,
-        payload
-    ) {
-
-        assertCompanyRecord(
-            'leaveTypes',
-            id
-        )
-
-
-        const safePayload = {
-            ...payload,
-        }
-
-        delete safePayload.company
-
-
-        store.dispatch(
-            editLeaveType({
-
-                id,
-
-                payload:
-                    safePayload,
-
-            })
-        )
-
-        return delay(null)
-    },
-
-
-    deactivateLeaveType(
-        id
-    ) {
-
-        assertCompanyRecord(
-            'leaveTypes',
-            id
-        )
-
-        store.dispatch(
-            setLeaveTypeStatus({
-
-                id,
-
-                is_active:
-                    false,
-
-            })
-        )
-
-        return delay(null)
-    },
-
-
-    reactivateLeaveType(
-        id
-    ) {
-
-        assertCompanyRecord(
-            'leaveTypes',
-            id
-        )
-
-        store.dispatch(
-            setLeaveTypeStatus({
-
-                id,
-
-                is_active:
-                    true,
-
-            })
-        )
-
-        return delay(null)
-    },
-
-
-    deleteLeaveType(
-        id
-    ) {
-
-        assertCompanyRecord(
-            'leaveTypes',
-            id
-        )
-
-        store.dispatch(
-            deleteLeaveType({
-                id,
-            })
-        )
-
-        return delay(null)
-    },
-
-
-    // =========================================================================
-    // ATTENDANCE
-    // =========================================================================
-
-    getMyTodayAttendance(
-        userId
-    ) {
-
-        const state =
-            store.getState().erp
-
-        const employee =
-            assertEmployeeCompany(
-                userId
-            )
-
-
-        const record =
-            state.attendance.find(
-                (record) =>
-                    Number(
-                        record.user
-                    ) ===
-                    Number(
-                        employee.id
-                    ) &&
-                    record.date ===
-                    today() &&
-                    inScope(
-                        record.company
-                    )
-            )
-
-
-        return delay(
-            record ||
-            null
-        )
-    },
-
-
-    getMyAttendanceHistory(
-        userId,
-        limit = 14
-    ) {
-
-        const state =
-            store.getState().erp
-
-        const employee =
-            assertEmployeeCompany(
-                userId
-            )
-
-
-        const rows =
-            state.attendance
-
-                .filter(
-                    (record) =>
-                        Number(
-                            record.user
-                        ) ===
-                        Number(
-                            employee.id
-                        )
-                )
-
-                .filter(
-                    (record) =>
-                        inScope(
-                            record.company
-                        )
-                )
-
-                .slice()
-
-                .sort(
-                    (a, b) =>
-                        new Date(b.date) -
-                        new Date(a.date)
-                )
-
-                .slice(
-                    0,
-                    limit
-                )
-
-
-        return delay(rows)
-    },
-
-
-    doCheckIn({
-        user,
-        company,
-        shift,
-    }) {
-
-        const employee =
-            assertEmployeeCompany(
-                user
-            )
-
-
-        const companyId =
-            getCompanyId()
-
-
-        store.dispatch(
-            checkIn({
-
-                user:
-                    employee.id,
-
-                company:
-                    companyId,
-
-                shift,
-
-            })
-        )
-
-
-        return delay(null)
-    },
-
-
-    doCheckOut({
-        user,
-    }) {
-
-        const employee =
-            assertEmployeeCompany(
-                user
-            )
-
-
-        store.dispatch(
-            checkOut({
-                user:
-                    employee.id,
-            })
-        )
-
-
-        return delay(null)
-    },
-
-
-    getAttendanceForDate(
-        date
-    ) {
-
-        const state =
-            store.getState().erp
-
-        const companyId =
-            getCompanyId()
-
-
-        const employees =
-            state.users
-
-                .filter(
-                    (user) =>
-                        user.is_active
-                )
-
-                .filter(
-                    (user) =>
-                        Number(
-                            user.primary_company
-                        ) ===
-                        Number(
-                            companyId
-                        )
-                )
-
-
-        const rows =
-            employees.map(
-                (employee) => {
-
-                    const record =
-                        state.attendance.find(
-                            (attendance) =>
-                                Number(
-                                    attendance.user
-                                ) ===
-                                Number(
-                                    employee.id
-                                ) &&
-                                attendance.date ===
-                                date &&
-                                Number(
-                                    attendance.company
-                                ) ===
-                                Number(
-                                    companyId
-                                )
-                        )
-
-
-                    return {
-
-                        employee:
-                            hydrateEmployee(
-                                employee,
-                                state
-                            ),
-
-                        attendance:
-                            record
-                                ? hydrateAttendance(
-                                    record,
-                                    state
-                                )
-                                : null,
-
-                    }
-                }
-            )
-
-
-        return delay(rows)
-    },
-
-
-    getAttendanceRange(
-        from,
-        to
-    ) {
-
-        const state =
-            store.getState().erp
-
-        const companyId =
-            getCompanyId()
-
-
-        const visibleUsers =
-            new Set(
-                state.users
-
-                    .filter(
-                        (user) =>
-                            Number(
-                                user.primary_company
-                            ) ===
-                            Number(
-                                companyId
-                            )
-                    )
-
-                    .map(
-                        (user) =>
-                            Number(
-                                user.id
-                            )
-                    )
-            )
-
-
-        const rows =
-            state.attendance
-
-                .filter(
-                    (record) =>
-                        record.date >=
-                        from &&
-                        record.date <=
-                        to
-                )
-
-                .filter(
-                    (record) =>
-                        Number(
-                            record.company
-                        ) ===
-                        Number(
-                            companyId
-                        )
-                )
-
-                .filter(
-                    (record) =>
-                        visibleUsers.has(
-                            Number(
-                                record.user
-                            )
-                        )
-                )
-
-                .map(
-                    (record) =>
-                        hydrateAttendance(
-                            record,
-                            state
-                        )
-                )
-
-
-        return delay(rows)
-    },
-
-
-    markAttendance(
-        payload
-    ) {
-
-        const scoped =
-            enforceCompanyPayload(
-                payload
-            )
-
-
-        store.dispatch(
-            markAttendance(
-                scoped
-            )
-        )
-
-        return delay(null)
-    },
-
-
-    updateAttendance(
-        id,
-        payload
-    ) {
-
-        const state =
-            store.getState().erp
-
-        const companyId =
-            getCompanyId()
-
-
-        const record =
-            state.attendance.find(
-                (attendance) =>
-                    Number(
-                        attendance.id
-                    ) ===
-                    Number(id)
-            )
-
-
-        if (
-            !record ||
-            Number(
-                record.company
-            ) !==
-            Number(
-                companyId
-            )
-        ) {
-
-            throw new Error(
-                'This attendance record does not belong to the active company.'
-            )
-
-        }
-
-
-        const safePayload = {
-            ...payload,
-        }
-
-        delete safePayload.company
-
-
-        store.dispatch(
-            editAttendance({
-
-                id,
-
-                payload:
-                    safePayload,
-
-            })
-        )
-
-        return delay(null)
-    },
-
-
-    removeAttendance(
-        id
-    ) {
-
-        const state =
-            store.getState().erp
-
-        const companyId =
-            getCompanyId()
-
-
-        const record =
-            state.attendance.find(
-                (attendance) =>
-                    Number(
-                        attendance.id
-                    ) ===
-                    Number(id)
-            )
-
-
-        if (
-            !record ||
-            Number(
-                record.company
-            ) !==
-            Number(
-                companyId
-            )
-        ) {
-
-            throw new Error(
-                'This attendance record does not belong to the active company.'
-            )
-
-        }
-
-
-        store.dispatch(
-            deleteAttendance({
-                id,
-            })
-        )
-
-        return delay(null)
-    },
-
-
-    // =========================================================================
-    // LEAVE REQUESTS
-    // =========================================================================
-
-    getMyLeaveRequests(
-        userId
-    ) {
-
-        const state =
-            store.getState().erp
-
-        const employee =
-            assertEmployeeCompany(
-                userId
-            )
-
-
-        const companyId =
-            getCompanyId()
-
-
-        const rows =
-            state.leaveRequests
-
-                .filter(
-                    (record) =>
-                        Number(
-                            record.user
-                        ) ===
-                        Number(
-                            employee.id
-                        )
-                )
-
-                .filter(
-                    (record) =>
-                        Number(
-                            record.company
-                        ) ===
-                        Number(
-                            companyId
-                        )
-                )
-
-                .map(
-                    (record) =>
-                        hydrateLeave(
-                            record,
-                            state
-                        )
-                )
-
-                .sort(
-                    (a, b) =>
-                        new Date(
-                            b.applied_at
-                        ) -
-                        new Date(
-                            a.applied_at
-                        )
-                )
-
-
-        return delay(rows)
-    },
-
-
-    getLeaveRequests(
-        statusFilter = null
-    ) {
-
-        const state =
-            store.getState().erp
-
-        const companyId =
-            getCompanyId()
-
-
-        const rows =
-            state.leaveRequests
-
-                .filter(
-                    (record) =>
-                        Number(
-                            record.company
-                        ) ===
-                        Number(
-                            companyId
-                        )
-                )
-
-                .filter(
-                    (record) =>
-                        !statusFilter ||
-                        record.status ===
-                        statusFilter
-                )
-
-                .map(
-                    (record) =>
-                        hydrateLeave(
-                            record,
-                            state
-                        )
-                )
-
-                .sort(
-                    (a, b) =>
-                        new Date(
-                            b.applied_at
-                        ) -
-                        new Date(
-                            a.applied_at
-                        )
-                )
-
-
-        return delay(rows)
-    },
-
-
-    submitLeaveRequest(
-        payload
-    ) {
-
-        const scoped =
-            enforceCompanyPayload(
-                payload
-            )
-
-
-        store.dispatch(
-            applyLeave(
-                scoped
-            )
-        )
-
-        return delay(null)
-    },
-
-
-    decideLeaveRequest(
-        id,
-        status,
-        decidedBy,
-        decisionNote
-    ) {
-
-        const state =
-            store.getState().erp
-
-        assertCompanyRecord(
-            'leaveRequests',
-            id
-        )
-
-
-        store.dispatch(
-            decideLeave({
-
-                id,
-
-                status,
-
-                decided_by:
-                    decidedBy,
-
-                decision_note:
-                    decisionNote,
-
-            })
-        )
-
-        return delay(null)
-    },
-
-
-    cancelLeaveRequest(
-        id
-    ) {
-
-        assertCompanyRecord(
-            'leaveRequests',
-            id
-        )
-
-
-        store.dispatch(
-            cancelLeave({
-                id,
-            })
-        )
-
-        return delay(null)
-    },
-
-
-    removeLeaveRequest(
-        id
-    ) {
-
-        assertCompanyRecord(
-            'leaveRequests',
-            id
-        )
-
-
-        store.dispatch(
-            deleteLeaveRequest({
-                id,
-            })
-        )
-
-        return delay(null)
-    },
-
-
-    // =========================================================================
-    // SALARY STRUCTURE
-    // =========================================================================
-
-    getSalaryStructures() {
-
-        const state =
-            store.getState().erp
-
-
-        const companyId =
-            getCompanyId()
-
-
-        /*
-         * Automatically create missing structures.
-         */
-        state.users
-            .filter(
-                (employee) =>
-                    Number(
-                        employee.primary_company
-                    ) ===
-                    Number(companyId)
-            )
-            .filter(
-                (employee) =>
-                    employee.is_active
-            )
-            .forEach(
-                (employee) => {
-
-                    const salary =
-                        Number(
-                            employee.monthly_salary
-                        )
-
-
-                    if (
-                        !Number.isFinite(
-                            salary
-                        ) ||
-                        salary <= 0
-                    ) {
-                        return
-                    }
-
-
-                    const exists =
-                        state.salaryStructures.some(
-                            (structure) =>
-                                Number(
-                                    structure.user
-                                ) ===
-                                Number(employee.id) &&
-                                Number(
-                                    structure.company
-                                ) ===
-                                Number(companyId)
-                        )
-
-
-                    if (
-                        !exists
-                    ) {
-
-                        store.dispatch(
-                            addSalaryStructure({
-
-                                user:
-                                    Number(
-                                        employee.id
-                                    ),
-
-                                company:
-                                    Number(companyId),
-
-                                effective_from:
-                                    today(),
-
-                                basic:
-                                    salary,
-
-                                allowances:
-                                    0,
-
-                                incentives:
-                                    0,
-
-                                bonus:
-                                    0,
-
-                                other:
-                                    0,
-
-                                deductions:
-                                    0,
-
-                                note:
-                                    'Automatically created from Employee salary.',
-
-                            })
-                        )
-
-                    }
-
-                }
-            )
-
-
-        const updatedState =
-            store.getState().erp
-
-
-        const rows =
-            updatedState.salaryStructures
-
-                .filter(
-                    (salary) =>
-                        Number(
-                            salary.company
-                        ) ===
-                        Number(companyId)
-                )
-
-                .map(
-                    (salary) => {
-
-                        const employee =
-                            updatedState.users.find(
-                                (user) =>
-                                    Number(
-                                        user.id
-                                    ) ===
-                                    Number(
-                                        salary.user
-                                    )
-                            )
-
-
-                        return {
-
-                            ...salary,
-
-                            employee_name:
-                                employee
-                                    ? (
-                                        `${employee.first_name || ''} ${employee.last_name || ''}`
-                                    ).trim() ||
-                                    employee.username
-                                    : `Employee #${salary.user}`,
-
-                            employee_salary:
-                                employee?.monthly_salary ??
-                                salary.basic ??
-                                0,
-
-                        }
-
-                    }
-                )
-
-
-        return delay(rows)
-    },
-
-    createSalaryStructure(
-        payload
-    ) {
-
-        store.dispatch(
-            addSalaryStructure(
-                enforceCompanyPayload(
-                    payload
-                )
-            )
-        )
-
-        return delay(null)
-    },
-
-
-    updateSalaryStructure(
-        id,
-        payload
-    ) {
-
-        const structure =
-            assertCompanyRecord(
-                'salaryStructures',
-                id
-            )
-
-
-        const safePayload = {
-            ...payload,
-        }
-
-
-        delete safePayload.company
-
-
-        if (
-            Object.prototype.hasOwnProperty.call(
-                safePayload,
-                'basic'
-            )
-        ) {
-
-            const basic =
-                Number(
-                    safePayload.basic
-                )
-
-
-            if (
-                !Number.isFinite(
-                    basic
-                ) ||
-                basic <= 0
-            ) {
-
-                throw new Error(
-                    'Basic salary must be greater than zero.'
-                )
-
-            }
-
-
-            safePayload.basic =
-                basic
-
-        }
-
-
-        store.dispatch(
-            editSalaryStructure({
-
-                id,
-
-                payload:
-                    safePayload,
-
-            })
-        )
-
-
-        /*
-         * Payroll → Employee synchronization.
-         */
-        if (
-            Object.prototype.hasOwnProperty.call(
-                safePayload,
-                'basic'
-            )
-        ) {
-
-            const employee =
-                store
-                    .getState()
-                    .erp
-                    .users
-                    .find(
-                        (user) =>
-                            Number(
-                                user.id
-                            ) ===
-                            Number(
-                                structure.user
-                            )
-                    )
-
-
-            if (
-                employee
-            ) {
-
-                store.dispatch(
-                    editUserAccess({
-
-                        id:
-                            employee.id,
-
-                        payload: {
-
-                            monthly_salary:
-                                safePayload.basic,
-
-                        },
-
-                    })
-                )
-
-            }
-
-        }
-
-
-        return delay(null)
-    },
-
-    removeSalaryStructure(
-        id
-    ) {
-
-        assertCompanyRecord(
-            'salaryStructures',
-            id
-        )
-
-
-        store.dispatch(
-            deleteSalaryStructure({
-                id,
-            })
-        )
-
-        return delay(null)
-    },
-
-
-    // =========================================================================
-    // HR DASHBOARD
-    // =========================================================================
-
-    getDashboardSummary() {
-
-        const state =
-            store.getState().erp
-
-        const todayStr =
-            today()
-
-        const companyId =
-            getCompanyId()
-
-
-        const employees =
-            state.users
-                .filter(
-                    (user) =>
-                        user.is_active
-                )
-                .filter(
-                    (user) =>
-                        Number(
-                            user.primary_company
-                        ) ===
-                        Number(
-                            companyId
-                        )
-                )
-
-
-        const todaysAttendance =
-            state.attendance
-
-                .filter(
-                    (record) =>
-                        record.date ===
-                        todayStr
-                )
-
-                .filter(
-                    (record) =>
-                        Number(
-                            record.company
-                        ) ===
-                        Number(
-                            companyId
-                        )
-                )
-
-
-        const presentToday =
-            todaysAttendance.filter(
-                (record) =>
-                    record.status ===
-                    'PRESENT' ||
-                    record.status ===
-                    'LATE' ||
-                    record.status ===
-                    'WFH'
-            ).length
-
-
-        const onLeaveToday =
-            state.leaveRequests.filter(
-                (record) =>
-                    record.status ===
-                    'APPROVED' &&
-                    Number(
-                        record.company
-                    ) ===
-                    Number(
-                        companyId
-                    ) &&
-                    record.from_date <=
-                    todayStr &&
-                    record.to_date >=
-                    todayStr
-            ).length
-
-
-        const pendingLeaveApprovals =
-            state.leaveRequests.filter(
-                (record) =>
-                    record.status ===
-                    'PENDING' &&
-                    Number(
-                        record.company
-                    ) ===
-                    Number(
-                        companyId
-                    )
-            ).length
-
-
-        const upcomingHolidays =
-            state.holidays
-
-                .filter(
-                    (holiday) =>
-                        Number(
-                            holiday.company
-                        ) ===
-                        Number(
-                            companyId
-                        )
-                )
-
-                .filter(
-                    (holiday) =>
-                        holiday.date >=
-                        todayStr
-                )
-
-                .sort(
-                    (a, b) =>
-                        new Date(a.date) -
-                        new Date(b.date)
-                )
-
-                .slice(
-                    0,
-                    5
-                )
-
-
-        return delay({
-
-            total_employees:
-                employees.length,
-
-            /*
-             * These two values are intentionally
-             * scoped to the active company.
-             *
-             * Therefore CMHP Pharma dashboard
-             * never reports Tej Biocare employees.
-             */
-            company_a_employees:
-                Number(companyId) === 1
-                    ? employees.length
-                    : 0,
-
-            company_b_employees:
-                Number(companyId) === 2
-                    ? employees.length
-                    : 0,
-
-            present_today:
-                presentToday,
-
-            not_marked_today:
-                Math.max(
-                    employees.length -
-                    todaysAttendance.length,
-                    0
-                ),
-
-            on_leave_today:
-                onLeaveToday,
-
-            pending_leave_approvals:
-                pendingLeaveApprovals,
-
-            upcoming_holidays:
-
-                upcomingHolidays,
-
-        })
-    },
+  // =========================================================================
+  // EMPLOYEES
+  // =========================================================================
+  async getEmployees(scopedCompanyIds) {
+    const cid = getCompanyId()
+    const res = await api.get(`${hrmsBase(cid)}/employees/`)
+    const data = Array.isArray(res.data) ? res.data : res.data.results || []
+    return { data }
+  },
+
+  async getEmployee(id) {
+    const cid = getCompanyId()
+    const res = await api.get(`${hrmsBase(cid)}/employees/${id}/`)
+    return { data: res.data }
+  },
+
+  async createEmployee(payload) {
+    const cid = getCompanyId()
+    const res = await api.post(`${hrmsBase(cid)}/employees/`, payload)
+    return { data: res.data }
+  },
+
+  async updateEmployee(id, payload) {
+    const cid = getCompanyId()
+    const res = await api.patch(`${hrmsBase(cid)}/employees/${id}/`, payload)
+    return { data: res.data }
+  },
+
+  async deactivateEmployee(id) {
+    const cid = getCompanyId()
+    const res = await api.post(`${hrmsBase(cid)}/employees/${id}/deactivate/`)
+    return { data: res.data }
+  },
+
+  async reactivateEmployee(id) {
+    const cid = getCompanyId()
+    const res = await api.post(`${hrmsBase(cid)}/employees/${id}/activate/`)
+    return { data: res.data }
+  },
+
+  async deleteEmployee(id) {
+    const cid = getCompanyId()
+    const res = await api.delete(`${hrmsBase(cid)}/employees/${id}/`)
+    return { data: res.data }
+  },
+
+  // =========================================================================
+  // DESIGNATIONS
+  // =========================================================================
+  async getDesignations(scopedCompanyIds) {
+    const cid = getCompanyId()
+    const res = await api.get(`${hrmsBase(cid)}/designations/`)
+    const data = Array.isArray(res.data) ? res.data : res.data.results || []
+    return { data }
+  },
+
+  async createDesignation(payload) {
+    const cid = getCompanyId()
+    const res = await api.post(`${hrmsBase(cid)}/designations/`, payload)
+    return { data: res.data }
+  },
+
+  async updateDesignation(id, payload) {
+    const cid = getCompanyId()
+    const res = await api.patch(`${hrmsBase(cid)}/designations/${id}/`, payload)
+    return { data: res.data }
+  },
+
+  async deactivateDesignation(id) {
+    const cid = getCompanyId()
+    const res = await api.patch(`${hrmsBase(cid)}/designations/${id}/`, { is_active: false })
+    return { data: res.data }
+  },
+
+  async reactivateDesignation(id) {
+    const cid = getCompanyId()
+    const res = await api.patch(`${hrmsBase(cid)}/designations/${id}/`, { is_active: true })
+    return { data: res.data }
+  },
+
+  async deleteDesignation(id) {
+    const cid = getCompanyId()
+    const res = await api.delete(`${hrmsBase(cid)}/designations/${id}/`)
+    return { data: res.data }
+  },
+
+  // =========================================================================
+  // SHIFTS
+  // =========================================================================
+  async getShifts(scopedCompanyIds) {
+    const cid = getCompanyId()
+    const res = await api.get(`${hrmsBase(cid)}/shifts/`)
+    const data = Array.isArray(res.data) ? res.data : res.data.results || []
+    return { data }
+  },
+
+  async createShift(payload) {
+    const cid = getCompanyId()
+    const res = await api.post(`${hrmsBase(cid)}/shifts/`, payload)
+    return { data: res.data }
+  },
+
+  async updateShift(id, payload) {
+    const cid = getCompanyId()
+    const res = await api.patch(`${hrmsBase(cid)}/shifts/${id}/`, payload)
+    return { data: res.data }
+  },
+
+  async deactivateShift(id) {
+    const cid = getCompanyId()
+    const res = await api.patch(`${hrmsBase(cid)}/shifts/${id}/`, { is_active: false })
+    return { data: res.data }
+  },
+
+  async reactivateShift(id) {
+    const cid = getCompanyId()
+    const res = await api.patch(`${hrmsBase(cid)}/shifts/${id}/`, { is_active: true })
+    return { data: res.data }
+  },
+
+  async deleteShift(id) {
+    const cid = getCompanyId()
+    const res = await api.delete(`${hrmsBase(cid)}/shifts/${id}/`)
+    return { data: res.data }
+  },
+
+  // =========================================================================
+  // HOLIDAYS
+  // =========================================================================
+  async getHolidays(scopedCompanyIds) {
+    const cid = getCompanyId()
+    const res = await api.get(`${hrmsBase(cid)}/holidays/`)
+    const data = Array.isArray(res.data) ? res.data : res.data.results || []
+    return { data }
+  },
+
+  async createHoliday(payload) {
+    const cid = getCompanyId()
+    const res = await api.post(`${hrmsBase(cid)}/holidays/`, payload)
+    return { data: res.data }
+  },
+
+  async updateHoliday(id, payload) {
+    const cid = getCompanyId()
+    const res = await api.patch(`${hrmsBase(cid)}/holidays/${id}/`, payload)
+    return { data: res.data }
+  },
+
+  async deleteHoliday(id) {
+    const cid = getCompanyId()
+    const res = await api.delete(`${hrmsBase(cid)}/holidays/${id}/`)
+    return { data: res.data }
+  },
+
+  // =========================================================================
+  // LEAVE TYPES
+  // =========================================================================
+  async getLeaveTypes(scopedCompanyIds) {
+    const cid = getCompanyId()
+    const res = await api.get(`${hrmsBase(cid)}/leave-types/`)
+    const data = Array.isArray(res.data) ? res.data : res.data.results || []
+    return { data }
+  },
+
+  async createLeaveType(payload) {
+    const cid = getCompanyId()
+    const res = await api.post(`${hrmsBase(cid)}/leave-types/`, payload)
+    return { data: res.data }
+  },
+
+  async updateLeaveType(id, payload) {
+    const cid = getCompanyId()
+    const res = await api.patch(`${hrmsBase(cid)}/leave-types/${id}/`, payload)
+    return { data: res.data }
+  },
+
+  async deactivateLeaveType(id) {
+    const cid = getCompanyId()
+    const res = await api.patch(`${hrmsBase(cid)}/leave-types/${id}/`, { is_active: false })
+    return { data: res.data }
+  },
+
+  async reactivateLeaveType(id) {
+    const cid = getCompanyId()
+    const res = await api.patch(`${hrmsBase(cid)}/leave-types/${id}/`, { is_active: true })
+    return { data: res.data }
+  },
+
+  async deleteLeaveType(id) {
+    const cid = getCompanyId()
+    const res = await api.delete(`${hrmsBase(cid)}/leave-types/${id}/`)
+    return { data: res.data }
+  },
+
+  // =========================================================================
+  // ATTENDANCE & PUNCH OPERATIONS
+  // =========================================================================
+  async getMyTodayAttendance(userId) {
+    const cid = getCompanyId()
+    const today = new Date().toISOString().slice(0, 10)
+    const res = await api.get(`${hrmsBase(cid)}/attendance/`, {
+      params: { user: userId, date: today },
+    })
+    const list = Array.isArray(res.data) ? res.data : res.data.results || []
+    return { data: list[0] || null }
+  },
+
+  async getMyAttendanceHistory(userId, days = 14) {
+    const cid = getCompanyId()
+    const to = new Date()
+    const from = new Date()
+    from.setDate(from.getDate() - days)
+    const res = await api.get(`${hrmsBase(cid)}/attendance/`, {
+      params: {
+        user: userId,
+        from_date: from.toISOString().slice(0, 10),
+        to_date: to.toISOString().slice(0, 10),
+      },
+    })
+    const data = Array.isArray(res.data) ? res.data : res.data.results || []
+    return { data }
+  },
+
+  async doCheckIn(payload) {
+    const cid = getCompanyId()
+    const userId = typeof payload === 'object' ? payload?.user || payload?.user_id : payload
+    const res = await api.post(`${hrmsBase(cid)}/attendance/check-in/`, { user_id: userId })
+    return { data: res.data }
+  },
+
+  async doCheckOut(payload) {
+    const cid = getCompanyId()
+    const userId = typeof payload === 'object' ? payload?.user || payload?.user_id : payload
+    const res = await api.post(`${hrmsBase(cid)}/attendance/check-out/`, { user_id: userId })
+    return { data: res.data }
+  },
+
+  async getAttendanceForDate(date, scopedCompanyIds) {
+    const cid = getCompanyId()
+    const [attRes, empRes] = await Promise.all([
+      api.get(`${hrmsBase(cid)}/attendance/`, { params: { date } }),
+      api.get(`${hrmsBase(cid)}/employees/`),
+    ])
+
+    const records = Array.isArray(attRes.data) ? attRes.data : attRes.data.results || []
+    const employees = Array.isArray(empRes.data) ? empRes.data : empRes.data.results || []
+
+    const attMap = {}
+    records.forEach((r) => {
+      attMap[r.user] = r
+    })
+
+    const roster = employees.map((emp) => ({
+      employee: emp,
+      attendance: attMap[emp.id] || null,
+    }))
+
+    return { data: roster }
+  },
+
+  async getAttendanceRange(from, to, scopedCompanyIds) {
+    const cid = getCompanyId()
+    const res = await api.get(`${hrmsBase(cid)}/attendance/`, {
+      params: { from_date: from, to_date: to },
+    })
+    const data = Array.isArray(res.data) ? res.data : res.data.results || []
+    return { data }
+  },
+
+  async markAttendance(payload) {
+    const cid = getCompanyId()
+    const res = await api.post(`${hrmsBase(cid)}/attendance/`, payload)
+    return { data: res.data }
+  },
+
+  async updateAttendance(id, payload) {
+    const cid = getCompanyId()
+    const res = await api.patch(`${hrmsBase(cid)}/attendance/${id}/`, payload)
+    return { data: res.data }
+  },
+
+  async removeAttendance(id) {
+    const cid = getCompanyId()
+    const res = await api.delete(`${hrmsBase(cid)}/attendance/${id}/`)
+    return { data: res.data }
+  },
+
+  // =========================================================================
+  // LEAVE REQUESTS
+  // =========================================================================
+  async getMyLeaveRequests(userId) {
+    const cid = getCompanyId()
+    const res = await api.get(`${hrmsBase(cid)}/leave-requests/`, {
+      params: { user: userId },
+    })
+    const data = Array.isArray(res.data) ? res.data : res.data.results || []
+    return { data }
+  },
+
+  async getLeaveRequests(scopedCompanyIds) {
+    const cid = getCompanyId()
+    const res = await api.get(`${hrmsBase(cid)}/leave-requests/`)
+    const data = Array.isArray(res.data) ? res.data : res.data.results || []
+    return { data }
+  },
+
+  async submitLeaveRequest(payload) {
+    const cid = getCompanyId()
+    const res = await api.post(`${hrmsBase(cid)}/leave-requests/`, payload)
+    return { data: res.data }
+  },
+
+  async decideLeave(leaveId, decision, rejectionReason = '') {
+    const cid = getCompanyId()
+    const res = await api.post(`${hrmsBase(cid)}/leave-requests/${leaveId}/decision/`, {
+      decision,
+      rejection_reason: rejectionReason,
+    })
+    return { data: res.data }
+  },
+
+  async decideLeaveRequest(leaveId, decision, rejectionReason = '') {
+    return this.decideLeave(leaveId, decision, rejectionReason)
+  },
+
+  async cancelLeaveRequest(leaveId) {
+    const cid = getCompanyId()
+    const res = await api.post(`${hrmsBase(cid)}/leave-requests/${leaveId}/cancel/`)
+    return { data: res.data }
+  },
+
+  async removeLeaveRequest(leaveId) {
+    return this.cancelLeaveRequest(leaveId)
+  },
+
+  // =========================================================================
+  // SALARY STRUCTURES
+  // =========================================================================
+  async getSalaryStructures(scopedCompanyIds) {
+    const cid = getCompanyId()
+    const res = await api.get(`${hrmsBase(cid)}/salary-structures/`)
+    const data = Array.isArray(res.data) ? res.data : res.data.results || []
+    return { data }
+  },
+
+  async createSalaryStructure(payload) {
+    const cid = getCompanyId()
+    const res = await api.post(`${hrmsBase(cid)}/salary-structures/`, payload)
+    return { data: res.data }
+  },
+
+  async updateSalaryStructure(id, payload) {
+    const cid = getCompanyId()
+    const res = await api.patch(`${hrmsBase(cid)}/salary-structures/${id}/`, payload)
+    return { data: res.data }
+  },
+
+  async removeSalaryStructure(id) {
+    const cid = getCompanyId()
+    const res = await api.delete(`${hrmsBase(cid)}/salary-structures/${id}/`)
+    return { data: res.data }
+  },
+
+  // =========================================================================
+  // DASHBOARD SUMMARY
+  // =========================================================================
+  async getDashboardSummary(scopedCompanyIds) {
+    const cid = getCompanyId()
+    const res = await api.get(`${hrmsBase(cid)}/dashboard/summary/`)
+    return { data: res.data }
+  },
 }

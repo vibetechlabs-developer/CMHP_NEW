@@ -1,0 +1,1922 @@
+/* =========================================================
+   CMHP PHARMA - SECTION-WISE BMR FORM & PRINT STYLES
+   Exact 1-to-1 Replica of 19-Page BMR PDF
+   ========================================================= */
+
+.bmr-wrapper {
+  width: 100%;
+  color: #111827;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* TOP BAR */
+.bmr-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 18px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  margin-bottom: 18px;
+  position: sticky;
+  top: 12px;
+  z-index: 50;
+  flex-wrap: wrap;
+}
+
+.bmr-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.bmr-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bmr-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bmr-back-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.bmr-order-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 8px;
+}
+
+/* SECTION-WISE WORKSPACE LAYOUT (Left Nav + Main Form Page) */
+.bmr-layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+/* LEFT STEP NAVIGATOR */
+.bmr-sidebar-nav {
+  width: 290px;
+  flex-shrink: 0;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+  padding: 14px 12px;
+  position: sticky;
+  top: 80px;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+}
+
+.bmr-nav-header {
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #64748b;
+  margin-bottom: 12px;
+  padding: 0 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.bmr-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bmr-nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+.bmr-nav-item:hover {
+  background: #f1f5f9;
+}
+
+.bmr-nav-item.active {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.bmr-nav-item-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  line-height: 1.3;
+}
+
+.bmr-nav-item.active .bmr-nav-item-title {
+  color: #15803d;
+  font-weight: 700;
+}
+
+.bmr-nav-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.bmr-nav-item.active .bmr-nav-num {
+  background: #16a34a;
+  color: #ffffff;
+}
+
+/* STATUS DOTS */
+.bmr-status-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.bmr-status-badge.done {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.bmr-status-badge.in_progress {
+  background: #fef9c3;
+  color: #a16207;
+}
+
+.bmr-status-badge.not_started {
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+/* MAIN CONTENT AREA */
+.bmr-main-content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* A4 SHEET (SCREEN VIEW) - EXACT GEOMETRY (210mm x 297mm / 596pt x 842pt) */
+.bmr-sheet {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  width: 596pt;
+  height: 842pt;
+  min-height: 842pt;
+  max-height: 842pt;
+  padding: 44.5pt 35pt 38pt 45pt;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  border-radius: 4px;
+  margin: 0 auto 24px;
+  font-family: 'Times New Roman', Times, serif;
+  color: #000000;
+  position: relative;
+  overflow: hidden;
+}
+
+/* GLOBAL RESET FOR ALL INPUTS/CONTROLS INSIDE BMR SHEET */
+.bmr-sheet input,
+.bmr-sheet select,
+.bmr-sheet textarea,
+.bmr-sheet button {
+  min-height: unset !important;
+  font-family: 'Times New Roman', Times, serif;
+  box-sizing: border-box;
+}
+
+.bmr-sheet input[type="radio"] {
+  width: 13px !important;
+  height: 13px !important;
+  min-width: 13px !important;
+  min-height: 13px !important;
+  max-width: 13px !important;
+  max-height: 13px !important;
+  margin: 0 4px 0 0 !important;
+  padding: 0 !important;
+  cursor: pointer;
+  vertical-align: middle;
+  flex-shrink: 0;
+  accent-color: #0284c7;
+}
+
+.bmr-sheet input[type="checkbox"] {
+  width: 13px !important;
+  height: 13px !important;
+  min-width: 13px !important;
+  min-height: 13px !important;
+  margin: 0 4px 0 0 !important;
+  padding: 0 !important;
+  cursor: pointer;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* DATE PICKER & FORMAT STYLES */
+.bmr-date-field-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+
+.bmr-date-display {
+  font-family: 'Times New Roman', Times, serif;
+  color: #000;
+  cursor: pointer;
+}
+
+.bmr-date-picker-icon {
+  position: absolute;
+  right: 2px;
+  cursor: pointer;
+  font-size: 10px;
+  user-select: none;
+  opacity: 0.65;
+  line-height: 1;
+}
+
+.bmr-date-picker-icon:hover {
+  opacity: 1;
+}
+
+/* HEADER BOX (PDF Replica - Exact 249pt height box) */
+.bmr-header-box {
+  border: 1.5px solid #000;
+  margin-bottom: 0;
+  font-size: 9.5pt;
+  width: 100%;
+  height: 249pt;
+  min-height: 249pt;
+  max-height: 249pt;
+  box-sizing: border-box;
+  font-family: 'Times New Roman', Times, serif;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.bmr-header-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1.5px solid #000;
+  padding: 2pt 8pt;
+  height: 111pt; /* Exact Row 0 height 111pt */
+  min-height: 111pt;
+  max-height: 111pt;
+  box-sizing: border-box;
+}
+
+.bmr-logo-wrap {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  width: 65pt;
+  height: 30pt;
+}
+
+.bmr-logo-img {
+  width: 63pt;
+  height: 28pt;
+  object-fit: contain;
+}
+
+.bmr-company-title {
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 14pt;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  text-align: center;
+  flex: 1;
+  color: #000;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.bmr-master-copy {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 155pt;
+  height: 22pt;
+  flex-shrink: 0;
+}
+
+.bmr-master-copy-img {
+  width: 151pt;
+  height: 19pt;
+  object-fit: contain;
+}
+
+.bmr-dept-title {
+  text-align: center;
+  font-weight: bold;
+  font-size: 10.5pt;
+  height: 22pt;
+  min-height: 22pt;
+  max-height: 22pt;
+  line-height: 22pt;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid #000;
+  text-transform: uppercase;
+  font-family: 'Times New Roman', Times, serif;
+  color: #000;
+  box-sizing: border-box;
+}
+
+.bmr-doc-title {
+  text-align: center;
+  font-weight: bold;
+  font-size: 10.5pt;
+  height: 20pt;
+  min-height: 20pt;
+  max-height: 20pt;
+  line-height: 20pt;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1.5px solid #000;
+  text-transform: uppercase;
+  font-family: 'Times New Roman', Times, serif;
+  color: #000;
+  box-sizing: border-box;
+}
+
+.bmr-header-grid {
+  display: grid;
+  grid-template-columns: 48% 52%;
+  grid-template-rows: 18pt 18pt 18pt 16pt 26pt;
+  height: 96pt;
+  min-height: 96pt;
+  max-height: 96pt;
+  box-sizing: border-box;
+}
+
+.bmr-grid-cell {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #000;
+  padding: 0 4pt;
+  height: 100%;
+  font-size: 9pt;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.bmr-grid-cell:nth-child(odd) {
+  border-right: 1.5px solid #000;
+}
+
+.bmr-grid-cell:nth-last-child(1),
+.bmr-grid-cell:nth-last-child(2) {
+  border-bottom: none;
+}
+
+.bmr-grid-label {
+  font-weight: bold;
+  white-space: nowrap;
+  margin-right: 3pt;
+  font-size: 9pt;
+  color: #000;
+  font-family: 'Times New Roman', Times, serif;
+}
+
+.bmr-grid-input {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+  font-weight: bold;
+  font-size: 9pt;
+  color: #000;
+  outline: none;
+  padding: 0;
+  margin: 0;
+  font-family: 'Times New Roman', Times, serif;
+}
+
+.bmr-grid-input:focus {
+  background: #f0fdf4;
+}
+
+/* BODY */
+.bmr-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  font-size: 8.5pt;
+  color: #000;
+  margin: 0;
+  padding: 2pt 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  overflow: hidden;
+  font-family: 'Times New Roman', Times, serif;
+  line-height: 1.15;
+}
+
+.bmr-section-title {
+  font-weight: bold;
+  font-size: 9.5pt;
+  text-decoration: underline;
+  margin: 4pt 0 3pt;
+  text-transform: uppercase;
+  color: #000;
+  font-family: 'Times New Roman', Times, serif;
+}
+
+/* TABLES */
+.bmr-table {
+  width: 100% !important;
+  max-width: 100% !important;
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+  border: 1.5px solid #000 !important;
+  margin-bottom: 4pt;
+  box-sizing: border-box !important;
+  font-size: 8.5pt;
+  line-height: 1.15;
+  font-family: 'Times New Roman', Times, serif;
+}
+
+.bmr-table th,
+.bmr-table td {
+  border: 1px solid #000;
+  padding: 1.5pt 2pt;
+  vertical-align: middle;
+  color: #000;
+  box-sizing: border-box !important;
+  min-width: 0 !important;
+  font-size: 8.5pt;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  hyphens: auto;
+}
+
+.bmr-table th {
+  background: #ffffff;
+  font-weight: bold;
+  text-align: left;
+  font-size: 8pt !important;
+  line-height: 1.1 !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+}
+
+/* INPUTS INSIDE CELLS */
+.bmr-cell-input,
+.bmr-table input,
+.bmr-table select,
+.bmr-table textarea {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  height: 100%;
+  min-height: unset !important;
+  max-height: 22px;
+  border: none;
+  background: transparent;
+  font-size: 8.5pt;
+  padding: 1pt 2pt;
+  color: #000;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box !important;
+}
+
+.bmr-cell-input:focus,
+.bmr-table input:focus,
+.bmr-table select:focus,
+.bmr-table textarea:focus {
+  background: #f0fdf4;
+}
+
+.bmr-line-input {
+  border: none;
+  border-bottom: 1px dotted #000;
+  background: transparent;
+  font-size: 9pt;
+  padding: 0 2pt;
+  outline: none;
+  font-weight: normal;
+  font-family: inherit;
+  color: #000;
+  height: 15pt;
+  min-height: 15pt;
+  box-sizing: border-box;
+}
+
+.bmr-line-input:focus {
+  border-bottom: 1px solid #0284c7;
+  background: #f0fdf4;
+}
+
+/* YES / NO TOGGLE BUTTONS */
+.bmr-yes-no-group {
+  display: inline-flex;
+  border: 1px solid #94a3b8;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bmr-yn-btn {
+  border: none;
+  background: #ffffff;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  color: #64748b;
+}
+
+.bmr-yn-btn.active-yes {
+  background: #0284c7;
+  color: #ffffff;
+}
+
+.bmr-yn-btn.active-no {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+/* SIGN-OFF ROW */
+.bmr-sign-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 10px 0;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.bmr-sign-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* SPECIMEN ATTACHMENT BOX (PAGE 17) */
+.bmr-specimen-box {
+  border: 2px dashed #94a3b8;
+  border-radius: 8px;
+  min-height: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: #fafafa;
+  margin-top: 14px;
+  text-align: center;
+}
+
+.bmr-specimen-preview {
+  max-width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+/* FOOTER BOX (PDF Replica - Exact 4-Column Structure) */
+.bmr-footer-box {
+  margin-top: auto;
+  flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: 'Times New Roman', Times, serif;
+  display: flex;
+  flex-direction: column;
+}
+
+.bmr-signoff-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1.5px solid #000;
+  table-layout: fixed;
+  margin-bottom: 0;
+  box-sizing: border-box;
+  font-family: 'Times New Roman', Times, serif;
+}
+
+.bmr-footer-corner-cell {
+  background-color: #d9d9d9 !important;
+  border: 1px solid #000;
+  width: 15.67%;
+}
+
+.bmr-signoff-table th {
+  border: 1px solid #000;
+  padding: 1pt 2pt;
+  font-weight: bold;
+  text-align: center;
+  vertical-align: middle;
+  font-size: 8.5pt;
+  background: #ffffff;
+  color: #000;
+  height: 41.3pt;
+  min-height: 41.3pt;
+  max-height: 41.3pt;
+  box-sizing: border-box;
+  line-height: 1.15;
+}
+
+.bmr-signoff-table td {
+  border: 1px solid #000;
+  padding: 0 2pt;
+  font-size: 8.5pt;
+  color: #000;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+
+.bmr-footer-label-cell {
+  font-weight: bold;
+  text-align: left;
+  padding-left: 4pt !important;
+  font-size: 8.5pt;
+  color: #000;
+}
+
+.bmr-footer-row-name td {
+  height: 14pt;
+  min-height: 14pt;
+  max-height: 14pt;
+}
+
+.bmr-footer-row-name .bmr-cell-input {
+  height: 14pt;
+  font-size: 8.5pt;
+  padding: 0 2pt;
+}
+
+.bmr-footer-row-sig td {
+  height: 29pt;
+  min-height: 29pt;
+  max-height: 29pt;
+}
+
+.bmr-footer-row-sig .bmr-cell-input {
+  height: 28pt;
+  font-size: 8.5pt;
+  padding: 0 2pt;
+}
+
+.bmr-footer-row-date td {
+  height: 14pt;
+  min-height: 14pt;
+  max-height: 14pt;
+}
+
+.bmr-footer-row-date .bmr-cell-input,
+.bmr-footer-row-date .bmr-date-display {
+  height: 14pt;
+  font-size: 8.5pt;
+  padding: 0 2pt;
+}
+
+.bmr-footer-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: bold;
+  font-size: 9pt;
+  height: 15pt;
+  min-height: 15pt;
+  max-height: 15pt;
+  padding-top: 2pt;
+  color: #000;
+  font-family: 'Times New Roman', Times, serif;
+  box-sizing: border-box;
+}
+
+.bmr-form-no,
+.bmr-page-no {
+  font-weight: bold;
+}
+
+/* PAGE 1 ATTACHMENTS REPLICA */
+.bmr-p1-details-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 3pt;
+  margin: 4pt 0 8pt;
+}
+
+.bmr-p1-row {
+  display: grid;
+  grid-template-columns: 190pt 12pt 1fr;
+  align-items: center;
+  font-size: 9.5pt;
+  font-family: 'Times New Roman', Times, serif;
+  height: 16pt;
+  min-height: 16pt;
+}
+
+.bmr-p1-label {
+  font-weight: normal;
+  color: #000;
+  white-space: nowrap;
+}
+
+.bmr-p1-colon {
+  font-weight: normal;
+  text-align: center;
+  color: #000;
+}
+
+.bmr-p1-attachments-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 6pt;
+}
+
+.bmr-p1-attachments-table thead th {
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 9.5pt;
+  font-weight: bold;
+  color: #000000;
+  padding: 0 0 4pt 0;
+  border: none;
+}
+
+.bmr-p1-th-check {
+  text-align: left;
+}
+
+.bmr-p1-th-marks {
+  text-align: left;
+  width: 54pt;
+  padding-left: 0;
+}
+
+.bmr-p1-table-row {
+  height: 16pt;
+  min-height: 16pt;
+}
+
+.bmr-p1-td-text {
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 9.5pt;
+  color: #000000;
+  padding: 0;
+  vertical-align: middle;
+  border: none;
+}
+
+.bmr-p1-td-num {
+  display: inline-block;
+  width: 18pt;
+  font-weight: normal;
+  color: #000000;
+}
+
+.bmr-p1-td-label {
+  font-weight: normal;
+  color: #000000;
+}
+
+.bmr-p1-td-box {
+  width: 54pt;
+  padding: 0;
+  vertical-align: middle;
+  border: none;
+  cursor: pointer;
+}
+
+.bmr-p1-compliance-box {
+  width: 54pt;
+  height: 16pt;
+  border: 1px solid #000000;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10pt;
+  font-weight: bold;
+  color: #000000;
+  cursor: pointer;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.bmr-p1-table-row + .bmr-p1-table-row .bmr-p1-compliance-box {
+  margin-top: -1px;
+}
+
+.bmr-p1-compliance-box:hover {
+  background: #f0fdf4;
+}
+
+.bmr-p1-compliance-box.checked {
+  background: #f8fafc;
+}
+
+/* PAGE 5 REPLICA COMPACTING */
+.bmr-p5-body .bmr-table {
+  margin-bottom: 3pt;
+  font-size: 8.5pt;
+}
+
+.bmr-p5-body .bmr-table th,
+.bmr-p5-body .bmr-table td {
+  padding: 1.5pt 3pt;
+}
+
+.bmr-p5-body .bmr-section-title {
+  margin: 2pt 0 2pt;
+  font-size: 9.5pt;
+}
+
+.bmr-p5-body .bmr-cell-input {
+  font-size: 8.5pt;
+  padding: 1pt 2pt;
+}
+
+/* PAGE 9 REPLICA COMPACTING */
+.bmr-p9-body .bmr-table {
+  margin-bottom: 4pt;
+  font-size: 8.5pt;
+}
+
+.bmr-p9-body .bmr-table th,
+.bmr-p9-body .bmr-table td {
+  padding: 1.5pt 3pt;
+}
+
+.bmr-p9-body .bmr-section-title {
+  margin: 3pt 0 2pt;
+  font-size: 9.5pt;
+}
+
+.bmr-p9-body p {
+  margin: 1pt 0;
+  font-size: 8.5pt;
+  line-height: 1.25;
+}
+
+.bmr-p9-body .bmr-cell-input {
+  font-size: 8.5pt;
+  padding: 1pt 2pt;
+}
+
+/* BOTTOM SECTION NAVIGATOR BAR */
+.bmr-bottom-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 20px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.bmr-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bmr-nav-btn-prev {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+.bmr-nav-btn-prev:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.bmr-nav-btn-next {
+  background: #0284c7;
+  color: #ffffff;
+  border: 1px solid #0284c7;
+}
+
+.bmr-nav-btn-next:hover {
+  background: #0369a1;
+}
+
+.bmr-nav-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* PRINT MODE CONTAINER (HIDDEN ON SCREEN, SHOWN WHEN PRINTING) */
+.bmr-print-only-container {
+  display: none;
+}
+
+/* =========================================================
+   PRINT SPECIFIC CSS (@media print)
+   ========================================================= */
+@media print {
+  @page {
+    size: 596pt 842pt;
+    margin: 0;
+  }
+
+  html,
+  body {
+    width: 596pt !important;
+    min-width: 596pt !important;
+    max-width: 596pt !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #root,
+  .app,
+  .layout,
+  .layout-body,
+  .layout-main,
+  .layout-content,
+  .main-layout,
+  .main-content,
+  .bmr-wrapper {
+    display: block !important;
+    width: 596pt !important;
+    min-width: 596pt !important;
+    max-width: 596pt !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+
+  nav,
+  aside,
+  header,
+  .layout-sidebar,
+  .layout-header,
+  .main-sidebar,
+  .main-header,
+  .bmr-topbar,
+  .bmr-sidebar-nav,
+  .bmr-bottom-nav,
+  .btn,
+  .no-print,
+  .bmr-interactive-screen-sheet {
+    display: none !important;
+  }
+
+  .bmr-print-only-container,
+  .bmr-print-only-container * {
+    visibility: visible !important;
+  }
+
+  .bmr-print-only-container {
+    display: block !important;
+    width: 596pt !important;
+    max-width: 596pt !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .bmr-print-only-container .bmr-sheet {
+    width: 596pt !important;
+    height: 842pt !important;
+    max-height: 842pt !important;
+    min-height: 842pt !important;
+    padding: 44.5pt 34pt 38pt 45.33pt !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    overflow: hidden !important;
+    position: relative !important;
+    background: #ffffff !important;
+    border: none !important;
+    box-shadow: none !important;
+    font-family: 'Times New Roman', Times, serif !important;
+    color: #000000 !important;
+  }
+
+  .bmr-print-only-container .bmr-sheet:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  .bmr-print-only-container .bmr-header-box {
+    width: 100% !important;
+    height: 249pt !important;
+    min-height: 249pt !important;
+    max-height: 249pt !important;
+    border: 1.5px solid #000 !important;
+    box-sizing: border-box !important;
+    flex-shrink: 0 !important;
+    margin-bottom: 0 !important;
+  }
+
+  .bmr-print-only-container .bmr-body {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 2pt 0 0 0 !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+    font-family: 'Times New Roman', Times, serif !important;
+    font-size: 8.5pt !important;
+    line-height: 1.15 !important;
+    color: #000000 !important;
+  }
+
+  .bmr-print-only-container .bmr-footer-box,
+  .bmr-print-only-container .bmr-footer {
+    width: 100% !important;
+    margin-top: auto !important;
+    flex-shrink: 0 !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .bmr-print-only-container .bmr-signoff-table {
+    width: 100% !important;
+    height: 99pt !important;
+    border-collapse: collapse !important;
+    border: 1.5px solid #000 !important;
+    box-sizing: border-box !important;
+    table-layout: fixed !important;
+  }
+
+  .bmr-print-only-container .bmr-signoff-table th,
+  .bmr-print-only-container .bmr-signoff-table td {
+    border: 1px solid #000 !important;
+    padding: 1pt 3pt !important;
+    box-sizing: border-box !important;
+    font-size: 9.5pt !important;
+  }
+
+  .bmr-print-only-container .bmr-footer-meta {
+    height: 18pt !important;
+    font-size: 9.5pt !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    margin-top: 1pt !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Reset tables in body */
+  .bmr-print-only-container .bmr-table {
+    width: 100% !important;
+    max-width: 100% !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    border: 1.5px solid #000 !important;
+    margin-bottom: 2pt !important;
+    box-sizing: border-box !important;
+    font-size: 8.5pt !important;
+    line-height: 1.05 !important;
+  }
+
+  .bmr-print-only-container .bmr-table th,
+  .bmr-print-only-container .bmr-table td {
+    border: 1px solid #000 !important;
+    padding: 1pt 2pt !important;
+    vertical-align: middle !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .bmr-print-only-container .bmr-table tr {
+    height: 13.5pt !important;
+  }
+
+  .bmr-print-only-container .bmr-table thead tr {
+    height: 14pt !important;
+    max-height: 14pt !important;
+  }
+
+  .bmr-print-only-container .bmr-table th {
+    background: #ffffff !important;
+    font-weight: bold !important;
+    font-size: 8pt !important;
+    line-height: 1.05 !important;
+    padding: 1pt 1pt !important;
+    height: 14pt !important;
+  }
+
+  /* Remove input chrome in print */
+  .bmr-print-only-container input,
+  .bmr-print-only-container textarea {
+    border: none !important;
+    background: transparent !important;
+    font-family: inherit !important;
+    font-size: inherit !important;
+    line-height: inherit !important;
+    color: #000000 !important;
+    outline: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    box-sizing: border-box !important;
+  }
+
+  .bmr-print-only-container input::-webkit-calendar-picker-indicator,
+  .bmr-print-only-container input::-webkit-inner-spin-button,
+  .bmr-print-only-container input::-webkit-clear-button {
+    display: none !important;
+    -webkit-appearance: none !important;
+  }
+
+  .bmr-print-only-container input::-webkit-datetime-edit,
+  .bmr-print-only-container input::-webkit-datetime-edit-fields-wrapper,
+  .bmr-print-only-container input::-webkit-datetime-edit-text,
+  .bmr-print-only-container input::-webkit-datetime-edit-month-field,
+  .bmr-print-only-container input::-webkit-datetime-edit-day-field,
+  .bmr-print-only-container input::-webkit-datetime-edit-year-field,
+  .bmr-print-only-container input::-webkit-datetime-edit-hour-field,
+  .bmr-print-only-container input::-webkit-datetime-edit-minute-field,
+  .bmr-print-only-container input::-webkit-datetime-edit-ampm-field {
+    padding: 0 !important;
+    margin: 0 !important;
+    line-height: 1.05 !important;
+    font-size: 8.5pt !important;
+  }
+
+  .bmr-print-only-container .bmr-line-input {
+    border-bottom: 1px dotted #000 !important;
+    display: inline-block !important;
+    vertical-align: baseline !important;
+  }
+
+  .bmr-print-only-container .bmr-cell-input {
+    width: 100% !important;
+    height: 100% !important;
+    padding: 0 !important;
+    text-align: inherit !important;
+    font-size: 8.5pt !important;
+    line-height: 1.05 !important;
+  }
+
+  .bmr-print-only-container .bmr-section-title {
+    font-weight: bold !important;
+    font-size: 9.5pt !important;
+    text-decoration: underline !important;
+    margin: 2pt 0 1pt 0 !important;
+    color: #000000 !important;
+    text-transform: uppercase !important;
+    line-height: 1.15 !important;
+  }
+
+  .bmr-print-only-container p {
+    margin: 1pt 0 1pt 0 !important;
+    font-size: 9pt !important;
+    line-height: 1.1 !important;
+  }
+
+  .bmr-print-only-container .bmr-sign-row {
+    margin: 2pt 0 2pt 0 !important;
+    font-size: 9pt !important;
+    line-height: 1.15 !important;
+  }
+
+  .bmr-print-only-container div[style*="margin: '10px 0'"],
+  .bmr-print-only-container div[style*="margin: 10px 0"],
+  .bmr-print-only-container div[style*="margin: '8px 0 12px'"],
+  .bmr-print-only-container div[style*="margin: 8px 0 12px"],
+  .bmr-print-only-container div[style*="margin: '6px 0 10px'"],
+  .bmr-print-only-container div[style*="margin: 6px 0 10px"] {
+    margin: 1pt 0 2pt 0 !important;
+  }
+
+  .bmr-print-only-container div[style*="marginBottom: 10"],
+  .bmr-print-only-container div[style*="margin-bottom: 10"] {
+    margin-bottom: 1pt !important;
+  }
+
+  .bmr-print-only-container div[style*="marginBottom: 14"],
+  .bmr-print-only-container div[style*="margin-bottom: 14"] {
+    margin-bottom: 2pt !important;
+  }
+
+  /* Page 1 Details Grid & Attachments Table */
+  .bmr-print-only-container .bmr-p1-details-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    margin-bottom: 4pt !important;
+  }
+
+  .bmr-print-only-container .bmr-p1-row {
+    display: flex !important;
+    align-items: baseline !important;
+    height: 18pt !important;
+    font-size: 10.5pt !important;
+  }
+
+  .bmr-print-only-container .bmr-p1-label {
+    width: 200pt !important;
+    flex-shrink: 0 !important;
+  }
+
+  .bmr-print-only-container .bmr-p1-colon {
+    margin-right: 6pt !important;
+    flex-shrink: 0 !important;
+  }
+
+  .bmr-print-only-container .bmr-p1-attachments-table {
+    width: 516pt !important;
+    max-width: 516pt !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    margin-top: 2pt !important;
+    box-sizing: border-box !important;
+  }
+
+  .bmr-print-only-container .bmr-p1-attachments-table th {
+    font-size: 10.5pt !important;
+    font-weight: bold !important;
+    padding: 0 0 4pt 0 !important;
+    border: none !important;
+    box-sizing: border-box !important;
+  }
+
+  .bmr-print-only-container .bmr-p1-th-check {
+    width: 366pt !important;
+    text-align: left !important;
+  }
+
+  .bmr-print-only-container .bmr-p1-th-marks {
+    width: 150pt !important;
+    text-align: left !important;
+    padding-left: 10pt !important;
+    font-size: 10pt !important;
+    box-sizing: border-box !important;
+  }
+
+  .bmr-print-only-container .bmr-p1-table-row {
+    height: 16pt !important;
+    box-sizing: border-box !important;
+  }
+
+  .bmr-print-only-container .bmr-p1-td-text {
+    width: 366pt !important;
+    font-size: 10pt !important;
+    padding: 0 !important;
+    vertical-align: middle !important;
+    border: none !important;
+    white-space: nowrap !important;
+    box-sizing: border-box !important;
+  }
+
+  .bmr-print-only-container .bmr-p1-td-num {
+    display: inline-block !important;
+    width: 25pt !important;
+  }
+
+  .bmr-print-only-container .bmr-p1-td-box {
+    width: 150pt !important;
+    padding: 0 0 0 45pt !important;
+    vertical-align: middle !important;
+    border: none !important;
+    box-sizing: border-box !important;
+  }
+
+  .bmr-print-only-container .bmr-p1-compliance-box {
+    width: 54pt !important;
+    height: 16pt !important;
+    border: 1px solid #000000 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 10.5pt !important;
+    font-weight: bold !important;
+    background: #ffffff !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+  }
+
+  .bmr-print-only-container .bmr-p1-table-row + .bmr-p1-table-row .bmr-p1-compliance-box {
+    margin-top: -1px !important;
+  }
+
+  /* Page 5 test request box */
+  .bmr-print-only-container .bmr-p5-body div[style*="border: 1px solid"],
+  .bmr-print-only-container .bmr-p5-body div[style*="border:1px solid"] {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 1pt 0 !important;
+    font-size: 8pt !important;
+    line-height: 1.1 !important;
+  }
+
+  /* Page 14 retain lines */
+  .bmr-print-only-container div[style*="lineHeight: '2.4'"],
+  .bmr-print-only-container div[style*="line-height: 2.4"] {
+    line-height: 1.3 !important;
+    margin: 2pt 0 4pt 0 !important;
+  }
+
+  /* Page 17 specimen box */
+  .bmr-print-only-container .bmr-specimen-box {
+    border: none !important;
+    min-height: 0 !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+  }
+
+  /* Page 18 & 19 textareas */
+  .bmr-print-only-container textarea {
+    height: 35pt !important;
+    min-height: 0 !important;
+    border: none !important;
+    border-bottom: 1px dotted #000 !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 0 2pt 0 !important;
+    resize: none !important;
+    font-size: 9pt !important;
+    line-height: 1.15 !important;
+  }
+
+  /* Yes/No status display in print */
+  .bmr-print-only-container .bmr-yes-no-group {
+    border: none !important;
+    display: inline-block !important;
+    width: 100% !important;
+    text-align: center !important;
+  }
+
+  .bmr-print-only-container .bmr-yn-btn {
+    border: none !important;
+    background: transparent !important;
+    color: #000000 !important;
+    padding: 0 2pt !important;
+    font-size: 8.5pt !important;
+  }
+
+  .bmr-print-only-container .bmr-yn-btn.active-yes,
+  .bmr-print-only-container .bmr-yn-btn.active-no {
+    font-weight: bold !important;
+    text-decoration: underline !important;
+  }
+}
+
+
+/* =========================================================
+   BMR NOT AVAILABLE YET SCREEN
+   ========================================================= */
+.bmr-unavailable-card {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  padding: 48px 32px;
+  text-align: center;
+}
+
+.bmr-unavailable-icon {
+  font-size: 52px;
+  margin-bottom: 16px;
+}
+
+.bmr-unavailable-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 10px;
+}
+
+.bmr-unavailable-subtitle {
+  color: #64748b;
+  font-size: 15px;
+  margin: 0 0 20px;
+  line-height: 1.6;
+}
+
+
+
+@media print {
+  ::placeholder {
+    color: transparent !important;
+    opacity: 0 !important;
+  }
+}
+
+/* PAGE 8 COMPACTING */
+.bmr-p8-body .bmr-table {
+  margin-bottom: 2pt !important;
+}
+.bmr-p8-body .bmr-table th,
+.bmr-p8-body .bmr-table td {
+  padding: 1pt 1.5pt !important;
+}
+.bmr-p8-body .bmr-section-title {
+  margin: 2pt 0 1pt !important;
+}
+.bmr-p8-body p {
+  margin: 1pt 0 2pt !important;
+}
+.bmr-p8-body .bmr-sign-row {
+  margin: 3pt 0 !important;
+}
+
+/* PAGE 13 COMPACTING */
+.bmr-p13-body .bmr-table {
+  margin-bottom: 2pt !important;
+}
+.bmr-p13-body .bmr-table th,
+.bmr-p13-body .bmr-table td {
+  padding: 1pt 1.5pt !important;
+}
+.bmr-p13-body .bmr-section-title {
+  margin: 2pt 0 1pt !important;
+}
+.bmr-p13-body p {
+  margin: 1pt 0 2pt !important;
+}
+
+
+/* =========================================================
+   SYRUP BMR (19 PAGES, FORM NO. SOP/QA/04/F-03/00) COMPACT STYLES
+   Scoped strictly under .bmr-syrup-sheet so Drops BMR remains 100% untouched.
+   ========================================================= */
+
+.bmr-syrup-sheet {
+  font-family: 'Times New Roman', Times, serif;
+}
+
+.bmr-syrup-sheet .bmr-body {
+  font-size: 8.5pt;
+  line-height: 1.25;
+  padding: 1pt 0 0 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.bmr-syrup-sheet .bmr-section-title {
+  font-size: 9pt;
+  font-weight: bold;
+  margin: 2pt 0 1.5pt;
+  color: #000000;
+  font-family: 'Times New Roman', Times, serif;
+}
+
+.bmr-syrup-sheet .bmr-table {
+  width: 100% !important;
+  max-width: 100% !important;
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+  margin-bottom: 2.5pt !important;
+  font-size: 8pt !important;
+  font-family: 'Times New Roman', Times, serif;
+}
+
+.bmr-syrup-sheet .bmr-table th {
+  padding: 1.5pt 2pt !important;
+  font-size: 8pt !important;
+  line-height: 1.15 !important;
+  font-weight: bold !important;
+  background-color: transparent !important;
+  color: #000000 !important;
+  border: 1px solid #000000 !important;
+  box-sizing: border-box !important;
+}
+
+.bmr-syrup-sheet .bmr-table td {
+  padding: 1pt 2pt !important;
+  font-size: 8pt !important;
+  line-height: 1.15 !important;
+  height: 14.5pt !important;
+  color: #000000 !important;
+  border: 1px solid #000000 !important;
+  box-sizing: border-box !important;
+  vertical-align: middle !important;
+}
+
+.bmr-syrup-sheet .bmr-cell-input {
+  height: 13.5pt !important;
+  font-size: 8pt !important;
+  padding: 0 2pt !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  box-sizing: border-box !important;
+}
+
+.bmr-syrup-sheet .bmr-line-input {
+  font-size: 8.5pt !important;
+  height: 14.5pt !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  box-sizing: border-box !important;
+}
+
+.bmr-syrup-sheet .bmr-sign-row {
+  margin: 2pt 0 3pt !important;
+  font-size: 8.5pt !important;
+}
+
+.bmr-syrup-sheet .bmr-yes-no-group {
+  display: inline-flex !important;
+  gap: 2px !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+
+.bmr-syrup-sheet .bmr-yn-btn {
+  font-size: 7.5pt !important;
+  padding: 0 3.5pt !important;
+  height: 13pt !important;
+  line-height: 11pt !important;
+  border-radius: 2px !important;
+}
+
+/* Page 1 Details Grid */
+.bmr-syrup-p1-details {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2.5pt !important;
+  margin: 4pt 0 8pt !important;
+}
+
+.bmr-syrup-p1-row {
+  display: grid !important;
+  grid-template-columns: 14pt 185pt 10pt 1fr !important;
+  align-items: center !important;
+  font-size: 8.5pt !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  height: 16pt !important;
+  min-height: 16pt !important;
+}
+
+.bmr-syrup-p1-row .bmr-p1-num {
+  font-weight: normal !important;
+  color: #000 !important;
+}
+
+.bmr-syrup-p1-row .bmr-p1-label {
+  font-weight: normal !important;
+  color: #000 !important;
+  white-space: nowrap !important;
+}
+
+.bmr-syrup-p1-row .bmr-p1-colon {
+  text-align: center !important;
+  color: #000 !important;
+}
+
+.bmr-syrup-p1-row .bmr-p1-field {
+  display: flex !important;
+  align-items: center !important;
+}
+
+.bmr-syrup-p1-row .bmr-p1-field .bmr-line-input {
+  width: 100% !important;
+  font-size: 8.5pt !important;
+  height: 15pt !important;
+}
+
+/* Page 1 Attachments */
+.bmr-syrup-p1-attachments {
+  width: 100% !important;
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+  margin-top: 4pt !important;
+}
+
+.bmr-syrup-p1-attachments th {
+  font-size: 8.5pt !important;
+  font-weight: bold !important;
+  padding: 0 0 3pt 0 !important;
+  border: none !important;
+  color: #000 !important;
+}
+
+.bmr-syrup-p1-attachments td {
+  padding: 0 !important;
+  border: none !important;
+  height: 16pt !important;
+  vertical-align: middle !important;
+}
+
+.bmr-syrup-p1-box {
+  width: 50pt !important;
+  height: 16pt !important;
+  border: 1px solid #000000 !important;
+  margin: 0 auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  font-size: 9pt !important;
+  font-weight: bold !important;
+  box-sizing: border-box !important;
+}
+
+.bmr-syrup-p1-row-att + .bmr-syrup-p1-row-att .bmr-syrup-p1-box {
+  margin-top: -1px !important;
+}
+
+.bmr-syrup-p1-box:hover {
+  background: #f0fdf4 !important;
+}
+
+.bmr-syrup-p1-box.checked {
+  background: #f8fafc !important;
+}
+
+/* Page 5 Bulk Process and clearance */
+.bmr-syrup-sheet .bmr-p5-text-block {
+  font-size: 8pt !important;
+  line-height: 1.35 !important;
+  margin: 2pt 0 3pt !important;
+  color: #000 !important;
+}
+
+/* Radio button single-line alignment */
+.bmr-syrup-radio-group {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  font-size: 8.5pt !important;
+  font-family: 'Times New Roman', Times, serif !important;
+}
+
+.bmr-syrup-radio-label {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  cursor: pointer !important;
+}
+
+.bmr-syrup-radio-sep {
+  margin: 0 2px !important;
+  color: #000 !important;
+}
+
+/* Formulas on Page 16 */
+.bmr-syrup-formula-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  font-size: 8.5pt !important;
+  margin: 8pt 0 16pt !important;
+  font-family: 'Times New Roman', Times, serif !important;
+}
+
+.bmr-syrup-fraction {
+  display: inline-flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  vertical-align: middle !important;
+}
+
+.bmr-syrup-fraction-num {
+  border-bottom: 1.5px solid #000 !important;
+  padding: 0 8px 2px !important;
+  text-align: center !important;
+}
+
+.bmr-syrup-fraction-den {
+  padding-top: 2px !important;
+  text-align: center !important;
+}
+
+/* Dotted lines for deviations */
+.bmr-syrup-dotted-input {
+  width: 100% !important;
+  border-bottom: 1px dotted #000000 !important;
+  border-top: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  background: transparent !important;
+  padding: 2px 4px !important;
+  font-size: 8.5pt !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  height: 16pt !important;
+  border-radius: 0 !important;
+}
+
+/* Grey cells for equipments with no input */
+.bmr-syrup-grey-cell {
+  background-color: #d9d9d9 !important;
+}
+
+/* Page 5 compacting */
+.bmr-syrup-p5 .bmr-table {
+  margin-bottom: 1.5pt !important;
+  font-size: 7.5pt !important;
+}
+.bmr-syrup-p5 .bmr-table th {
+  padding: 1pt 1.5pt !important;
+  font-size: 7.5pt !important;
+  line-height: 1.05 !important;
+}
+.bmr-syrup-p5 .bmr-table td {
+  padding: 0.5pt 1.5pt !important;
+  font-size: 7.5pt !important;
+  height: 12pt !important;
+  line-height: 1.05 !important;
+}
+.bmr-syrup-p5 .bmr-cell-input {
+  height: 11pt !important;
+  font-size: 7.5pt !important;
+  padding: 0 1pt !important;
+}
+.bmr-syrup-p5 .bmr-line-input {
+  height: 12pt !important;
+  font-size: 7.5pt !important;
+  padding: 0 1pt !important;
+}
+.bmr-syrup-p5 .bmr-section-title {
+  font-size: 8.5pt !important;
+  margin: 1pt 0 0.5pt !important;
+}
+.bmr-syrup-p5 .bmr-p5-text-block {
+  font-size: 7.5pt !important;
+  line-height: 1.15 !important;
+  margin: 1pt 0 !important;
+}
+.bmr-syrup-p5 .bmr-p5-text-block > div {
+  margin-bottom: 0.5pt !important;
+}
+.bmr-syrup-p5 .bmr-sign-compact {
+  font-size: 7.5pt !important;
+  line-height: 1.15 !important;
+  margin: 1pt 0 !important;
+}
+.bmr-syrup-p5 .bmr-yn-btn {
+  font-size: 7pt !important;
+  padding: 0 2pt !important;
+  height: 11.5pt !important;
+  line-height: 9.5pt !important;
+}
+
+/* Page 9 compacting */
+.bmr-syrup-p9 .bmr-table {
+  margin-bottom: 1.5pt !important;
+  font-size: 7.5pt !important;
+}
+.bmr-syrup-p9 .bmr-table th {
+  padding: 1pt 1.5pt !important;
+  font-size: 7.5pt !important;
+  line-height: 1.05 !important;
+}
+.bmr-syrup-p9 .bmr-table td {
+  padding: 0.5pt 1.5pt !important;
+  font-size: 7.5pt !important;
+  height: 11.5pt !important;
+  line-height: 1.05 !important;
+}
+.bmr-syrup-p9 .bmr-cell-input {
+  height: 10.5pt !important;
+  font-size: 7.5pt !important;
+  padding: 0 1pt !important;
+}
+.bmr-syrup-p9 .bmr-line-input {
+  height: 11.5pt !important;
+  font-size: 7.5pt !important;
+  padding: 0 1pt !important;
+}
+.bmr-syrup-p9 .bmr-section-title {
+  font-size: 8.5pt !important;
+  margin: 1pt 0 0.5pt !important;
+}
+.bmr-syrup-p9 .bmr-p9-text {
+  font-size: 7.5pt !important;
+  line-height: 1.15 !important;
+  margin: 0.5pt 0 !important;
+}
+.bmr-syrup-p9 .bmr-yn-btn {
+  font-size: 7pt !important;
+  padding: 0 2pt !important;
+  height: 11pt !important;
+  line-height: 9pt !important;
+}
+
+/* Page 12 compacting */
+.bmr-syrup-p12 .bmr-table {
+  margin-top: 0.5pt !important;
+  margin-bottom: 1pt !important;
+  font-size: 7pt !important;
+}
+.bmr-syrup-p12 .bmr-table th {
+  padding: 0.5pt 1pt !important;
+  font-size: 7pt !important;
+  line-height: 1.02 !important;
+  height: 11pt !important;
+}
+.bmr-syrup-p12 .bmr-table td {
+  padding: 0.5pt 1pt !important;
+  font-size: 7pt !important;
+  height: 11pt !important;
+  line-height: 1.02 !important;
+}
+.bmr-syrup-p12 .bmr-cell-input {
+  height: 10pt !important;
+  font-size: 7pt !important;
+  padding: 0 1pt !important;
+}
+.bmr-syrup-p12 .bmr-line-input {
+  height: 11pt !important;
+  font-size: 7.5pt !important;
+  padding: 0 1pt !important;
+}
+.bmr-syrup-p12 .bmr-section-title {
+  font-size: 8pt !important;
+  margin: 1pt 0 0.5pt !important;
+}
+.bmr-syrup-p12 .bmr-p12-row {
+  font-size: 7.5pt !important;
+  line-height: 1.1 !important;
+  margin: 0.5pt 0 !important;
+}
+.bmr-syrup-p12 .bmr-yn-btn {
+  font-size: 6.5pt !important;
+  padding: 0 1.5pt !important;
+  height: 10pt !important;
+  line-height: 8.5pt !important;
+}
+.bmr-syrup-p12 .bmr-syrup-radio-group {
+  font-size: 7.5pt !important;
+  gap: 4px !important;
+}

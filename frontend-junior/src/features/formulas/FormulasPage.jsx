@@ -100,6 +100,7 @@ export default function FormulasPage({ companyId, productId, product, backTo = '
   const [bmrSlipOpen, setBmrSlipOpen] = useState(false)
   const [bmrSlipLines, setBmrSlipLines] = useState(null)
   const [bmrSlipInitialTab, setBmrSlipInitialTab] = useState('RM')
+  const [bmrSlipAllocation, setBmrSlipAllocation] = useState(null)
   const [dirtyKinds, setDirtyKinds] = useState({})
   const hasUnsaved = Object.values(dirtyKinds).some(Boolean)
 
@@ -491,6 +492,7 @@ export default function FormulasPage({ companyId, productId, product, backTo = '
           onClose={() => {
             setBmrSlipOpen(false)
             setBmrSlipLines(null)
+            setBmrSlipAllocation(null)
           }}
           product={product}
           formula={formula}
@@ -498,6 +500,7 @@ export default function FormulasPage({ companyId, productId, product, backTo = '
           activeLines={bmrSlipLines}
           company={company}
           initialTab={bmrSlipInitialTab}
+          batchAllocation={bmrSlipAllocation}
         />
       )}
 
@@ -576,9 +579,10 @@ export default function FormulasPage({ companyId, productId, product, backTo = '
             refreshRevisions()
           }}
           onRefresh={refreshRevisions}
-          onOpenBmrSlip={(customLines, type = 'RM') => {
+          onOpenBmrSlip={(customLines, type = 'RM', allocation = null) => {
             setBmrSlipLines(customLines || null)
             setBmrSlipInitialTab(type)
+            setBmrSlipAllocation(allocation)
             setBmrSlipOpen(true)
           }}
         />
@@ -654,9 +658,10 @@ export default function FormulasPage({ companyId, productId, product, backTo = '
             formula={formula}
             revision={revision}
             product={product}
-            onOpenBmrSlip={(customLines, type) => {
+            onOpenBmrSlip={(customLines, type, allocation = null) => {
               setBmrSlipLines(customLines || null)
               setBmrSlipInitialTab(type)
+              setBmrSlipAllocation(allocation)
               setBmrSlipOpen(true)
             }}
           />
@@ -769,11 +774,13 @@ function RevisionView({
       .map((line) => {
         let qtyReceived = ''
         let qtyText = ''
+        let part = 1
         if (line.notes) {
           const parts = line.notes.split('|').map((s) => s.trim())
           for (const p of parts) {
             if (p.startsWith('RECV:')) qtyReceived = p.replace('RECV:', '').trim()
             if (p.startsWith('QTY_TEXT:')) qtyText = p.replace('QTY_TEXT:', '').trim()
+            if (p.startsWith('PART:')) part = Number(p.replace('PART:', '').trim()) || 1
           }
         }
         const calcMode = line.calculation_mode === 'AS_PER_LABEL_CLAIM'
@@ -790,6 +797,7 @@ function RevisionView({
 
         return {
           id: line.id,
+          part,
           material: { id: line.material_id, code: line.material_code, name: line.material_name },
           unit: line.unit_code,
           quantity: displayQty,
@@ -807,12 +815,75 @@ function RevisionView({
         }
       })
 
-  const initialSnapshot = JSON.stringify({ [RAW]: initialRows(RAW), [PACKAGING]: initialRows(PACKAGING) })
+  const initialIsTwoPart = Boolean(
+    (revision.notes && (revision.notes.includes('FORMULA_PARTS:2') || revision.notes.includes('TWO_PART:true'))) ||
+    (revision.lines || []).some((line) => line.notes && line.notes.includes('PART:2'))
+  )
+  const initialPart2UsesPart1 = Boolean(
+    revision.notes && revision.notes.includes('PART2_USES_PART1:true')
+  )
+  const [partsMode, setPartsMode] = useState(initialIsTwoPart ? 'TWO_PART' : 'SINGLE')
+  const [part2UsesPart1, setPart2UsesPart1] = useState(initialPart2UsesPart1)
+
+  const initialSnapshot = JSON.stringify({
+    rows: { [RAW]: initialRows(RAW), [PACKAGING]: initialRows(PACKAGING) },
+    partsMode: initialIsTwoPart ? 'TWO_PART' : 'SINGLE',
+    part2UsesPart1: initialPart2UsesPart1,
+  })
   const [rowsByKind, setRowsByKind] = useState(() => ({ [RAW]: initialRows(RAW), [PACKAGING]: initialRows(PACKAGING) }))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [savedNote, setSavedNote] = useState('')
-  const dirty = JSON.stringify(rowsByKind) !== initialSnapshot
+  const dirty = JSON.stringify({ rows: rowsByKind, partsMode, part2UsesPart1 }) !== initialSnapshot
+
+  const isTwoPart = partsMode === 'TWO_PART'
+  const part1Rows = rowsByKind[RAW].filter((r) => (r.part || 1) === 1)
+  const part2Rows = rowsByKind[RAW].filter((r) => r.part === 2)
+
+  const setPart1Rows = (nextPart1) => {
+    setRowsByKind((prev) => {
+      const p2 = prev[RAW].filter((r) => r.part === 2)
+      return {
+        ...prev,
+        [RAW]: [...nextPart1.map((r) => ({ ...r, part: 1 })), ...p2],
+      }
+    })
+  }
+
+  const setPart2Rows = (nextPart2) => {
+    setRowsByKind((prev) => {
+      const p1 = prev[RAW].filter((r) => (r.part || 1) === 1)
+      return {
+        ...prev,
+        [RAW]: [...p1, ...nextPart2.map((r) => ({ ...r, part: 2 }))],
+      }
+    })
+  }
+
+  const handleMoveRowPart = (row, targetPart) => {
+    setRowsByKind((prev) => ({
+      ...prev,
+      [RAW]: prev[RAW].map((r) => (r === row || (r.id && r.id === row.id) ? { ...r, part: targetPart } : r)),
+    }))
+  }
+
+  const handleTogglePartsMode = (mode) => {
+    if (!editable) return
+    if (mode === 'SINGLE' && partsMode === 'TWO_PART') {
+      const p2Count = rowsByKind[RAW].filter((r) => r.part === 2).length
+      if (p2Count > 0) {
+        if (!confirmAction(`Switch to Single Part? ${p2Count} material(s) in Part-2 will be merged into Part-1.`)) {
+          return
+        }
+      }
+      setRowsByKind((prev) => ({
+        ...prev,
+        [RAW]: prev[RAW].map((r) => ({ ...r, part: 1 })),
+      }))
+      setPart2UsesPart1(false)
+    }
+    setPartsMode(mode)
+  }
 
   useEffect(() => {
     onDirtyChange(RAW, dirty)
@@ -826,10 +897,24 @@ function RevisionView({
     setSavedNote('')
     try {
       const lines = [
-        ...buildRevisionLinesPayload({ allLines: [], kind: RAW, rows: rowsByKind[RAW] }),
-        ...buildRevisionLinesPayload({ allLines: [], kind: PACKAGING, rows: rowsByKind[PACKAGING] }),
+        ...buildRevisionLinesPayload({ allLines: [], kind: RAW, rows: rowsByKind[RAW], isTwoPart }),
+        ...buildRevisionLinesPayload({ allLines: [], kind: PACKAGING, rows: rowsByKind[PACKAGING], isTwoPart }),
       ]
-      await updateRevision(companyId, formulaId, revision.id, { expected_version: revision.version, lines })
+      let revNotes = revision.notes || ''
+      revNotes = revNotes.replace(/FORMULA_PARTS:\s*[12]/g, '').trim()
+      revNotes = revNotes.replace(/TWO_PART:\s*(true|false)/g, '').trim()
+      revNotes = revNotes.replace(/PART2_USES_PART1:\s*(true|false)/g, '').trim()
+      if (isTwoPart) {
+        revNotes = revNotes ? `${revNotes} | FORMULA_PARTS:2` : 'FORMULA_PARTS:2'
+      }
+      if (isTwoPart && part2UsesPart1) {
+        revNotes = revNotes ? `${revNotes} | PART2_USES_PART1:true` : 'PART2_USES_PART1:true'
+      }
+      await updateRevision(companyId, formulaId, revision.id, {
+        expected_version: revision.version,
+        notes: revNotes,
+        lines,
+      })
       setSavedNote('Draft saved successfully.')
       onChanged('Draft saved.')
     } catch (err) {
@@ -849,6 +934,7 @@ function RevisionView({
       id: r.id ?? `raw-${idx}`,
       line_number: idx + 1,
       material_type: RAW,
+      part: isTwoPart ? (r.part || 1) : 1,
       material: r.material,
       material_code: r.material?.code,
       material_name: r.material?.name,
@@ -859,6 +945,7 @@ function RevisionView({
       label_claim: r.calculation_mode === 'AS_PER_FORMULA' ? '—' : (r.label_claim || r.special_value),
       special_value: r.special_value,
       ar_no: r.ar_no,
+      notes: r.notes || '',
       calculation_mode: r.calculation_mode,
       label_claim_quantity: r.label_claim_quantity,
       label_claim_uom: r.label_claim_uom,
@@ -898,15 +985,87 @@ function RevisionView({
         </div>
       </div>
 
-      {/* RAW MATERIALS (MATCHING PHARMA BMR SLIP ATTACHMENT 1) */}
-      <MaterialTable
-        title="Raw Materials & Ingredients"
-        kind={RAW}
-        rows={rowsByKind[RAW]}
-        setRows={(next) => setRowsByKind((prev) => ({ ...prev, [RAW]: next }))}
-        editable={editable}
-        companyId={companyId}
-      />
+      {/* FORMULA STRUCTURE TOGGLE STRIP */}
+      <div className="fm-parts-strip">
+        <div className="fm-parts-strip-left">
+          <div className="fm-parts-title-block">
+            <span className="fm-parts-label">
+              ⚗️ Formula Structure:
+            </span>
+            <span className="fm-parts-subtext">
+              {isTwoPart
+                ? 'Multi-stage formula with separate Part-1 and Part-2 raw material preparations.'
+                : 'Single continuous formula without separate preparation stages.'}
+            </span>
+          </div>
+        </div>
+        <div className="fm-parts-toggle-group">
+          <button
+            type="button"
+            className={`fm-parts-toggle-btn ${!isTwoPart ? 'active' : ''}`}
+            onClick={() => handleTogglePartsMode('SINGLE')}
+            disabled={!editable}
+            title={editable ? 'Switch to single continuous formula' : 'Locked in current state'}
+          >
+            🧪 Single Part (Standard)
+          </button>
+          <button
+            type="button"
+            className={`fm-parts-toggle-btn ${isTwoPart ? 'active' : ''}`}
+            onClick={() => handleTogglePartsMode('TWO_PART')}
+            disabled={!editable}
+            title={editable ? 'Enable Part-1 & Part-2 preparation stages' : 'Locked in current state'}
+          >
+            ⚗️ 2-Part Formula (Part-1 & Part-2)
+          </button>
+        </div>
+      </div>
+
+      {isTwoPart ? (
+        <>
+          {/* PART-1 RAW MATERIALS */}
+          <MaterialTable
+            title="Part-1: Raw Materials & Ingredients"
+            subtitle="Part-1 preparation / Main active ingredients"
+            badge={<span className="fm-part-badge-tag fm-part-badge-p1">PART - 1</span>}
+            kind={RAW}
+            partNumber={1}
+            rows={part1Rows}
+            setRows={setPart1Rows}
+            onMoveRow={(row) => handleMoveRowPart(row, 2)}
+            editable={editable}
+            companyId={companyId}
+          />
+
+          {/* PART-2 RAW MATERIALS */}
+          <MaterialTable
+            title="Part-2: Raw Materials & Ingredients"
+            subtitle="Part-2 preparation / Secondary mixture & vehicle"
+            badge={<span className="fm-part-badge-tag fm-part-badge-p2">PART - 2</span>}
+            kind={RAW}
+            partNumber={2}
+            rows={part2Rows}
+            setRows={setPart2Rows}
+            onMoveRow={(row) => handleMoveRowPart(row, 1)}
+            editable={editable}
+            companyId={companyId}
+            part2UsesPart1={part2UsesPart1}
+            onTogglePart2UsesPart1={editable ? () => setPart2UsesPart1((v) => !v) : undefined}
+            part1Rows={part1Rows}
+          />
+        </>
+      ) : (
+        /* SINGLE PART RAW MATERIALS */
+        <MaterialTable
+          title="Raw Materials & Ingredients"
+          kind={RAW}
+          partNumber={1}
+          rows={rowsByKind[RAW]}
+          setRows={(next) => setRowsByKind((prev) => ({ ...prev, [RAW]: next.map((r) => ({ ...r, part: 1 })) }))}
+          editable={editable}
+          companyId={companyId}
+        />
+      )}
 
       {/* PACKAGING MATERIALS (ATTACHMENT 4 FORMAT) */}
       <PackagingMaterialTable
@@ -998,7 +1157,7 @@ function RevisionView({
 /* =========================================================
    MATERIAL TABLE (RAW OR PACKAGING) WITH GUIDED BASIS
    ========================================================= */
-function MaterialTable({ title, kind, rows, setRows, editable, companyId }) {
+function MaterialTable({ title, subtitle, badge, kind, partNumber = 1, rows, setRows, onMoveRow, editable, companyId, part2UsesPart1 = false, onTogglePart2UsesPart1, part1Rows = [] }) {
   const [modalOpen, setModalOpen] = useState(false)
   const [claimUnits, setClaimUnits] = useState([])
 
@@ -1011,7 +1170,7 @@ function MaterialTable({ title, kind, rows, setRows, editable, companyId }) {
   const handleAddLine = (lineData) => {
     setRows([
       ...rows,
-      lineData,
+      { ...lineData, part: partNumber || 1 },
     ])
     setModalOpen(false)
   }
@@ -1021,37 +1180,61 @@ function MaterialTable({ title, kind, rows, setRows, editable, companyId }) {
     setRows(rows.filter((_, i) => i !== index))
   }
 
+  // For Part-2: show a toggle to indicate "uses Part-1 output as intermediate"
+  const isPart2 = partNumber === 2
+  const totalDisplayRows = rows.length + (isPart2 && part2UsesPart1 ? 1 : 0)
+
   return (
     <section className="fm-table-section" aria-label={title}>
       <div className="fm-table-header">
         <div>
-          <h4>{title}</h4>
-          <p>{rows.length === 1 ? '1 line' : `${rows.length} lines`} · Format aligned with BMR Raw Material Requisition Slip</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <h4>{title}</h4>
+            {badge}
+          </div>
+          <p>{totalDisplayRows === 1 ? '1 line' : `${totalDisplayRows} lines`} · {subtitle || 'Format aligned with BMR Raw Material Requisition Slip'}</p>
         </div>
         {editable && (
           <button type="button" className="fm-btn-add-mat" onClick={() => setModalOpen(true)}>
-            + Add Material
+            + Add Material {partNumber ? `to Part ${partNumber}` : ''}
           </button>
         )}
       </div>
+
+      {/* Part-2: toggle to use Part-1 output as an ingredient */}
+      {isPart2 && (
+        <div className="fm-p2-uses-p1-strip">
+          <label className="fm-p2-uses-p1-label">
+            <input
+              type="checkbox"
+              className="fm-p2-uses-p1-checkbox"
+              checked={part2UsesPart1}
+              onChange={onTogglePart2UsesPart1 || (() => {})}
+              disabled={!editable}
+            />
+            <span className="fm-p2-uses-p1-text">
+              🔗 Part-2 uses Part-1 output as an intermediate ingredient
+            </span>
+            <span className="fm-p2-uses-p1-hint">
+              (Adds Part-I Preparation as first input row in Part-2)
+            </span>
+          </label>
+        </div>
+      )}
 
       {modalOpen && (
         <GuidedAddMaterialModal
           kind={kind}
           exclude={rows.map((row) => row.material.id)}
           claimUnits={claimUnits}
+          defaultPart={partNumber}
           onAdd={handleAddLine}
           onClose={() => setModalOpen(false)}
         />
       )}
 
-      {rows.length === 0 ? (
-        <div className="fm-empty-table">
-          {editable
-            ? `No ${title.toLowerCase()} yet. Click "+ Add Material" above to choose calculation basis and add an ingredient.`
-            : `No ${title.toLowerCase()} in this revision.`}
-        </div>
-      ) : (
+      {(isPart2 && part2UsesPart1) || rows.length > 0 ? (
+        // Show table when part2UsesPart1 is enabled (always has Part-1 ref row) OR when rows exist
         <div className="fm-table-scroll">
           <table className="fm-materials-table">
             <thead>
@@ -1069,14 +1252,43 @@ function MaterialTable({ title, kind, rows, setRows, editable, companyId }) {
               </tr>
             </thead>
             <tbody>
+              {/* Special read-only row: Part-1 intermediate reference (only when enabled) */}
+              {isPart2 && part2UsesPart1 && (
+                <tr className="fm-part1-ref-row">
+                  <td className="fm-col-sr">1</td>
+                  <td className="fm-col-rmcode">
+                    <span className="fm-badge fm-badge-code fm-badge-part1-ref">P1</span>
+                  </td>
+                  <td className="fm-col-material">
+                    <span className="fm-material-name fm-part1-ref-name">
+                      🔗 Part-I Preparation (Intermediate)
+                    </span>
+                    <span className="fm-part1-ref-sub">
+                      As prepared in Part-I — {part1Rows.length} material(s)
+                    </span>
+                  </td>
+                  <td className="fm-col-potency">—</td>
+                  <td className="fm-col-mode">
+                    <span className="fm-mode-tag fm-mode-intermediate">AS PREPARED</span>
+                  </td>
+                  <td className="fm-col-claim">—</td>
+                  <td className="fm-col-qty">Q.S.</td>
+                  <td className="fm-col-unit">—</td>
+                  <td className="fm-col-ar">—</td>
+                  {editable && <td className="fm-col-action" />}
+                </tr>
+              )}
+
+              {/* Regular rows (with offset sr number if Part-1 ref row is shown) */}
               {rows.map((row, index) => {
+                const srOffset = isPart2 && part2UsesPart1 ? 1 : 0
                 const isFormula = row.calculation_mode === 'AS_PER_FORMULA'
                 const isClaim = row.calculation_mode === 'AS_PER_LABEL_CLAIM'
                 const isExcipient = row.calculation_mode === 'EXCIPIENT_QS' || (row.special_value && row.special_value.toUpperCase().includes('Q.S.'))
 
                 return (
                   <tr key={row.id ?? `new-${index}`}>
-                    <td className="fm-col-sr">{index + 1}</td>
+                    <td className="fm-col-sr">{srOffset + index + 1}</td>
                     <td className="fm-col-rmcode">
                       <span className="fm-badge fm-badge-code">
                         {row.material.code || `RM-${String(index + 1).padStart(3, '0')}`}
@@ -1205,6 +1417,16 @@ function MaterialTable({ title, kind, rows, setRows, editable, companyId }) {
                     </td>
                     {editable && (
                       <td className="fm-col-action">
+                        {onMoveRow && (
+                          <button
+                            type="button"
+                            className="fm-btn-move-part"
+                            onClick={() => onMoveRow(row)}
+                            title={partNumber === 1 ? 'Move this material to Part-2' : 'Move this material to Part-1'}
+                          >
+                            {partNumber === 1 ? '➡️ To Part 2' : '⬅️ To Part 1'}
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="fm-del-btn"
@@ -1220,6 +1442,12 @@ function MaterialTable({ title, kind, rows, setRows, editable, companyId }) {
               })}
             </tbody>
           </table>
+        </div>
+      ) : (
+        <div className="fm-empty-table">
+          {editable
+            ? `No ${title.toLowerCase()} yet. Click "+ Add Material" above to choose calculation basis and add an ingredient.`
+            : `No ${title.toLowerCase()} in this revision.`}
         </div>
       )}
     </section>
@@ -1590,7 +1818,7 @@ function AddPackagingMaterialModal({ exclude = [], onAdd, onClose }) {
 /* =========================================================
    GUIDED ADD MATERIAL MODAL (STEP 1: MATERIAL -> STEP 2: BASIS -> STEP 3: VALUES)
    ========================================================= */
-function GuidedAddMaterialModal({ kind, exclude, claimUnits, onAdd, onClose }) {
+function GuidedAddMaterialModal({ kind, exclude, claimUnits, defaultPart = 1, onAdd, onClose }) {
   const [term, setTerm] = useState('')
   const [options, setOptions] = useState([])
   const [loading, setLoading] = useState(false)
@@ -1636,6 +1864,7 @@ function GuidedAddMaterialModal({ kind, exclude, claimUnits, onAdd, onClose }) {
 
     onAdd({
       id: null,
+      part: defaultPart || 1,
       material: { id: selectedMaterial.id, code: selectedMaterial.code, name: selectedMaterial.name },
       unit: unitCode,
       quantity: quantity.trim(),
@@ -1652,7 +1881,7 @@ function GuidedAddMaterialModal({ kind, exclude, claimUnits, onAdd, onClose }) {
 
   return (
     <Modal
-      title="Add Material to Batch Formula"
+      title={defaultPart ? `Add Material to Part-${defaultPart}` : "Add Material to Batch Formula"}
       onClose={onClose}
       maxWidth="620px"
       footer={
@@ -2293,6 +2522,7 @@ function ApprovalPanel({ companyId, formulaId, revision, product, formula, canSu
    ========================================================= */
 function FormulaCreateForm({ companyId, product, onCancel, onCreated }) {
   const [basis, setBasis] = useState('HYBRID_BMR') // 'AS_PER_FORMULA' | 'AS_PER_LABEL_CLAIM' | 'HYBRID_BMR'
+  const [partsMode, setPartsMode] = useState('SINGLE') // 'SINGLE' | 'TWO_PART'
   const [quantity, setQuantity] = useState('100')
   const [unitId, setUnitId] = useState('')
   const [units, setUnits] = useState([])
@@ -2322,6 +2552,7 @@ function FormulaCreateForm({ companyId, product, onCancel, onCreated }) {
         product_id: Number(product.id),
         base_output_quantity: quantity.trim(),
         output_uom_id: Number(unitId),
+        revision_notes: partsMode === 'TWO_PART' ? 'FORMULA_PARTS:2' : '',
       })
       onCreated(created)
     } catch (err) {
@@ -2348,6 +2579,33 @@ function FormulaCreateForm({ companyId, product, onCancel, onCreated }) {
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* STEP: FORMULA STRUCTURE (SINGLE VS 2-PART) */}
+        <div>
+          <label className="fm-field-label" style={{ marginBottom: 6 }}>
+            Formula Preparation Structure *
+          </label>
+          <div className="fm-parts-segmented-group">
+            <button
+              type="button"
+              className={`fm-parts-seg-btn ${partsMode === 'SINGLE' ? 'active' : ''}`}
+              onClick={() => setPartsMode('SINGLE')}
+            >
+              <span className="fm-seg-icon">🧪</span>
+              <span className="fm-seg-title">Single Part Formula</span>
+              <span className="fm-seg-sub">Standard single preparation</span>
+            </button>
+            <button
+              type="button"
+              className={`fm-parts-seg-btn ${partsMode === 'TWO_PART' ? 'active' : ''}`}
+              onClick={() => setPartsMode('TWO_PART')}
+            >
+              <span className="fm-seg-icon">⚗️</span>
+              <span className="fm-seg-title">2-Part Formula</span>
+              <span className="fm-seg-sub">Part-1 & Part-2 stages</span>
+            </button>
+          </div>
+        </div>
+
         {/* STEP: CALCULATION BASIS SELECTION */}
         <div>
           <label className="fm-field-label" style={{ marginBottom: 6 }}>
@@ -2422,6 +2680,7 @@ function FormulaCreateForm({ companyId, product, onCancel, onCreated }) {
    ========================================================= */
 function NewRevisionDialog({ companyId, formulaId, onCancel, onCreated }) {
   const [basis, setBasis] = useState('HYBRID_BMR') // 'AS_PER_FORMULA' | 'AS_PER_LABEL_CLAIM' | 'HYBRID_BMR'
+  const [partsMode, setPartsMode] = useState('SINGLE') // 'SINGLE' | 'TWO_PART'
   const [quantity, setQuantity] = useState('100')
   const [unitId, setUnitId] = useState('')
   const [units, setUnits] = useState([])
@@ -2450,6 +2709,7 @@ function NewRevisionDialog({ companyId, formulaId, onCancel, onCreated }) {
       const created = await createRevision(companyId, formulaId, {
         base_output_quantity: quantity.trim(),
         output_uom_id: Number(unitId),
+        notes: partsMode === 'TWO_PART' ? 'FORMULA_PARTS:2' : '',
       })
       onCreated(created)
     } catch (err) {
@@ -2476,6 +2736,33 @@ function NewRevisionDialog({ companyId, formulaId, onCancel, onCreated }) {
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* STEP: FORMULA STRUCTURE (SINGLE VS 2-PART) */}
+        <div>
+          <label className="fm-field-label" style={{ marginBottom: 6 }}>
+            Formula Preparation Structure *
+          </label>
+          <div className="fm-parts-segmented-group">
+            <button
+              type="button"
+              className={`fm-parts-seg-btn ${partsMode === 'SINGLE' ? 'active' : ''}`}
+              onClick={() => setPartsMode('SINGLE')}
+            >
+              <span className="fm-seg-icon">🧪</span>
+              <span className="fm-seg-title">Single Part Formula</span>
+              <span className="fm-seg-sub">Standard single preparation</span>
+            </button>
+            <button
+              type="button"
+              className={`fm-parts-seg-btn ${partsMode === 'TWO_PART' ? 'active' : ''}`}
+              onClick={() => setPartsMode('TWO_PART')}
+            >
+              <span className="fm-seg-icon">⚗️</span>
+              <span className="fm-seg-title">2-Part Formula</span>
+              <span className="fm-seg-sub">Part-1 & Part-2 stages</span>
+            </button>
+          </div>
+        </div>
+
         {/* STEP: CALCULATION BASIS SELECTION */}
         <div>
           <label className="fm-field-label" style={{ marginBottom: 6 }}>

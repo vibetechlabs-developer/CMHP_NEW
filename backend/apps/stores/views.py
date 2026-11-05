@@ -290,7 +290,7 @@ class StoreSummaryView(APIView):
             plan_ref = ""
             if req.batch_plan_id:
                 alloc = getattr(req.batch_plan, "number_allocation", None)
-                plan_ref = alloc.batch_number if alloc else f"Plan #{req.batch_plan_id}"
+                plan_ref = alloc.number if alloc else f"Plan #{req.batch_plan_id}"
             pending_work_items.append({
                 "id": req.id,
                 "document_type": "Material Requisition",

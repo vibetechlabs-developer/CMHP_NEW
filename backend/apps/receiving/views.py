@@ -119,8 +119,14 @@ def _check_receipt_company_access(user, goods_receipt):
 
 def _goods_receipt_queryset():
     return GoodsReceipt.objects.select_related(
-        "store", "company", "source_purchase_order", "created_by", "posted_by", "cancelled_by"
-    ).prefetch_related("lines__material", "lines__unit", "lines__source_po_line")
+        "store",
+        "company",
+        "source_purchase_order",
+        "source_purchase_order__supplier",
+        "created_by",
+        "posted_by",
+        "cancelled_by",
+    ).prefetch_related("lines__material", "lines__unit", "lines__source_po_line", "lines__container_type")
 
 
 @method_decorator(never_cache, name="dispatch")

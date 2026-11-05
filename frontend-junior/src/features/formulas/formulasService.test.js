@@ -127,4 +127,22 @@ describe('buildRevisionLinesPayload', () => {
     expect(result[0].label_claim_quantity).toBe('5')
     expect(result[0].label_claim_uom_id).toBe(4)
   })
+
+  it('tags PART:1 and PART:2 into notes when isTwoPart is true for raw materials', () => {
+    const rows = [
+      { id: null, material: { id: 10 }, quantity: '20', part: 1, calculation_mode: 'AS_PER_FORMULA' },
+      { id: null, material: { id: 11 }, quantity: '30', part: 2, calculation_mode: 'AS_PER_FORMULA' },
+    ]
+    const result = buildRevisionLinesPayload({ allLines: [], kind: 'RAW_MATERIAL', rows, isTwoPart: true })
+    expect(result[0].notes).toBe('PART:1')
+    expect(result[1].notes).toBe('PART:2')
+  })
+
+  it('does not tag PART into notes when isTwoPart is false', () => {
+    const rows = [
+      { id: null, material: { id: 10 }, quantity: '20', part: 2, calculation_mode: 'AS_PER_FORMULA' },
+    ]
+    const result = buildRevisionLinesPayload({ allLines: [], kind: 'RAW_MATERIAL', rows, isTwoPart: false })
+    expect(result[0].notes).toBe('')
+  })
 })

@@ -9,6 +9,7 @@ import CommonMaterialsTab from './tabs/CommonMaterialsTab'
 import MaterialRegisterPage from './tabs/MaterialRegisterPage'
 import CommonOrdersTab from './tabs/CommonOrdersTab'
 import StockTab from './tabs/StockTab'
+import ControlSampleRegisterTab from './tabs/ControlSampleRegisterTab'
 import IssueReturnTab from './tabs/IssueReturnTab'
 import BatchPlanningPage from './tabs/BatchPlanningPage'
 import SuppliersPage from './tabs/SuppliersPage'
@@ -54,15 +55,20 @@ const INVENTORY_HERO_CONFIG = {
     title: 'Common Material Purchasing',
     subtitle: 'Purchase raw and packaging materials and track deliveries into the shared store.',
   },
+  'control-samples': {
+    eyebrow: 'GMP RETENTION / CONTROL SAMPLE REGISTER',
+    title: 'Control Samples',
+    subtitle: 'Finished-batch retention samples — separate from raw-material issue to production.',
+  },
   stock: {
     eyebrow: 'MATERIAL STOCK & LOT TRACEABILITY',
     title: 'Stock & Lots',
     subtitle: 'View material stock, receipt sources, and lot traceability.',
   },
   'issue-return': {
-    eyebrow: 'MATERIAL ISSUANCE & VERIFIED RETURNS',
-    title: 'Issue / Return',
-    subtitle: 'Issue lots to production units and process returns with automatic manufacturer attribution.',
+    eyebrow: 'MATERIAL ISSUE TO PRODUCTION',
+    title: 'Material Issue to Production',
+    subtitle: 'Issue RM/PM to a bound batch or sales order, track production custody, and dispose returns after QC.',
   },
   suppliers: {
     eyebrow: 'SHARED SUPPLIER DIRECTORY',
@@ -91,9 +97,7 @@ export default function Inventory() {
         location.pathname.replace(/\/+$/, '') ||
         '/inventory'
 
-    if (activePath === '/inventory/ledger' || activePath === '/inventory/stock-ledger') {
-        return <Navigate to="/inventory/materials" replace />
-    }
+
 
     const materialDetailMatch = activePath.match(MATERIAL_DETAIL_PATTERN)
     const productFormulasMatch = activePath.match(PRODUCT_FORMULAS_PATTERN)
@@ -107,7 +111,9 @@ export default function Inventory() {
                     ? 'materials'
                     : (activePath === '/inventory/orders' || activePath.startsWith('/inventory/orders/'))
                         ? 'orders'
-                        : (activePath === '/inventory/stock' || activePath.startsWith('/inventory/stock/'))
+                        : (activePath === '/inventory/control-samples' || activePath.startsWith('/inventory/control-samples/'))
+                                ? 'control-samples'
+                                : (activePath === '/inventory/stock' || activePath.startsWith('/inventory/stock/'))
                             ? 'stock'
                             : (activePath === '/inventory/issue-return' || activePath.startsWith('/inventory/issue-return/'))
                                 ? 'issue-return'
@@ -196,6 +202,10 @@ export default function Inventory() {
     /* =====================================================
        ACCESS DENIED
        ===================================================== */
+
+    if (activePath === '/inventory/ledger' || activePath === '/inventory/stock-ledger') {
+        return <Navigate to="/inventory/materials" replace />
+    }
 
     if (!canAccess) {
 
@@ -298,6 +308,10 @@ export default function Inventory() {
                     role={role}
                     storeId={storeId}
                 />
+            )}
+
+            {activeSection === 'control-samples' && (
+                <ControlSampleRegisterTab />
             )}
 
             {activeSection === 'stock' && (

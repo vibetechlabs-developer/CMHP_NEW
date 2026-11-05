@@ -34,6 +34,7 @@ export default function SuppliersPage() {
   const [notice, setNotice] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
   const [editing, setEditing] = useState(null) // null | {mode:'create'} | {mode:'edit', supplierId}
+  const [importOpen, setImportOpen] = useState(false)
   const [busyId, setBusyId] = useState(null)
   const requestRef = useRef(0)
   const { confirm, ConfirmNode } = useConfirmDialog()
@@ -119,6 +120,9 @@ export default function SuppliersPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1 }} />
+          <Button type="button" variant="secondary" onClick={() => setImportOpen(true)}>
+            <span aria-hidden="true">📥</span> Import CSV
+          </Button>
           <Button type="button" variant="primary" onClick={() => setEditing({ mode: 'create' })}>+ Add Supplier</Button>
         </div>
       </div>
@@ -253,6 +257,16 @@ export default function SuppliersPage() {
           onClose={() => setEditing(null)}
           onSaved={(msg) => {
             setEditing(null)
+            reload(msg)
+          }}
+        />
+      )}
+
+      {importOpen && (
+        <ImportSuppliersModal
+          onClose={() => setImportOpen(false)}
+          onImported={(msg) => {
+            setImportOpen(false)
             reload(msg)
           }}
         />
@@ -475,6 +489,259 @@ function SupplierFormModal({ supplierId, onClose, onSaved }) {
             </div>
           </form>
         )}
+      </div>
+    </div>
+  )
+}
+
+
+// ──────────────────────────────────────────────
+// ImportSuppliersModal — CSV bulk import
+// ──────────────────────────────────────────────
+
+const CSV_COLUMNS = [
+  'code', 'legal_name', 'display_name', 'contact_name',
+  'email', 'phone', 'address_line_1', 'address_line_2',
+  'city', 'state_region', 'postal_code', 'country_code',
+]
+
+function downloadTemplate() {
+  const header = CSV_COLUMNS.join(',')
+  const example = 'SUP-002,Example Pharma Ltd,Example Pharma,Rajesh Shah,rajesh@example.com,+91 9876543210,123 MG Road,,Mumbai,Maharashtra,400001,IN'
+  const blob = new Blob([header + '\n' + example + '\n'], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'suppliers_import_template.csv'
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function parseCsvRows(text) {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim())
+  if (lines.length < 2) return { rows: [], error: 'CSV must have a header row and at least one data row.' }
+
+  const header = lines[0].split(',').map((h) => h.trim().toLowerCase().replace(/[^a-z_]/g, '_'))
+  const rows = []
+
+  for (let i = 1; i < lines.length; i++) {
+    const vals = lines[i].split(',')
+    const row = {}
+    header.forEach((col, ci) => { row[col] = (vals[ci] || '').trim() })
+
+    // Map columns flexibly
+    const mapped = {
+      code: row.code || row.supplier_code || '',
+      legal_name: row.legal_name || row.name || row.legalname || '',
+      display_name: row.display_name || row.displayname || row.trade_name || '',
+      contact_name: row.contact_name || row.contact || row.contactname || '',
+      email: row.email || '',
+      phone: row.phone || row.mobile || row.contact_phone || '',
+      address_line_1: row.address_line_1 || row.address || row.address1 || '',
+      address_line_2: row.address_line_2 || row.address2 || '',
+      city: row.city || '',
+      state_region: row.state_region || row.state || '',
+      postal_code: row.postal_code || row.pincode || row.zip || '',
+      country_code: (row.country_code || row.country || 'IN').slice(0, 2).toUpperCase(),
+      _line: i + 1,
+    }
+    if (mapped.code || mapped.legal_name) rows.push(mapped)
+  }
+
+  return { rows, error: rows.length === 0 ? 'No valid rows found in the CSV.' : '' }
+}
+
+function ImportSuppliersModal({ onClose, onImported }) {
+  const [file, setFile] = useState(null)
+  const [rows, setRows] = useState([])
+  const [parseError, setParseError] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [progress, setProgress] = useState({ done: 0, total: 0, errors: [] })
+  const [step, setStep] = useState('upload') // 'upload' | 'preview' | 'done'
+  const fileRef = useRef(null)
+
+  const handleFile = (e) => {
+    const f = e.target.files[0]
+    if (!f) return
+    setFile(f)
+    setParseError('')
+    setRows([])
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const { rows: parsed, error } = parseCsvRows(ev.target.result)
+      if (error) { setParseError(error); return }
+      setRows(parsed)
+      setStep('preview')
+    }
+    reader.readAsText(f)
+  }
+
+  const handleImport = async () => {
+    if (importing || rows.length === 0) return
+    setImporting(true)
+    const errors = []
+    setProgress({ done: 0, total: rows.length, errors: [] })
+
+    for (let i = 0; i < rows.length; i++) {
+      const { _line, ...payload } = rows[i]
+      // Remove empty optional fields
+      Object.keys(payload).forEach((k) => { if (!payload[k]) delete payload[k] })
+      try {
+        await createSupplier(payload)
+      } catch (err) {
+        const msg = err?.response?.data?.detail ||
+          Object.values(err?.response?.data || {}).flat().join('; ') ||
+          getErrorMessage(err)
+        errors.push({ line: _line, code: rows[i].code, msg })
+      }
+      setProgress({ done: i + 1, total: rows.length, errors: [...errors] })
+    }
+
+    setImporting(false)
+    setStep('done')
+
+    const created = rows.length - errors.length
+    if (errors.length === 0) {
+      onImported(`${created} supplier${created === 1 ? '' : 's'} imported successfully.`)
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 720 }}>
+        <div className="modal-header">
+          <h2 className="modal-title">📥 Import Suppliers from CSV</h2>
+          <button type="button" className="modal-close" onClick={onClose}>×</button>
+        </div>
+
+        <div className="modal-body">
+          {/* Step: Upload */}
+          {step === 'upload' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 10, padding: '14px 18px' }}>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#0369a1' }}>
+                  📋 CSV Format
+                </p>
+                <p style={{ margin: '6px 0 0', fontSize: 12.5, color: '#0284c7' }}>
+                  Required columns: <strong>code</strong>, <strong>legal_name</strong><br />
+                  Optional: display_name, contact_name, email, phone, address_line_1, address_line_2, city, state_region, postal_code, country_code
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={downloadTemplate}
+                style={{
+                  alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6,
+                  background: '#f0fdf4', border: '1px solid #86efac', color: '#166534',
+                  fontWeight: 700, fontSize: 13, padding: '7px 14px', borderRadius: 8, cursor: 'pointer',
+                }}
+              >
+                ⬇️ Download Sample Template
+              </button>
+
+              <div
+                style={{
+                  border: '2px dashed #cbd5e1', borderRadius: 10, padding: '32px 20px',
+                  textAlign: 'center', cursor: 'pointer', background: '#f8fafc',
+                }}
+                onClick={() => fileRef.current?.click()}
+              >
+                <div style={{ fontSize: 32, marginBottom: 8 }}>📂</div>
+                <p style={{ margin: 0, fontWeight: 600, color: '#334155' }}>Click to select CSV file</p>
+                <p style={{ margin: '4px 0 0', fontSize: 12, color: '#64748b' }}>
+                  {file ? file.name : 'No file chosen'}
+                </p>
+                <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={handleFile} />
+              </div>
+              {parseError && <p style={{ color: '#dc2626', fontWeight: 600, margin: 0 }}>{parseError}</p>}
+            </div>
+          )}
+
+          {/* Step: Preview */}
+          {step === 'preview' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <p style={{ margin: 0, fontWeight: 700, color: '#0f172a' }}>
+                  ✅ {rows.length} row{rows.length === 1 ? '' : 's'} ready to import
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { setStep('upload'); setRows([]); setFile(null) }}
+                  style={{ background: 'none', border: 'none', color: '#0284c7', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                >
+                  ← Change file
+                </button>
+              </div>
+
+              <div style={{ maxHeight: 320, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', position: 'sticky', top: 0 }}>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, color: '#475569', borderBottom: '1px solid #e2e8f0' }}>Code</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, color: '#475569', borderBottom: '1px solid #e2e8f0' }}>Legal Name</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, color: '#475569', borderBottom: '1px solid #e2e8f0' }}>Contact</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, color: '#475569', borderBottom: '1px solid #e2e8f0' }}>Email</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, color: '#475569', borderBottom: '1px solid #e2e8f0' }}>City</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '7px 10px', fontFamily: 'monospace', fontWeight: 700, color: '#0f172a' }}>{row.code || '—'}</td>
+                        <td style={{ padding: '7px 10px', fontWeight: 600 }}>{row.legal_name || '—'}</td>
+                        <td style={{ padding: '7px 10px', color: '#475569' }}>{row.contact_name || '—'}</td>
+                        <td style={{ padding: '7px 10px', color: '#475569' }}>{row.email || '—'}</td>
+                        <td style={{ padding: '7px 10px', color: '#475569' }}>{row.city || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Step: Done */}
+          {step === 'done' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{
+                background: progress.errors.length === 0 ? '#f0fdf4' : '#fff7ed',
+                border: `1px solid ${progress.errors.length === 0 ? '#86efac' : '#fed7aa'}`,
+                borderRadius: 10, padding: '14px 18px',
+              }}>
+                <p style={{ margin: 0, fontWeight: 700, color: progress.errors.length === 0 ? '#166534' : '#b45309', fontSize: 14 }}>
+                  {progress.errors.length === 0
+                    ? `✅ All ${progress.total} supplier${progress.total === 1 ? '' : 's'} imported successfully!`
+                    : `⚠️ ${progress.done - progress.errors.length} of ${progress.total} imported. ${progress.errors.length} failed.`}
+                </p>
+              </div>
+              {progress.errors.length > 0 && (
+                <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid #fecdd3', borderRadius: 8, background: '#fff1f2', padding: 12 }}>
+                  {progress.errors.map((e, i) => (
+                    <p key={i} style={{ margin: '0 0 6px', fontSize: 12.5, color: '#be123c' }}>
+                      <strong>Line {e.line} ({e.code || 'unknown'}):</strong> {e.msg}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          {step === 'done' ? (
+            <Button type="button" variant="primary" onClick={onClose}>Close</Button>
+          ) : (
+            <>
+              <Button type="button" variant="secondary" onClick={onClose} disabled={importing}>Cancel</Button>
+              {step === 'preview' && (
+                <Button type="button" variant="primary" onClick={handleImport} disabled={importing || rows.length === 0}>
+                  {importing ? `Importing… ${progress.done}/${progress.total}` : `Import ${rows.length} Supplier${rows.length === 1 ? '' : 's'}`}
+                </Button>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   )

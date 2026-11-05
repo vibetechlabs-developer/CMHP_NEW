@@ -26,7 +26,39 @@ export default function ImportProductsModal({ companyId, onClose, onImported }) 
     setBusy(true)
     setError('')
     try {
-      setBatch(await previewProductImport(companyId, file))
+      let fileToSend = file
+      try {
+        const text = await file.text()
+        const lines = text.split(/\r?\n/)
+        if (lines.length > 0) {
+          const header = lines[0]
+          const cols = header.split(',').map((c) => c.trim().toLowerCase().replace(/^["']|["']$/g, ''))
+          const hasUom = cols.some((c) => ['sales_uom_code', 'uom', 'unit', 'uom_code'].includes(c))
+          const typeIdx = cols.findIndex((c) => c === 'type' || c === 'product_type')
+
+          if (!hasUom) {
+            const newHeader = header + ',sales_uom_code'
+            const updatedLines = [newHeader]
+            for (let i = 1; i < lines.length; i++) {
+              const row = lines[i]
+              if (!row.trim()) continue
+              const rowCells = row.split(',').map((c) => c.trim().toLowerCase().replace(/^["']|["']$/g, ''))
+              const rowType = typeIdx >= 0 ? (rowCells[typeIdx] || '') : ''
+              let uom = 'BOX'
+              if (rowType.includes('tablet') || rowType.includes('tab')) uom = 'TAB'
+              else if (rowType.includes('syrup') || rowType.includes('drop') || rowType.includes('liquid') || rowType.includes('suspension') || rowType.includes('solution') || rowType.includes('oil')) uom = 'BTL'
+              else if (rowType.includes('capsule')) uom = 'CAP'
+              else if (rowType.includes('powder') || rowType.includes('cream') || rowType.includes('gel')) uom = 'GM'
+              updatedLines.push(`${row},${uom}`)
+            }
+            fileToSend = new File([updatedLines.join('\n')], file.name, { type: 'text/csv' })
+          }
+        }
+      } catch {
+        fileToSend = file
+      }
+
+      setBatch(await previewProductImport(companyId, fileToSend))
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
@@ -98,8 +130,8 @@ export default function ImportProductsModal({ companyId, onClose, onImported }) 
               }}
             />
             <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 0' }}>
-              Required columns: <strong>code</strong>, <strong>name</strong>, <strong>sales_uom_code</strong>.
-              Optional: <strong>product_type</strong>, <strong>description</strong>. UTF-8 only.
+              Required columns: <strong>code</strong>, <strong>name</strong>.
+              Optional: <strong>type</strong> (or product_type), <strong>pack_size</strong>, <strong>bmr_no</strong>, <strong>sales_uom_code</strong>, <strong>description</strong>. UTF-8 only.
             </p>
           </div>
 

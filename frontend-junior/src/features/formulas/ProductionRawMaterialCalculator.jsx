@@ -8,6 +8,8 @@ import IssueToProductionModal from './IssueToProductionModal'
 import { updateRevision, buildRevisionLinesPayload, searchMaterials } from './formulasService'
 import { getMyStores } from '../store/storeService'
 import { getAvailableToIssue, createMaterialIssue, postMaterialIssue } from '../store/materialIssueService'
+import { controlSamplesService } from '../inventory/controlSamplesService'
+import { finishedGoodsService } from '../inventory/finishedGoodsService'
 import { getErrorMessage } from '../../utils/errors'
 import './ProductionRawMaterialCalculator.css'
 
@@ -81,6 +83,12 @@ export default function ProductionRawMaterialCalculator({
   const [targetVolumeLtr, setTargetVolumeLtr] = useState('90')
   const [baseBatchLtr, setBaseBatchLtr] = useState('30')
 
+  // Samples & Batch Output Allocation Split (Make-to-Order vs General Warehouse Buffer)
+  const [qcSampleQty, setQcSampleQty] = useState('5')
+  const [retentionSampleQty, setRetentionSampleQty] = useState('5')
+  const [linkedSalesOrder, setLinkedSalesOrder] = useState('')
+  const [orderAllocatedQty, setOrderAllocatedQty] = useState('')
+
   // Alcohol & Vehicle calculation
   const [alcCalcMode, setAlcCalcMode] = useState('AUTO') // 'AUTO' | 'MANUAL'
   const [manualGrossAlcohol, setManualGrossAlcohol] = useState('')
@@ -132,6 +140,14 @@ export default function ProductionRawMaterialCalculator({
       .filter((l) => l.material_type === 'RAW_MATERIAL' || l.material_type === 'ACTIVE' || (!l.material_type && !l.notes?.includes('excipient')))
       .map((l, idx) => ({
         id: l.id || `raw-${idx}`,
+        part: (() => {
+          if (l.part) return Number(l.part)
+          if (l.notes) {
+            const m = l.notes.match(/PART:(\d+)/)
+            if (m) return Number(m[1])
+          }
+          return 1
+        })(),
         materialId: l.material_id || l.material?.id || null,
         materialCode: l.material_code || l.material?.code || '',
         name: l.material_name || l.material?.name || l.material_code || `Material ${idx + 1}`,
@@ -192,6 +208,12 @@ export default function ProductionRawMaterialCalculator({
     }
     return []
   })
+
+  const isTwoPart = Boolean(
+    (revision?.notes && (revision.notes.includes('FORMULA_PARTS:2') || revision.notes.includes('TWO_PART:true'))) ||
+    (revision?.lines || []).some((l) => l.part === 2 || (l.notes && l.notes.includes('PART:2'))) ||
+    compositions.some((c) => c.part === 2)
+  )
 
   // Synchronize product metadata
   useEffect(() => {
@@ -372,16 +394,38 @@ export default function ProductionRawMaterialCalculator({
 
   // Packaging materials auto-calculation (Attachment 4)
   const totalBottles = parseInt(bottleCount, 10) || Math.round((targetVol * 1000) / (parseFloat(packSizeMl) || 30))
+
+  // Commercial Output & Sample Reconciliation Numbers
+  const qcSampleNum = Math.max(0, parseInt(qcSampleQty, 10) || 0)
+  const retentionSampleNum = Math.max(0, parseInt(retentionSampleQty, 10) || 0)
+  const totalSamplesNum = qcSampleNum + retentionSampleNum
+  const netCommercialBottles = Math.max(0, totalBottles - totalSamplesNum)
+  const orderAllocatedNum = orderAllocatedQty === '' ? 0 : Math.min(netCommercialBottles, Math.max(0, parseInt(orderAllocatedQty, 10) || 0))
+  const bufferStockNum = Math.max(0, netCommercialBottles - orderAllocatedNum)
   const packagingLines = useMemo(() => {
+    const revPkg = (revision?.lines || []).filter(
+      (l) => l.material_type === 'PACKAGING_MATERIAL' || l.material_type === 'PACKAGING'
+    )
+    if (revPkg.length > 0) {
+      return revPkg.map((l, idx) => ({
+        id: `pkg-${l.id ?? idx}`,
+        name: l.material?.name || l.material_name || '',
+        materialId: l.material?.id || l.material_id,
+        materialCode: l.material?.code || l.material_code,
+        qty: l.quantity ? Math.round(Number(l.quantity) * (totalBottles > 0 && revision.base_output_quantity ? totalBottles / Number(revision.base_output_quantity) : 1)) : totalBottles,
+        unit: l.unit || l.unit_code || 'NOS',
+        ar_no: l.ar_no || '',
+      }))
+    }
     return [
-      { name: `${packSizeMl}ml Dropper Glass/PET Bottles`, qty: totalBottles, unit: 'NOS' },
-      { name: 'Dropper Assembly Caps (Cap + Teat + Pipette)', qty: totalBottles, unit: 'NOS' },
-      { name: `Printed Unit Labels (${productName} ${packSizeMl}ml)`, qty: totalBottles, unit: 'NOS' },
-      { name: `Outer Printed Unit Cartons (${packSizeMl}ml)`, qty: totalBottles, unit: 'NOS' },
-      { name: '5-Ply Corrugated Master Shippers (Pack of 48)', qty: Math.ceil(totalBottles / 48), unit: 'BOX' },
-      { name: 'Self-Adhesive BOPP Packaging Tape (Brown/Clear)', qty: Math.ceil(totalBottles / 500) || 1, unit: 'NOS' },
+      { id: 'pkg-0', name: `${packSizeMl}ml Dropper Glass/PET Bottles`, qty: totalBottles, unit: 'NOS' },
+      { id: 'pkg-1', name: 'Dropper Assembly Caps (Cap + Teat + Pipette)', qty: totalBottles, unit: 'NOS' },
+      { id: 'pkg-2', name: `Printed Unit Labels (${productName} ${packSizeMl}ml)`, qty: totalBottles, unit: 'NOS' },
+      { id: 'pkg-3', name: `Outer Printed Unit Cartons (${packSizeMl}ml)`, qty: totalBottles, unit: 'NOS' },
+      { id: 'pkg-4', name: '5-Ply Corrugated Master Shippers (Pack of 48)', qty: Math.ceil(totalBottles / 48), unit: 'BOX' },
+      { id: 'pkg-5', name: 'Self-Adhesive BOPP Packaging Tape (Brown/Clear)', qty: Math.ceil(totalBottles / 500) || 1, unit: 'NOS' },
     ]
-  }, [packSizeMl, productName, totalBottles])
+  }, [packSizeMl, productName, totalBottles, revision])
 
   // Fetch user's stores for inventory availability check
   useEffect(() => {
@@ -402,41 +446,62 @@ export default function ProductionRawMaterialCalculator({
 
   // Load active catalog materials for fuzzy name matching and autocompletion
   const [catalogMaterials, setCatalogMaterials] = useState([])
+  const [catalogPkgMaterials, setCatalogPkgMaterials] = useState([])
   useEffect(() => {
-    searchMaterials('', 'RAW_MATERIAL', 200)
+    searchMaterials('', 'RAW_MATERIAL', 300)
       .then((rows) => setCatalogMaterials(rows || []))
+      .catch(() => {})
+    searchMaterials('', 'PACKAGING_MATERIAL', 300)
+      .then((rows) => setCatalogPkgMaterials(rows || []))
       .catch(() => {})
   }, [])
 
   const resolveMaterialId = (item) => {
+    if (!item) return null
     if (item.materialId) return item.materialId
     if (item.material_id) return item.material_id
     const n = (item.name || '').toLowerCase().trim()
     const code = (item.materialCode || item.code || '').toLowerCase().trim()
 
-    // 1. Direct match from catalog materials
-    const match = catalogMaterials.find((cm) => {
+    // Must have a non-empty name or code to match anything
+    if (!n && !code) return null
+
+    const allCat = [...catalogMaterials, ...catalogPkgMaterials]
+
+    // 1. Direct exact match from catalog materials
+    const exactMatch = allCat.find((cm) => {
       const cmn = (cm.name || '').toLowerCase().trim()
       const cmc = (cm.code || '').toLowerCase().trim()
-      return (cmn && cmn === n) || (cmc && cmc === code) || (cmn && cmn.includes(n)) || (n && n.includes(cmn))
+      return (cmn && n && cmn === n) || (cmc && code && cmc === code)
     })
-    if (match) return match.id
+    if (exactMatch) return exactMatch.id
 
-    // 2. Fallback heuristic matching for known standard homeopathic ingredients
-    if (n.includes('apis')) return 24 // APIS -MELLIFICA
-    if (n.includes('sepia')) return 36 // SEPIA H.P.1
-    if (n.includes('pallad')) return 37 // PALLADIUM H.P.
-    if (n.includes('borex') || n.includes('borax')) return 38 // BOREX H.P.I
-    if (n.includes('murex')) return 39 // MUREX PURPUREA
-    if (n.includes('aurum')) return 40 // AURUM METALLICUM H.P.I
-    if (n.includes('platina')) return 51 // Platina (P22)
-    if (n.includes('clomid')) return 52 // Clomid (CL1)
-    if (n.includes('glab') || n.includes('glycry')) return 53 // Glycry zha glab (GL1)
-    if (n.includes('caulo')) return 54 // caulo phyllum (CP)
-    if (n.includes('alcohol')) return 32 // ALCOHOL CONTENT
-    if (n.includes('water')) return 41 // PURIFIED WATER
-    if (n.includes('potassium') || n.includes('sorbat')) return 56 // Potassium sorbat (PS)
-    if (n.includes('bronopol')) return 57 // Bronopol (BP)
+    // 2. Substring match (only if n has at least 3 chars to prevent accidental matches on empty or tiny strings)
+    if (n.length >= 3) {
+      const subMatch = allCat.find((cm) => {
+        const cmn = (cm.name || '').toLowerCase().trim()
+        return (cmn && cmn.includes(n)) || (cmn && n.includes(cmn))
+      })
+      if (subMatch) return subMatch.id
+    }
+
+    // 3. Fallback heuristic matching for known standard homeopathic ingredients
+    if (n.length >= 3) {
+      if (n.includes('apis')) return 24 // APIS -MELLIFICA
+      if (n.includes('sepia')) return 36 // SEPIA H.P.1
+      if (n.includes('pallad')) return 37 // PALLADIUM H.P.
+      if (n.includes('borex') || n.includes('borax')) return 38 // BOREX H.P.I
+      if (n.includes('murex')) return 39 // MUREX PURPUREA
+      if (n.includes('aurum')) return 40 // AURUM METALLICUM H.P.I
+      if (n.includes('platina')) return 51 // Platina (P22)
+      if (n.includes('clomid')) return 52 // Clomid (CL1)
+      if (n.includes('glab') || n.includes('glycry')) return 53 // Glycry zha glab (GL1)
+      if (n.includes('caulo')) return 54 // caulo phyllum (CP)
+      if (n.includes('alcohol')) return 32 // ALCOHOL CONTENT
+      if (n.includes('water')) return 41 // PURIFIED WATER
+      if (n.includes('potassium') || n.includes('sorbat')) return 56 // Potassium sorbat (PS)
+      if (n.includes('bronopol')) return 57 // Bronopol (BP)
+    }
     return null
   }
 
@@ -445,10 +510,10 @@ export default function ProductionRawMaterialCalculator({
     const n = (item.name || '').toLowerCase().trim()
     let code = item.materialCode || item.code || ''
     if (!code && matId) {
-      const cm = catalogMaterials.find((c) => String(c.id) === String(matId))
+      const cm = [...catalogMaterials, ...catalogPkgMaterials].find((c) => String(c.id) === String(matId))
       if (cm?.code) code = cm.code
     }
-    if (!code) {
+    if (!code && n.length >= 3) {
       if (n.includes('apis')) code = 'AM'
       else if (n.includes('sepia')) code = 'SEH'
       else if (n.includes('pallad')) code = 'PH'
@@ -479,7 +544,7 @@ export default function ProductionRawMaterialCalculator({
           material_id: meta.matId || '',
           material_name: row.name,
           material_code: meta.code || '',
-          material_kind: 'RAW',
+          material_kind: row.isPackaging ? 'PACKAGING' : 'RAW',
           unit_code: storeUnit,
           quantity: orderQty > 0 ? orderQty : 1,
           unit_price: 0,
@@ -512,15 +577,16 @@ export default function ProductionRawMaterialCalculator({
     setCreatePoModalOpen(true)
   }
 
-  // Query live stock balance from store for each formula raw material
+  // Query live stock balance from store for each formula raw material and packaging
   useEffect(() => {
     if (!selectedStoreId) return
     let cancelled = false
     setStockLoading(true)
 
     const items = [
-      ...compositions,
-      ...preservatives,
+      ...compositions.filter((c) => c.name && c.name.trim()),
+      ...preservatives.filter((p) => p.name && p.name.trim()),
+      ...packagingLines.filter((pkg) => pkg.name && pkg.name.trim()),
       { id: 'alc', name: 'Alcohol', unit: 'LTR', materialId: 32 },
       { id: 'water', name: 'Purified Water', unit: 'LTR', materialId: 41 },
     ]
@@ -588,13 +654,14 @@ export default function ProductionRawMaterialCalculator({
     return () => {
       cancelled = true
     }
-  }, [selectedStoreId, companyId, compositions, preservatives, catalogMaterials, stockRefreshCount])
+  }, [selectedStoreId, companyId, compositions, preservatives, packagingLines, catalogMaterials, catalogPkgMaterials, stockRefreshCount])
 
   // Comprehensive stock summary comparing required quantities against store balances
   const stockSummary = useMemo(() => {
     const list = []
-    // 1. Active Compositions
+    // 1. Active Compositions (skip rows with empty names)
     compositions.forEach((row) => {
+      if (!row.name || !row.name.trim()) return
       const targetQty = Number((Number(row.baseQty) * scaleMultiplier).toFixed(2))
       const stockInfo = stockBalances[row.id]
       const avail = stockInfo ? stockInfo.totalAvail : 0
@@ -618,8 +685,9 @@ export default function ProductionRawMaterialCalculator({
         rowObj: row,
       })
     })
-    // 2. Preservatives
+    // 2. Preservatives (skip rows with empty names)
     preservatives.forEach((row) => {
+      if (!row.name || !row.name.trim()) return
       const targetQty = Number((Number(row.baseQty) * scaleMultiplier).toFixed(2))
       const stockInfo = stockBalances[row.id]
       const avail = stockInfo ? stockInfo.totalAvail : 0
@@ -643,7 +711,35 @@ export default function ProductionRawMaterialCalculator({
         rowObj: row,
       })
     })
-    // 3. Alcohol Vehicle (use net after raw material deductions)
+    // 3. Packaging Materials (Attachment 4)
+    packagingLines.forEach((pkg) => {
+      if (!pkg.name || !pkg.name.trim()) return
+      const stockInfo = stockBalances[pkg.id]
+      const avail = stockInfo ? stockInfo.totalAvail : 0
+      const rawAvail = stockInfo ? stockInfo.rawAvail : 0
+      const storeUnit = stockInfo ? stockInfo.storeUnit : pkg.unit
+      const hasRecord = stockInfo ? stockInfo.hasRecord : false
+      const targetQty = Number(pkg.qty) || 0
+      const isShort = hasRecord && avail < targetQty
+      const diff = Math.max(0, targetQty - avail)
+      const matId = resolveMaterialId(pkg)
+      list.push({
+        id: pkg.id,
+        name: pkg.name,
+        targetQty,
+        avail,
+        rawAvail,
+        storeUnit,
+        unit: pkg.unit,
+        isShort,
+        diff,
+        materialId: matId,
+        materialCode: pkg.materialCode || '',
+        rowObj: pkg,
+        isPackaging: true,
+      })
+    })
+    // 4. Alcohol Vehicle (use net after raw material deductions)
     const alcStockInfo = stockBalances['alc']
     const alcAvail = alcStockInfo ? alcStockInfo.totalAvail : 0
     const alcRawAvail = alcStockInfo ? alcStockInfo.rawAvail : 0
@@ -669,7 +765,7 @@ export default function ProductionRawMaterialCalculator({
       shortages,
       list,
     }
-  }, [compositions, preservatives, scaleMultiplier, stockBalances, alcoholRequiredLtr, netAlcoholRequiredLtr, catalogMaterials])
+  }, [compositions, preservatives, packagingLines, scaleMultiplier, stockBalances, alcoholRequiredLtr, netAlcoholRequiredLtr, catalogMaterials, catalogPkgMaterials])
 
   // Reset to Excel Master Template (3 Liters each for 30L base)
   const handleApplyExcelTemplate = () => {
@@ -707,7 +803,14 @@ export default function ProductionRawMaterialCalculator({
         const next = { ...c, [field]: val }
         if (field === 'name') {
           const trimmed = String(val || '').trim().toLowerCase()
-          const match = catalogMaterials.find(
+          if (!trimmed) {
+            next.name = ''
+            next.materialId = null
+            next.materialCode = ''
+            return next
+          }
+          const allCat = [...catalogMaterials, ...catalogPkgMaterials]
+          const match = allCat.find(
             (cm) =>
               (cm.name && cm.name.toLowerCase() === trimmed) ||
               (cm.label && cm.label.toLowerCase() === trimmed) ||
@@ -721,6 +824,9 @@ export default function ProductionRawMaterialCalculator({
             if (match.alcohol_percentage != null && (c.alcoholPct == null || Number(c.alcoholPct) === 0)) {
               next.alcoholPct = Number(match.alcohol_percentage)
             }
+          } else {
+            next.materialId = null
+            next.materialCode = ''
           }
         }
         return next
@@ -767,7 +873,14 @@ export default function ProductionRawMaterialCalculator({
         const next = { ...p, [field]: val }
         if (field === 'name') {
           const trimmed = String(val || '').trim().toLowerCase()
-          const match = catalogMaterials.find(
+          if (!trimmed) {
+            next.name = ''
+            next.materialId = null
+            next.materialCode = ''
+            return next
+          }
+          const allCat = [...catalogMaterials, ...catalogPkgMaterials]
+          const match = allCat.find(
             (cm) =>
               (cm.name && cm.name.toLowerCase() === trimmed) ||
               (cm.label && cm.label.toLowerCase() === trimmed) ||
@@ -778,6 +891,9 @@ export default function ProductionRawMaterialCalculator({
             next.materialId = match.id
             next.materialCode = match.code
             if (match.unitCode) next.unit = match.unitCode
+          } else {
+            next.materialId = null
+            next.materialCode = ''
           }
         }
         return next
@@ -967,15 +1083,77 @@ export default function ProductionRawMaterialCalculator({
     return [...raw, ...exc, ...pkg]
   }
 
+  // Build allocation/sample metadata to pass with BMR slip
+  const buildBatchAllocation = () => ({
+    totalBottles,
+    qcSamples: qcSampleNum,
+    retentionSamples: retentionSampleNum,
+    totalSamples: totalSamplesNum,
+    netCommercialBottles,
+    linkedSalesOrder: linkedSalesOrder.trim(),
+    orderAllocatedQty: orderAllocatedNum,
+    bufferStockQty: bufferStockNum,
+    batchVolumeLtr: targetVolumeLtr,
+    packSizeMl,
+  })
+
   const handlePrintAttachment1 = () => {
     if (onOpenBmrSlip) {
-      onOpenBmrSlip(buildLivePayload(), 'RM')
+      onOpenBmrSlip(buildLivePayload(), 'RM', buildBatchAllocation())
     }
   }
 
   const handlePrintAttachment4 = () => {
     if (onOpenBmrSlip) {
-      onOpenBmrSlip(buildLivePayload(), 'PM')
+      onOpenBmrSlip(buildLivePayload(), 'PM', buildBatchAllocation())
+    }
+  }
+
+  // Log retention samples directly to Control Room Register (Schedule M)
+  const handleLogToControlSampleRegister = async () => {
+    if (retentionSampleNum <= 0) return
+    try {
+      await controlSamplesService.logSample({
+        companyId,
+        batchNo: batchNo || 'AH2602',
+        productCode: productCode || '',
+        productName: productName || 'Finished Medicine',
+        packSize: `${packSizeMl} ml`,
+        sampleQty: retentionSampleNum,
+        unit: 'Bottles',
+        storageLocation: 'Control Room Rack A - Main Bay',
+        deductFg: true,
+        notes: `Retained from batch ${batchNo || 'AH2602'} (${targetVolumeLtr}L / ${totalBottles} bottles). QC testing samples: ${qcSampleNum}.`,
+      })
+      setActionSuccess(`✓ ${retentionSampleNum} retention samples successfully registered in the Control Sample Register!`)
+      setTimeout(() => setActionSuccess(''), 8000)
+    } catch (e) {
+      setRevisionError(e?.message || 'Failed to log sample')
+    }
+  }
+
+  // Inward free buffer bottles into Finished Goods Warehouse Store
+  const handleInwardBufferToFgWarehouse = async () => {
+    if (bufferStockNum <= 0) return
+    try {
+      await finishedGoodsService.inwardBufferStock({
+        batchNo: batchNo || 'AH2602',
+        productCode: productCode || '',
+        productName: productName || 'Finished Medicine',
+        packSize: `${packSizeMl} ml`,
+        batchVolumeLtr: targetVolumeLtr,
+        grossProducedBottles: totalBottles,
+        sampleDeductedBottles: totalSamplesNum,
+        netCommercialBottles,
+        bufferQty: bufferStockNum,
+        initialOrderAllocatedQty: orderAllocatedNum,
+        linkedSalesOrder,
+        warehouseStore: 'FG Warehouse Store - General Buffer Bay',
+      })
+      setActionSuccess(`✓ ${bufferStockNum.toLocaleString()} bottles successfully inwarded to Finished Goods Warehouse Store!`)
+      setTimeout(() => setActionSuccess(''), 8000)
+    } catch (e) {
+      setRevisionError(e?.message || 'Failed to inward buffer stock')
     }
   }
 
@@ -1099,167 +1277,158 @@ export default function ProductionRawMaterialCalculator({
 
   return (
     <div className="prc-container">
-      {/* TEMPLATE QUICK-SWITCH BANNER */}
-      <div className="prc-template-banner">
-        <div className="prc-tb-left">
-          <span className="prc-tb-tag">⚡ {productName || 'FORMULA'}</span>
-          <span className="prc-tb-text">
-            <strong>{compositions.length}</strong> active materials · Scale <strong>{scaleMultiplier.toFixed(2)}×</strong>
-          </span>
-        </div>
-        <div className="prc-tb-buttons">
-          <button
-            type="button"
-            className="prc-btn-preset-saved"
-            onClick={handleLoadSavedRevision}
-            title="Reload materials directly from the saved revision in database"
-          >
-            🔄 Reset from Revision
-          </button>
-          <button
-            type="button"
-            className="prc-btn-preset-excel"
-            onClick={handleApplyExcelTemplate}
-            title="Load 10-liquid Excel Master template (3L / 9L)"
-          >
-            📋 Load Excel Preset
-          </button>
-        </div>
-      </div>
-
-      {/* 1. TOP HEADER & METADATA BAR (MATCHING THE EXCEL SPREADSHEET HEADER) */}
-      <div className="prc-excel-header-card">
-        <div className="prc-header-top">
-          <div className="prc-logo-box">
-            <span className="prc-logo-badge">CYMHP</span>
-            <div className="prc-company-heading">
-              <h2>CMHP PRIVATE LIMITED</h2>
-              <p>PRODUCTION (ORAL LIQUID / DROPS DEPARTMENT)</p>
+      {/* 1. TOP BATCH MASTER SPECIFICATION HEADER */}
+      <div className="prc-batch-header-card">
+        <div className="prc-header-topbar">
+          <div className="prc-header-brand">
+            <span className="prc-brand-pill">CYMHP</span>
+            <div className="prc-header-titles">
+              <div className="prc-header-company">CMHP PRIVATE LIMITED</div>
+              <div className="prc-header-dept">Production Division · Oral Liquid & Drops Department · Batch Formulation Master</div>
             </div>
           </div>
 
-          <div className="prc-qa-badge-box">
+          <div className="prc-header-actions">
             {revision ? (
-              <span className={`prc-qa-badge prc-qa-${(revision.status || 'draft').toLowerCase()}`}>
-                {revision.status === 'APPROVED' && '✅ QA APPROVED'}
-                {revision.status === 'SUBMITTED' && '⏳ SUBMITTED FOR QA'}
-                {(!revision.status || revision.status === 'DRAFT') && '📝 DRAFT'}
+              <span className={`prc-qa-pill prc-qa-${(revision.status || 'draft').toLowerCase()}`}>
+                {revision.status === 'APPROVED' && '✅ QA APPROVED · Production Verified'}
+                {revision.status === 'SUBMITTED' && '⏳ SUBMITTED FOR QA REVIEW'}
+                {(!revision.status || revision.status === 'DRAFT') && '📝 DRAFT FORMULATION'}
               </span>
             ) : (
-              <span className="prc-qa-badge prc-qa-draft">📝 DRAFT</span>
+              <span className="prc-qa-pill prc-qa-draft">📝 DRAFT FORMULATION</span>
             )}
-            {revision?.status === 'APPROVED' && (
-              <span className="prc-qa-verified-note">Verified for Production Batch</span>
-            )}
+            <div className="prc-header-btn-group">
+              <button
+                type="button"
+                className="prc-btn-subtle"
+                onClick={handleLoadSavedRevision}
+                title="Reload materials directly from the saved revision in database"
+              >
+                🔄 Reset from Revision
+              </button>
+              <button
+                type="button"
+                className="prc-btn-subtle"
+                onClick={handleApplyExcelTemplate}
+                title="Load 10-liquid Excel Master template (3L / 9L)"
+              >
+                📋 Load Excel Master
+              </button>
+            </div>
           </div>
         </div>
 
         {actionSuccess && (
-          <Alert type="success" style={{ margin: '10px 0 0' }}>
+          <Alert type="success" style={{ margin: '12px 0 0' }}>
             {actionSuccess}
           </Alert>
         )}
         {revisionError && (
-          <Alert type="error" style={{ margin: '10px 0 0' }}>
+          <Alert type="error" style={{ margin: '12px 0 0' }}>
             {revisionError}
           </Alert>
         )}
 
-        {/* EXCEL TITLE & METADATA GRID */}
-        <div className="prc-meta-grid">
-          <div className="prc-meta-cell prc-meta-product-title">
-            <label>Product Name</label>
-            <input
-              className="prc-input prc-input-lg"
-              value={productName}
-              onChange={(e) => setProductName(e.target.value)}
-              placeholder="e.g. PREGACURE DROP"
-            />
-          </div>
-
-          <div className="prc-meta-cell">
-            <label>Pack Size</label>
-            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+        {/* BATCH & PRODUCT METADATA SECTION */}
+        <div className="prc-meta-layout">
+          {/* LEFT: Product & Company Specification */}
+          <div className="prc-meta-grid-side">
+            <div className="prc-meta-cell prc-meta-cell-wide">
+              <label>Product Name</label>
+              <input
+                className="prc-input prc-input-bold"
+                value={productName}
+                onChange={(e) => setProductName(e.target.value)}
+                placeholder="e.g. PREGACURE DROP"
+              />
+            </div>
+            <div className="prc-meta-cell">
+              <label>Product Code</label>
               <input
                 className="prc-input"
-                style={{ flex: 1, fontWeight: 700 }}
-                value={packSizeMl}
-                onChange={(e) => setPackSizeMl(e.target.value)}
+                value={productCode}
+                onChange={(e) => setProductCode(e.target.value)}
+                placeholder="e.g. GER/06"
               />
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>ML</span>
+            </div>
+            <div className="prc-meta-cell">
+              <label>Pack Size</label>
+              <div className="prc-input-with-inline-tag">
+                <input
+                  className="prc-input prc-input-bold"
+                  value={packSizeMl}
+                  onChange={(e) => setPackSizeMl(e.target.value)}
+                />
+                <span className="prc-inline-unit-tag">ML</span>
+              </div>
+            </div>
+            <div className="prc-meta-cell prc-meta-cell-wide">
+              <label>Company Name</label>
+              <input
+                className="prc-input"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+              />
+            </div>
+            <div className="prc-meta-cell">
+              <label>Company Code</label>
+              <input
+                className="prc-input"
+                value={companyCode}
+                onChange={(e) => setCompanyCode(e.target.value)}
+              />
             </div>
           </div>
 
-          <div className="prc-meta-cell">
-            <label>Company Name</label>
-            <input
-              className="prc-input"
-              value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-            />
-          </div>
-
-          <div className="prc-meta-cell">
-            <label>Product Code</label>
-            <input
-              className="prc-input"
-              value={productCode}
-              onChange={(e) => setProductCode(e.target.value)}
-            />
-          </div>
-
-          <div className="prc-meta-cell">
-            <label>Company Code</label>
-            <input
-              className="prc-input"
-              value={companyCode}
-              onChange={(e) => setCompanyCode(e.target.value)}
-            />
-          </div>
-
-          <div className="prc-meta-cell">
-            <label>Issue Date</label>
-            <input
-              type="date"
-              className="prc-input"
-              value={issueDate}
-              onChange={(e) => setIssueDate(e.target.value)}
-            />
-          </div>
-
-          <div className="prc-meta-cell">
-            <label>Batch No.</label>
-            <input
-              className="prc-input"
-              style={{ fontWeight: 700, color: '#0369a1' }}
-              value={batchNo}
-              onChange={(e) => setBatchNo(e.target.value)}
-            />
-          </div>
-
-          <div className="prc-meta-cell prc-meta-highlight">
-            <label>Batch Size (LTR)</label>
-            <div className="prc-batch-size-val">{formatNum(targetVolumeLtr, 0)} LTR</div>
+          {/* RIGHT: Batch Execution & Target Batch Output */}
+          <div className="prc-meta-grid-side">
+            <div className="prc-meta-cell">
+              <label>Issue Date</label>
+              <input
+                type="date"
+                className="prc-input"
+                value={issueDate}
+                onChange={(e) => setIssueDate(e.target.value)}
+              />
+            </div>
+            <div className="prc-meta-cell prc-meta-cell-batch">
+              <label>Batch No.</label>
+              <input
+                className="prc-input prc-batch-input-field"
+                value={batchNo}
+                onChange={(e) => setBatchNo(e.target.value)}
+                placeholder="e.g. AH2602"
+              />
+            </div>
+            <div className="prc-batch-hero-card">
+              <div className="prc-bhc-label">Target Batch Volume</div>
+              <div className="prc-bhc-val">
+                {formatNum(targetVolumeLtr, 2)} <span className="prc-bhc-unit">LTR</span>
+              </div>
+              <div className="prc-bhc-sub">
+                = {formatNum(bottleCount, 0)} Finished Bottles ({packSizeMl}ml)
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* 2. SMART BATCH SCALING CALCULATOR PANEL */}
-      <div className="prc-calculator-control-card">
-        <div className="prc-calc-card-header">
-          <div className="prc-calc-title">
-            <span className="prc-calc-icon">🧮</span>
+      {/* 2. BATCH SIZING & FORMULA SCALING ENGINE */}
+      <div className="prc-scaling-engine-card">
+        <div className="prc-card-header-bar">
+          <div className="prc-chb-title">
+            <span className="prc-chb-icon">🧮</span>
             <div>
-              <h3>Batch & Bottle Calculator</h3>
-              <p>Scale raw materials, excipients and vehicle in real time.</p>
+              <h3>Batch Sizing & Scaling Engine</h3>
+              <p>Scale formulation ingredients dynamically by target finished bottles or bulk volume.</p>
             </div>
           </div>
 
-          {/* Quick Print Slips Buttons */}
-          <div className="prc-actions-group">
+          <div className="prc-chb-actions">
             <button
               type="button"
-              className="prc-btn-slip prc-btn-save-rev"
+              className="prc-btn-action prc-btn-action-save"
               onClick={handleSaveToRevision}
               disabled={savingRevision}
               title="Permanently save these quantities into Revision Bill of Materials"
@@ -1268,7 +1437,7 @@ export default function ProductionRawMaterialCalculator({
             </button>
             <button
               type="button"
-              className="prc-btn-slip prc-btn-rm"
+              className="prc-btn-action prc-btn-action-rm"
               onClick={handlePrintAttachment1}
               title="Print Attachment 1 - RM Requisition Slip"
             >
@@ -1276,7 +1445,7 @@ export default function ProductionRawMaterialCalculator({
             </button>
             <button
               type="button"
-              className="prc-btn-slip prc-btn-pm"
+              className="prc-btn-action prc-btn-action-pm"
               onClick={handlePrintAttachment4}
               title="Print Attachment 4 - PM Requirement Slip"
             >
@@ -1285,276 +1454,306 @@ export default function ProductionRawMaterialCalculator({
           </div>
         </div>
 
-        {/* INPUTS ROW */}
-        <div className="prc-calc-inputs-row">
-          <div className="prc-mode-selector">
-            <label className="prc-field-title">Calculation Mode:</label>
-            <div className="prc-toggle-group">
+        {/* 3-COLUMN SCALING CONTROL DECK */}
+        <div className="prc-scaling-deck-grid">
+          {/* COLUMN 1: CALCULATION MODE */}
+          <div className="prc-deck-box">
+            <div className="prc-deck-title">Calculation Mode</div>
+            <div className="prc-segmented-control">
               <button
                 type="button"
-                className={`prc-toggle-btn ${calcMode === 'BOTTLES' ? 'active' : ''}`}
+                className={`prc-seg-button ${calcMode === 'BOTTLES' ? 'active' : ''}`}
                 onClick={() => setCalcMode('BOTTLES')}
               >
-                🍾 By Number of Bottles
+                🍾 By Finished Bottles
               </button>
               <button
                 type="button"
-                className={`prc-toggle-btn ${calcMode === 'VOLUME' ? 'active' : ''}`}
+                className={`prc-seg-button ${calcMode === 'VOLUME' ? 'active' : ''}`}
                 onClick={() => setCalcMode('VOLUME')}
               >
-                🧪 By Total Litres
+                🧪 By Total Bulk Litres
               </button>
             </div>
-          </div>
-
-          {calcMode === 'BOTTLES' ? (
-            <div className="prc-input-box">
-              <label>Target Bottles / Packs</label>
-              <div className="prc-input-with-tag">
-                <input
-                  type="number"
-                  className="prc-large-input"
-                  value={bottleCount}
-                  onChange={(e) => setBottleCount(e.target.value)}
-                  placeholder="e.g. 3024"
-                />
-                <span className="prc-input-tag">Bottles</span>
-              </div>
-              {/* Auto-calculated hint */}
-              <div className="prc-auto-calc-hint">
-                <span className="prc-auto-icon">⚡</span>
-                <span>Auto-calculated: {formatNum(bottleCount, 0)} × {packSizeMl}ml = <strong>{formatNum(targetVolumeLtr, 2)} Litres</strong></span>
-              </div>
-            </div>
-          ) : (
-            <div className="prc-input-box">
-              <label>Target Batch Output (L)</label>
-              <div className="prc-input-with-tag">
-                <input
-                  type="number"
-                  step="any"
-                  className="prc-large-input"
-                  value={targetVolumeLtr}
-                  onChange={(e) => handleVolumeChange(e.target.value)}
-                  placeholder="e.g. 90"
-                />
-                <span className="prc-input-tag">Litres</span>
-              </div>
-              <span className="prc-input-hint">
-                = <strong>{formatNum(bottleCount, 0)}</strong> finished {packSizeMl}ml bottles
-              </span>
-            </div>
-          )}
-
-          <div className="prc-input-box">
-            <label>Base Reference Batch (Excel Base)</label>
-            <div className="prc-input-with-tag">
-              <input
-                type="number"
-                className="prc-large-input"
-                value={baseBatchLtr}
-                onChange={(e) => setBaseBatchLtr(e.target.value)}
-              />
-              <span className="prc-input-tag">Litres</span>
-            </div>
-            <span className="prc-input-hint">Formula standard (30 LTR)</span>
-          </div>
-
-          <div className="prc-scale-stat-badge">
-            <div className="prc-ssb-label">Scale Multiplier</div>
-            <div className="prc-ssb-val">{scaleMultiplier.toFixed(2)}×</div>
-            <div className="prc-ssb-sub">{baseBatchLtr}L ➔ {targetVolumeLtr}L</div>
-          </div>
-        </div>
-
-        {/* 3. ALCOHOL & WATER VEHICLE BALANCE (C1V1 = ΣC2V2 NET ENA CALCULATION) */}
-        <div className="prc-vehicle-panel">
-          <div className="prc-vehicle-topbar">
-            <div className="prc-vt-left">
-              <span className="prc-vt-icon">⚗️</span>
-              <span className="prc-vt-title">Alcohol & Vehicle Balance</span>
-              <span className="prc-vt-sub">C₁V₁ = Σ(C₂V₂) Net ENA & Purified Water requirement</span>
-            </div>
-            <div className="prc-vt-right">
-              <div className="prc-vt-mode-toggle">
-                <button
-                  type="button"
-                  className={alcCalcMode === 'AUTO' ? 'active' : ''}
-                  onClick={() => setAlcCalcMode('AUTO')}
-                >
-                  ⚡ Auto (Target %)
-                </button>
-                <button
-                  type="button"
-                  className={alcCalcMode === 'MANUAL' ? 'active' : ''}
-                  onClick={() => {
-                    setAlcCalcMode('MANUAL')
-                    if (!manualGrossAlcohol) setManualGrossAlcohol(String(autoGrossAlcoholLtr))
-                  }}
-                >
-                  ✍️ Manual Input
-                </button>
-              </div>
-
-              {alcCalcMode === 'AUTO' ? (
-                <div className="prc-vt-inputs-inline">
-                  <div className="prc-vt-field">
-                    <label>Target Alc %:</label>
-                    <input
-                      type="number"
-                      step="any"
-                      value={targetAlcoholPct}
-                      onChange={(e) => setTargetAlcoholPct(e.target.value)}
-                    />
-                    <span>% v/v</span>
-                  </div>
-                  <div className="prc-vt-field">
-                    <label>ENA Strength:</label>
-                    <input
-                      type="number"
-                      step="any"
-                      value={alcoholStrengthPct}
-                      onChange={(e) => setAlcoholStrengthPct(e.target.value)}
-                    />
-                    <span>% v/v</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="prc-vt-inputs-inline">
-                  <div className="prc-vt-field">
-                    <label>Manual Gross Alcohol:</label>
-                    <input
-                      type="number"
-                      step="any"
-                      min="0"
-                      value={manualGrossAlcohol}
-                      onChange={(e) => setManualGrossAlcohol(e.target.value)}
-                      placeholder="0.00"
-                      style={{ width: 68 }}
-                    />
-                    <select
-                      value={manualGrossAlcoholUnit}
-                      onChange={(e) => setManualGrossAlcoholUnit(e.target.value)}
-                    >
-                      <option value="lit">Ltr</option>
-                      <option value="ML">ML</option>
-                    </select>
-                  </div>
-                  <button
-                    type="button"
-                    className="prc-vt-btn-reset"
-                    onClick={() => {
-                      setManualGrossAlcohol(String(autoGrossAlcoholLtr))
-                      setManualGrossAlcoholUnit('lit')
-                    }}
-                  >
-                    ↺ Reset ({formatNum(autoGrossAlcoholLtr, 2)} L)
-                  </button>
-                </div>
-              )}
+            <div className="prc-deck-desc">
+              {calcMode === 'BOTTLES'
+                ? 'Enter total bottles to calculate required bulk batch litres.'
+                : 'Enter target litres to calculate finished pack yield.'}
             </div>
           </div>
 
-          <div className="prc-vehicle-cards-grid">
-            {/* CARD 1: GROSS ALCOHOL */}
-            <div className="prc-vcard prc-vcard-gross">
-              <div className="prc-vcard-step">
-                <span className="prc-vcard-tag">STEP 1 · GROSS</span>
-                <span className="prc-vcard-title">Gross Required</span>
-              </div>
-              <div className="prc-vcard-body">
-                <div className="prc-vcard-val">
-                  {formatNum(grossAlcoholRequiredLtr, 3)} <span className="prc-vcard-unit">litres</span>
-                </div>
-                <span className="prc-vcard-pill">
-                  {formatNum(grossAlcoholRequiredMl, 1)} ML
-                </span>
-              </div>
-              <div className="prc-vcard-foot">
-                {alcCalcMode === 'MANUAL'
-                  ? '✍️ Specified via manual entry'
-                  : `= ${formatNum(targetVolumeLtr, 2)}L × ${targetAlcoholPct}% ÷ ${alcoholStrengthPct}%`}
-              </div>
+          {/* COLUMN 2: TARGET QUANTITY INPUT & AUTO CALCULATION */}
+          <div className="prc-deck-box prc-deck-box-target">
+            <div className="prc-deck-title">
+              {calcMode === 'BOTTLES' ? 'Target Finished Bottles / Packs' : 'Target Bulk Output (Litres)'}
             </div>
-
-            {/* CARD 2: RAW MATERIAL ALCOHOL DEDUCTION */}
-            <div className="prc-vcard prc-vcard-rm">
-              <div className="prc-vcard-step">
-                <span className="prc-vcard-tag">STEP 2 · RM DEDUCTION</span>
-                <span className="prc-vcard-title" style={{ color: '#b45309' }}>− In Raw Materials</span>
-              </div>
-              <div className="prc-vcard-body">
-                <div className="prc-vcard-val">
-                  {totalRawMaterialAlcoholLtr > 0.000001 ? `−${formatNum(totalRawMaterialAlcoholLtr, 3)}` : '0.000'}{' '}
-                  <span className="prc-vcard-unit">litres</span>
+            {calcMode === 'BOTTLES' ? (
+              <div className="prc-target-input-block">
+                <div className="prc-large-input-wrapper">
+                  <input
+                    type="number"
+                    className="prc-hero-input"
+                    value={bottleCount}
+                    onChange={(e) => setBottleCount(e.target.value)}
+                    placeholder="e.g. 3024"
+                  />
+                  <span className="prc-hero-unit-tag">Bottles</span>
                 </div>
-                <span className="prc-vcard-pill">
-                  {totalRawMaterialAlcoholLtr > 0.000001 ? `−${formatNum(totalRawMaterialAlcoholMl, 1)} ML` : '0.0 ML'}
-                </span>
-              </div>
-              <div className="prc-vcard-foot" style={{ color: '#92400e' }}>
-                {totalRawMaterialAlcoholLtr > 0.000001
-                  ? `Contributed from ${rawMaterialAlcoholBreakdown.filter((r) => r.alcoholContributionLtr > 0).length} active ingredient(s)`
-                  : '0.00 L (Set Alcohol % in table below to deduct)'}
-              </div>
-            </div>
-
-            {/* CARD 3: NET ENA TO ADD */}
-            <div className="prc-vcard prc-vcard-net">
-              <div className="prc-vcard-step">
-                <span className="prc-vcard-tag">STEP 3 · DISPENSE</span>
-                <span className="prc-vcard-title">⚗️ Net ENA / RS to Add</span>
-              </div>
-              <div className="prc-vcard-body">
-                <div className="prc-vcard-val">
-                  {formatNum(netAlcoholRequiredLtr, 3)} <span className="prc-vcard-unit">litres</span>
+                <div className="prc-auto-calc-badge">
+                  <span className="prc-acb-icon">⚡</span>
+                  <span>Equation: <strong>{formatNum(bottleCount, 0)}</strong> × {packSizeMl}ml = <strong>{formatNum(targetVolumeLtr, 2)} Litres</strong></span>
                 </div>
-                <span className="prc-vcard-pill">
-                  {formatNum(netAlcoholRequiredMl, 1)} ML
-                </span>
               </div>
-              <div className="prc-vcard-foot">
-                (= {formatNum(grossAlcoholRequiredLtr, 3)}L Gross − {formatNum(totalRawMaterialAlcoholLtr, 3)}L in RMs)
-              </div>
-            </div>
-
-            {/* CARD 4: WATER REQUIRED */}
-            <div className="prc-vcard prc-vcard-water">
-              <div className="prc-vcard-step">
-                <span className="prc-vcard-tag">STEP 4 · VEHICLE</span>
-                <span className="prc-vcard-title" style={{ color: '#047857' }}>💧 Water Required (Q.S.)</span>
-              </div>
-              <div className="prc-vcard-body">
-                <div className="prc-vcard-val">
-                  {formatNum(waterRequiredLtr, 3)} <span className="prc-vcard-unit">litres</span>
+            ) : (
+              <div className="prc-target-input-block">
+                <div className="prc-large-input-wrapper">
+                  <input
+                    type="number"
+                    step="any"
+                    className="prc-hero-input"
+                    value={targetVolumeLtr}
+                    onChange={(e) => handleVolumeChange(e.target.value)}
+                    placeholder="e.g. 90"
+                  />
+                  <span className="prc-hero-unit-tag">Litres</span>
                 </div>
-                <span className="prc-vcard-pill">
-                  {formatNum(waterRequiredMl, 1)} ML
-                </span>
+                <div className="prc-auto-calc-badge">
+                  <span className="prc-acb-icon">⚡</span>
+                  <span>Yields approx. <strong>{formatNum(bottleCount, 0)}</strong> finished {packSizeMl}ml bottles</span>
+                </div>
               </div>
-              <div className="prc-vcard-foot" style={{ color: '#065f46' }}>
-                = Batch ({formatNum(targetVolumeLtr, 2)}L) − RMs ({formatNum(totalLiquidRmVolumeLtr, 3)}L) − Net ENA ({formatNum(netAlcoholRequiredLtr, 3)}L)
+            )}
+          </div>
+
+          {/* COLUMN 3: SCALING RATIO & STANDARD BASE */}
+          <div className="prc-deck-box">
+            <div className="prc-deck-title">Formula Scaling Ratio</div>
+            <div className="prc-scale-stat-flex">
+              <div className="prc-scale-hero-pill">
+                <div className="prc-shp-val">{scaleMultiplier.toFixed(2)}×</div>
+                <div className="prc-shp-lbl">Scale Multiplier</div>
+              </div>
+              <div className="prc-scale-base-ctrl">
+                <label>Formula Standard Base</label>
+                <div className="prc-input-with-inline-tag">
+                  <input
+                    type="number"
+                    step="any"
+                    className="prc-input prc-input-bold"
+                    value={baseBatchLtr}
+                    onChange={(e) => setBaseBatchLtr(e.target.value)}
+                  />
+                  <span className="prc-inline-unit-tag">Litres</span>
+                </div>
+                <span className="prc-scale-summary-note">{baseBatchLtr}L ➔ {targetVolumeLtr}L batch</span>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 4. ACTIVE RAW MATERIALS COMPOSITION TABLE (MATCHING EXCEL SPREADSHEET) */}
-      <div className="prc-table-card">
-        <div className="prc-table-title-row">
-          <div>
-            <h4>🧪 Active Dilutions & Ingredients (Section 1)</h4>
-            <p>
-              {compositions.length} active raw material{compositions.length === 1 ? '' : 's'} for <strong>{productName}</strong>. Base {baseBatchLtr}L is multiplied by {scaleMultiplier.toFixed(2)}× for {targetVolumeLtr}L batch.
-            </p>
+      {/* 3. ALCOHOL & VEHICLE MASS BALANCE PANEL (C1V1 = ΣC2V2 NET ENA CALCULATION) */}
+      <div className="prc-vehicle-card">
+        <div className="prc-card-header-bar">
+          <div className="prc-chb-title">
+            <span className="prc-chb-icon">⚗️</span>
+            <div>
+              <h3>Alcohol & Vehicle Mass Balance</h3>
+              <p>Mass balance calculation ensuring finished batch alcohol strength (% v/v) and vehicle Q.S.</p>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '4px 10px', borderRadius: 6, border: '1px solid #cbd5e1' }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>🏢 Store:</span>
+
+          <div className="prc-vh-controls">
+            <div className="prc-vh-mode-toggle">
+              <button
+                type="button"
+                className={`prc-vh-mode-btn ${alcCalcMode === 'AUTO' ? 'active' : ''}`}
+                onClick={() => setAlcCalcMode('AUTO')}
+              >
+                ⚡ Auto (% v/v Target)
+              </button>
+              <button
+                type="button"
+                className={`prc-vh-mode-btn ${alcCalcMode === 'MANUAL' ? 'active' : ''}`}
+                onClick={() => {
+                  setAlcCalcMode('MANUAL')
+                  if (!manualGrossAlcohol) setManualGrossAlcohol(String(autoGrossAlcoholLtr))
+                }}
+              >
+                ✍️ Manual Gross Alcohol
+              </button>
+            </div>
+
+            {alcCalcMode === 'AUTO' ? (
+              <div className="prc-vh-params-row">
+                <div className="prc-param-badge">
+                  <span className="prc-pb-label">Target Alcohol:</span>
+                  <input
+                    type="number"
+                    step="any"
+                    className="prc-param-num-input"
+                    value={targetAlcoholPct}
+                    onChange={(e) => setTargetAlcoholPct(e.target.value)}
+                  />
+                  <span className="prc-pb-unit">% v/v</span>
+                </div>
+                <div className="prc-param-badge">
+                  <span className="prc-pb-label">ENA Strength:</span>
+                  <input
+                    type="number"
+                    step="any"
+                    className="prc-param-num-input"
+                    value={alcoholStrengthPct}
+                    onChange={(e) => setAlcoholStrengthPct(e.target.value)}
+                  />
+                  <span className="prc-pb-unit">% v/v</span>
+                </div>
+              </div>
+            ) : (
+              <div className="prc-vh-params-row">
+                <div className="prc-param-badge">
+                  <span className="prc-pb-label">Manual Gross Alcohol:</span>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    className="prc-param-num-input"
+                    value={manualGrossAlcohol}
+                    onChange={(e) => setManualGrossAlcohol(e.target.value)}
+                    placeholder="0.00"
+                    style={{ width: 84 }}
+                  />
+                  <select
+                    className="prc-param-unit-select"
+                    value={manualGrossAlcoholUnit}
+                    onChange={(e) => setManualGrossAlcoholUnit(e.target.value)}
+                  >
+                    <option value="lit">Ltr</option>
+                    <option value="ML">ML</option>
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  className="prc-btn-reset-param"
+                  onClick={() => {
+                    setManualGrossAlcohol(String(autoGrossAlcoholLtr))
+                    setManualGrossAlcoholUnit('lit')
+                  }}
+                >
+                  ↺ Reset ({formatNum(autoGrossAlcoholLtr, 2)} L)
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 4 BALANCED HORIZONTAL PROCESS STEPS */}
+        <div className="prc-vehicle-steps-grid">
+          {/* STEP 1: GROSS ALCOHOL */}
+          <div className="prc-vstep-card prc-vstep-gross">
+            <div className="prc-vstep-top">
+              <span className="prc-vstep-tag prc-vtag-blue">STEP 1</span>
+              <span className="prc-vstep-stage">Theoretical Gross</span>
+            </div>
+            <div className="prc-vstep-name">Gross Alcohol Required</div>
+            <div className="prc-vstep-body">
+              <div className="prc-vstep-primary">
+                {formatNum(grossAlcoholRequiredLtr, 3)} <span className="prc-vstep-unit">litres</span>
+              </div>
+              <span className="prc-vstep-pill prc-vpill-blue">
+                {formatNum(grossAlcoholRequiredMl, 1)} ML
+              </span>
+            </div>
+            <div className="prc-vstep-foot">
+              {alcCalcMode === 'MANUAL'
+                ? '✍️ Specified via manual entry'
+                : `= ${formatNum(targetVolumeLtr, 2)}L × ${targetAlcoholPct}% ÷ ${alcoholStrengthPct}%`}
+            </div>
+          </div>
+
+          {/* STEP 2: RAW MATERIAL ALCOHOL DEDUCTION */}
+          <div className="prc-vstep-card prc-vstep-rm">
+            <div className="prc-vstep-top">
+              <span className="prc-vstep-tag prc-vtag-amber">STEP 2</span>
+              <span className="prc-vstep-stage">RM Alcohol Credit</span>
+            </div>
+            <div className="prc-vstep-name" style={{ color: '#b45309' }}>− In Raw Materials</div>
+            <div className="prc-vstep-body">
+              <div className="prc-vstep-primary prc-text-amber">
+                {totalRawMaterialAlcoholLtr > 0.000001 ? `−${formatNum(totalRawMaterialAlcoholLtr, 3)}` : '0.000'}{' '}
+                <span className="prc-vstep-unit">litres</span>
+              </div>
+              <span className="prc-vstep-pill prc-vpill-amber">
+                {totalRawMaterialAlcoholLtr > 0.000001 ? `−${formatNum(totalRawMaterialAlcoholMl, 1)} ML` : '0.0 ML'}
+              </span>
+            </div>
+            <div className="prc-vstep-foot prc-text-amber-muted">
+              {totalRawMaterialAlcoholLtr > 0.000001
+                ? `Credited from ${rawMaterialAlcoholBreakdown.filter((r) => r.alcoholContributionLtr > 0).length} active herbal tincture(s)`
+                : 'No alcohol present in active raw materials'}
+            </div>
+          </div>
+
+          {/* STEP 3: NET ENA TO ADD (PRIMARY DISPENSE) */}
+          <div className="prc-vstep-card prc-vstep-dispense">
+            <div className="prc-vstep-top">
+              <span className="prc-vstep-tag prc-vtag-indigo">STEP 3</span>
+              <span className="prc-vstep-stage">Dispense to Batch</span>
+            </div>
+            <div className="prc-vstep-name prc-text-indigo">⚗️ Net ENA / RS to Add</div>
+            <div className="prc-vstep-body">
+              <div className="prc-vstep-primary prc-text-indigo">
+                {formatNum(netAlcoholRequiredLtr, 3)} <span className="prc-vstep-unit">litres</span>
+              </div>
+              <span className="prc-vstep-pill prc-vpill-indigo">
+                {formatNum(netAlcoholRequiredMl, 1)} ML
+              </span>
+            </div>
+            <div className="prc-vstep-foot">
+              (= {formatNum(grossAlcoholRequiredLtr, 3)}L Gross − {formatNum(totalRawMaterialAlcoholLtr, 3)}L in RMs)
+            </div>
+          </div>
+
+          {/* STEP 4: WATER REQUIRED (Q.S.) */}
+          <div className="prc-vstep-card prc-vstep-water">
+            <div className="prc-vstep-top">
+              <span className="prc-vstep-tag prc-vtag-emerald">STEP 4</span>
+              <span className="prc-vstep-stage">Vehicle (Q.S.)</span>
+            </div>
+            <div className="prc-vstep-name prc-text-emerald">💧 Purified Water (Q.S.)</div>
+            <div className="prc-vstep-body">
+              <div className="prc-vstep-primary prc-text-emerald">
+                {formatNum(waterRequiredLtr, 3)} <span className="prc-vstep-unit">litres</span>
+              </div>
+              <span className="prc-vstep-pill prc-vpill-emerald">
+                {formatNum(waterRequiredMl, 1)} ML
+              </span>
+            </div>
+            <div className="prc-vstep-foot prc-text-emerald-muted">
+              = Batch ({formatNum(targetVolumeLtr, 2)}L) − RMs ({formatNum(totalLiquidRmVolumeLtr, 3)}L) − Net ENA ({formatNum(netAlcoholRequiredLtr, 3)}L)
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. ACTIVE RAW MATERIALS COMPOSITION TABLE */}
+      <div className="prc-table-card">
+        <div className="prc-card-header-bar">
+          <div className="prc-chb-title">
+            <span className="prc-chb-icon">🧪</span>
+            <div>
+              <h3>Active Dilutions & Ingredients (Section 1)</h3>
+              <p>
+                {compositions.length} active raw material{compositions.length === 1 ? '' : 's'} for <strong>{productName}</strong>. Base {baseBatchLtr}L formula scaled by <strong>{scaleMultiplier.toFixed(2)}×</strong> for {targetVolumeLtr}L batch.
+              </p>
+            </div>
+          </div>
+          <div className="prc-table-actions-cluster">
+            <div className="prc-store-selector-pill">
+              <span className="prc-ssp-icon">🏢</span>
+              <span className="prc-ssp-lbl">Store:</span>
               <select
-                className="prc-cell-select"
-                style={{ width: 'auto', minWidth: 140, padding: '2px 6px', fontSize: 12, fontWeight: 600, background: '#fff' }}
+                className="prc-ssp-select"
                 value={selectedStoreId}
                 onChange={(e) => setSelectedStoreId(e.target.value)}
                 disabled={!stores.length}
@@ -1566,8 +1765,7 @@ export default function ProductionRawMaterialCalculator({
             </div>
             <button
               type="button"
-              className="prc-btn-preset-excel"
-              style={{ fontSize: 12, padding: '4px 10px', background: 'linear-gradient(135deg, #d97706, #b45309)' }}
+              className="prc-btn-pill prc-btn-pill-amber"
               onClick={() => handleSetTincturesAlcohol(60)}
               title="Set all Mother Tinctures (Q) to standard 60% alcohol content"
             >
@@ -1575,13 +1773,13 @@ export default function ProductionRawMaterialCalculator({
             </button>
             <button
               type="button"
-              className="prc-btn-preset-excel"
-              style={{ fontSize: 12, padding: '4px 10px' }}
+              className="prc-btn-pill prc-btn-pill-emerald"
               onClick={handleApplyExcelTemplate}
+              title="Reset quantities to standard Excel base ratio"
             >
               ⚡ Set All to 3 Lit / 9 Lit
             </button>
-            <button type="button" className="prc-btn-add" onClick={addCompRow}>
+            <button type="button" className="prc-btn-pill prc-btn-pill-primary" onClick={addCompRow}>
               + Add Composition Line
             </button>
           </div>
@@ -1811,13 +2009,31 @@ export default function ProductionRawMaterialCalculator({
                     <tr key={row.id}>
                       <td>{idx + 1}</td>
                       <td>
-                        <input
-                          className="prc-cell-input"
-                          list="catalog-raw-materials"
-                          value={row.name}
-                          onChange={(e) => updateComp(row.id, 'name', e.target.value)}
-                          placeholder="Type or select material from catalog..."
-                        />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <input
+                            className="prc-cell-input"
+                            list="catalog-raw-materials"
+                            value={row.name}
+                            onChange={(e) => updateComp(row.id, 'name', e.target.value)}
+                            placeholder="Type or select material from catalog..."
+                          />
+                          {isTwoPart && (
+                            <span
+                              style={{
+                                fontSize: '10px',
+                                fontWeight: 700,
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                whiteSpace: 'nowrap',
+                                background: row.part === 2 ? '#faf5ff' : '#eff6ff',
+                                color: row.part === 2 ? '#7e22ce' : '#1d4ed8',
+                                border: row.part === 2 ? '1px solid #e9d5ff' : '1px solid #bfdbfe',
+                              }}
+                            >
+                              {row.part === 2 ? 'Part-2' : 'Part-1'}
+                            </span>
+                          )}
+                        </div>
                       </td>
                     <td>
                       <input
@@ -1896,8 +2112,10 @@ export default function ProductionRawMaterialCalculator({
                         <span style={{ color: '#94a3b8', fontSize: 11 }}>0.00 ML (0%)</span>
                       )}
                     </td>
-                    <td style={{ textAlign: 'right', fontWeight: 600, color: isShort ? '#b91c1c' : '#15803d' }}>
-                      {stockLoading ? (
+                    <td style={{ textAlign: 'right', fontWeight: 600, color: !row.name || !row.name.trim() ? '#94a3b8' : isShort ? '#b91c1c' : '#15803d' }}>
+                      {!row.name || !row.name.trim() ? (
+                        <span style={{ color: '#94a3b8', fontSize: 12 }}>—</span>
+                      ) : stockLoading ? (
                         '...'
                       ) : (
                         <div>
@@ -1916,7 +2134,9 @@ export default function ProductionRawMaterialCalculator({
                       )}
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      {isShort ? (
+                      {!row.name || !row.name.trim() ? (
+                        <span style={{ color: '#94a3b8', fontSize: 11, fontStyle: 'italic' }}>Select material</span>
+                      ) : isShort ? (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                           <span className="prc-stock-short">
                             ⚠ Short: {diff.toFixed(2)} {row.unit}
@@ -2095,8 +2315,10 @@ export default function ProductionRawMaterialCalculator({
                         <option value="ML">ML</option>
                       </select>
                     </td>
-                    <td style={{ textAlign: 'right', fontWeight: 600, color: isShort ? '#b91c1c' : '#15803d' }}>
-                      {stockLoading ? (
+                    <td style={{ textAlign: 'right', fontWeight: 600, color: !row.name || !row.name.trim() ? '#94a3b8' : isShort ? '#b91c1c' : '#15803d' }}>
+                      {!row.name || !row.name.trim() ? (
+                        <span style={{ color: '#94a3b8', fontSize: 12 }}>—</span>
+                      ) : stockLoading ? (
                         '...'
                       ) : (
                         <div>
@@ -2115,7 +2337,9 @@ export default function ProductionRawMaterialCalculator({
                       )}
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      {isShort ? (
+                      {!row.name || !row.name.trim() ? (
+                        <span style={{ color: '#94a3b8', fontSize: 11, fontStyle: 'italic' }}>Select material</span>
+                      ) : isShort ? (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                           <span className="prc-stock-short">
                             ⚠ Short: {diff.toFixed(2)} {row.unit}
@@ -2295,25 +2519,366 @@ export default function ProductionRawMaterialCalculator({
               <tr>
                 <th style={{ width: 45 }}>Sr.</th>
                 <th>Packing Material Name</th>
-                <th style={{ width: 160, textAlign: 'right' }}>Quantity Required</th>
-                <th style={{ width: 80 }}>Unit</th>
-                <th style={{ width: 140 }}>AR / Lot No.</th>
+                <th style={{ width: 140, textAlign: 'right' }}>Quantity Required</th>
+                <th style={{ width: 70 }}>Unit</th>
+                <th style={{ width: 130, textAlign: 'right' }}>Available in Store</th>
+                <th style={{ width: 130, textAlign: 'center' }}>Stock Status</th>
+                <th style={{ width: 110 }}>AR / Lot No.</th>
               </tr>
             </thead>
             <tbody>
-              {packagingLines.map((pkg, idx) => (
-                <tr key={`pkg-${idx}`}>
-                  <td>{idx + 1}</td>
-                  <td style={{ fontWeight: 600 }}>{pkg.name}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 700, color: '#16a34a' }}>
-                    {pkg.qty.toLocaleString()}
-                  </td>
-                  <td>{pkg.unit}</td>
-                  <td style={{ color: '#94a3b8' }}>—</td>
-                </tr>
-              ))}
+              {packagingLines.map((pkg, idx) => {
+                const stockInfo = stockBalances[pkg.id]
+                const avail = stockInfo ? stockInfo.totalAvail : 0
+                const rawAvail = stockInfo ? stockInfo.rawAvail : 0
+                const storeUnit = stockInfo ? stockInfo.storeUnit : pkg.unit
+                const hasRecord = stockInfo ? stockInfo.hasRecord : false
+                const isShort = hasRecord && avail < pkg.qty
+                const diff = Math.max(0, pkg.qty - avail)
+
+                return (
+                  <tr key={pkg.id || `pkg-${idx}`}>
+                    <td>{idx + 1}</td>
+                    <td style={{ fontWeight: 600 }}>{pkg.name}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700, color: '#0369a1' }}>
+                      {pkg.qty.toLocaleString()}
+                    </td>
+                    <td>{pkg.unit}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                      {stockLoading ? (
+                        '...'
+                      ) : !hasRecord ? (
+                        <span style={{ color: '#94a3b8', fontSize: 11 }}>0 {pkg.unit} in store</span>
+                      ) : (
+                        <div>
+                          <div style={{ color: isShort ? '#b91c1c' : '#15803d' }}>
+                            {avail.toLocaleString()} {pkg.unit}
+                          </div>
+                          {storeUnit.toLowerCase() !== pkg.unit.toLowerCase() && (
+                            <div style={{ fontSize: 10, color: '#64748b' }}>
+                              ({rawAvail.toLocaleString()} {storeUnit})
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      {!hasRecord ? (
+                        <span style={{ fontSize: 11, color: '#b91c1c', fontWeight: 600 }}>
+                          ⚠ Not in store
+                        </span>
+                      ) : isShort ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                          <span className="prc-stock-short" style={{ fontSize: 11, padding: '2px 6px' }}>
+                            ⚠ Short: {diff.toLocaleString()} {pkg.unit}
+                          </span>
+                          <button
+                            type="button"
+                            className="prc-btn-mini-po"
+                            onClick={() => handleOpenPoForRow({ ...pkg, targetQty: pkg.qty, isPackaging: true }, diff)}
+                            title={`Create Purchase Order for ${diff} ${pkg.unit} of ${pkg.name}`}
+                          >
+                            + Raise PO
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                          <span className="prc-stock-in" style={{ fontSize: 11, padding: '2px 6px' }}>
+                            ✓ In Stock
+                          </span>
+                          <span style={{ fontSize: 10, color: '#16a34a', fontWeight: 600 }}>
+                            Ready for batch
+                          </span>
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ color: '#94a3b8' }}>{pkg.ar_no || '—'}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* 6B. BATCH YIELD, QC & RETENTION SAMPLES & SALES ORDER ALLOCATION SPLIT */}
+      <div className="prc-table-card prc-yield-card" style={{ border: '1.5px solid #cbd5e1', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+        <div className="prc-table-title-row" style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)', borderBottom: '1px solid #e2e8f0', padding: '16px 20px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 20 }}>📦</span>
+              <h4 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+                Batch Output Allocation, Quality Samples & Stock Split
+              </h4>
+              <span style={{ fontSize: 11, fontWeight: 700, background: '#e0f2fe', color: '#0369a1', padding: '3px 8px', borderRadius: 6, border: '1px solid #bae6fd' }}>
+                GMP Reconciliation
+              </span>
+            </div>
+            <p style={{ margin: '4px 0 0', fontSize: 12.5, color: '#64748b' }}>
+              Deduct QC testing & control/retention samples, then allocate net commercial bottles between current sales order and future free buffer stock.
+            </p>
+          </div>
+        </div>
+
+        {/* 3-METRIC SUMMARY BANNER */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: 14,
+          padding: '16px 20px',
+          background: '#f8fafc',
+          borderBottom: '1px solid #e2e8f0',
+        }}>
+          <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '12px 16px' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              🏭 Total Batch Gross Yield
+            </span>
+            <div style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', marginTop: 4 }}>
+              {totalBottles.toLocaleString()} <span style={{ fontSize: 13, fontWeight: 600, color: '#64748b' }}>bottles ({targetVolumeLtr} L)</span>
+            </div>
+          </div>
+
+          <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 10, padding: '12px 16px' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#be123c', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              🧪 Total Samples Withdrawn
+            </span>
+            <div style={{ fontSize: 22, fontWeight: 800, color: '#e11d48', marginTop: 4 }}>
+              -{totalSamplesNum.toLocaleString()} <span style={{ fontSize: 13, fontWeight: 600, color: '#be123c' }}>bottles (QC + Retention)</span>
+            </div>
+          </div>
+
+          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '12px 16px' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              ✅ Net Commercial Output
+            </span>
+            <div style={{ fontSize: 22, fontWeight: 800, color: '#16a34a', marginTop: 4 }}>
+              {netCommercialBottles.toLocaleString()} <span style={{ fontSize: 13, fontWeight: 600, color: '#15803d' }}>bottles</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 2-COLUMN CONFIGURATION GRID */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: 20,
+          padding: '20px',
+        }}>
+          {/* COLUMN 1: SAMPLES MANAGEMENT */}
+          <div style={{
+            background: '#ffffff',
+            border: '1.5px solid #e2e8f0',
+            borderRadius: 12,
+            padding: '16px 18px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid #f1f5f9', paddingBottom: 10 }}>
+              <span style={{ fontSize: 18 }}>🧪</span>
+              <div>
+                <h5 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#1e293b' }}>
+                  1. Quality & Regulatory Samples (Deductions)
+                </h5>
+                <span style={{ fontSize: 11, color: '#64748b' }}>
+                  Withdrawn from batch before commercial release
+                </span>
+              </div>
+            </div>
+
+            {/* QC Sample Row */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#334155' }}>
+                  🔬 QC Laboratory Testing Samples
+                </label>
+                <span style={{ fontSize: 11, color: '#64748b' }}>
+                  Assay, DT, Sterility & pH testing (Consumed in Lab)
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input
+                  type="number"
+                  min="0"
+                  className="prc-cell-input prc-cell-num"
+                  style={{ width: 80, textAlign: 'right', fontWeight: 700, padding: '6px 8px', borderRadius: 6, border: '1.5px solid #cbd5e1' }}
+                  value={qcSampleQty}
+                  onChange={(e) => setQcSampleQty(e.target.value)}
+                />
+                <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>BTL</span>
+              </div>
+            </div>
+
+            {/* Retention Sample Row */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#334155' }}>
+                  🏷️ Control / Retention Samples
+                </label>
+                <span style={{ fontSize: 11, color: '#64748b' }}>
+                  Stored in Control Room until Expiry + 1 Year (Drug Rules audit)
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input
+                  type="number"
+                  min="0"
+                  className="prc-cell-input prc-cell-num"
+                  style={{ width: 80, textAlign: 'right', fontWeight: 700, padding: '6px 8px', borderRadius: 6, border: '1.5px solid #cbd5e1' }}
+                  value={retentionSampleQty}
+                  onChange={(e) => setRetentionSampleQty(e.target.value)}
+                />
+                <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>BTL</span>
+              </div>
+            </div>
+
+            <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: 8, fontSize: 11.5, color: '#475569', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Total Withdrawn to Samples:</span>
+              <strong style={{ color: '#e11d48', fontSize: 13 }}>{totalSamplesNum} Bottles</strong>
+            </div>
+
+            {retentionSampleNum > 0 && (
+              <button
+                type="button"
+                onClick={handleLogToControlSampleRegister}
+                style={{
+                  background: 'linear-gradient(135deg, #7c3aed, #6d28d9)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '8px 12px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  boxShadow: '0 2px 4px rgba(124, 58, 237, 0.2)',
+                }}
+              >
+                📋 Log {retentionSampleNum} Samples to Control Room Register
+              </button>
+            )}
+          </div>
+
+          {/* COLUMN 2: SALES ORDER ALLOCATION & BUFFER STOCK SPLIT */}
+          <div style={{
+            background: '#ffffff',
+            border: '1.5px solid #e2e8f0',
+            borderRadius: 12,
+            padding: '16px 18px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid #f1f5f9', paddingBottom: 10 }}>
+              <span style={{ fontSize: 18 }}>🎯</span>
+              <div>
+                <h5 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#1e293b' }}>
+                  2. Commercial Output Allocation Split
+                </h5>
+                <span style={{ fontSize: 11, color: '#64748b' }}>
+                  Allocate net {netCommercialBottles.toLocaleString()} bottles to Order vs Warehouse Buffer
+                </span>
+              </div>
+            </div>
+
+            {/* Sales Order Input */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <label style={{ fontSize: 12.5, fontWeight: 700, color: '#1e293b' }}>
+                  🎯 Primary Sales Order Allocation:
+                </label>
+                {orderAllocatedNum > 0 && (
+                  <span style={{ fontSize: 10.5, fontWeight: 700, background: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: 4 }}>
+                    🔒 Reserved for Dispatch
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px', gap: 8 }}>
+                <input
+                  className="prc-cell-input"
+                  style={{ padding: '6px 10px', borderRadius: 6, border: '1.5px solid #cbd5e1', fontSize: 12 }}
+                  placeholder="e.g. SO-2026-1024 / Apollo Hospitals Bulk"
+                  value={linkedSalesOrder}
+                  onChange={(e) => setLinkedSalesOrder(e.target.value)}
+                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <input
+                    type="number"
+                    min="0"
+                    max={netCommercialBottles}
+                    className="prc-cell-input prc-cell-num"
+                    style={{ width: '100%', textAlign: 'right', fontWeight: 700, padding: '6px 8px', borderRadius: 6, border: '1.5px solid #cbd5e1' }}
+                    placeholder={String(netCommercialBottles)}
+                    value={orderAllocatedQty}
+                    onChange={(e) => setOrderAllocatedQty(e.target.value)}
+                  />
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>BTL</span>
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                Directly reserved for this customer order upon batch completion.
+              </div>
+            </div>
+
+            {/* General Buffer Stock Result */}
+            <div style={{
+              background: bufferStockNum > 0 ? '#f0fdf4' : '#f8fafc',
+              border: `1.5px solid ${bufferStockNum > 0 ? '#86efac' : '#e2e8f0'}`,
+              borderRadius: 8,
+              padding: '12px 14px',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: bufferStockNum > 0 ? '#166534' : '#64748b', display: 'block' }}>
+                    🏬 General Warehouse Buffer (Free Stock):
+                  </span>
+                  <span style={{ fontSize: 11, color: bufferStockNum > 0 ? '#15803d' : '#94a3b8' }}>
+                    Available for next incoming orders without re-manufacturing
+                  </span>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: 20, fontWeight: 800, color: bufferStockNum > 0 ? '#16a34a' : '#64748b' }}>
+                    {bufferStockNum.toLocaleString()}
+                  </span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b', marginLeft: 4 }}>BTL</span>
+                </div>
+              </div>
+
+              {bufferStockNum > 0 && (
+                <>
+                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed #bbf7d0', fontSize: 10.5, color: '#166534', fontWeight: 600 }}>
+                    💡 {bufferStockNum.toLocaleString()} bottles will stay in Finished Goods inventory ready for the next customer order.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleInwardBufferToFgWarehouse}
+                    style={{
+                      background: 'linear-gradient(135deg, #16a34a, #15803d)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 6,
+                      padding: '8px 12px',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      marginTop: 8,
+                      width: '100%',
+                      boxShadow: '0 2px 4px rgba(22, 163, 74, 0.2)',
+                    }}
+                  >
+                    🏭 Inward {bufferStockNum.toLocaleString()} Bottles to FG Warehouse Store
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2337,6 +2902,34 @@ export default function ProductionRawMaterialCalculator({
         <div className="prc-bottom-left">
           <span className="prc-dot-green"></span>
           <span>Batch: <strong>{targetVolumeLtr} LTR</strong> &nbsp;·&nbsp; <strong>{totalBottles.toLocaleString()}</strong> bottles</span>
+          {totalSamplesNum > 0 && (
+            <>
+              <span style={{ margin: '0 6px', color: '#94a3b8' }}>|</span>
+              <span style={{ color: '#7c3aed', fontWeight: 600, fontSize: 12 }}>
+                🧪 {totalSamplesNum} Samples
+              </span>
+              <span style={{ margin: '0 6px', color: '#94a3b8' }}>→</span>
+              <span style={{ color: '#16a34a', fontWeight: 700, fontSize: 12 }}>
+                ✅ Net {netCommercialBottles.toLocaleString()} BTL
+              </span>
+              {orderAllocatedNum > 0 && (
+                <>
+                  <span style={{ margin: '0 4px', color: '#94a3b8' }}>:</span>
+                  <span style={{ color: '#0369a1', fontWeight: 600, fontSize: 12 }}>
+                    📦 SO {orderAllocatedNum.toLocaleString()}
+                  </span>
+                  {bufferStockNum > 0 && (
+                    <>
+                      <span style={{ margin: '0 4px', color: '#94a3b8' }}>+</span>
+                      <span style={{ color: '#15803d', fontWeight: 600, fontSize: 12 }}>
+                        🏭 Buffer {bufferStockNum.toLocaleString()}
+                      </span>
+                    </>
+                  )}
+                </>
+              )}
+            </>
+          )}
         </div>
 
         <div className="prc-bottom-right">
@@ -2434,7 +3027,7 @@ export default function ProductionRawMaterialCalculator({
 
       {/* CATALOG MATERIALS DATALIST FOR EASY AUTO-BINDING */}
       <datalist id="catalog-raw-materials">
-        {catalogMaterials.map((cm) => (
+        {[...catalogMaterials, ...catalogPkgMaterials].map((cm) => (
           <option key={cm.id} value={cm.name}>
             {cm.code ? `${cm.code} — ` : ''}{cm.name} {cm.unitCode ? `(${cm.unitCode})` : ''}
           </option>

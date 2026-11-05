@@ -1,4 +1,4 @@
-// Issue & Return - connects to:
+// Material Issue to Production - connects to:
 // 1. apps.stock_movements (Material Issues & Outward Movements)
 // 2. Persistent Production Floor Custody (apps.stock_movements.ProductionCustody)
 // 3. Returns (apps.stock_movements.MaterialReturn)
@@ -28,12 +28,14 @@ import {
   cancelMaterialIssue,
   listProductionCustodies,
   listMaterialReturns,
+  decideMaterialReturnDisposition,
   recordProductionConsumption,
   recordDefectClassification,
   recordCustodyReturn,
   recordCustodyDisposal,
 } from '../../store/materialIssueService'
 import IssueOutwardModal from '../../store/IssueOutwardModal'
+import './StockTab.css'
 import './IssueReturn.css'
 import './CommonInventory.css'
 
@@ -213,7 +215,7 @@ export default function IssueReturnTab({ storeId: propStoreId }) {
     if (activeTab === 'ISSUES') loadIssues()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    storeId, activeTab, issuePage, issueStatus, issueMaterial, issueCompany, issueKind,
+    storeId, activeTab, issuePage, issueStatus, issueMaterial, issueCompany, issueKind, issueDateFrom, issueDateTo,
   ])
 
   // Custody is loaded whenever Custody OR History tab is active - History is
@@ -240,6 +242,19 @@ export default function IssueReturnTab({ storeId: propStoreId }) {
     }
   }, [actionSuccess, actionError])
 
+  // Summary Metrics for KPI cards
+  const metrics = useMemo(() => {
+    const draftCount = issues.results.filter((i) => i.status === 'DRAFT').length
+    const postedCount = issues.results.filter((i) => i.status === 'POSTED').length
+    return {
+      totalIssues: issues.count || issues.results.length || 0,
+      draftCount,
+      postedCount,
+      activeCustodies: custodies.results.length || 0,
+      totalReturns: returns.count || returns.results.length || 0,
+    }
+  }, [issues, custodies.results, returns])
+
   const handleClearIssueFilters = () => {
     setIssueSearch('')
     setIssueMaterial('')
@@ -251,6 +266,20 @@ export default function IssueReturnTab({ storeId: propStoreId }) {
     setIssueDateFrom('')
     setIssueDateTo('')
     setIssuePage(1)
+    if (storeId) {
+      listMaterialIssues(storeId, { page: 1, pageSize: PAGE_SIZE })
+        .then((data) => {
+          setIssues({
+            loading: false,
+            results: Array.isArray(data) ? data : data.results || [],
+            count: data.count || (Array.isArray(data) ? data.length : 0),
+            error: '',
+          })
+        })
+        .catch((err) => {
+          setIssues({ loading: false, results: [], count: 0, error: getErrorMessage(err) })
+        })
+    }
   }
 
   const handlePostIssue = async (issue) => {
@@ -414,18 +443,22 @@ export default function IssueReturnTab({ storeId: propStoreId }) {
   const storeDisplayName = storeId ? `Shared Store #${storeId}` : 'Shared Warehouse'
 
   return (
-    <div className="ci-container">
-      {/* Header */}
-      <div className="ci-header">
-        <div className="ci-header-titles">
-          <h2>Issue &amp; Return</h2>
+    <div className="ci-container stocks-container">
+      {/* 1. Header & Primary Action */}
+      <div className="ci-header stocks-header">
+        <div className="ci-header-titles stocks-header-titles">
+          <h2>Material Issue to Production</h2>
           <p>
             Issue raw and packaging materials from the shared store to production, track persistent floor
             custody, record returns/defects/disposals, and review the full history — all traceable to the
             original issue and recorded actor.
           </p>
         </div>
-        <div className="ci-header-actions">
+        <div className="ci-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className="ci-store-pill" style={{ margin: 0 }}>
+            <span className="ci-store-dot"></span>
+            <span>Store: <strong>{storeDisplayName}</strong></span>
+          </div>
           <Button
             variant="primary"
             onClick={() => {
@@ -440,18 +473,67 @@ export default function IssueReturnTab({ storeId: propStoreId }) {
       </div>
 
       {actionSuccess && (
-        <div style={{ marginBottom: 4 }}>
+        <div style={{ marginBottom: 10 }}>
           <Alert type="success">{actionSuccess}</Alert>
         </div>
       )}
       {actionError && (
-        <div style={{ marginBottom: 4 }}>
+        <div style={{ marginBottom: 10 }}>
           <Alert type="danger">{actionError}</Alert>
         </div>
       )}
 
-      {/* Subtab Navigation */}
-      <div className="ci-nav-bar">
+      {/* 2. Top Summary KPI Cards (Horizontal 4-column Grid matching StockTab) */}
+      <div className="ci-summary-grid stocks-summary-grid" style={{ marginBottom: 16 }}>
+        <div className="ci-card stocks-card">
+          <div className="ci-card-icon stocks-card-icon" style={{ background: '#eff6ff', color: '#2563eb' }}>
+            📤
+          </div>
+          <div className="ci-card-info stocks-card-info">
+            <span className="ci-card-label stocks-card-label">Total Outward Issues</span>
+            <span className="ci-card-value stocks-card-value">{metrics.totalIssues}</span>
+            <span className="ci-card-subtext stocks-card-subtext">{metrics.postedCount} posted to ledger</span>
+          </div>
+        </div>
+
+        <div className="ci-card stocks-card">
+          <div className="ci-card-icon stocks-card-icon" style={{ background: metrics.draftCount > 0 ? '#fffbeb' : '#f8fafc', color: metrics.draftCount > 0 ? '#d97706' : '#64748b' }}>
+            ⏳
+          </div>
+          <div className="ci-card-info stocks-card-info">
+            <span className="ci-card-label stocks-card-label">Draft Issues (Pending Post)</span>
+            <span className="ci-card-value stocks-card-value" style={{ color: metrics.draftCount > 0 ? '#d97706' : '#64748b' }}>
+              {metrics.draftCount}
+            </span>
+            <span className="ci-card-subtext stocks-card-subtext">Awaiting ledger posting</span>
+          </div>
+        </div>
+
+        <div className="ci-card stocks-card">
+          <div className="ci-card-icon stocks-card-icon" style={{ background: '#ecfdf5', color: '#16a34a' }}>
+            🏭
+          </div>
+          <div className="ci-card-info stocks-card-info">
+            <span className="ci-card-label stocks-card-label">Active Floor Custodies</span>
+            <span className="ci-card-value stocks-card-value" style={{ color: '#16a34a' }}>{metrics.activeCustodies}</span>
+            <span className="ci-card-subtext stocks-card-subtext">Lots on production floor</span>
+          </div>
+        </div>
+
+        <div className="ci-card stocks-card">
+          <div className="ci-card-icon stocks-card-icon" style={{ background: '#f5f3ff', color: '#7c3aed' }}>
+            ↩️
+          </div>
+          <div className="ci-card-info stocks-card-info">
+            <span className="ci-card-label stocks-card-label">Returned Lots (Held)</span>
+            <span className="ci-card-value stocks-card-value" style={{ color: '#7c3aed' }}>{metrics.totalReturns}</span>
+            <span className="ci-card-subtext stocks-card-subtext">Held unassessed for QC review</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Subtab Navigation */}
+      <div className="ci-nav-bar" style={{ marginBottom: 16 }}>
         <div className="ci-subtabs">
           <button
             type="button"
@@ -486,10 +568,6 @@ export default function IssueReturnTab({ storeId: propStoreId }) {
             {historyRows.length > 0 && <span className="ci-subtab-count">{historyRows.length}</span>}
           </button>
         </div>
-        <div className="ci-store-pill">
-          <span className="ci-store-dot"></span>
-          <span>Store: <strong>{storeDisplayName}</strong></span>
-        </div>
       </div>
 
       {/* ================================================================= */}
@@ -498,108 +576,129 @@ export default function IssueReturnTab({ storeId: propStoreId }) {
       {activeTab === 'ISSUES' && (
         <div>
           <div
-            className="ci-filters"
+            className="ci-filters stocks-filter-card"
             style={{
-              marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
-              background: '#f8fafc', padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+              padding: '14px 18px',
+              background: '#ffffff',
+              borderRadius: 12,
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+              marginBottom: 16,
             }}
           >
-            <input
-              type="text"
-              className="ci-input"
-              placeholder="Search reference / material / batch / product..."
-              value={issueSearch}
-              onChange={(e) => setIssueSearch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  setIssuePage(1)
-                  loadIssues()
-                }
-              }}
-              style={{ minWidth: 240, padding: '5px 8px', fontSize: 13 }}
-            />
-            <select
-              className="ci-select"
-              value={issueKind}
-              onChange={(e) => { setIssueKind(e.target.value); setIssuePage(1) }}
-              style={{ minWidth: 110, fontSize: 13, padding: '5px 8px' }}
-            >
-              <option value="">Raw / Packaging / All</option>
-              <option value="RAW_MATERIAL">Raw only</option>
-              <option value="PACKAGING_MATERIAL">Packaging only</option>
-            </select>
-            <select
-              className="ci-select"
-              value={issueMaterial}
-              onChange={(e) => { setIssueMaterial(e.target.value); setIssuePage(1) }}
-              style={{ minWidth: 150, fontSize: 13, padding: '5px 8px' }}
-            >
-              <option value="">All Materials</option>
-              {materials.map((m) => (
-                <option key={m.id} value={m.id}>{m.code} — {m.name}</option>
-              ))}
-            </select>
-            <select
-              className="ci-select"
-              value={issueCompany}
-              onChange={(e) => { setIssueCompany(e.target.value); setIssuePage(1) }}
-              style={{ minWidth: 150, fontSize: 13, padding: '5px 8px' }}
-            >
-              <option value="">All Companies</option>
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>{c.code} — {c.name || c.display_name}</option>
-              ))}
-            </select>
-            <select
-              className="ci-select"
-              value={issueStatus}
-              onChange={(e) => { setIssueStatus(e.target.value); setIssuePage(1) }}
-              style={{ minWidth: 120, fontSize: 13, padding: '5px 8px' }}
-            >
-              <option value="">All Statuses</option>
-              <option value="DRAFT">Draft</option>
-              <option value="POSTED">Posted</option>
-              <option value="CANCELLED">Cancelled</option>
-            </select>
-            <input
-              type="text"
-              className="ci-input"
-              placeholder="Product..."
-              value={issueProduct}
-              onChange={(e) => setIssueProduct(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') { setIssuePage(1); loadIssues() } }}
-              style={{ minWidth: 130, padding: '5px 8px', fontSize: 13 }}
-            />
-            <input
-              type="text"
-              className="ci-input"
-              placeholder="Batch..."
-              value={issueBatch}
-              onChange={(e) => setIssueBatch(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') { setIssuePage(1); loadIssues() } }}
-              style={{ minWidth: 110, padding: '5px 8px', fontSize: 13 }}
-            />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#475569' }}>
-              <span>From:</span>
+            {/* Row 1: Search + Category + Status + Company */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <input
-                type="date" className="ci-input" value={issueDateFrom}
-                onChange={(e) => { setIssueDateFrom(e.target.value); setIssuePage(1) }}
-                style={{ fontSize: 12, padding: '4px 6px' }}
+                type="text"
+                className="ci-input stocks-search-input"
+                placeholder="Search reference, material, batch, product..."
+                value={issueSearch}
+                onChange={(e) => setIssueSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setIssuePage(1)
+                    loadIssues()
+                  }
+                }}
+                style={{ flex: 1.5, minWidth: 260, padding: '7px 12px', fontSize: 13, borderRadius: 6, border: '1px solid #cbd5e1' }}
               />
-              <span>To:</span>
-              <input
-                type="date" className="ci-input" value={issueDateTo}
-                onChange={(e) => { setIssueDateTo(e.target.value); setIssuePage(1) }}
-                style={{ fontSize: 12, padding: '4px 6px' }}
-              />
+              <select
+                className="ci-select stocks-select-input"
+                value={issueKind}
+                onChange={(e) => { setIssueKind(e.target.value); setIssuePage(1) }}
+                style={{ minWidth: 150, padding: '7px 10px', fontSize: 13, borderRadius: 6, border: '1px solid #cbd5e1' }}
+              >
+                <option value="">Raw / Packaging / All</option>
+                <option value="RAW_MATERIAL">Raw only</option>
+                <option value="PACKAGING_MATERIAL">Packaging only</option>
+              </select>
+              <select
+                className="ci-select stocks-select-input"
+                value={issueStatus}
+                onChange={(e) => { setIssueStatus(e.target.value); setIssuePage(1) }}
+                style={{ minWidth: 130, padding: '7px 10px', fontSize: 13, borderRadius: 6, border: '1px solid #cbd5e1' }}
+              >
+                <option value="">All Statuses</option>
+                <option value="DRAFT">Draft</option>
+                <option value="POSTED">Posted</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+              <select
+                className="ci-select stocks-select-input"
+                value={issueCompany}
+                onChange={(e) => { setIssueCompany(e.target.value); setIssuePage(1) }}
+                style={{ minWidth: 150, padding: '7px 10px', fontSize: 13, borderRadius: 6, border: '1px solid #cbd5e1' }}
+              >
+                <option value="">All Companies</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>{c.code} — {c.name || c.display_name}</option>
+                ))}
+              </select>
             </div>
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-              {(issueSearch || issueMaterial || issueCompany || issueKind || issueStatus || issueBatch || issueProduct || issueDateFrom || issueDateTo) && (
-                <Button size="sm" variant="secondary" onClick={handleClearIssueFilters}>Clear</Button>
-              )}
-              <Button size="sm" variant="secondary" onClick={loadIssues} disabled={issues.loading}>
-                {issues.loading ? 'Refreshing...' : '🔄 Refresh'}
-              </Button>
+
+            {/* Row 2: Material + Product + Batch + Date Range + Actions */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', paddingTop: 8, borderTop: '1px solid #f1f5f9' }}>
+              <select
+                className="ci-select stocks-select-input"
+                value={issueMaterial}
+                onChange={(e) => { setIssueMaterial(e.target.value); setIssuePage(1) }}
+                style={{ minWidth: 160, padding: '6px 10px', fontSize: 13, borderRadius: 6, border: '1px solid #cbd5e1' }}
+              >
+                <option value="">All Materials</option>
+                {materials.map((m) => (
+                  <option key={m.id} value={m.id}>{m.code} — {m.name}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                className="ci-input"
+                placeholder="Product..."
+                value={issueProduct}
+                onChange={(e) => setIssueProduct(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { setIssuePage(1); loadIssues() } }}
+                style={{ width: 140, padding: '6px 10px', fontSize: 13, borderRadius: 6, border: '1px solid #cbd5e1' }}
+              />
+              <input
+                type="text"
+                className="ci-input"
+                placeholder="Batch..."
+                value={issueBatch}
+                onChange={(e) => setIssueBatch(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { setIssuePage(1); loadIssues() } }}
+                style={{ width: 120, padding: '6px 10px', fontSize: 13, borderRadius: 6, border: '1px solid #cbd5e1' }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569', background: '#f8fafc', padding: '4px 10px', borderRadius: 6, border: '1px solid #e2e8f0' }}>
+                <span>From:</span>
+                <input
+                  type="date"
+                  className="ci-input"
+                  value={issueDateFrom}
+                  onChange={(e) => { setIssueDateFrom(e.target.value); setIssuePage(1) }}
+                  style={{ fontSize: 12, padding: '3px 6px', border: 'none', background: 'transparent' }}
+                />
+                <span>To:</span>
+                <input
+                  type="date"
+                  className="ci-input"
+                  value={issueDateTo}
+                  onChange={(e) => { setIssueDateTo(e.target.value); setIssuePage(1) }}
+                  style={{ fontSize: 12, padding: '3px 6px', border: 'none', background: 'transparent' }}
+                />
+              </div>
+
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                {(issueSearch || issueMaterial || issueCompany || issueKind || issueStatus || issueBatch || issueProduct || issueDateFrom || issueDateTo) && (
+                  <Button size="sm" variant="secondary" onClick={handleClearIssueFilters}>
+                    Clear Filters
+                  </Button>
+                )}
+                <Button size="sm" variant="secondary" onClick={loadIssues} disabled={issues.loading}>
+                  {issues.loading ? 'Refreshing...' : '🔄 Refresh'}
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -751,15 +850,33 @@ export default function IssueReturnTab({ storeId: propStoreId }) {
             </div>
           </div>
 
-          <div className="ci-filters" style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
+          <div
+            className="ci-filters stocks-filter-card"
+            style={{
+              marginBottom: 16,
+              display: 'flex',
+              gap: 10,
+              padding: '12px 16px',
+              background: '#ffffff',
+              borderRadius: 10,
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+              alignItems: 'center',
+            }}
+          >
             <input
               type="text"
-              className="ci-input"
+              className="ci-input stocks-search-input"
               placeholder="Search material / issue ref / company / batch..."
               value={custodySearch}
               onChange={(e) => setCustodySearch(e.target.value)}
-              style={{ minWidth: 280, padding: '5px 8px', fontSize: 13 }}
+              style={{ flex: 1, minWidth: 260, padding: '7px 12px', fontSize: 13, borderRadius: 6, border: '1px solid #cbd5e1' }}
             />
+            {custodySearch && (
+              <Button size="sm" variant="secondary" onClick={() => setCustodySearch('')}>
+                Clear
+              </Button>
+            )}
             <Button size="sm" variant="secondary" onClick={loadCustodies} disabled={custodies.loading}>
               {custodies.loading ? 'Refreshing...' : '🔄 Refresh'}
             </Button>
@@ -881,38 +998,55 @@ export default function IssueReturnTab({ storeId: propStoreId }) {
       {/* ================================================================= */}
       {activeTab === 'RETURNS' && (
         <div>
-          <div className="ci-filters" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', background: '#f8fafc', padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+          <div
+            className="ci-filters stocks-filter-card"
+            style={{
+              marginBottom: 16,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              flexWrap: 'wrap',
+              background: '#ffffff',
+              padding: '12px 16px',
+              borderRadius: 10,
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+            }}
+          >
             <select
-              className="ci-select" value={returnMaterial}
+              className="ci-select stocks-select-input"
+              value={returnMaterial}
               onChange={(e) => { setReturnMaterial(e.target.value); setReturnPage(1) }}
-              style={{ minWidth: 160, fontSize: 13, padding: '5px 8px' }}
+              style={{ minWidth: 180, fontSize: 13, padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1' }}
             >
               <option value="">All Materials</option>
               {materials.map((m) => (<option key={m.id} value={m.id}>{m.code} — {m.name}</option>))}
             </select>
             <select
-              className="ci-select" value={returnType}
+              className="ci-select stocks-select-input"
+              value={returnType}
               onChange={(e) => { setReturnType(e.target.value); setReturnPage(1) }}
-              style={{ minWidth: 140, fontSize: 13, padding: '5px 8px' }}
+              style={{ minWidth: 150, fontSize: 13, padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1' }}
             >
               <option value="">All Conditions</option>
               <option value="UNUSED">Unused</option>
               <option value="DEFECTIVE">Defective</option>
             </select>
             <select
-              className="ci-select" value={returnDisposition}
+              className="ci-select stocks-select-input"
+              value={returnDisposition}
               onChange={(e) => { setReturnDisposition(e.target.value); setReturnPage(1) }}
-              style={{ minWidth: 170, fontSize: 13, padding: '5px 8px' }}
+              style={{ minWidth: 180, fontSize: 13, padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1' }}
             >
               <option value="">All Dispositions</option>
               <option value="HELD_UNASSESSED">Held / Unassessed</option>
               <option value="RELEASED_USABLE">Released to Usable</option>
               <option value="QUARANTINE_REJECTED">Quarantine / Rejected</option>
             </select>
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
               {(returnMaterial || returnType || returnDisposition) && (
                 <Button size="sm" variant="secondary" onClick={() => { setReturnMaterial(''); setReturnType(''); setReturnDisposition(''); setReturnPage(1) }}>
-                  Clear
+                  Clear Filters
                 </Button>
               )}
               <Button size="sm" variant="secondary" onClick={loadReturns} disabled={returns.loading}>
@@ -948,6 +1082,7 @@ export default function IssueReturnTab({ storeId: propStoreId }) {
                       <th>Condition</th>
                       <th>Disposition</th>
                       <th>Received By</th>
+                      <th>QC Decision</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -968,11 +1103,68 @@ export default function IssueReturnTab({ storeId: propStoreId }) {
                           </span>
                         </td>
                         <td>
-                          <span className="stock-badge" style={{ background: '#fef3c7', color: '#b45309' }}>
+                          <span className="stock-badge" style={{
+                            background: r.disposition === 'RELEASED_USABLE' ? '#dcfce7' : r.disposition === 'QUARANTINE_REJECTED' ? '#fee2e2' : '#fef3c7',
+                            color: r.disposition === 'RELEASED_USABLE' ? '#15803d' : r.disposition === 'QUARANTINE_REJECTED' ? '#b91c1c' : '#b45309',
+                          }}>
                             {r.disposition.replaceAll('_', ' ')}
                           </span>
                         </td>
                         <td style={{ fontSize: 12 }}>{r.recorded_by_username || `User #${r.recorded_by_id}`}</td>
+                        <td>
+                          {r.disposition === 'HELD_UNASSESSED' ? (
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                disabled={actionLoading}
+                                onClick={async () => {
+                                  setActionLoading(true)
+                                  setActionError('')
+                                  try {
+                                    await decideMaterialReturnDisposition(storeId, r.id, {
+                                      disposition: 'RELEASED_USABLE',
+                                      reason: 'QC released returned material to usable stock',
+                                    })
+                                    setActionSuccess(`RET-${r.id} released to usable (issue-eligible) stock.`)
+                                    loadReturns()
+                                  } catch (err) {
+                                    setActionError(getErrorMessage(err))
+                                  } finally {
+                                    setActionLoading(false)
+                                  }
+                                }}
+                              >
+                                Release usable
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                disabled={actionLoading}
+                                onClick={async () => {
+                                  setActionLoading(true)
+                                  setActionError('')
+                                  try {
+                                    await decideMaterialReturnDisposition(storeId, r.id, {
+                                      disposition: 'QUARANTINE_REJECTED',
+                                      reason: 'QC rejected returned material',
+                                    })
+                                    setActionSuccess(`RET-${r.id} marked quarantine / rejected.`)
+                                    loadReturns()
+                                  } catch (err) {
+                                    setActionError(getErrorMessage(err))
+                                  } finally {
+                                    setActionLoading(false)
+                                  }
+                                }}
+                              >
+                                Reject
+                              </Button>
+                            </div>
+                          ) : (
+                            <span style={{ color: '#94a3b8', fontSize: 12 }}>Decided</span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1000,21 +1192,44 @@ export default function IssueReturnTab({ storeId: propStoreId }) {
       {/* ================================================================= */}
       {activeTab === 'HISTORY' && (
         <div>
-          <div className="ci-filters" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', background: '#f8fafc', padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+          <div
+            className="ci-filters stocks-filter-card"
+            style={{
+              marginBottom: 16,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              flexWrap: 'wrap',
+              background: '#ffffff',
+              padding: '12px 16px',
+              borderRadius: 10,
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+            }}
+          >
             <input
-              type="text" className="ci-input" placeholder="Search material / issue ref / reason..."
-              value={historySearch} onChange={(e) => setHistorySearch(e.target.value)}
-              style={{ minWidth: 260, padding: '5px 8px', fontSize: 13 }}
+              type="text"
+              className="ci-input stocks-search-input"
+              placeholder="Search material / issue ref / reason..."
+              value={historySearch}
+              onChange={(e) => setHistorySearch(e.target.value)}
+              style={{ flex: 1, minWidth: 260, padding: '7px 12px', fontSize: 13, borderRadius: 6, border: '1px solid #cbd5e1' }}
             />
             <select
-              className="ci-select" value={historyEventType}
+              className="ci-select stocks-select-input"
+              value={historyEventType}
               onChange={(e) => setHistoryEventType(e.target.value)}
-              style={{ minWidth: 180, fontSize: 13, padding: '5px 8px' }}
+              style={{ minWidth: 200, fontSize: 13, padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1' }}
             >
               <option value="">All Event Types</option>
               {Object.entries(EVENT_TYPE_LABELS).map(([k, label]) => (<option key={k} value={k}>{label}</option>))}
             </select>
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+              {(historySearch || historyEventType) && (
+                <Button size="sm" variant="secondary" onClick={() => { setHistorySearch(''); setHistoryEventType('') }}>
+                  Clear Filters
+                </Button>
+              )}
               <Button size="sm" variant="secondary" onClick={loadCustodies} disabled={custodies.loading}>
                 {custodies.loading ? 'Refreshing...' : '🔄 Refresh'}
               </Button>

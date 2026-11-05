@@ -213,6 +213,8 @@ function companyWorkspaceOption(slotOption, realCompany) {
     shortName: realName,
     label: realName,
     description: `Access ${realName} operations and records`,
+    companyId: realCompany?.id ?? slotOption.companyId,
+    realCompanyId: realCompany?.id,
   }
 
 }

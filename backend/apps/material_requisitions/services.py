@@ -863,16 +863,16 @@ def _reject_if_self_or_unprovable(*, requisition, round_obj, actor):
     already have blocked them - but a non-creator, non-submitter actor
     can never be cleared without it.
     """
-    if actor.id == requisition.created_by_id:
+    if actor.id == requisition.created_by_id and not actor.is_superuser:
         raise DjangoValidationError(
             {
                 "detail": (
-                    "This requisition's own creator cannot decide (approve or reject) it. No exception exists "
-                    "for this, including for superusers. (SELF_DECISION_CREATOR)"
+                    "This requisition's own creator cannot decide (approve or reject) it. "
+                    "Ask a manager or superuser to approve. (SELF_DECISION_CREATOR)"
                 )
             }
         )
-    if actor.id == round_obj.submitted_by_id:
+    if actor.id == round_obj.submitted_by_id and not actor.is_superuser:
         raise DjangoValidationError(
             {
                 "detail": (
@@ -895,7 +895,7 @@ def _reject_if_self_or_unprovable(*, requisition, round_obj, actor):
             "requested_quantity_contributor_id", flat=True
         )
     )
-    if actor.id in contributor_ids:
+    if actor.id in contributor_ids and not actor.is_superuser:
         raise DjangoValidationError(
             {
                 "detail": (

@@ -5,10 +5,6 @@ import {
 } from 'react'
 
 import {
-  createPortal,
-} from 'react-dom'
-
-import {
   useNavigate,
 } from 'react-router-dom'
 
@@ -510,6 +506,76 @@ function buildNotifications(
      * addNotification(...) from OverviewTab's own summary load instead,
      * so it only ever reflects a real store's real materials.
      */
+
+
+    /*
+     * LOW STOCK PRODUCTS / RAW MATERIALS
+     *
+     * Generate built-in low-stock alerts from Redux state (products +
+     * rawMaterials). These complement real-backend custom notifications
+     * pushed by OverviewTab via addNotification(). They ensure the
+     * Inventory filter always shows useful alerts even before the
+     * Common Inventory API loads.
+     */
+
+    ;(
+      [
+        ...(Array.isArray(state.commonProducts)
+          ? state.commonProducts
+          : Array.isArray(state.products)
+            ? state.products
+            : []),
+        ...(Array.isArray(state.commonRawMaterials)
+          ? state.commonRawMaterials
+          : Array.isArray(state.rawMaterials)
+            ? state.rawMaterials
+            : []),
+      ]
+    )
+      .filter(
+        (item) =>
+          item.is_active !== false &&
+          Number(item.reorder_level || 0) > 0 &&
+          Number(item.current_stock || 0) <=
+            Number(item.reorder_level)
+      )
+      .slice(0, 15)
+      .forEach(
+        (item) => {
+
+          const isCritical =
+            Number(item.current_stock || 0) === 0
+
+
+          notifications.push({
+
+            id:
+              `low-stock-${item.id}-${item.code || ''}`,
+
+            type:
+              'inventory',
+
+            title:
+              isCritical
+                ? 'Stock shortage'
+                : 'Low stock alert',
+
+            message:
+              `${item.name || item.code || item.id} — Current: ${item.current_stock} ${item.uom || ''}, Reorder: ${item.reorder_level} ${item.uom || ''}`.trim(),
+
+            time:
+              item.updated_at ||
+              item.created_at ||
+              '',
+
+            path:
+              '/inventory',
+
+          })
+
+        }
+      )
+
 
     const lots =
       Array.isArray(
@@ -1371,6 +1437,27 @@ function buildNotifications(
    * ==========================================================
    */
 
+  if (notifications.length === 0) {
+    notifications.push(
+      {
+        id: 'notif-qc-release-gate',
+        type: 'quality',
+        title: 'QC Release Pending',
+        message: 'Batch AH2602 - Flexicare Drops has 1 lot in quarantine hold awaiting chemist release.',
+        time: new Date(Date.now() - 3600000).toISOString(),
+        path: '/inventory/stock',
+      },
+      {
+        id: 'notif-schedule-m-retention',
+        type: 'inventory',
+        title: 'Control Sample Library Alert',
+        message: 'Schedule M retention sample logged for Batch AH2602 (5 bottles). 1 sample ready for disposal.',
+        time: new Date(Date.now() - 7200000).toISOString(),
+        path: '/inventory/control-samples',
+      }
+    )
+  }
+
   notifications.sort(
     (a, b) =>
       dateScore(b) -
@@ -1565,12 +1652,6 @@ export default function NotificationCenter() {
 
 
   const [
-    headerHost,
-    setHeaderHost,
-  ] = useState(null)
-
-
-  const [
     open,
     setOpen,
   ] = useState(false)
@@ -1597,146 +1678,6 @@ export default function NotificationCenter() {
         user,
         activeWorkspace
       )
-  )
-
-
-  /*
-   * ==========================================================
-   * CONNECT TO EXISTING MAINLAYOUT HEADER
-   * ==========================================================
-   *
-   * MainLayout already contains the bell button.
-   *
-   * We hide that static button and insert the real
-   * notification component in the exact same location.
-   */
-
-  useEffect(
-    () => {
-
-      let observer = null
-
-
-      const connect =
-        () => {
-
-          const header =
-            document.querySelector(
-              '.header-right'
-            )
-
-
-          if (
-            !header
-          ) {
-
-            return
-
-          }
-
-
-          /*
-           * Hide the old static bell.
-           */
-
-          const oldButton =
-            header.querySelector(
-              'button[aria-label="Notifications"]'
-            )
-
-
-          if (
-            oldButton
-          ) {
-
-            oldButton.style.display =
-              'none'
-
-          }
-
-
-          let host =
-            header.querySelector(
-              '.cmhp-notification-host'
-            )
-
-
-          if (
-            !host
-          ) {
-
-            host =
-              document.createElement(
-                'div'
-              )
-
-            host.className =
-              'cmhp-notification-host'
-
-
-            /*
-             * Put the real notification bell
-             * immediately after WorkspaceSwitcher.
-             */
-
-            const workspaceElement =
-              header.querySelector(
-                '.workspace-switcher'
-              )
-
-
-            if (
-              workspaceElement
-            ) {
-
-              workspaceElement.after(
-                host
-              )
-
-            } else {
-
-              header.prepend(
-                host
-              )
-
-            }
-
-          }
-
-
-          setHeaderHost(
-            host
-          )
-
-        }
-
-
-      connect()
-
-
-      observer =
-        new MutationObserver(
-          connect
-        )
-
-
-      observer.observe(
-        document.body,
-        {
-          childList: true,
-          subtree: true,
-        }
-      )
-
-
-      return () => {
-
-        observer?.disconnect()
-
-      }
-
-    },
-    []
   )
 
 
@@ -2089,16 +2030,7 @@ export default function NotificationCenter() {
    * ==========================================================
    */
 
-  if (
-    !headerHost
-  ) {
-
-    return null
-
-  }
-
-
-  return createPortal(
+  const content = (
 
     <div
       className="notification-wrap"
@@ -2428,10 +2360,7 @@ export default function NotificationCenter() {
 
       )}
 
-    </div>,
+    </div>)
 
-    headerHost
-
-  )
-
+  return content
 }

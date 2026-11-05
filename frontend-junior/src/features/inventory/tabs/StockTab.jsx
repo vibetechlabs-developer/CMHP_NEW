@@ -22,6 +22,8 @@ import {
 } from '../../store/storeService'
 import { getAvailableToIssue } from '../../store/materialIssueService'
 import IssueOutwardModal from '../../store/IssueOutwardModal'
+import { qualityStatusService } from '../qualityStatusService'
+import { finishedGoodsService } from '../finishedGoodsService'
 import './StockTab.css'
 import './CommonInventory.css'
 
@@ -66,6 +68,36 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
   const [selectedSource, setSelectedSource] = useState(null)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [issueModalTarget, setIssueModalTarget] = useState(null) // { materialId, materialCode, materialName, companyId, initialRemarks }
+
+  // QC Release Gate Modal State
+  const [qcReleaseModalTarget, setQcReleaseModalTarget] = useState(null)
+  const [qcRefreshKey, setQcRefreshKey] = useState(0)
+
+  // Finished Goods (FG) Warehouse & Buffer Stock State
+  const [fgStockList, setFgStockList] = useState([])
+  const [fgLoading, setFgLoading] = useState(false)
+  const [allocateFgModalTarget, setAllocateFgModalTarget] = useState(null)
+  const [allocateOrderRef, setAllocateOrderRef] = useState('')
+  const [allocateCustomerName, setAllocateCustomerName] = useState('')
+  const [allocateQtyInput, setAllocateQtyInput] = useState('')
+  const [actionSuccessNotice, setActionSuccessNotice] = useState('')
+
+  // Load Finished Goods Buffer Stock
+  const loadFgStock = useCallback(async () => {
+    setFgLoading(true)
+    try {
+      const data = await finishedGoodsService.listStock()
+      setFgStockList(data)
+    } catch {
+      setFgStockList([])
+    } finally {
+      setFgLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadFgStock()
+  }, [loadFgStock])
 
   // Load stores if not provided
   useEffect(() => {
@@ -219,6 +251,11 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
     })
     return Array.from(set).sort()
   }, [balances.rows, movements.results])
+
+  // Quality Status summary metrics across lots
+  const qcMetrics = useMemo(() => {
+    return qualityStatusService.computeQualityMetrics(movements.results)
+  }, [movements.results, qcRefreshKey])
 
   // TAB 1 FILTERED ROWS (Material Stock Summary)
   const filteredBalances = useMemo(() => {
@@ -496,68 +533,147 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
           </div>
         </div>
 
-        <div className="ci-card stocks-card">
-          <div className="ci-card-icon stocks-card-icon" style={{ background: '#fefce8', color: '#ca8a04' }}>
+        <div
+          className="ci-card stocks-card"
+          style={{ cursor: 'pointer', transition: 'transform 0.15s ease, box-shadow 0.15s ease' }}
+          onClick={() => setActiveSubtab('SOURCES')}
+          title="Click to view Lot Quality & Release Gate in Tab 2"
+        >
+          <div className="ci-card-icon stocks-card-icon" style={{ background: '#ecfdf5', color: '#16a34a' }}>
             🛡️
           </div>
           <div className="ci-card-info stocks-card-info">
-            <span className="ci-card-label stocks-card-label">Quality Status</span>
-            <span className="ci-card-value stocks-card-value" style={{ fontSize: 15, color: '#ca8a04', marginTop: 4 }}>
-              Not Tracked
+            <span className="ci-card-label stocks-card-label">QC Release Gate</span>
+            <span className="ci-card-value stocks-card-value" style={{ fontSize: 16, color: '#16a34a', marginTop: 2 }}>
+              {qcMetrics.approved} Released
             </span>
-            <span className="ci-card-subtext stocks-card-subtext">QC holds not posted to store ledger</span>
+            <span className="ci-card-subtext stocks-card-subtext" style={{ color: qcMetrics.underTest > 0 ? '#d97706' : '#15803d', fontWeight: 500 }}>
+              {qcMetrics.underTest > 0 ? `${qcMetrics.underTest} in quarantine hold` : 'All store lots QC verified'}
+            </span>
           </div>
         </div>
       </div>
 
-      {/* 3. Subtabs Navigation: Tab 1 vs Tab 2 */}
+      {actionSuccessNotice && (
+        <Alert type="success" onClose={() => setActionSuccessNotice('')} style={{ marginBottom: 14 }}>
+          {actionSuccessNotice}
+        </Alert>
+      )}
+
+      {/* 3. Subtabs Navigation: Modern Segmented Control */}
       <div
         style={{
           display: 'flex',
-          gap: 4,
+          gap: 6,
           background: '#f1f5f9',
           padding: 4,
           borderRadius: 10,
           border: '1px solid #e2e8f0',
           alignSelf: 'flex-start',
+          flexWrap: 'wrap',
+          marginBottom: 12,
         }}
       >
         <button
           type="button"
           onClick={() => setActiveSubtab('SUMMARY')}
           style={{
-            padding: '8px 18px',
-            borderRadius: 7,
-            border: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 16px',
+            borderRadius: 8,
+            border: activeSubtab === 'SUMMARY' ? '1px solid #cbd5e1' : '1px solid transparent',
             fontSize: 13,
             fontWeight: 700,
             cursor: 'pointer',
             transition: 'all 0.15s ease',
             background: activeSubtab === 'SUMMARY' ? '#ffffff' : 'transparent',
             color: activeSubtab === 'SUMMARY' ? '#0f172a' : '#64748b',
-            boxShadow: activeSubtab === 'SUMMARY' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+            boxShadow: activeSubtab === 'SUMMARY' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
           }}
         >
-          📊 Tab 1: Material Stock Summary ({filteredBalances.length})
+          <span>📊 Tab 1: Material Stock Summary</span>
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              background: activeSubtab === 'SUMMARY' ? '#e0f2fe' : '#e2e8f0',
+              color: activeSubtab === 'SUMMARY' ? '#0369a1' : '#64748b',
+              padding: '1px 7px',
+              borderRadius: 10,
+            }}
+          >
+            {filteredBalances.length}
+          </span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveSubtab('SOURCES')}
           style={{
-            padding: '8px 18px',
-            borderRadius: 7,
-            border: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 16px',
+            borderRadius: 8,
+            border: activeSubtab === 'SOURCES' ? '1px solid #cbd5e1' : '1px solid transparent',
             fontSize: 13,
             fontWeight: 700,
             cursor: 'pointer',
             transition: 'all 0.15s ease',
             background: activeSubtab === 'SOURCES' ? '#ffffff' : 'transparent',
             color: activeSubtab === 'SOURCES' ? '#0f172a' : '#64748b',
-            boxShadow: activeSubtab === 'SOURCES' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+            boxShadow: activeSubtab === 'SOURCES' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
           }}
         >
-          🏷️ Tab 2: Lots &amp; Receipt Sources ({filteredMovements.length})
+          <span>🏷️ Tab 2: Lots &amp; Receipt Sources</span>
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              background: activeSubtab === 'SOURCES' ? '#e0f2fe' : '#e2e8f0',
+              color: activeSubtab === 'SOURCES' ? '#0369a1' : '#64748b',
+              padding: '1px 7px',
+              borderRadius: 10,
+            }}
+          >
+            {filteredMovements.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSubtab('FG_BUFFER')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 16px',
+            borderRadius: 8,
+            border: activeSubtab === 'FG_BUFFER' ? '1px solid #86efac' : '1px solid transparent',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            background: activeSubtab === 'FG_BUFFER' ? '#f0fdf4' : 'transparent',
+            color: activeSubtab === 'FG_BUFFER' ? '#166534' : '#64748b',
+            boxShadow: activeSubtab === 'FG_BUFFER' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+          }}
+        >
+          <span>📦 Tab 3: Finished Goods Buffer Stock</span>
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              background: activeSubtab === 'FG_BUFFER' ? '#bbf7d0' : '#e2e8f0',
+              color: activeSubtab === 'FG_BUFFER' ? '#166534' : '#64748b',
+              padding: '1px 7px',
+              borderRadius: 10,
+            }}
+          >
+            {fgStockList.length}
+          </span>
         </button>
       </div>
 
@@ -566,15 +682,19 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
         className="ci-filters stocks-filter-card"
         style={{
           display: 'flex',
-          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'space-between',
           gap: 12,
-          padding: '14px 16px',
-          background: '#f8fafc',
+          padding: '12px 16px',
+          background: '#ffffff',
           borderRadius: 10,
           border: '1px solid #e2e8f0',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+          marginBottom: 16,
+          flexWrap: 'wrap',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flex: 1 }}>
           {/* Search */}
           <input
             type="text"
@@ -586,7 +706,7 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
             }
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            style={{ minWidth: 260, flex: 1.5, padding: '6px 10px', fontSize: 13 }}
+            style={{ minWidth: 280, flex: 1.5, padding: '7px 12px', fontSize: 13, borderRadius: 6, border: '1px solid #cbd5e1' }}
           />
 
           {/* Material Type: All / Raw Material / Packaging Material */}
@@ -594,7 +714,7 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
             className="ci-select stocks-select-input"
             value={materialTypeFilter}
             onChange={(e) => setMaterialTypeFilter(e.target.value)}
-            style={{ minWidth: 160, padding: '6px 10px', fontSize: 13 }}
+            style={{ minWidth: 160, padding: '7px 10px', fontSize: 13, borderRadius: 6, border: '1px solid #cbd5e1' }}
           >
             <option value="ALL">All Material Types</option>
             <option value="RAW_MATERIAL">Raw Materials</option>
@@ -607,7 +727,7 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
             className="ci-select stocks-select-input"
             value={selectedMaterialFilter}
             onChange={(e) => handleMaterialFilterChange(e.target.value)}
-            style={{ minWidth: 180, padding: '6px 10px', fontSize: 13 }}
+            style={{ minWidth: 180, padding: '7px 10px', fontSize: 13, borderRadius: 6, border: '1px solid #cbd5e1' }}
           >
             <option value="">All Materials</option>
             {materialsCatalog.map((m) => (
@@ -623,7 +743,7 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
               className="ci-select stocks-select-input"
               value={supplierFilter}
               onChange={(e) => setSupplierFilter(e.target.value)}
-              style={{ minWidth: 160, padding: '6px 10px', fontSize: 13 }}
+              style={{ minWidth: 160, padding: '7px 10px', fontSize: 13, borderRadius: 6, border: '1px solid #cbd5e1' }}
             >
               <option value="">All Suppliers</option>
               {suppliersList.map((sup) => (
@@ -640,7 +760,7 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
               className="ci-select stocks-select-input"
               value={companyFilter}
               onChange={(e) => setCompanyFilter(e.target.value)}
-              style={{ minWidth: 140, padding: '6px 10px', fontSize: 13 }}
+              style={{ minWidth: 140, padding: '7px 10px', fontSize: 13, borderRadius: 6, border: '1px solid #cbd5e1' }}
             >
               <option value="ALL">All Companies</option>
               {availableCompanies.map((c) => (
@@ -659,25 +779,11 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
           )}
         </div>
 
-        {/* Boundary Notice Bar */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            fontSize: 12,
-            color: '#64748b',
-            background: '#ffffff',
-            padding: '6px 12px',
-            borderRadius: 6,
-            border: '1px solid #e2e8f0',
-          }}
-        >
-          <div>
-            <strong>Warehouse Ledger Boundary:</strong> Closing Book Quantity reflects recorded physical receipts and posted issues. Storage locations are not configured; QC release holds are tracked via incoming inspection rather than store ledger exclusion.
-          </div>
-          {availLoading && <span style={{ fontSize: 11, color: '#0369a1' }}>Checking issue availability...</span>}
-        </div>
+        {availLoading && (
+          <span style={{ fontSize: 12, color: '#0369a1', fontWeight: 600 }}>
+            Checking store issue availability...
+          </span>
+        )}
       </div>
 
       {/* ========================================================================= */}
@@ -713,15 +819,14 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
               <table className="ci-table">
                 <thead>
                   <tr>
-                    <th style={{ minWidth: 150 }}>Material Code</th>
+                    <th style={{ minWidth: 130 }}>Material Code</th>
                     <th style={{ minWidth: 200 }}>Material Name</th>
                     <th style={{ minWidth: 120 }}>Type</th>
                     <th style={{ minWidth: 80 }}>Base Unit</th>
-                    <th style={{ minWidth: 110 }}>Billing Entity</th>
-                    <th style={{ minWidth: 140, textAlign: 'right' }}>Closing Book Qty</th>
-                    <th style={{ minWidth: 110 }}>Held Qty</th>
+                    <th style={{ minWidth: 100 }}>Billing Entity</th>
+                    <th style={{ minWidth: 130, textAlign: 'right' }}>Closing Book Qty</th>
                     <th style={{ minWidth: 140, textAlign: 'right' }}>Available to Issue</th>
-                    <th className="ci-actions-col">Actions</th>
+                    <th className="ci-actions-col" style={{ minWidth: 260, textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -777,15 +882,6 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
                         <td style={{ textAlign: 'right' }}>
                           <strong style={{ fontSize: 13 }}>{row.recorded_receipt_quantity}</strong>{' '}
                           <span style={{ fontSize: 11, color: '#64748b' }}>{row.unit_code}</span>
-                        </td>
-                        <td>
-                          <span
-                            className="stock-badge"
-                            title="Incoming QC hold is not recorded in store physical ledger"
-                            style={{ background: '#f8fafc', color: '#94a3b8', border: '1px solid #e2e8f0', cursor: 'help' }}
-                          >
-                            Not tracked
-                          </span>
                         </td>
                         <td style={{ textAlign: 'right' }}>
                           <span
@@ -893,8 +989,8 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
                       <th style={{ minWidth: 90 }}>Location</th>
                       <th style={{ minWidth: 110, textAlign: 'right' }}>Received Qty</th>
                       <th style={{ minWidth: 140, textAlign: 'right' }}>Remaining Store Qty</th>
-                      <th style={{ minWidth: 80 }}>Quality Status</th>
-                      <th className="ci-actions-col">Actions</th>
+                      <th style={{ minWidth: 100 }}>Quality Status</th>
+                      <th className="ci-actions-col" style={{ minWidth: 230, textAlign: 'right' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -974,13 +1070,31 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
                             )}
                           </td>
                           <td>
-                            <span
-                              className="stock-badge"
-                              title="QC release holds are not posted to store ledger"
-                              style={{ background: '#f8fafc', color: '#94a3b8', border: '1px solid #e2e8f0', cursor: 'help' }}
-                            >
-                              Not tracked
-                            </span>
+                            {(() => {
+                              const qc = qualityStatusService.getLotStatus(row.id)
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => setQcReleaseModalTarget({ movementId: row.id, ...qc, lotRef: row.lot_reference || `SM-#${row.id}`, matName: row.material_name_snapshot })}
+                                  title="Click to change QC Release / Quarantine Status & AR No."
+                                  style={{
+                                    cursor: 'pointer',
+                                    padding: '3px 8px',
+                                    borderRadius: 4,
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    background: qc.status === 'APPROVED' ? '#dcfce7' : qc.status === 'REJECTED' ? '#fee2e2' : '#fef3c7',
+                                    color: qc.status === 'APPROVED' ? '#166534' : qc.status === 'REJECTED' ? '#991b1b' : '#92400e',
+                                    border: `1px solid ${qc.status === 'APPROVED' ? '#86efac' : qc.status === 'REJECTED' ? '#fca5a5' : '#fde047'}`,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 3,
+                                  }}
+                                >
+                                  {qc.status === 'APPROVED' ? '✓ Released' : qc.status === 'REJECTED' ? '✕ Rejected' : '⏳ Quarantine'}
+                                </button>
+                              )
+                            })()}
                           </td>
                           <td className="ci-actions-col">
                             <div style={{ display: 'inline-flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
@@ -1063,6 +1177,108 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
                 </div>
               )}
             </>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 3: FINISHED GOODS (FG) & WAREHOUSE BUFFER STOCK                       */}
+      {/* ========================================================================= */}
+      {activeSubtab === 'FG_BUFFER' && (
+        <div>
+          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '12px 16px', borderRadius: 8, marginBottom: 14 }}>
+            <div style={{ fontWeight: 700, color: '#166534', fontSize: 13.5 }}>
+              📦 Finished Goods (FG) Commercial Inventory &amp; Free Buffer Stock
+            </div>
+            <div style={{ fontSize: 12, color: '#15803d', marginTop: 2 }}>
+              Tracks finished medicine units held in warehouse buffer storage. These commercial units can be directly allocated and dispatched to incoming sales orders without initiating new manufacturing cycles.
+            </div>
+          </div>
+
+          {fgLoading ? (
+            <div style={{ padding: 40, textAlign: 'center' }}>
+              <LoadingState label="Loading finished goods inventory..." />
+            </div>
+          ) : fgStockList.length === 0 ? (
+            <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+              No finished goods buffer stock currently recorded. Inward buffer stock from the Production Formula Calculator.
+            </div>
+          ) : (
+            <div className="ci-table-wrapper" style={{ overflowX: 'auto' }}>
+              <table className="ci-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 110 }}>Batch No</th>
+                    <th>Product &amp; Pack Size</th>
+                    <th style={{ width: 120, textAlign: 'right' }}>Gross Produced</th>
+                    <th style={{ width: 110, textAlign: 'right' }}>Samples Drawn</th>
+                    <th style={{ width: 140, textAlign: 'right' }}>Free Buffer Available</th>
+                    <th style={{ width: 130, textAlign: 'right' }}>Allocated to Orders</th>
+                    <th style={{ width: 100 }}>Mfg Date</th>
+                    <th style={{ width: 100 }}>Expiry Date</th>
+                    <th>Warehouse Bay</th>
+                    <th className="ci-actions-col">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fgStockList.map((fg) => (
+                    <tr key={fg.id}>
+                      <td>
+                        <strong style={{ color: '#0f172a' }}>{fg.batchNo}</strong>
+                      </td>
+                      <td>
+                        <div><strong>{fg.productName}</strong></div>
+                        <div style={{ fontSize: 11.5, color: '#64748b' }}>{fg.productCode} · {fg.packSize}</div>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {fg.grossProducedBottles?.toLocaleString()} <span style={{ fontSize: 11, color: '#64748b' }}>BTL</span>
+                        <div style={{ fontSize: 10.5, color: '#94a3b8' }}>({fg.batchVolumeLtr}L)</div>
+                      </td>
+                      <td style={{ textAlign: 'right', color: '#7c3aed', fontWeight: 600 }}>
+                        -{fg.sampleDeductedBottles} BTL
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <span style={{ fontSize: 14, fontWeight: 800, color: fg.availableBufferQty > 0 ? '#16a34a' : '#64748b' }}>
+                          {fg.availableBufferQty?.toLocaleString()}
+                        </span>{' '}
+                        <span style={{ fontSize: 11, color: fg.availableBufferQty > 0 ? '#15803d' : '#94a3b8' }}>BTL</span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <span style={{ fontWeight: 600, color: '#0369a1' }}>{fg.allocatedQty?.toLocaleString()}</span>
+                        {fg.allocatedOrders && fg.allocatedOrders.length > 0 && (
+                          <div style={{ fontSize: 10, color: '#64748b' }} title={fg.allocatedOrders.map((o) => `${o.orderRef}: ${o.qty} btl`).join(', ')}>
+                            {fg.allocatedOrders.length} order(s)
+                          </div>
+                        )}
+                      </td>
+                      <td>{fg.mfgDate}</td>
+                      <td>{fg.expDate}</td>
+                      <td>
+                        <span style={{ fontSize: 11.5, color: '#475569' }}>📍 {fg.warehouseStore}</span>
+                      </td>
+                      <td className="ci-actions-col">
+                        {fg.availableBufferQty > 0 ? (
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            onClick={() => {
+                              setAllocateFgModalTarget(fg)
+                              setAllocateQtyInput(String(fg.availableBufferQty))
+                              setAllocateOrderRef('')
+                              setAllocateCustomerName('')
+                            }}
+                          >
+                            + Allocate to SO
+                          </Button>
+                        ) : (
+                          <span style={{ fontSize: 11.5, color: '#94a3b8', fontStyle: 'italic' }}>Depleted</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}
@@ -1226,6 +1442,202 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
             handleRefresh()
           }}
         />
+      )}
+
+      {/* ========================================================================= */}
+      {/* QC RELEASE GATE & AR NUMBER MODAL                                         */}
+      {/* ========================================================================= */}
+      {qcReleaseModalTarget && (
+        <Modal
+          isOpen={true}
+          onClose={() => setQcReleaseModalTarget(null)}
+          title={`QC Release & Analytical Inspection Gate — ${qcReleaseModalTarget.matName || `Movement #${qcReleaseModalTarget.movementId}`}`}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: 6, fontSize: 13, border: '1px solid #e2e8f0' }}>
+              <div><strong>Lot Reference:</strong> {qcReleaseModalTarget.lotRef || `SM-#${qcReleaseModalTarget.movementId}`}</div>
+              <div><strong>Material:</strong> {qcReleaseModalTarget.matName || 'Store Inward Item'}</div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                Quality Status Decision *
+              </label>
+              <select
+                value={qcReleaseModalTarget.status || 'APPROVED'}
+                onChange={(e) => setQcReleaseModalTarget({ ...qcReleaseModalTarget, status: e.target.value })}
+                style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 600 }}
+              >
+                <option value="APPROVED">✓ APPROVED (Release for Batch Manufacturing)</option>
+                <option value="UNDER_TEST">⏳ UNDER_TEST (Quarantine Hold - Lab Testing Active)</option>
+                <option value="REJECTED">✕ REJECTED (Fail Specification - Locked from Issue)</option>
+              </select>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                  Analytical Report (AR) No. *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={qcReleaseModalTarget.arNo || ''}
+                  onChange={(e) => setQcReleaseModalTarget({ ...qcReleaseModalTarget, arNo: e.target.value })}
+                  placeholder="e.g. AR-2026-0812"
+                  style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                  Approved Analyst / Chemist
+                </label>
+                <input
+                  type="text"
+                  value={qcReleaseModalTarget.chemist || ''}
+                  onChange={(e) => setQcReleaseModalTarget({ ...qcReleaseModalTarget, chemist: e.target.value })}
+                  placeholder="e.g. Dr. R. K. Patel"
+                  style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                Inspection Remarks / Protocol
+              </label>
+              <textarea
+                rows="2"
+                value={qcReleaseModalTarget.remarks || ''}
+                onChange={(e) => setQcReleaseModalTarget({ ...qcReleaseModalTarget, remarks: e.target.value })}
+                placeholder="Specification testing complete. Conforms to Pharmacopoeia limits."
+                style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+              <Button variant="secondary" onClick={() => setQcReleaseModalTarget(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={async () => {
+                  try {
+                    await qualityStatusService.updateLotStatus(qcReleaseModalTarget.movementId, {
+                      status: qcReleaseModalTarget.status,
+                      arNo: qcReleaseModalTarget.arNo,
+                      chemist: qcReleaseModalTarget.chemist,
+                      remarks: qcReleaseModalTarget.remarks,
+                      storeId,
+                    })
+                    setQcRefreshKey((k) => k + 1)
+                    setActionSuccessNotice(`QC Release Status updated to ${qcReleaseModalTarget.status} (AR No: ${qcReleaseModalTarget.arNo})`)
+                    setQcReleaseModalTarget(null)
+                    setTimeout(() => setActionSuccessNotice(''), 8000)
+                  } catch (err) {
+                    setActionSuccessNotice('')
+                    setBalances((prev) => ({ ...prev, error: getErrorMessage(err) }))
+                  }
+                }}
+              >
+                Save QC Release Decision
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ========================================================================= */}
+      {/* ALLOCATE FINISHED GOODS BUFFER TO SALES ORDER MODAL                       */}
+      {/* ========================================================================= */}
+      {allocateFgModalTarget && (
+        <Modal
+          isOpen={true}
+          onClose={() => setAllocateFgModalTarget(null)}
+          title={`Allocate Finished Goods Buffer Stock — Batch ${allocateFgModalTarget.batchNo}`}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '10px 14px', borderRadius: 6, fontSize: 13 }}>
+              <div><strong>Product:</strong> {allocateFgModalTarget.productName} ({allocateFgModalTarget.packSize})</div>
+              <div><strong>Batch No:</strong> {allocateFgModalTarget.batchNo}</div>
+              <div><strong>Free Buffer Available:</strong> <span style={{ color: '#16a34a', fontWeight: 800 }}>{allocateFgModalTarget.availableBufferQty?.toLocaleString()} Bottles</span></div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                Target Sales Order Reference *
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. SO-2026-1025 / Apollo Hospitals Bulk"
+                value={allocateOrderRef}
+                onChange={(e) => setAllocateOrderRef(e.target.value)}
+                style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                Customer Name / Hospital
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Apollo Pharmacy Ltd."
+                value={allocateCustomerName}
+                onChange={(e) => setAllocateCustomerName(e.target.value)}
+                style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                Quantity to Allocate (Bottles) *
+              </label>
+              <input
+                type="number"
+                min="1"
+                max={allocateFgModalTarget.availableBufferQty}
+                value={allocateQtyInput}
+                onChange={(e) => setAllocateQtyInput(e.target.value)}
+                style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 700 }}
+              />
+              <span style={{ fontSize: 11, color: '#64748b', marginTop: 2, display: 'block' }}>
+                Remaining in buffer after this allocation: {Math.max(0, allocateFgModalTarget.availableBufferQty - (Number(allocateQtyInput) || 0))} bottles
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+              <Button variant="secondary" onClick={() => setAllocateFgModalTarget(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={async () => {
+                  if (!allocateOrderRef) {
+                    alert('Please enter a Sales Order reference.')
+                    return
+                  }
+                  try {
+                    await finishedGoodsService.allocateToSalesOrder(allocateFgModalTarget.id, {
+                      orderRef: allocateOrderRef,
+                      customerName: allocateCustomerName,
+                      allocateQty: Number(allocateQtyInput),
+                    })
+                    setActionSuccessNotice(`Successfully allocated ${allocateQtyInput} bottles from Batch ${allocateFgModalTarget.batchNo} to ${allocateOrderRef}!`)
+                    setAllocateFgModalTarget(null)
+                    loadFgStock()
+                    setTimeout(() => setActionSuccessNotice(''), 8000)
+                  } catch (err) {
+                    alert(err?.message || 'Failed to allocate buffer stock.')
+                  }
+                }}
+              >
+                ✓ Confirm Allocation to SO
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   )

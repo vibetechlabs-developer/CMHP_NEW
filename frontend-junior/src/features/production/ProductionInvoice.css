@@ -1,0 +1,695 @@
+/* ==========================================================================
+   PRODUCTION INVOICE STYLES (EXACT REPLICA OF SPREADSHEET TAX INVOICE FORMAT)
+   ========================================================================== */
+
+.prod-inv-container {
+  padding: 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: #1e293b;
+}
+
+/* TOP TOOLBAR (Screen Only) */
+.prod-inv-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff;
+  padding: 14px 20px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.prod-inv-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.prod-inv-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.prod-inv-btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.prod-inv-btn-back:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.prod-inv-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #0284c7;
+  color: #ffffff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(2, 132, 199, 0.3);
+}
+
+.prod-inv-btn-primary:hover {
+  background: #0369a1;
+}
+
+.prod-inv-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.prod-inv-btn-secondary:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #1e293b;
+}
+
+.prod-inv-btn-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff1f2;
+  color: #be123c;
+  border: 1px solid #fecdd3;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.prod-inv-btn-reset:hover {
+  background: #ffe4e6;
+  border-color: #fda4af;
+}
+
+.prod-inv-alert-banner {
+  padding: 10px 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 13.5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.prod-inv-alert-success {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.prod-inv-alert-warning {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+/* ==========================================================================
+   PRINTABLE A4 SHEET (EXACT SPREADSHEET REPLICA)
+   ========================================================================== */
+
+.invoice-sheet-wrapper {
+  display: flex;
+  justify-content: center;
+  background: #64748b;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.15);
+  overflow-x: auto;
+}
+
+.invoice-printable-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  background: #ffffff;
+  color: #000000;
+  font-family: Arial, sans-serif;
+  font-size: 9.5pt;
+  line-height: 1.25;
+  box-sizing: border-box;
+  padding: 6mm 7mm;
+  margin: 0 auto;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+  border: 1.5px solid #000000;
+}
+
+/* Clean Inline Editable Input */
+.inv-edit-field {
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  padding: 1px 3px;
+  border-radius: 2px;
+  outline: none;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+}
+
+.inv-edit-field:hover {
+  border: 1px dashed #94a3b8;
+  background: #f8fafc;
+}
+
+.inv-edit-field:focus {
+  border: 1px solid #0284c7;
+  background: #f0f9ff;
+  box-shadow: 0 0 0 1px #0284c7;
+}
+
+.inv-edit-field.text-right {
+  text-align: right;
+}
+
+.inv-edit-field.text-center {
+  text-align: center;
+}
+
+.inv-edit-textarea {
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  padding: 1px 3px;
+  border-radius: 2px;
+  outline: none;
+  resize: vertical;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+}
+
+.inv-edit-textarea:hover {
+  border: 1px dashed #94a3b8;
+  background: #f8fafc;
+}
+
+.inv-edit-textarea:focus {
+  border: 1px solid #0284c7;
+  background: #f0f9ff;
+}
+
+/* TOP STRIP: TAX INVOICE & ORIGINAL FOR RECEPIENT */
+.inv-top-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  font-size: 10.5pt;
+  padding-bottom: 3px;
+  border-bottom: 1.5px solid #000000;
+  letter-spacing: 0.5px;
+}
+
+.inv-top-strip-left {
+  font-weight: 800;
+}
+
+.inv-top-strip-right {
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
+/* COMPANY HEADER BLOCK */
+.inv-company-header-block {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #000000;
+  padding: 3px 0;
+  min-height: 52px;
+}
+
+.inv-company-logo-area {
+  width: 100px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-right: 6px;
+  border-right: 1px solid #000000;
+}
+
+.inv-company-logo-img {
+  max-width: 90px;
+  max-height: 48px;
+  object-fit: contain;
+}
+
+.inv-company-details {
+  flex: 1;
+  text-align: center;
+  padding: 0 8px;
+}
+
+.inv-company-name-title {
+  font-size: 13.5pt;
+  font-weight: 800;
+  color: #0b4f8a;
+  text-align: center;
+  letter-spacing: 0.5px;
+  margin-bottom: 1px;
+}
+
+.inv-company-address {
+  font-size: 8pt;
+  line-height: 1.2;
+  text-align: center;
+  color: #000000;
+}
+
+.inv-company-contacts {
+  font-size: 8pt;
+  text-align: center;
+  font-weight: 600;
+  margin-top: 1px;
+}
+
+/* STATUTORY ROW: GSTIN | D.L. | PAN */
+.inv-statutory-row {
+  display: grid;
+  grid-template-columns: 2.2fr 1fr 2.5fr;
+  border-bottom: 1px solid #000000;
+  font-size: 8.5pt;
+  font-weight: bold;
+}
+
+.inv-statutory-cell {
+  padding: 2px 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.inv-statutory-cell:not(:last-child) {
+  border-right: 1px solid #000000;
+}
+
+/* INVOICE META GRID (ROWS 6-10) */
+.inv-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid #000000;
+  font-size: 8.5pt;
+}
+
+.inv-meta-grid-left {
+  border-right: 1px solid #000000;
+}
+
+.inv-meta-row {
+  display: flex;
+  border-bottom: 1px solid #000000;
+  min-height: 19px;
+  align-items: stretch;
+}
+
+.inv-meta-row:last-child {
+  border-bottom: none;
+}
+
+.inv-meta-col {
+  padding: 1px 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.inv-meta-col:not(:last-child) {
+  border-right: 1px solid #000000;
+}
+
+.inv-meta-label {
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+/* CONSIGNEE & BUYER SECTION (ROWS 11-16) */
+.inv-party-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid #000000;
+  font-size: 8.5pt;
+}
+
+.inv-party-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.inv-party-col:first-child {
+  border-right: 1px solid #000000;
+}
+
+.inv-party-header {
+  font-weight: bold;
+  padding: 2px 4px;
+  border-bottom: 1px solid #000000;
+  background: #ffffff;
+}
+
+.inv-party-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.inv-party-row {
+  display: flex;
+  align-items: center;
+  padding: 1px 4px;
+  border-bottom: 1px solid #000000;
+  min-height: 19px;
+}
+
+.inv-party-row:last-child {
+  border-bottom: none;
+}
+
+/* ==========================================================================
+   ITEMS TABLE (ROWS 17-34)
+   ========================================================================== */
+
+.inv-items-table-container {
+  width: 100%;
+  border-bottom: 1px solid #000000;
+}
+
+.inv-table-custom {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 8pt;
+  table-layout: fixed;
+}
+
+.inv-table-custom th,
+.inv-table-custom td {
+  border: 1px solid #000000;
+  padding: 1.5px 3px;
+  vertical-align: middle;
+  line-height: 1.15;
+}
+
+.inv-table-custom th {
+  font-weight: bold;
+  text-align: center;
+  background: #ffffff;
+}
+
+.inv-table-custom td {
+  height: 16.5px;
+  box-sizing: border-box;
+}
+
+/* Column Widths (matching the screenshot proportions) */
+.col-sr { width: 4.5%; text-align: center; }
+.col-desc { width: 23%; text-align: left; }
+.col-pkg { width: 7%; text-align: center; }
+.col-hsn { width: 8.5%; text-align: center; }
+.col-batch { width: 8.5%; text-align: center; }
+.col-qty { width: 6.5%; text-align: right; }
+.col-rate { width: 6.5%; text-align: right; }
+.col-amt { width: 7.5%; text-align: right; }
+.col-taxable { width: 7.5%; text-align: right; }
+.col-cgst-r { width: 4%; text-align: center; }
+.col-cgst-a { width: 5.5%; text-align: right; }
+.col-sgst-r { width: 4%; text-align: center; }
+.col-sgst-a { width: 5.5%; text-align: right; }
+.col-total { width: 8%; text-align: right; }
+
+.inv-total-row td {
+  font-weight: bold;
+  height: 20px;
+}
+
+.inv-total-title {
+  font-size: 11pt;
+  font-weight: 800;
+  color: #0b4f8a;
+  text-align: center;
+}
+
+/* ==========================================================================
+   BOTTOM SECTION (ROWS 35-47)
+   ========================================================================== */
+
+.inv-bottom-section {
+  display: grid;
+  grid-template-columns: 57% 43%;
+  font-size: 8.5pt;
+}
+
+.inv-bottom-left {
+  border-right: 1px solid #000000;
+  display: flex;
+  flex-direction: column;
+}
+
+.inv-words-block {
+  border-bottom: 1px solid #000000;
+  padding: 2px 4px;
+}
+
+.inv-words-label {
+  font-weight: bold;
+  margin-bottom: 1px;
+}
+
+.inv-words-value {
+  font-weight: bold;
+  font-size: 8.5pt;
+  padding-left: 2px;
+}
+
+.inv-bank-block {
+  border-bottom: 1px solid #000000;
+  padding: 2px 4px;
+  font-weight: bold;
+}
+
+.inv-bank-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  line-height: 1.3;
+}
+
+.inv-terms-and-seal {
+  display: grid;
+  grid-template-columns: 1fr 100px;
+  flex: 1;
+}
+
+.inv-terms-block {
+  padding: 3px 4px;
+  font-size: 7.5pt;
+  line-height: 1.25;
+}
+
+.inv-terms-title {
+  font-weight: bold;
+  text-decoration: underline;
+  margin-bottom: 2px;
+}
+
+.inv-seal-box {
+  border-left: 1px solid #000000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 6px;
+  font-weight: bold;
+  font-size: 8.5pt;
+  text-align: center;
+}
+
+/* RIGHT SIDE SUMMARY */
+.inv-bottom-right {
+  display: flex;
+  flex-direction: column;
+}
+
+.inv-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #000000;
+  padding: 1.5px 4px;
+  min-height: 18px;
+}
+
+.inv-summary-label {
+  font-weight: bold;
+  font-size: 8.5pt;
+}
+
+.inv-summary-val {
+  font-weight: bold;
+  text-align: right;
+  width: 90px;
+}
+
+.inv-certified-row {
+  font-size: 7.5pt;
+  font-style: italic;
+  text-align: right;
+  padding: 2px 4px;
+  border-bottom: 1px solid #000000;
+}
+
+.inv-signatory-block {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 3px 6px;
+  min-height: 70px;
+}
+
+.inv-signatory-header {
+  font-weight: bold;
+  font-size: 8.5pt;
+  text-align: left;
+}
+
+.inv-signature-area {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 1px 0;
+}
+
+.inv-signature-img {
+  max-height: 48px;
+  max-width: 130px;
+  object-fit: contain;
+}
+
+.inv-signatory-footer {
+  font-weight: bold;
+  font-size: 8.5pt;
+  text-align: center;
+}
+
+/* Row Action Buttons (screen only) */
+.inv-row-del-btn {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  width: 18px;
+  height: 18px;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin-left: 2px;
+}
+
+.inv-row-del-btn:hover {
+  background: #fca5a5;
+}
+
+/* ==========================================================================
+   PRINT STYLES (A4 PORTRAIT EXACT FIT)
+   ========================================================================== */
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 5mm 6mm;
+  }
+
+  /* Hide app shell and toolbars */
+  body {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .main-sidebar,
+  .mobile-header,
+  .top-banner,
+  .prod-inv-toolbar,
+  .prod-inv-alert-banner,
+  .no-print,
+  .inv-row-del-btn {
+    display: none !important;
+  }
+
+  .prod-inv-container {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .invoice-sheet-wrapper {
+    background: transparent !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .prod-inv-container .invoice-printable-sheet {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 4mm 5mm !important;
+    box-shadow: none !important;
+    border: 1.5px solid #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .inv-edit-field,
+  .inv-edit-textarea {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+}

@@ -176,6 +176,29 @@ function Input({
 }
 
 
+// Declared at module scope (not inside SupplyChain) so React sees one stable
+// component type across renders instead of unmounting/remounting this list on
+// every parent render.
+function CompanyOptions({ companies }) {
+  return (
+    <>
+      <option value="">
+        Select company
+      </option>
+
+      {companies.map((company) => (
+        <option
+          key={company.id}
+          value={company.id}
+        >
+          {company.name}
+        </option>
+      ))}
+    </>
+  )
+}
+
+
 export default function SupplyChain() {
 
   const [
@@ -916,23 +939,7 @@ export default function SupplyChain() {
   // ==========================================================
   // COMPANY OPTIONS
   // ==========================================================
-
-  const CompanyOptions = () => (
-    <>
-      <option value="">
-        Select company
-      </option>
-
-      {companies.map((company) => (
-        <option
-          key={company.id}
-          value={company.id}
-        >
-          {company.name}
-        </option>
-      ))}
-    </>
-  )
+  // CompanyOptions is defined at module scope above - see its comment.
 
 
   // ==========================================================
@@ -2047,7 +2054,7 @@ export default function SupplyChain() {
                     }
                     required
                   >
-                    <CompanyOptions />
+                    <CompanyOptions companies={companies} />
                   </Select>
                 </Field>
 
@@ -2175,7 +2182,7 @@ export default function SupplyChain() {
                     }
                     required
                   >
-                    <CompanyOptions />
+                    <CompanyOptions companies={companies} />
                   </Select>
                 </Field>
 
@@ -2427,7 +2434,7 @@ export default function SupplyChain() {
                     }
                     required
                   >
-                    <CompanyOptions />
+                    <CompanyOptions companies={companies} />
                   </Select>
                 </Field>
 
@@ -2551,7 +2558,7 @@ export default function SupplyChain() {
                     }
                     required
                   >
-                    <CompanyOptions />
+                    <CompanyOptions companies={companies} />
                   </Select>
                 </Field>
 
@@ -2732,7 +2739,7 @@ export default function SupplyChain() {
                     }
                     required
                   >
-                    <CompanyOptions />
+                    <CompanyOptions companies={companies} />
                   </Select>
                 </Field>
 
@@ -2914,7 +2921,7 @@ export default function SupplyChain() {
                     }
                     required
                   >
-                    <CompanyOptions />
+                    <CompanyOptions companies={companies} />
                   </Select>
                 </Field>
 
@@ -3083,7 +3090,7 @@ export default function SupplyChain() {
                     }
                     required
                   >
-                    <CompanyOptions />
+                    <CompanyOptions companies={companies} />
                   </Select>
                 </Field>
 

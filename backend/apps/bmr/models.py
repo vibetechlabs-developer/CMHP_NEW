@@ -69,3 +69,67 @@ class BMRLine(models.Model):
     @property
     def display_required(self):
         return self.special_value or self.required_text
+
+
+class BMRDocument(models.Model):
+    """Stores full BMR records (Drops, Syrup, etc.) with all section forms,
+    QA checks, reconciliation, signatures, and batch data for permanent DB persistence.
+    """
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, null=True, blank=True, related_name="bmr_documents")
+    order_id = models.CharField(max_length=100, db_index=True)
+    batch_no = models.CharField(max_length=100, blank=True, default="", db_index=True)
+    bmr_type = models.CharField(max_length=50, default="drops")
+    data = models.JSONField(default=dict)
+    is_draft = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at", "-id"]
+
+    def __str__(self):
+        return f"BMRDocument order={self.order_id} batch={self.batch_no} type={self.bmr_type}"
+
+
+
+class ProductionOrderStatus(models.Model):
+    """Stores production tracking fields for a sales order.
+    Keyed by company + order_reference so it can be linked to any order
+    without a FK to SalesOrder (which lives in a separate app).
+    """
+
+    class BmrStatus(models.TextChoices):
+        YES = "YES", "Yes"
+        NO = "NO", "No"
+
+    class DispatchStatus(models.TextChoices):
+        YES = "YES", "Yes"
+        NO = "NO", "No"
+
+    company = models.ForeignKey(
+        Company,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="production_order_statuses",
+    )
+    order_id = models.CharField(max_length=100, db_index=True)
+    order_reference = models.CharField(max_length=100, blank=True, db_index=True)
+    batch_no = models.CharField(max_length=100, blank=True, default="")
+    bmr_status = models.CharField(max_length=10, choices=BmrStatus.choices, default=BmrStatus.NO)
+    production_status = models.CharField(max_length=50, default="In Planning")
+    production_remark = models.TextField(blank=True, default="")
+    packaging_status = models.CharField(max_length=50, default="Pending")
+    dispatch_status = models.CharField(max_length=10, choices=DispatchStatus.choices, default=DispatchStatus.NO)
+    qa_status = models.CharField(max_length=50, blank=True, default="Pending")
+    qa_remark = models.TextField(blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-updated_at", "-id"]
+        unique_together = [("company", "order_id")]
+
+    def __str__(self):
+        return f"ProductionStatus order={self.order_id} company={self.company_id}"

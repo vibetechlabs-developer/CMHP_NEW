@@ -16,6 +16,7 @@ import {
   SEED_FORMULAS,
   SEED_FORMULA_APPROVALS,
 } from './seedData'
+import { DOSAGE_FORMS } from '../constants/dosageForms'
 
 
 let lastGeneratedId =
@@ -463,6 +464,7 @@ export const initialState = {
   */
 
   products: [...SEED_PRODUCTS],
+  dosageForms: [...DOSAGE_FORMS],
 
   customers: [...SEED_CUSTOMERS],
 
@@ -497,6 +499,10 @@ export const initialState = {
   orders: [...SEED_ORDERS],
 
   batches: [],
+
+  bmrs: {},
+
+  orderInvoices: {},
 
 
   /*
@@ -2320,6 +2326,153 @@ const erpSlice = createSlice({
 
     /*
     |--------------------------------------------------------------------------
+    | PRODUCTION & BMR
+    |--------------------------------------------------------------------------
+    */
+
+    saveBmrRecord: (
+      state,
+      action
+    ) => {
+      const { orderId, batchNo, bmrType, data, isDraft } = action.payload || {}
+      if (!state.bmrs) {
+        state.bmrs = {}
+      }
+      const orderKey = orderId ? String(orderId) : null
+      const batchKey = batchNo ? String(batchNo) : null
+      const type = (bmrType || data?.bmrType || 'drops').toLowerCase()
+      const typePrefix = type + '_'
+      const primaryKey = orderKey ? (typePrefix + orderKey) : (batchKey ? (typePrefix + batchKey) : (typePrefix + 'default'))
+
+      const existing = state.bmrs[primaryKey] || {}
+      const updated = {
+        ...existing,
+        ...(data || {}),
+        bmrType: type,
+        orderId: orderId ? String(orderId) : existing.orderId,
+        batchNo: batchNo || existing.batchNo,
+        isDraft: Boolean(isDraft),
+        savedAt: nowIso(),
+      }
+
+      state.bmrs[primaryKey] = updated
+      if (orderKey) state.bmrs[typePrefix + orderKey] = updated
+      if (batchKey) state.bmrs[typePrefix + batchKey] = updated
+
+      if (type === 'drops') {
+        if (orderKey) state.bmrs[orderKey] = updated
+        if (batchKey) state.bmrs[batchKey] = updated
+      }
+
+      if (orderId) {
+        patchCompanyEntity(state, 'orders', orderId, {
+          bmr_status: isDraft ? 'NO' : 'YES',
+        })
+      }
+    },
+
+    updateOrderProductionStatus: (
+      state,
+      action
+    ) => {
+      const { id, bmr_status, production_status, remark, packaging_status, dispatch } = action.payload || {}
+      const updates = {}
+      if (bmr_status !== undefined) updates.bmr_status = bmr_status
+      if (production_status !== undefined) updates.production_status = production_status
+      if (remark !== undefined) updates.production_remark = remark
+      if (packaging_status !== undefined) updates.packaging_status = packaging_status
+      if (dispatch !== undefined) updates.dispatch_status = dispatch
+
+      if (dispatch === 'YES' || dispatch === true) {
+        updates.status = 'DISPATCHED'
+      } else if (packaging_status === 'Completed') {
+        updates.status = 'PACKED'
+      } else if (packaging_status === 'In Process') {
+        updates.status = 'PACKAGING'
+      } else if (production_status === 'Completed') {
+        updates.status = 'PRODUCTION_COMPLETED'
+      } else if (production_status === 'In Process') {
+        updates.status = 'IN_PRODUCTION'
+      } else if (production_status === 'In Planning') {
+        updates.status = 'IN_PLANNING'
+      }
+
+      patchCompanyEntity(state, 'orders', id, updates)
+    },
+
+    /**
+     * mergeApiOrders — called after fetching live SalesOrders + production statuses
+     * from the backend. Upserts each order into both `state.orders` and the
+     * company-specific `state.byCompany[key].orders` without wiping locally-held
+     * production status fields already stored in Redux from the same session.
+     */
+    mergeApiOrders: (state, action) => {
+      ensureByCompanyState(state)
+      const { orders = [] } = action.payload || {}
+
+      orders.forEach((incoming) => {
+        const key = resolveCompanyKey(state, incoming)
+        // Ensure the byCompany sub-array exists
+        if (!Array.isArray(state.byCompany[key]?.orders)) {
+          if (!state.byCompany[key]) state.byCompany[key] = {}
+          state.byCompany[key].orders = []
+        }
+        if (!Array.isArray(state.orders)) state.orders = []
+
+        // Preserve any in-memory production status fields already updated this session
+        const PROD_FIELDS = [
+          'bmr_status', 'production_status', 'production_remark',
+          'packaging_status', 'dispatch_status', 'qa_status', 'qa_remark',
+        ]
+
+        const existingInCompany = state.byCompany[key].orders.find(
+          (o) => String(o.id) === String(incoming.id)
+        )
+        const existingGlobal = state.orders.find(
+          (o) => String(o.id) === String(incoming.id)
+        )
+
+        // Build merged object — API data wins except for locally-set prod fields
+        const merged = { ...incoming }
+        PROD_FIELDS.forEach((f) => {
+          // Keep the locally-held value if it's more specific than the default
+          const localVal = existingInCompany?.[f] ?? existingGlobal?.[f]
+          if (localVal !== undefined && localVal !== null) {
+            merged[f] = localVal
+          }
+        })
+
+        if (existingInCompany) {
+          Object.assign(existingInCompany, merged)
+        } else {
+          state.byCompany[key].orders.push(merged)
+        }
+
+        if (existingGlobal) {
+          Object.assign(existingGlobal, merged)
+        } else {
+          state.orders.push(merged)
+        }
+      })
+    },
+
+
+    updateOrderQaStatus: (
+      state,
+      action
+    ) => {
+      const { id, qa_status, qa_remark, confirmed_by, confirmed_at } = action.payload || {}
+      const updates = {
+        qa_status: qa_status || 'Pending',
+        qa_remark: qa_remark || '',
+        qa_confirmed_by: confirmed_by || '',
+        qa_confirmed_at: confirmed_at || new Date().toISOString(),
+      }
+      patchCompanyEntity(state, 'orders', id, updates)
+    },
+
+    /*
+    |--------------------------------------------------------------------------
     | INVOICES
     |--------------------------------------------------------------------------
     */
@@ -2367,6 +2520,58 @@ const erpSlice = createSlice({
         ...(status && { status }),
         ...(paid_on && { paid_on }),
       })
+    },
+
+    saveOrderInvoice: (
+      state,
+      action
+    ) => {
+      const { orderId, invoiceData } = action.payload || {}
+      if (!state.orderInvoices) state.orderInvoices = {}
+      state.orderInvoices[String(orderId)] = invoiceData
+
+      ensureByCompanyState(state)
+      const compKey = resolveCompanyKey(state, invoiceData)
+      const compInvoices = state.byCompany?.[compKey]?.invoices || state.invoices || []
+      const existing = compInvoices.find(
+        (inv) => String(inv.order) === String(orderId) || String(inv.order_id) === String(orderId) || (inv.id && invoiceData?.id && String(inv.id) === String(invoiceData.id))
+      ) || (state.invoices || []).find(
+        (inv) => String(inv.order) === String(orderId) || String(inv.order_id) === String(orderId) || (inv.id && invoiceData?.id && String(inv.id) === String(invoiceData.id))
+      )
+
+      const invNum = invoiceData?.invoice_no || invoiceData?.number || existing?.number || (existing?.order_number ? `G/26-27/025` : 'G/26-27/024')
+      const finalTot = invoiceData?.total !== undefined ? invoiceData.total : (invoiceData?.finalTotalAfterTax !== undefined ? Math.round(invoiceData.finalTotalAfterTax) : existing?.total)
+
+      const mappedPayload = {
+        ...invoiceData,
+        number: invNum,
+        invoice_no: invNum,
+        total: finalTot,
+        total_amount: finalTot,
+        balance_due: invoiceData?.balance_due !== undefined ? invoiceData.balance_due : finalTot,
+        invoice_date: invoiceData?.invoice_date_iso || invoiceData?.invoice_date || invoiceData?.date || existing?.invoice_date || new Date().toISOString().slice(0, 10),
+        customer_name: invoiceData?.consignee_name || invoiceData?.customer_name || existing?.customer_name,
+        sheetData: invoiceData,
+      }
+      if (existing) {
+        patchCompanyEntity(state, 'invoices', existing.id, mappedPayload)
+      } else {
+        addCompanyEntity(state, 'invoices', {
+          id: invoiceData?.id || nextId(),
+          ...mappedPayload,
+          order: orderId,
+        })
+      }
+    },
+
+    resetOrderInvoice: (
+      state,
+      action
+    ) => {
+      const { orderId } = action.payload || {}
+      if (state.orderInvoices && state.orderInvoices[String(orderId)]) {
+        delete state.orderInvoices[String(orderId)]
+      }
     },
 
     setOrderStatus: (
@@ -3550,6 +3755,14 @@ export const {
 
   setBatchQa,
 
+  saveBmrRecord,
+
+  updateOrderProductionStatus,
+
+  mergeApiOrders,
+
+  updateOrderQaStatus,
+
 
   // invoices
 
@@ -3560,6 +3773,10 @@ export const {
   deleteInvoice,
 
   setInvoiceStatus,
+
+  saveOrderInvoice,
+
+  resetOrderInvoice,
 
   setOrderStatus,
 
@@ -3736,5 +3953,32 @@ export const {
 } =
   erpSlice.actions
 
+export const selectDosageForms = (state) => {
+  const base = Array.isArray(state.erp?.dosageForms) && state.erp.dosageForms.length
+    ? state.erp.dosageForms
+    : DOSAGE_FORMS
+  const result = [...base]
+  const seen = new Set(result.map((f) => String(f).trim().toLowerCase()))
+
+  const allProds = [
+    ...(state.erp?.products || []),
+    ...(state.erp?.commonProducts || []),
+    ...(state.erp?.byCompany?.cmhp?.products || []),
+    ...(state.erp?.byCompany?.tej?.products || []),
+  ]
+  allProds.forEach((p) => {
+    const val = p?.dosage_form || p?.category || p?.type
+    if (val && typeof val === 'string') {
+      const trimmed = val.trim()
+      const lower = trimmed.toLowerCase()
+      if (trimmed && !seen.has(lower)) {
+        seen.add(lower)
+        result.push(trimmed)
+      }
+    }
+  })
+
+  return result
+}
 
 export default erpSlice.reducer

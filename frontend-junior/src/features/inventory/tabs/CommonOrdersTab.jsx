@@ -42,12 +42,13 @@ import {
 import InwardStockModal from '../../store/InwardStockModal'
 import IssueOutwardModal from '../../store/IssueOutwardModal'
 import { getAvailableToIssue } from '../../store/materialIssueService'
+import GrnPrintButtons from '../../store/GrnPrintButtons'
 import PurchaseOrderModal from '../components/PurchaseOrderModal'
 import './CommonInventory.css'
 
 const STATUS_COLORS = {
   DRAFT: { bg: '#f1f5f9', color: '#475569' },
-  SUBMITTED: { bg: '#e0f2fe', color: '#0369a1' },
+  SUBMITTED: { bg: '#fef3c7', color: '#b45309' },
   APPROVED: { bg: '#dcfce7', color: '#15803d' },
   ISSUED: { bg: '#ede9fe', color: '#6d28d9' },
   POSTED: { bg: '#dcfce7', color: '#15803d' },
@@ -489,8 +490,8 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
   // -------------------------------------------------------------
   const handleSubmitReq = async (req) => {
     const ok = await confirm({
-      title: 'Submit for Approval',
-      message: `Submit material request ${req.reference || `#${req.id}`} for approval?`,
+      title: 'Submit for QA Approval',
+      message: `Submit material request ${req.reference || `#${req.id}`} for QA approval?`,
       confirmLabel: 'Submit',
       cancelLabel: 'Go Back',
       variant: 'primary',
@@ -501,7 +502,21 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
     setActionError('')
     try {
       await submitMaterialRequisition(storeId, req.id, req.version)
-      setActionSuccess(`Request ${req.reference || req.id} submitted for approval.`)
+      try {
+        const { qaPipelineService } = await import('../../quality/qaPipelineService')
+        await qaPipelineService.enqueueRequisition({
+          requisitionId: req.id,
+          reference: req.reference,
+          productName: req.product_name || req.batch_plan_product_name || '',
+          batchNumber: req.batch_number || req.batch_plan_number || '',
+          companyId: req.company || req.company_id,
+          storeId,
+          version: req.version,
+        })
+      } catch (e) {
+        console.warn('[CommonOrdersTab] QA pipeline enqueue:', e?.message || e)
+      }
+      setActionSuccess(`Request ${req.reference || req.id} submitted for QA approval.`)
       loadRequisitions()
       setReqDetailOpen(false)
     } catch (err) {
@@ -1256,6 +1271,7 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
                           <td>{Array.isArray(r.lines) ? r.lines.length : '-'}</td>
                           <td className="ci-actions-col">
                             <div style={{ display: 'inline-flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
+                              <GrnPrintButtons receipt={r} />
                               <Button
                                 size="sm"
                                 variant="secondary"
@@ -1516,28 +1532,23 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
                                 onClick={() => handleSubmitReq(r)}
                                 disabled={actionLoading}
                               >
-                                Submit
+                                Submit to QA
                               </Button>
                             )}
                             {st === 'SUBMITTED' && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="primary"
-                                  onClick={() => handleApproveReq(r)}
-                                  disabled={actionLoading}
-                                >
-                                  Approve
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="danger"
-                                  onClick={() => handleRejectReq(r)}
-                                  disabled={actionLoading}
-                                >
-                                  Reject
-                                </Button>
-                              </>
+                              <span
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  color: '#0369a1',
+                                  whiteSpace: 'nowrap',
+                                }}
+                                title="Approve or reject from Quality → Requisition QA"
+                              >
+                                Awaiting QA
+                                {' · '}
+                                <a href="/quality" style={{ color: '#0284c7' }}>Open QA</a>
+                              </span>
                             )}
                             {st === 'APPROVED' && (
                               <Button
@@ -1857,7 +1868,8 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
               )}
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+              <GrnPrintButtons receipt={selectedReceipt} />
               {selectedReceipt.status === 'DRAFT' && (
                 <>
                   <Button
@@ -1897,7 +1909,20 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 13, background: '#f8fafc', padding: 12, borderRadius: 8 }}>
-              <div><strong>Status:</strong> {selectedReq.status}</div>
+              <div>
+                <strong>Status:</strong>{' '}
+                {String(selectedReq.status || '').toUpperCase() === 'SUBMITTED'
+                  ? 'AWAITING QA APPROVAL'
+                  : selectedReq.status}
+                {String(selectedReq.status || '').toUpperCase() === 'SUBMITTED' && (
+                  <>
+                    {' · '}
+                    <a href="/quality" style={{ color: '#0284c7', fontWeight: 600 }}>
+                      Open Requisition QA
+                    </a>
+                  </>
+                )}
+              </div>
               <div><strong>Batch Plan:</strong> {selectedReq.current_plan_context?.official_batch_number || selectedReq.batch_plan_number || (selectedReq.batch_plan ? `#${selectedReq.batch_plan}` : '-')}</div>
               <div><strong>Product:</strong> {selectedReq.product_name_snapshot || selectedReq.product_code_snapshot || 'Finished Good'}</div>
               <div><strong>Target Output:</strong> {selectedReq.target_output_quantity_snapshot ? `${selectedReq.target_output_quantity_snapshot} ${selectedReq.output_uom_code_snapshot || ''}` : '-'}</div>

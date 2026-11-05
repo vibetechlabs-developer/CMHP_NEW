@@ -177,6 +177,7 @@ class StoreSummaryLowStockTests(ProductionCustodyTestCase):
                 "material_id": self.material.id,
                 "issued_quantity": "80.000",
                 "issued_at": (timezone.now() - timedelta(minutes=5)).isoformat(),
+                "sales_order_id": self._ensure_sales_order(),
             }),
             content_type="application/json",
             **bearer(self.token),

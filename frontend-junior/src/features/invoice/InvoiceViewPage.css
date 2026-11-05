@@ -1,0 +1,987 @@
+/* ==========================================================================
+   CMHP PHARMA ERP - MASTER TAX INVOICE (EXACT 1:1 MASTER PDF REPLICA)
+   Unified Single-Component Layout for Screen & Print
+   ========================================================================== */
+
+/* Outer screen canvas */
+.inv-view-wrapper {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 16px 20px 48px;
+  background-color: #f1f5f9;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: #1e293b;
+  box-sizing: border-box;
+}
+
+/* --------------------------------------------------------------------------
+   STICKY TOP TOOLBAR (Screen Only)
+   -------------------------------------------------------------------------- */
+.inv-view-topbar {
+  position: sticky;
+  top: 12px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  margin: 0 auto 20px auto;
+  max-width: 1140px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.inv-view-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.inv-view-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.inv-view-btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.inv-view-btn-back:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.inv-view-order-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 8px;
+}
+
+.inv-view-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: 999px;
+  text-transform: uppercase;
+}
+
+.inv-view-status-badge.paid {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.inv-view-status-badge.issued,
+.inv-view-status-badge.unpaid {
+  background: #fef9c3;
+  color: #854d0e;
+  border: 1px solid #fde047;
+}
+
+.inv-view-status-badge.draft {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+}
+
+.inv-view-save-feedback {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.inv-view-error-feedback {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.inv-toolbar-due-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 3px 8px;
+}
+
+.inv-toolbar-due-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+}
+
+.inv-toolbar-due-input {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-size: 12px;
+  color: #1e293b;
+  font-weight: 600;
+}
+
+/* Zoom Control Buttons */
+.inv-zoom-group {
+  display: inline-flex;
+  align-items: center;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.inv-zoom-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  padding: 0 6px;
+  text-transform: uppercase;
+}
+
+.inv-zoom-btn {
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.inv-zoom-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.inv-zoom-btn.active {
+  background: #ffffff;
+  color: #0284c7;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.inv-view-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  padding: 7px 13px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.inv-view-btn-secondary:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.inv-view-btn-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff1f2;
+  color: #be123c;
+  border: 1px solid #fecdd3;
+  padding: 7px 13px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.inv-view-btn-reset:hover {
+  background: #ffe4e6;
+  border-color: #fda4af;
+}
+
+.inv-view-btn-pay {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f59e0b;
+  color: #ffffff;
+  border: 1px solid #d97706;
+  padding: 7px 15px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.inv-view-btn-pay:hover {
+  background: #d97706;
+}
+
+.inv-view-btn-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #0284c7;
+  color: #ffffff;
+  border: 1px solid #0284c7;
+  padding: 7px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.inv-view-btn-save:hover {
+  background: #0369a1;
+}
+
+.inv-view-btn-print {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #10b981;
+  color: #ffffff;
+  border: 1px solid #10b981;
+  padding: 7px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.inv-view-btn-print:hover {
+  background: #059669;
+}
+
+/* Warning Banner (> 20 Items) */
+.inv-view-warning {
+  max-width: 1140px;
+  margin: 0 auto 16px auto;
+  padding: 10px 16px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  color: #92400e;
+  font-size: 13px;
+  line-height: 1.4;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+/* --------------------------------------------------------------------------
+   A4 SHEET SCREEN CANVAS
+   -------------------------------------------------------------------------- */
+.inv-view-sheet-outer {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  overflow-x: auto;
+  padding-bottom: 40px;
+}
+
+.inv-sheet-zoom-wrapper {
+  transition: transform 0.2s ease;
+  display: inline-block;
+}
+
+/* EXACT A4 SHEET: 210mm x 297mm with 8mm inner padding */
+.invoice-printable-sheet {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  width: 210mm;
+  min-height: 297mm;
+  max-width: 210mm;
+  box-sizing: border-box;
+  padding: 8mm;
+  margin: 0 auto;
+  font-family: 'Times New Roman', Times, serif;
+  color: #000000;
+  position: relative;
+  border-radius: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   TOP STRIP (Outside master table border)
+   -------------------------------------------------------------------------- */
+.inv-top-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0 2px 4px 2px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.inv-top-strip-left {
+  font-family: 'Times New Roman', Times, serif;
+  font-weight: bold;
+  font-size: 9.5pt;
+  letter-spacing: 0.3px;
+  color: #000000;
+}
+
+.inv-top-strip-right {
+  font-family: 'Times New Roman', Times, serif;
+  font-weight: normal;
+  font-size: 9pt;
+  letter-spacing: 0.2px;
+  color: #000000;
+}
+
+/* --------------------------------------------------------------------------
+   SINGLE 14-COLUMN MASTER TABLE
+   -------------------------------------------------------------------------- */
+.inv-master-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 8.5pt;
+  color: #000000;
+  border: 1px solid #000000;
+  margin: 0;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.inv-master-table,
+.inv-master-table th,
+.inv-master-table td,
+.inv-master-table span,
+.inv-master-table strong,
+.inv-master-table div {
+  color: #000000 !important;
+}
+
+.inv-master-table th,
+.inv-master-table td {
+  border: 1px solid #000000;
+  padding: 1px 3px;
+  box-sizing: border-box;
+  vertical-align: middle;
+  line-height: 1.15;
+}
+
+/* Company Header Cells */
+.inv-logo-cell {
+  text-align: center;
+  vertical-align: middle;
+  padding: 2px !important;
+  background: #ffffff;
+}
+
+.inv-header-logo-img {
+  max-height: 44pt;
+  max-width: 90%;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
+
+.inv-company-name-cell {
+  text-align: center;
+  vertical-align: middle;
+  padding: 2px 6px !important;
+}
+
+.inv-company-name-title {
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 13.5pt;
+  font-weight: bold;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #000000;
+}
+
+.inv-company-addr-cell {
+  text-align: center;
+  vertical-align: middle;
+  font-size: 7.6pt;
+  line-height: 1.15;
+  padding: 1px 6px !important;
+}
+
+.inv-company-contact-cell {
+  text-align: center;
+  vertical-align: middle;
+  font-size: 8pt;
+  padding: 1px 8px !important;
+}
+
+.inv-contact-inner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 40px;
+  width: 100%;
+}
+
+/* Metadata Cells */
+.inv-meta-cell {
+  font-size: 8.3pt;
+  padding: 1px 4px !important;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* Consignee & Buyer Section */
+.inv-party-header-cell {
+  font-size: 8.5pt;
+  padding: 2px 4px !important;
+  background: #ffffff;
+}
+
+.inv-party-data-cell {
+  font-size: 8.3pt;
+  padding: 1px 4px !important;
+  vertical-align: top;
+}
+
+.inv-party-address-cell {
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow: visible !important;
+  line-height: 1.2;
+}
+
+.inv-state-code-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+/* Item Table Headers */
+.inv-th {
+  background: #ffffff;
+  color: #000000;
+  font-weight: bold;
+  text-align: center;
+  vertical-align: middle;
+  font-size: 8.3pt;
+  padding: 2px 1px !important;
+  line-height: 1.1;
+}
+
+.inv-th-sub {
+  background: #ffffff;
+  color: #000000;
+  font-weight: bold;
+  text-align: center;
+  vertical-align: middle;
+  font-size: 7.8pt;
+  padding: 1px 1px !important;
+}
+
+/* Item Rows & Density Variations */
+.inv-item-row {
+  height: 15.5pt;
+}
+
+.inv-item-row.inv-density-normal td {
+  height: 15.5pt;
+  padding: 1px 3px;
+  font-size: 8.3pt;
+}
+
+.inv-item-row.inv-density-compact td {
+  height: 13.5pt;
+  padding: 0.5px 2px;
+  font-size: 8pt;
+}
+
+.inv-item-row.inv-density-tight td {
+  height: 12pt;
+  padding: 0 2px;
+  font-size: 7.6pt;
+}
+
+/* Item Cell Specific Alignments & Text Wrapping (NO ELLIPSIS) */
+.inv-cell-sr {
+  text-align: center;
+}
+
+.inv-cell-desc {
+  text-align: left;
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  line-height: 1.15;
+}
+
+.inv-desc-cell-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  position: relative;
+}
+
+.inv-cell-pkg,
+.inv-cell-hsn,
+.inv-cell-batch,
+.inv-cell-cgst-rate,
+.inv-cell-sgst-rate {
+  text-align: center;
+  white-space: normal !important;
+  word-break: break-word !important;
+}
+
+.inv-cell-qty,
+.inv-cell-rate,
+.inv-cell-amount,
+.inv-cell-taxable,
+.inv-cell-cgst-amount,
+.inv-cell-sgst-amount,
+.inv-cell-total {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Delete Row Button (Screen Only) */
+.inv-row-delete-btn {
+  display: none;
+  background: transparent;
+  border: none;
+  color: #ef4444;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 0 3px;
+  line-height: 1;
+}
+
+.inv-item-row:hover .inv-row-delete-btn {
+  display: inline-block;
+}
+
+/* Totals Row */
+.inv-totals-row td {
+  font-weight: bold;
+  font-size: 8.5pt;
+  height: 15pt;
+}
+
+.inv-total-label {
+  font-size: 10pt;
+  letter-spacing: 0.5px;
+}
+
+/* Bottom Block */
+.inv-words-cell {
+  vertical-align: top;
+  padding: 3px 6px !important;
+  line-height: 1.25;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.inv-words-title {
+  text-decoration: underline;
+  font-size: 8.5pt;
+  margin-bottom: 2px;
+}
+
+.inv-words-text {
+  font-size: 8.5pt;
+  font-weight: bold;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.inv-summary-label {
+  font-size: 8.3pt;
+  padding-left: 4px !important;
+}
+
+.inv-summary-val {
+  font-size: 8.5pt;
+  padding-right: 4px !important;
+}
+
+.inv-bank-cell {
+  font-size: 8.3pt;
+  padding: 1px 4px !important;
+}
+
+.inv-cert-cell {
+  font-size: 7.6pt;
+  font-style: italic;
+  padding: 1px 4px !important;
+}
+
+.inv-terms-content-cell {
+  vertical-align: top;
+  font-size: 7.5pt;
+  line-height: 1.2;
+  padding: 2px 4px !important;
+}
+
+.inv-terms-heading {
+  text-decoration: underline;
+  font-size: 8pt;
+  margin-bottom: 2px;
+}
+
+.inv-sign-block-cell {
+  vertical-align: top;
+  text-align: center;
+  padding: 2px 4px !important;
+}
+
+.inv-for-company {
+  font-size: 8.5pt;
+}
+
+.inv-sign-empty-space {
+  height: 36pt;
+}
+
+.inv-terms-bottom-cell,
+.inv-seal-bottom-cell,
+.inv-sign-bottom-cell {
+  font-size: 8pt;
+  vertical-align: bottom;
+  padding: 2px 4px !important;
+}
+
+/* --------------------------------------------------------------------------
+   PRINT VS SCREEN VALUES & INPUT STYLING
+   -------------------------------------------------------------------------- */
+.inv-field-wrap {
+  display: inline-flex;
+  align-items: baseline;
+  max-width: 100%;
+}
+
+.inv-field-label {
+  margin-right: 3px;
+  flex-shrink: 0;
+}
+
+/* In Screen Mode: Show inputs, hide print-val spans */
+.inv-screen-val {
+  display: inline-flex;
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+
+.inv-print-val {
+  display: none;
+}
+
+.inv-sheet-input,
+.invoice-printable-sheet input {
+  width: 100% !important;
+  min-height: 0 !important;
+  height: 14pt !important;
+  border: none !important;
+  border-bottom: 1px dotted transparent !important;
+  outline: none !important;
+  background: transparent !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  color: #000000 !important;
+  padding: 0 1px !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  box-sizing: border-box !important;
+  line-height: 1.15 !important;
+  box-shadow: none !important;
+  transition: all 0.1s ease !important;
+}
+
+.inv-sheet-input:hover,
+.invoice-printable-sheet input:hover {
+  background: #f8fafc !important;
+  border-bottom: 1px dotted #94a3b8 !important;
+}
+
+.inv-sheet-input:focus,
+.invoice-printable-sheet input:focus {
+  background: #eff6ff !important;
+  border-bottom: 1px solid #2563eb !important;
+  outline: none !important;
+}
+
+.inv-textarea-wrap {
+  width: 100%;
+}
+
+.inv-sheet-textarea,
+.invoice-printable-sheet textarea {
+  width: 100% !important;
+  min-height: 0 !important;
+  height: auto !important;
+  border: none !important;
+  border-bottom: 1px dotted transparent !important;
+  outline: none !important;
+  background: transparent !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  color: #000000 !important;
+  padding: 0 1px !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  box-sizing: border-box !important;
+  line-height: 1.2 !important;
+  box-shadow: none !important;
+  resize: none !important;
+  display: block !important;
+}
+
+.inv-sheet-textarea:hover,
+.invoice-printable-sheet textarea:hover {
+  background: #f8fafc !important;
+  border-bottom: 1px dotted #94a3b8 !important;
+}
+
+.inv-sheet-textarea:focus,
+.invoice-printable-sheet textarea:focus {
+  background: #eff6ff !important;
+  border-bottom: 1px solid #2563eb !important;
+  outline: none !important;
+}
+
+/* Strip number input arrows */
+.inv-sheet-input::-webkit-outer-spin-button,
+.inv-sheet-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.inv-sheet-input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Alignment utilities */
+.text-left { text-align: left !important; }
+.text-center { text-align: center !important; }
+.text-right { text-align: right !important; }
+.font-bold { font-weight: bold !important; }
+
+/* Modal overlay */
+.inv-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.inv-modal-card {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 24px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+
+.inv-modal-title {
+  margin: 0 0 16px 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.inv-modal-group {
+  margin-bottom: 14px;
+}
+
+.inv-modal-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 5px;
+}
+
+.inv-modal-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.inv-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+/* ==========================================================================
+   PRINT MEDIA RULES (@media print)
+   Strictly Renders ONLY the A4 Sheet on EXACTLY ONE Page
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  *, *:before, *:after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+
+  /* Hide app layout wrappers and UI toolbar */
+  .layout-sidebar,
+  .layout-header,
+  .layout-overlay,
+  .mobile-header,
+  .sidebar,
+  .inv-view-topbar,
+  .inv-view-warning,
+  .inv-row-delete-btn,
+  .inv-add-row-btn,
+  .inv-modal-overlay,
+  .no-print,
+  button {
+    display: none !important;
+  }
+
+  /* Reset layout structure and every ancestor to be print-neutral */
+  #root,
+  .layout,
+  .layout-main,
+  .layout-content,
+  .inv-view-wrapper,
+  .inv-view-sheet-outer,
+  .inv-sheet-zoom-wrapper {
+    position: static !important;
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 210mm !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    height: auto !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    transform: none !important;
+    zoom: 1 !important;
+  }
+
+  /* Ensure invoice sheet and its contents are always strictly visible */
+  .invoice-printable-sheet,
+  .invoice-printable-sheet * {
+    visibility: visible !important;
+  }
+
+  /* Exact A4 sheet in print: 210mm x 297mm with 8mm inner padding */
+  .invoice-printable-sheet {
+    width: 210mm !important;
+    height: 297mm !important;
+    max-height: 297mm !important;
+    min-height: 297mm !important;
+    margin: 0 !important;
+    padding: 8mm !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    overflow: hidden !important;
+  }
+
+  /* Master table fills the 194mm printable width */
+  .inv-master-table {
+    width: 100% !important;
+    border: 1px solid #000000 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .inv-master-table th,
+  .inv-master-table td {
+    border: 1px solid #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Swap interactive screen inputs for pure static print typography */
+  .inv-screen-val {
+    display: none !important;
+  }
+
+  .inv-print-val {
+    display: inline !important;
+  }
+
+  .inv-print-val-block {
+    display: block !important;
+  }
+}

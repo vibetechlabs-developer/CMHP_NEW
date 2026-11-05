@@ -16,7 +16,9 @@ from apps.catalog.models import Material, UnitOfMeasure
 from apps.permissions.services import user_has_permission
 from apps.stock_movements.models import (
     CutoverStockDraft,
+    LotQualityStatus,
     MaterialIssue,
+    MaterialIssueLine,
     MaterialIssueMovement,
     MaterialReturn,
     PhysicalCountDraft,
@@ -69,8 +71,27 @@ def create_receipt_in_movements(*, goods_receipt, lines, actor, posted_at):
         )
         for line in lines
     ]
-    StockMovement.objects.bulk_create(movements)
-    return movements
+    created = StockMovement.objects.bulk_create(movements)
+    if created and getattr(created[0], "pk", None) is None:
+        created = list(
+            StockMovement.objects.filter(source_goods_receipt=goods_receipt).order_by("id")
+        )
+    # New inward lots stay quarantined until incoming QC approves them.
+    # Missing LotQualityStatus remains issue-eligible only for historical
+    # receipts posted before this gate existed.
+    LotQualityStatus.objects.bulk_create(
+        [
+            LotQualityStatus(
+                stock_movement=movement,
+                status=LotQualityStatus.Status.UNDER_TEST,
+                remarks="Awaiting incoming QC approval. Not issue-eligible until released.",
+                decided_by=actor,
+                decided_at=posted_at,
+            )
+            for movement in created
+        ]
+    )
+    return created
 
 
 def companies_with_receipt_view_access(user):
@@ -106,11 +127,12 @@ def stock_movements_queryset(*, store, accessible_companies):
             "source_goods_receipt", "source_goods_receipt__source_purchase_order__supplier",
             "source_receipt_line", "source_receipt_line__container_type",
             "source_receipt_line__source_po_line", "source_receipt_line__source_po_line__issue_snapshot",
+            "quality_status",
         )
     )
 
 
-def compute_stock_balances(*, store, accessible_companies, material_id=None, posted_from=None, posted_to=None):
+def compute_stock_balances(*, store, accessible_companies, material_id=None, posted_from=None, posted_to=None, issue_eligible_only=False):
     """Recorded-receipt totals, grouped by (material, unit, source_company)
     - NEVER just (material), so two lines for the same material recorded
     in different units are never summed together as if they were the
@@ -126,11 +148,17 @@ def compute_stock_balances(*, store, accessible_companies, material_id=None, pos
     total and the rows it was computed from always agree. Omitting both
     aggregates the complete authorized history (never just a page).
 
+    When `issue_eligible_only=True`, receipt lots with an explicit
+    UNDER_TEST / ON_HOLD / REJECTED QC status are excluded. Missing
+    LotQualityStatus rows stay eligible (historical default = APPROVED).
+
     This is deliberately labeled "recorded receipt quantity" wherever it
     is surfaced (never available_stock/usable_stock/on_hand) - see
     apps.stock_movements.views for the coverage metadata every response
     carries alongside it.
     """
+    from django.db.models import Q
+
     queryset = stock_movements_queryset(store=store, accessible_companies=accessible_companies)
     if material_id is not None:
         queryset = queryset.filter(material_id=material_id)
@@ -138,6 +166,15 @@ def compute_stock_balances(*, store, accessible_companies, material_id=None, pos
         queryset = queryset.filter(posted_at__date__gte=posted_from)
     if posted_to is not None:
         queryset = queryset.filter(posted_at__date__lte=posted_to)
+    if issue_eligible_only:
+        blocked = (
+            LotQualityStatus.Status.UNDER_TEST,
+            LotQualityStatus.Status.ON_HOLD,
+            LotQualityStatus.Status.REJECTED,
+        )
+        queryset = queryset.filter(
+            Q(quality_status__isnull=True) | ~Q(quality_status__status__in=blocked)
+        )
 
     return (
         queryset.values(
@@ -326,28 +363,21 @@ def compute_issued_balances(*, store, accessible_companies, material_id=None, po
     )
 
 
-def compute_returned_balances(*, store, accessible_companies, material_id=None, created_from=None, created_to=None):
+def compute_returned_balances(*, store, accessible_companies, material_id=None, created_from=None, created_to=None, disposition=None):
     """Recorded `MaterialReturn` totals, grouped by (material, unit,
     source_company) - the physical-return counterpart of
     compute_issued_balances, same grouping, same "never merge across
-    units or companies" rule. A `MaterialReturn` is created with
-    `disposition="HELD_UNASSESSED"` (see that model's own docstring) and
-    this function does not change that - it only totals the recorded
-    physical quantity that came back into the store under ANY
-    disposition, for `net_recorded_balances`'s own additive `book_
-    quantity` field below. Never merged into `net_recorded_balances`'s
-    pre-existing `net_quantity` (the issue-eligibility figure
-    `post_material_issue` caps against) - a return must never make
-    itself automatically re-issuable.
+    units or companies" rule.
 
-    `MaterialReturn` has no `*_snapshot` columns (unlike
-    MaterialIssueMovement) - it is a newer, smaller model - so labels
-    are read live off the FK relations instead; still store/company-
-    access-filtered the same way as every other aggregation here.
+    Pass `disposition` to restrict (e.g. RELEASED_USABLE for issue-
+    eligible returned stock). Without it, totals include every disposition
+    for physical `book_quantity` bookkeeping.
     """
     queryset = MaterialReturn.objects.filter(store=store, source_company__in=accessible_companies)
     if material_id is not None:
         queryset = queryset.filter(material_id=material_id)
+    if disposition is not None:
+        queryset = queryset.filter(disposition=disposition)
     if created_from is not None:
         queryset = queryset.filter(created_at__date__gte=created_from)
     if created_to is not None:
@@ -392,7 +422,10 @@ def net_recorded_balances(*, store, accessible_companies, material_id):
     """
     received = {}
     unit_labels = {}
-    for row in compute_stock_balances(store=store, accessible_companies=accessible_companies, material_id=material_id):
+    # Issue eligibility uses QC-approved (or untracked) receipt lots only.
+    for row in compute_stock_balances(
+        store=store, accessible_companies=accessible_companies, material_id=material_id, issue_eligible_only=True,
+    ):
         key = (row["unit_id"], row["source_company_id"])
         received[key] = row["recorded_receipt_quantity"]
         unit_labels[row["unit_id"]] = (row["unit_code_snapshot"], row["unit_name_snapshot"])
@@ -406,15 +439,24 @@ def net_recorded_balances(*, store, accessible_companies, material_id):
         key = (row["unit_id"], row["source_company_id"])
         returned[key] = row["recorded_returned_quantity"]
         unit_labels.setdefault(row["unit_id"], (row["unit__code"], row["unit__name"]))
+    released = {}
+    for row in compute_returned_balances(
+        store=store, accessible_companies=accessible_companies, material_id=material_id, disposition="RELEASED_USABLE",
+    ):
+        key = (row["unit_id"], row["source_company_id"])
+        released[key] = row["recorded_returned_quantity"]
+        unit_labels.setdefault(row["unit_id"], (row["unit__code"], row["unit__name"]))
 
-    keys = set(received) | set(issued) | set(returned)
+    keys = set(received) | set(issued) | set(returned) | set(released)
     results = []
     for unit_id, company_id in keys:
         received_qty = received.get((unit_id, company_id), Decimal("0"))
         issued_qty = issued.get((unit_id, company_id), Decimal("0"))
         returned_qty = returned.get((unit_id, company_id), Decimal("0"))
+        released_qty = released.get((unit_id, company_id), Decimal("0"))
         unit_code, unit_name = unit_labels.get(unit_id, ("", ""))
-        net_quantity = received_qty - issued_qty
+        # Released-usable returns are issue-eligible again; held/rejected are not.
+        net_quantity = received_qty - issued_qty + released_qty
         results.append({
             "unit_id": unit_id,
             "unit_code": unit_code,
@@ -424,7 +466,8 @@ def net_recorded_balances(*, store, accessible_companies, material_id):
             "recorded_issued_quantity": issued_qty,
             "net_quantity": net_quantity,
             "recorded_returned_quantity": returned_qty,
-            "book_quantity": net_quantity + returned_qty,
+            "recorded_released_usable_quantity": released_qty,
+            "book_quantity": received_qty - issued_qty + returned_qty,
         })
     return results
 
@@ -437,12 +480,98 @@ def _issue_header_snapshot(material_issue):
         "batch_reference": material_issue.batch_reference,
         "product_reference": material_issue.product_reference,
         "remarks": material_issue.remarks,
+        "batch_plan_id": material_issue.batch_plan_id,
+        "sales_order_id": material_issue.sales_order_id,
+        "line_count": material_issue.lines.count() if material_issue.pk else 0,
     }
+
+
+def _resolve_issue_links(*, source_company, batch_plan_id=None, sales_order_id=None):
+    """Batch plan and/or sales order must bind every material issue so free-text
+    batch typos cannot silently issue against the wrong production job.
+    """
+    from apps.batch_plans.models import BatchPlan
+    from apps.sales_orders.models import SalesOrder
+
+    batch_plan = None
+    sales_order = None
+    if batch_plan_id:
+        batch_plan = get_object_or_404(BatchPlan.objects.select_related("sales_order_line__sales_order"), pk=batch_plan_id)
+        if batch_plan.company_id != source_company.id:
+            raise DjangoValidationError({"batch_plan_id": "Batch plan does not belong to the selected company."})
+        sales_order = batch_plan.sales_order_line.sales_order
+    if sales_order_id:
+        sales_order = get_object_or_404(SalesOrder, pk=sales_order_id)
+        if sales_order.company_id != source_company.id:
+            raise DjangoValidationError({"sales_order_id": "Sales order does not belong to the selected company."})
+        if batch_plan and batch_plan.sales_order_line.sales_order_id != sales_order.id:
+            raise DjangoValidationError({"sales_order_id": "Sales order does not match the selected batch plan."})
+    if batch_plan is None and sales_order is None:
+        raise DjangoValidationError({
+            "detail": "Select a batch plan or sales order before creating a material issue to production.",
+        })
+    return batch_plan, sales_order
+
+
+def _normalize_issue_lines(*, lines, material_id=None, unit_id=None, issued_quantity=None):
+    """Accept multi-line payload or fall back to a single header material."""
+    prepared = []
+    if lines:
+        for index, item in enumerate(lines, start=1):
+            mid = item.get("material_id")
+            if not mid:
+                raise DjangoValidationError({"lines": f"Line {index}: material_id is required."})
+            material = get_object_or_404(Material.objects.select_related("base_unit"), pk=mid)
+            uid = item.get("unit_id")
+            unit = get_object_or_404(UnitOfMeasure, pk=uid) if uid else material.base_unit
+            qty = Decimal(str(item.get("issued_quantity")))
+            if qty <= 0:
+                raise DjangoValidationError({"lines": f"Line {index}: issued_quantity must be greater than zero."})
+            prepared.append({"material": material, "unit": unit, "issued_quantity": qty, "line_number": index})
+    else:
+        if not material_id:
+            raise DjangoValidationError({"material_id": "Provide material_id or a non-empty lines list."})
+        material = get_object_or_404(Material.objects.select_related("base_unit"), pk=material_id)
+        unit = get_object_or_404(UnitOfMeasure, pk=unit_id) if unit_id else material.base_unit
+        if issued_quantity is None or Decimal(issued_quantity) <= 0:
+            raise DjangoValidationError({"issued_quantity": "Issued quantity must be greater than zero."})
+        prepared.append({
+            "material": material,
+            "unit": unit,
+            "issued_quantity": Decimal(str(issued_quantity)),
+            "line_number": 1,
+        })
+    return prepared
+
+
+def _replace_issue_lines(material_issue, prepared_lines):
+    material_issue.lines.all().delete()
+    for item in prepared_lines:
+        MaterialIssueLine.objects.create(
+            material_issue=material_issue,
+            line_number=item["line_number"],
+            material=item["material"],
+            unit=item["unit"],
+            issued_quantity=item["issued_quantity"],
+            material_code_snapshot=item["material"].code,
+            material_name_snapshot=item["material"].name,
+            unit_code_snapshot=item["unit"].code,
+            unit_name_snapshot=item["unit"].name,
+        )
+    first = prepared_lines[0]
+    total = sum((p["issued_quantity"] for p in prepared_lines), Decimal("0"))
+    material_issue.material = first["material"]
+    material_issue.unit = first["unit"]
+    material_issue.issued_quantity = total
+    material_issue.material_code_snapshot = first["material"].code
+    material_issue.material_name_snapshot = first["material"].name
+    material_issue.unit_code_snapshot = first["unit"].code
+    material_issue.unit_name_snapshot = first["unit"].name
 
 
 def _create_issue_header_with_unique_reference(
     *, store, actor, source_company, material, unit, issued_quantity, issued_at,
-    batch_reference, product_reference, remarks, idempotency_key,
+    batch_reference, product_reference, remarks, idempotency_key, batch_plan=None, sales_order=None,
 ):
     for _ in range(_ISSUE_REFERENCE_MAX_ATTEMPTS):
         try:
@@ -464,6 +593,8 @@ def _create_issue_header_with_unique_reference(
                     material_name_snapshot=material.name,
                     unit_code_snapshot=unit.code,
                     unit_name_snapshot=unit.name,
+                    batch_plan=batch_plan,
+                    sales_order=sales_order,
                 )
                 material_issue.save()
                 return material_issue
@@ -480,14 +611,12 @@ def _create_issue_header_with_unique_reference(
 
 @transaction.atomic
 def create_material_issue(
-    *, actor, store, source_company_id, material_id, issued_quantity, issued_at,
+    *, actor, store, source_company_id, material_id=None, issued_quantity=None, issued_at,
     unit_id=None, batch_reference="", product_reference="", remarks="", idempotency_key="",
+    batch_plan_id=None, sales_order_id=None, lines=None,
 ):
-    """Creates a DRAFT MaterialIssue - mirrors create_goods_receipt's own
-    idempotency-key handling exactly (a repeat with identical content is
-    a safe no-op; a repeat with different content is a 409 Conflict).
-    No quantity cap is enforced here - same "complete only at posting"
-    convention as create_goods_receipt (see post_material_issue).
+    """Creates a DRAFT MaterialIssue bound to a batch plan and/or sales order.
+    Supports multi-line slips (all RM/PM for one BMR/batch) via `lines`.
     """
     idempotency_key = (idempotency_key or "").strip()
     batch_reference = (batch_reference or "").strip()
@@ -495,35 +624,35 @@ def create_material_issue(
     remarks = remarks or ""
 
     source_company = get_object_or_404(Company, pk=source_company_id)
-    material = get_object_or_404(Material.objects.select_related("base_unit"), pk=material_id)
-    if unit_id:
-        unit = get_object_or_404(UnitOfMeasure, pk=unit_id)
-    else:
-        unit = material.base_unit
+    batch_plan, sales_order = _resolve_issue_links(
+        source_company=source_company, batch_plan_id=batch_plan_id, sales_order_id=sales_order_id,
+    )
+    if batch_plan and not batch_reference:
+        allocation = getattr(batch_plan, "number_allocation", None)
+        batch_reference = (getattr(allocation, "number", None) or "") or f"Plan-{batch_plan.id}"
+    if batch_plan and not product_reference:
+        product_reference = batch_plan.product_name_snapshot or batch_plan.product_code_snapshot or ""
+    if sales_order and not product_reference:
+        first_line = sales_order.lines.order_by("line_number").first()
+        if first_line:
+            product_reference = first_line.product_name_snapshot or first_line.product_code_snapshot or ""
 
-    if issued_quantity is None or Decimal(issued_quantity) <= 0:
-        raise DjangoValidationError({"issued_quantity": "Issued quantity must be greater than zero."})
+    prepared_lines = _normalize_issue_lines(
+        lines=lines, material_id=material_id, unit_id=unit_id, issued_quantity=issued_quantity,
+    )
+    first = prepared_lines[0]
+    total_qty = sum((p["issued_quantity"] for p in prepared_lines), Decimal("0"))
 
     if idempotency_key:
         existing = MaterialIssue.objects.filter(idempotency_key=idempotency_key).first()
         if existing is not None:
-            proposed = {
-                "source_company_id": source_company.id,
-                "issued_quantity": str(Decimal(issued_quantity)),
-                "issued_at": issued_at,
-                "batch_reference": batch_reference,
-                "product_reference": product_reference,
-                "remarks": remarks,
-            }
-            actual = {
-                "source_company_id": existing.source_company_id,
-                "issued_quantity": str(existing.issued_quantity),
-                "issued_at": existing.issued_at,
-                "batch_reference": existing.batch_reference,
-                "product_reference": existing.product_reference,
-                "remarks": existing.remarks,
-            }
-            if proposed == actual and existing.material_id == material.id and existing.unit_id == unit.id and existing.store_id == store.id:
+            if (
+                existing.source_company_id == source_company.id
+                and existing.store_id == store.id
+                and existing.batch_plan_id == (batch_plan.id if batch_plan else None)
+                and existing.sales_order_id == (sales_order.id if sales_order else None)
+                and str(existing.issued_quantity) == str(total_qty)
+            ):
                 return existing
             raise Conflict(
                 "This idempotency_key was already used to create a different material issue. "
@@ -531,10 +660,13 @@ def create_material_issue(
             )
 
     material_issue = _create_issue_header_with_unique_reference(
-        store=store, actor=actor, source_company=source_company, material=material, unit=unit,
-        issued_quantity=issued_quantity, issued_at=issued_at, batch_reference=batch_reference,
+        store=store, actor=actor, source_company=source_company, material=first["material"], unit=first["unit"],
+        issued_quantity=total_qty, issued_at=issued_at, batch_reference=batch_reference,
         product_reference=product_reference, remarks=remarks, idempotency_key=idempotency_key,
+        batch_plan=batch_plan, sales_order=sales_order,
     )
+    _replace_issue_lines(material_issue, prepared_lines)
+    material_issue.save()
 
     record(
         actor=actor,
@@ -550,12 +682,7 @@ def create_material_issue(
 
 @transaction.atomic
 def update_material_issue(*, actor, material_issue_id, expected_version, data):
-    """DRAFT only (400 otherwise). `data` may contain any subset of
-    issued_quantity/issued_at/batch_reference/product_reference/remarks -
-    source_company/material/unit are immutable after creation (mirrors
-    GoodsReceipt.company's own "copied at creation, never independently
-    editable" rule).
-    """
+    """DRAFT only. May update header fields, batch/order links, and/or replace `lines`."""
     material_issue = MaterialIssue.objects.select_for_update().get(pk=material_issue_id)
     if material_issue.version != expected_version:
         raise Conflict("This material issue has changed since it was last read. Refetch and retry.")
@@ -564,11 +691,6 @@ def update_material_issue(*, actor, material_issue_id, expected_version, data):
 
     before = _issue_header_snapshot(material_issue)
     changed = False
-    if "issued_quantity" in data and Decimal(data["issued_quantity"]) != material_issue.issued_quantity:
-        if Decimal(data["issued_quantity"]) <= 0:
-            raise DjangoValidationError({"issued_quantity": "Issued quantity must be greater than zero."})
-        material_issue.issued_quantity = data["issued_quantity"]
-        changed = True
     if "issued_at" in data and data["issued_at"] != material_issue.issued_at:
         material_issue.issued_at = data["issued_at"]
         changed = True
@@ -580,6 +702,31 @@ def update_material_issue(*, actor, material_issue_id, expected_version, data):
         changed = True
     if "remarks" in data and data["remarks"] != material_issue.remarks:
         material_issue.remarks = data["remarks"]
+        changed = True
+    if "batch_plan_id" in data or "sales_order_id" in data:
+        batch_plan, sales_order = _resolve_issue_links(
+            source_company=material_issue.source_company,
+            batch_plan_id=data.get("batch_plan_id", material_issue.batch_plan_id),
+            sales_order_id=data.get("sales_order_id", material_issue.sales_order_id),
+        )
+        if material_issue.batch_plan_id != (batch_plan.id if batch_plan else None):
+            material_issue.batch_plan = batch_plan
+            changed = True
+        if material_issue.sales_order_id != (sales_order.id if sales_order else None):
+            material_issue.sales_order = sales_order
+            changed = True
+    if "lines" in data:
+        prepared = _normalize_issue_lines(lines=data["lines"])
+        _replace_issue_lines(material_issue, prepared)
+        changed = True
+    elif "issued_quantity" in data and Decimal(data["issued_quantity"]) != material_issue.issued_quantity:
+        if Decimal(data["issued_quantity"]) <= 0:
+            raise DjangoValidationError({"issued_quantity": "Issued quantity must be greater than zero."})
+        material_issue.issued_quantity = data["issued_quantity"]
+        first_line = material_issue.lines.order_by("line_number").first()
+        if first_line and material_issue.lines.count() == 1:
+            first_line.issued_quantity = data["issued_quantity"]
+            first_line.save(update_fields=["issued_quantity"])
         changed = True
 
     if not changed:
@@ -641,28 +788,35 @@ def post_material_issue(*, actor, material_issue_id, expected_version):
     if material_issue.issued_at > timezone.now():
         raise DjangoValidationError({"issued_at": "Issue date/time cannot be in the future."})
 
-    # Serializes concurrent posts for this material before either reads
-    # the net balance below - see the concurrency note above.
-    Material.objects.select_for_update().get(pk=material_issue.material_id)
-
-    accessible_companies = [material_issue.source_company]
-    balances = net_recorded_balances(
-        store=material_issue.store, accessible_companies=accessible_companies, material_id=material_issue.material_id,
-    )
-    row = next(
-        (b for b in balances if b["unit_id"] == material_issue.unit_id and b["source_company_id"] == material_issue.source_company_id),
-        None,
-    )
-    net_available = row["net_quantity"] if row else Decimal("0")
-    if material_issue.issued_quantity > net_available:
-        raise DjangoValidationError({
-            "detail": (
-                f"Posting {material_issue.issued_quantity} {material_issue.unit_code_snapshot} would exceed the "
-                f"recorded net balance ({net_available} {material_issue.unit_code_snapshot}) for "
-                f"{material_issue.material_code_snapshot} / {material_issue.source_company.code} at this store. "
-                "This is a recorded-ledger check only, not a QC-release or reservation decision."
-            )
-        })
+    # Cap every line (or the legacy header) against QC-approved net balance.
+    lines = list(material_issue.lines.select_related("material", "unit").order_by("line_number", "id"))
+    if not lines:
+        lines = [None]
+    for line in lines:
+        material_id = line.material_id if line else material_issue.material_id
+        unit_id = line.unit_id if line else material_issue.unit_id
+        qty = line.issued_quantity if line else material_issue.issued_quantity
+        Material.objects.select_for_update().get(pk=material_id)
+        balances = net_recorded_balances(
+            store=material_issue.store,
+            accessible_companies=[material_issue.source_company],
+            material_id=material_id,
+        )
+        row = next(
+            (b for b in balances if b["unit_id"] == unit_id and b["source_company_id"] == material_issue.source_company_id),
+            None,
+        )
+        net_available = row["net_quantity"] if row else Decimal("0")
+        label = (line.material_code_snapshot if line else material_issue.material_code_snapshot) or str(material_id)
+        unit_label = (line.unit_code_snapshot if line else material_issue.unit_code_snapshot) or ""
+        if qty > net_available:
+            raise DjangoValidationError({
+                "detail": (
+                    f"Posting {qty} {unit_label} of {label} would exceed the QC-approved net balance "
+                    f"({net_available} {unit_label}) for {material_issue.source_company.code} at this store. "
+                    "Quarantine / on-hold / rejected lots are not issue-eligible."
+                )
+            })
 
     before = {"status": material_issue.status}
     posted_at = timezone.now()
@@ -672,41 +826,46 @@ def post_material_issue(*, actor, material_issue_id, expected_version):
     material_issue.version += 1
     material_issue.save(update_fields=["status", "posted_by", "posted_at", "version", "updated_at"])
 
-    movement = MaterialIssueMovement(
-        source_material_issue=material_issue,
-        store=material_issue.store,
-        source_company=material_issue.source_company,
-        material_id=material_issue.material_id,
-        unit_id=material_issue.unit_id,
-        quantity=material_issue.issued_quantity,
-        material_code_snapshot=material_issue.material_code_snapshot,
-        material_name_snapshot=material_issue.material_name_snapshot,
-        unit_code_snapshot=material_issue.unit_code_snapshot,
-        unit_name_snapshot=material_issue.unit_name_snapshot,
-        batch_reference=material_issue.batch_reference,
-        product_reference=material_issue.product_reference,
-        remarks=material_issue.remarks,
-        posted_by=actor,
-        posted_at=posted_at,
-    )
-    movement.save()
+    movement_ids = []
+    for line in lines:
+        movement = MaterialIssueMovement(
+            source_material_issue=material_issue,
+            source_line=line,
+            store=material_issue.store,
+            source_company=material_issue.source_company,
+            material_id=line.material_id if line else material_issue.material_id,
+            unit_id=line.unit_id if line else material_issue.unit_id,
+            quantity=line.issued_quantity if line else material_issue.issued_quantity,
+            material_code_snapshot=(line.material_code_snapshot if line else material_issue.material_code_snapshot),
+            material_name_snapshot=(line.material_name_snapshot if line else material_issue.material_name_snapshot),
+            unit_code_snapshot=(line.unit_code_snapshot if line else material_issue.unit_code_snapshot),
+            unit_name_snapshot=(line.unit_name_snapshot if line else material_issue.unit_name_snapshot),
+            batch_reference=material_issue.batch_reference,
+            product_reference=material_issue.product_reference,
+            remarks=material_issue.remarks,
+            posted_by=actor,
+            posted_at=posted_at,
+        )
+        movement.save()
+        movement_ids.append(movement.id)
 
-    ProductionCustody.objects.get_or_create(
-        source_issue=material_issue,
-        defaults={
-            "store": material_issue.store,
-            "source_company": material_issue.source_company,
-            "material": material_issue.material,
-            "unit": material_issue.unit,
-            "batch_reference": material_issue.batch_reference,
-            "product_reference": material_issue.product_reference,
-            "issued_quantity": material_issue.issued_quantity,
-            "consumed_quantity": Decimal("0.000"),
-            "returned_quantity": Decimal("0.000"),
-            "damaged_quantity": Decimal("0.000"),
-            "disposed_quantity": Decimal("0.000"),
-        },
-    )
+        ProductionCustody.objects.get_or_create(
+            source_issue=material_issue,
+            source_line=line,
+            defaults={
+                "store": material_issue.store,
+                "source_company": material_issue.source_company,
+                "material_id": line.material_id if line else material_issue.material_id,
+                "unit_id": line.unit_id if line else material_issue.unit_id,
+                "batch_reference": material_issue.batch_reference,
+                "product_reference": material_issue.product_reference,
+                "issued_quantity": line.issued_quantity if line else material_issue.issued_quantity,
+                "consumed_quantity": Decimal("0.000"),
+                "returned_quantity": Decimal("0.000"),
+                "damaged_quantity": Decimal("0.000"),
+                "disposed_quantity": Decimal("0.000"),
+            },
+        )
 
     record(
         actor=actor,
@@ -716,7 +875,12 @@ def post_material_issue(*, actor, material_issue_id, expected_version):
         company=material_issue.source_company,
         store=material_issue.store,
         before=before,
-        after={"status": material_issue.status, "posted_by_id": actor.id, "movement_id": movement.id, "quantity": str(movement.quantity)},
+        after={
+            "status": material_issue.status,
+            "posted_by_id": actor.id,
+            "movement_ids": movement_ids,
+            "quantity": str(material_issue.issued_quantity),
+        },
     )
     return material_issue
 
@@ -1089,4 +1253,101 @@ def list_cutover_stock_drafts(*, store_id, material_id=None):
     if material_id is not None:
         qs = qs.filter(material_id=material_id)
     return qs
+
+
+@transaction.atomic
+def set_lot_quality_status(*, actor, stock_movement_id, status, ar_no="", chemist="", remarks=""):
+    """Set/update QC release gate for one receipt lot. APPROVED lots are
+    issue-eligible; UNDER_TEST / ON_HOLD / REJECTED are excluded from
+    net_recorded_balances used at posting time.
+    """
+    if status not in LotQualityStatus.Status.values:
+        raise DjangoValidationError({"status": f"Must be one of {list(LotQualityStatus.Status.values)}."})
+    movement = get_object_or_404(StockMovement, pk=stock_movement_id)
+    now = timezone.now()
+    obj, _created = LotQualityStatus.objects.update_or_create(
+        stock_movement=movement,
+        defaults={
+            "status": status,
+            "ar_no": (ar_no or "").strip(),
+            "chemist": (chemist or "").strip(),
+            "remarks": (remarks or "").strip(),
+            "decided_by": actor,
+            "decided_at": now,
+        },
+    )
+    record(
+        actor=actor,
+        action="lot_quality_status.set",
+        target_type="stock_movement",
+        target_id=movement.id,
+        company=movement.source_company,
+        store=movement.store,
+        after={"status": obj.status, "ar_no": obj.ar_no},
+    )
+    return obj
+
+
+def approve_receipt_lots(*, actor, goods_receipt_id, remarks="Incoming QC approved."):
+    """Release every RECEIPT_IN lot on a posted goods receipt for issue.
+
+    Used after incoming QC approve (and by tests that seed issueable stock).
+    """
+    movements = StockMovement.objects.filter(
+        source_goods_receipt_id=goods_receipt_id,
+        movement_type=StockMovement.MovementType.RECEIPT_IN,
+    )
+    released = []
+    for movement in movements:
+        released.append(
+            set_lot_quality_status(
+                actor=actor,
+                stock_movement_id=movement.id,
+                status=LotQualityStatus.Status.APPROVED,
+                remarks=remarks,
+            )
+        )
+    return released
+
+
+@transaction.atomic
+def decide_material_return_disposition(*, actor, return_id, disposition, reason=""):
+    """HELD_UNASSESSED -> RELEASED_USABLE or QUARANTINE_REJECTED.
+
+    RELEASED_USABLE adds the quantity back into issue-eligible
+    `net_quantity`. QUARANTINE_REJECTED keeps it out of issue eligibility
+    while remaining visible on physical book quantity.
+    """
+    if disposition not in ("RELEASED_USABLE", "QUARANTINE_REJECTED"):
+        raise DjangoValidationError({
+            "disposition": "Disposition decision must be RELEASED_USABLE or QUARANTINE_REJECTED.",
+        })
+    material_return = MaterialReturn.objects.select_for_update().select_related(
+        "source_company", "store", "material", "unit"
+    ).get(pk=return_id)
+    if material_return.disposition != "HELD_UNASSESSED":
+        raise DjangoValidationError({
+            "detail": f"Only HELD_UNASSESSED returns can be dispositioned (current: {material_return.disposition}).",
+        })
+    before = {"disposition": material_return.disposition}
+    material_return.disposition = disposition
+    material_return.disposition_decided_by = actor
+    material_return.disposition_decided_at = timezone.now()
+    material_return.disposition_reason = (reason or "").strip()
+    material_return.save(
+        update_fields=[
+            "disposition", "disposition_decided_by", "disposition_decided_at", "disposition_reason",
+        ]
+    )
+    record(
+        actor=actor,
+        action="material_return.disposition_decided",
+        target_type="material_return",
+        target_id=material_return.id,
+        company=material_return.source_company,
+        store=material_return.store,
+        before=before,
+        after={"disposition": disposition, "quantity": str(material_return.quantity)},
+    )
+    return material_return
 

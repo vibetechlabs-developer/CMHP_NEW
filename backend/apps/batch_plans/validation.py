@@ -30,6 +30,7 @@ which nothing here models). An unknown conversion (either unit missing its
 `canonical_factor`) fails clearly rather than guessing one.
 """
 
+from decimal import Decimal
 from fractions import Fraction
 
 from django.core.exceptions import ValidationError
@@ -48,7 +49,12 @@ def validate_quantity_precision(value, *, field, label, max_decimal_places=3, ma
         raise ValidationError({field: f"{label} is required."})
     if value <= 0:
         raise ValidationError({field: f"{label} must be greater than zero."})
-    text = format(value, "f")
+    if isinstance(value, Decimal):
+        text = format(value, "f")
+    elif isinstance(value, int):
+        text = str(value)
+    else:
+        text = format(Decimal(str(value)), "f")
     integer_part, _, fraction_part = text.partition(".")
     if len(fraction_part) > max_decimal_places:
         raise ValidationError({field: f"At most {max_decimal_places} decimal places are allowed."})
@@ -76,20 +82,32 @@ def validate_packing_relationship(*, pack_unit, output_unit, planned_pack_quanti
         errors["planned_pack_quantity"] = (
             f"A packing relationship requires the order line's own unit ('{pack_unit.code}') to be a COUNT unit."
         )
-    if packing_content_uom.dimension not in (UnitOfMeasure.Dimension.MASS, UnitOfMeasure.Dimension.VOLUME):
-        errors["packing_content_uom_id"] = f"Packing content unit '{packing_content_uom.code}' must be a MASS or VOLUME unit."
-    elif packing_content_uom.dimension != output_unit.dimension:
-        errors["packing_content_uom_id"] = (
-            f"Packing content unit '{packing_content_uom.code}' ({packing_content_uom.dimension}) is not compatible "
-            f"with the formula's output unit '{output_unit.code}' ({output_unit.dimension}). Mass is never converted "
-            "to volume, or volume to mass."
-        )
-    elif packing_content_uom.canonical_factor is None or output_unit.canonical_factor is None:
-        errors["packing_content_uom_id"] = (
-            f"No conversion is defined between '{packing_content_uom.code}' and '{output_unit.code}'. An "
-            "administrator must set a canonical conversion factor for both units (Task 12B-2) before this "
-            "combination can be used - unknown conversion relationships are never guessed at."
-        )
+    if output_unit.dimension == UnitOfMeasure.Dimension.COUNT:
+        if packing_content_uom.dimension != UnitOfMeasure.Dimension.COUNT:
+            errors["packing_content_uom_id"] = (
+                f"Packing content unit '{packing_content_uom.code}' ({packing_content_uom.dimension}) is not compatible "
+                f"with the formula's output unit '{output_unit.code}' ({output_unit.dimension}). "
+                "When the formula output unit is a COUNT unit, the packing content unit must also be a COUNT unit."
+            )
+        elif packing_content_uom.id != output_unit.id:
+            errors["packing_content_uom_id"] = (
+                f"Packing content unit '{packing_content_uom.code}' must match the formula's output unit '{output_unit.code}'."
+            )
+    else:
+        if packing_content_uom.dimension not in (UnitOfMeasure.Dimension.MASS, UnitOfMeasure.Dimension.VOLUME):
+            errors["packing_content_uom_id"] = f"Packing content unit '{packing_content_uom.code}' must be a MASS or VOLUME unit."
+        elif packing_content_uom.dimension != output_unit.dimension:
+            errors["packing_content_uom_id"] = (
+                f"Packing content unit '{packing_content_uom.code}' ({packing_content_uom.dimension}) is not compatible "
+                f"with the formula's output unit '{output_unit.code}' ({output_unit.dimension}). Mass is never converted "
+                "to volume, or volume to mass."
+            )
+        elif packing_content_uom.canonical_factor is None or output_unit.canonical_factor is None:
+            errors["packing_content_uom_id"] = (
+                f"No conversion is defined between '{packing_content_uom.code}' and '{output_unit.code}'. An "
+                "administrator must set a canonical conversion factor for both units (Task 12B-2) before this "
+                "combination can be used - unknown conversion relationships are never guessed at."
+            )
     if errors:
         raise ValidationError(errors)
 
@@ -99,6 +117,8 @@ def validate_packing_relationship(*, pack_unit, output_unit, planned_pack_quanti
         errors["planned_pack_quantity"] = "Planned pack quantity must be a whole number (the order line's unit is a COUNT unit)."
     if packing_content_quantity is None or packing_content_quantity <= 0:
         errors["packing_content_quantity"] = "Packing content quantity must be greater than zero."
+    elif packing_content_uom.dimension == UnitOfMeasure.Dimension.COUNT and packing_content_quantity % 1 != 0:
+        errors["packing_content_quantity"] = f"Packing content quantity must be a whole number for {packing_content_uom.code} (COUNT unit)."
     if errors:
         raise ValidationError(errors)
 
@@ -165,10 +185,12 @@ def compute_expected_packed_content(*, planned_pack_quantity, packing_content_qu
     `validate_packing_relationship`; this is a defensive re-check, not the
     primary one.
     """
-    if packing_content_uom.canonical_factor is None or output_unit.canonical_factor is None:
-        raise ValueError("Cannot compute expected packed content without both units' canonical_factor.")
     packs = Fraction(str(planned_pack_quantity))
     content = Fraction(str(packing_content_quantity))
+    if packing_content_uom.dimension == UnitOfMeasure.Dimension.COUNT and output_unit.dimension == UnitOfMeasure.Dimension.COUNT:
+        return packs * content
+    if packing_content_uom.canonical_factor is None or output_unit.canonical_factor is None:
+        raise ValueError("Cannot compute expected packed content without both units' canonical_factor.")
     content_factor = Fraction(str(packing_content_uom.canonical_factor))
     output_factor = Fraction(str(output_unit.canonical_factor))
     return packs * content * content_factor / output_factor

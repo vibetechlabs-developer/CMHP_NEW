@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
@@ -25,16 +25,35 @@ import {
 } from '../../utils/formulaExport'
 import useSelectedCompany from '../../hooks/useSelectedCompany'
 import { approveRevision, rejectRevision, listFormulas, getRevision } from '../formulas/formulasService'
+import BulkReleaseSlipEditor from './BulkReleaseSlipEditor'
+import { qaPipelineService, QA_STAGES, STAGE_LABELS } from './qaPipelineService'
+import { getMyStores } from '../store/storeService'
+import {
+  listMaterialRequisitions,
+  approveMaterialRequisition,
+  rejectMaterialRequisition,
+} from '../manufacturing/materialRequisitionsService'
 import './Quality.css'
 import '../inventory/tabs/CommonInventory.css'
 
+function isProductionComplete(batch) {
+  const prod = String(batch.production_status || '').toUpperCase()
+  const st = String(batch.status || '').toUpperCase()
+  if (prod.includes('COMPLETE')) return true
+  if (st.includes('PRODUCTION_COMPLETED') || st === 'COMPLETED') return true
+  return Number(batch.produced_quantity) > 0
+}
+
 const TABS = [
-  { key: 'order_qc', label: 'Order QC Inspections' },
-  { key: 'order_qa', label: 'Order QA Releases' },
-  { key: 'qc', label: 'Batch QC Review' },
-  { key: 'qa', label: 'Batch QA Release' },
-  { key: 'trace', label: 'Batch Traceability' },
-  { key: 'formula_approvals', label: 'Formula Approvals' },
+  { key: 'formula_approvals', label: '1. Formula QA' },
+  { key: 'requisition_qa', label: '2. Requisition QA' },
+  { key: 'qc', label: '3. Bulk QC' },
+  { key: 'qa', label: '3. Bulk QA' },
+  { key: 'coa_qa', label: '4. COA QA' },
+  { key: 'packaging_qa', label: '5. Packaging QA' },
+  { key: 'order_qc', label: 'Order QC' },
+  { key: 'order_qa', label: 'Order QA' },
+  { key: 'trace', label: 'Traceability' },
 ]
 
 const FORMULA_STATUS_FILTERS = ['ALL', 'PENDING', 'APPROVED', 'DECLINED']
@@ -75,7 +94,7 @@ function qaTone(status) {
 
 export default function Quality() {
   const { user } = useAuth()
-  const [tab, setTab] = useState('order_qc')
+  const [tab, setTab] = useState('formula_approvals')
   const [batches, setBatches] = useState([])
   const [orderQcRecords, setOrderQcRecords] = useState([])
   const [orderQaRecords, setOrderQaRecords] = useState([])
@@ -98,10 +117,21 @@ export default function Quality() {
   const [orderQcFilter, setOrderQcFilter] = useState('ALL')
   const [orderQaFilter, setOrderQaFilter] = useState('ALL')
 
+  // QA pipeline stages (requisition / COA / packaging)
+  const [submittedReqs, setSubmittedReqs] = useState([])
+  const [reqStoreMap, setReqStoreMap] = useState({})
+  const [coaItems, setCoaItems] = useState([])
+  const [packagingItems, setPackagingItems] = useState([])
+  const [pipelineCounts, setPipelineCounts] = useState({ pendingTotal: 0, byStage: {} })
+  const [pipelineSaving, setPipelineSaving] = useState(false)
+  const [reqRejectModal, setReqRejectModal] = useState(null)
+  const [reqRejectReason, setReqRejectReason] = useState('')
+
   // Batch QC / QA decision modal
   const [decisionModal, setDecisionModal] = useState(null)
   const [remarks, setRemarks] = useState('')
   const [saving, setSaving] = useState(false)
+  const [att3Batch, setAtt3Batch] = useState(null)
 
   // Order QC inspection modal
   const [orderQcModal, setOrderQcModal] = useState(null)
@@ -170,9 +200,64 @@ export default function Quality() {
     }
   }
 
+  const loadQaPipeline = useCallback(async () => {
+    try {
+      const [coaRes, packagingRes, countsRes] = await Promise.all([
+        qaPipelineService.list(QA_STAGES.COA),
+        qaPipelineService.list(QA_STAGES.PACKAGING),
+        qaPipelineService.counts(),
+      ])
+      // delay() returns axios-style { data }
+      const coa = Array.isArray(coaRes?.data) ? coaRes.data : Array.isArray(coaRes) ? coaRes : []
+      const packaging = Array.isArray(packagingRes?.data)
+        ? packagingRes.data
+        : Array.isArray(packagingRes)
+          ? packagingRes
+          : []
+      const counts = countsRes?.data && typeof countsRes.data === 'object'
+        ? countsRes.data
+        : countsRes && typeof countsRes === 'object' && !Array.isArray(countsRes)
+          ? countsRes
+          : { pendingTotal: 0, byStage: {} }
+      setCoaItems(coa)
+      setPackagingItems(packaging)
+      setPipelineCounts(counts)
+
+      // Live SUBMITTED requisitions from all accessible stores
+      const storesRaw = await getMyStores().catch(() => [])
+      const storesPayload = storesRaw?.data ?? storesRaw
+      const storeList = Array.isArray(storesPayload)
+        ? storesPayload
+        : storesPayload?.results || []
+      const map = {}
+      const allSubmitted = []
+      await Promise.all(
+        storeList.map(async (s) => {
+          try {
+            const data = await listMaterialRequisitions(s.id, { pageSize: 100 })
+            const rows = Array.isArray(data) ? data : data?.results || []
+            rows.forEach((r) => {
+              map[r.id] = s.id
+              if (String(r.state || r.status || '').toUpperCase() === 'SUBMITTED') {
+                allSubmitted.push({ ...r, _storeId: s.id, _storeName: s.name })
+              }
+            })
+          } catch {
+            /* store may lack permission */
+          }
+        })
+      )
+      setReqStoreMap(map)
+      setSubmittedReqs(allSubmitted)
+    } catch (err) {
+      console.warn('[Quality] loadQaPipeline:', err?.message || err)
+    }
+  }, [])
+
   useEffect(() => {
     load()
-  }, [])
+    loadQaPipeline()
+  }, [loadQaPipeline])
 
   // Filtered rows with search
   const qcRows = useMemo(
@@ -582,17 +667,18 @@ export default function Quality() {
       if (type === 'qc') {
         await qualityService.qcDecision(batch.id, { decision, remarks })
         setSuccess(
-          `Batch ${batch.number} QC ${decision === 'APPROVE' ? 'approved' : 'rejected'}.`
+          `Batch ${batch.number} QC ${decision === 'APPROVE' ? 'approved' : 'rejected'} — sent to Bulk QA inbox.`
         )
       } else {
         await qualityService.qaDecision(batch.id, { decision, remarks })
         setSuccess(
-          `Batch ${batch.number} QA ${decision === 'RELEASE' ? 'released' : 'put on hold'}.`
+          `Batch ${batch.number} Bulk QA ${decision === 'RELEASE' ? 'released' : 'rejected/hold'}.`
         )
       }
 
       setDecisionModal(null)
       await load()
+      await loadQaPipeline()
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
@@ -724,7 +810,12 @@ export default function Quality() {
   const companyName = currentWorkspace?.shortName || currentWorkspace?.name || 'Company Workspace'
 
   const totalInspections = orderQcRecords.length + batches.length
-  const pendingCount = orderQcRecords.filter((r) => r.status === 'PENDING').length + batches.filter((b) => b.qc_status === 'PENDING').length
+  const pendingCount =
+    orderQcRecords.filter((r) => r.status === 'PENDING').length +
+    batches.filter((b) => b.qc_status === 'PENDING').length +
+    pendingFormulaApprovals +
+    submittedReqs.length +
+    (pipelineCounts.pendingTotal || 0)
   const passedCount = orderQcRecords.filter((r) => r.status === 'PASSED' || r.status === 'APPROVED').length + batches.filter((b) => b.qc_status === 'APPROVED').length
   const rejectedCount = orderQcRecords.filter((r) => r.status === 'FAILED' || r.status === 'REJECTED' || (Number(r.rejected_quantity) > 0)).length + batches.filter((b) => b.qc_status === 'REJECTED').length
   const qaReleasedCount = orderQaRecords.filter((r) => r.status === 'RELEASED' || r.status === 'APPROVED').length
@@ -733,14 +824,14 @@ export default function Quality() {
     <div className="inv">
       <HeroBanner
         eyebrow="GMP Compliance &amp; Laboratory"
-        title="Quality Control &amp; QA Release"
-        subtitle="Verify Order inspection parameters (QC), grant QA release sign-off for billable invoicing, review production batches, and trace manufacturing history end-to-end."
+        title="Quality Assurance &amp; QA Release"
+        subtitle="Full QA pipeline: Formula → Requisition → Bulk Release (QC→QA) → COA → Packaging — plus order QC/QA and batch traceability."
       />
 
       <PageHeader
-        breadcrumbs={['Workspace', companyName, 'Quality Control']}
-        title="Quality Control & QA Release"
-        subtitle="Verify Order inspection parameters (QC), grant QA release sign-off for billable invoicing, review production batches, and trace manufacturing history end-to-end."
+        breadcrumbs={['Workspace', companyName, 'Quality Assurance']}
+        title="Quality Assurance & QA Release"
+        subtitle="Formula, requisition, bulk release, COA, and packaging stages — QC decides, QA reviews every outcome."
         pill="GMP Compliance Lab"
         primaryAction={{
           label: '+ Record Inspection',
@@ -797,8 +888,29 @@ export default function Quality() {
 
       <div className="inv-tabs">
         {TABS.map((item) => {
-          const isApprovals = item.key === 'formula_approvals'
-          const count = isApprovals ? pendingFormulaApprovals : 0
+          const byStage = pipelineCounts.byStage || {}
+          let count = 0
+          if (item.key === 'formula_approvals') count = pendingFormulaApprovals
+          else if (item.key === 'requisition_qa') count = submittedReqs.length
+          else if (item.key === 'qa') {
+            count = batches.filter(
+              (b) =>
+                (b.qc_status === 'APPROVED' || b.qc_status === 'REJECTED') &&
+                (b.qa_status === 'PENDING' || !b.qa_status)
+            ).length
+          }           else if (item.key === 'coa_qa') {
+            count =
+              byStage.COA ||
+              (Array.isArray(coaItems)
+                ? coaItems.filter((i) => i.status === 'PENDING' || i.status === 'PLACEHOLDER').length
+                : 0)
+          } else if (item.key === 'packaging_qa') {
+            count =
+              byStage.PACKAGING ||
+              (Array.isArray(packagingItems)
+                ? packagingItems.filter((i) => i.status === 'PENDING').length
+                : 0)
+          }
           return (
             <button
               key={item.key}
@@ -813,7 +925,42 @@ export default function Quality() {
         })}
       </div>
 
-      {error && !decisionModal && !orderQcModal && !orderQaModal && <Alert type="error">{error}</Alert>}
+      {/* QA pipeline strip */}
+      <div className="qa-pipeline-strip" aria-label="QA pipeline stages">
+        {Object.keys(STAGE_LABELS).map((key) => {
+          const pending =
+            key === 'FORMULA'
+              ? pendingFormulaApprovals
+              : key === 'REQUISITION'
+                ? submittedReqs.length
+                : (pipelineCounts.byStage || {})[key] || 0
+          const active =
+            (key === 'FORMULA' && tab === 'formula_approvals') ||
+            (key === 'REQUISITION' && tab === 'requisition_qa') ||
+            (key === 'BULK_RELEASE' && (tab === 'qc' || tab === 'qa')) ||
+            (key === 'COA' && tab === 'coa_qa') ||
+            (key === 'PACKAGING' && tab === 'packaging_qa')
+          return (
+            <button
+              key={key}
+              type="button"
+              className={`qa-pipeline-step${active ? ' active' : ''}`}
+              onClick={() => {
+                if (key === 'FORMULA') setTab('formula_approvals')
+                else if (key === 'REQUISITION') setTab('requisition_qa')
+                else if (key === 'BULK_RELEASE') setTab('qa')
+                else if (key === 'COA') setTab('coa_qa')
+                else if (key === 'PACKAGING') setTab('packaging_qa')
+              }}
+            >
+              <span className="qa-pipeline-step-label">{STAGE_LABELS[key]}</span>
+              {pending > 0 && <span className="qa-pipeline-step-count">{pending}</span>}
+            </button>
+          )
+        })}
+      </div>
+
+      {error && !decisionModal && !orderQcModal && !orderQaModal && !att3Batch && <Alert type="error">{error}</Alert>}
       {success && <Alert type="success">{success}</Alert>}
 
       {/* ========================================================
@@ -1003,9 +1150,9 @@ export default function Quality() {
         <div className="inv-panel">
           <div className="inv-toolbar" style={{ flexWrap: 'wrap', gap: 12 }}>
             <div>
-              <h3 style={{ margin: '0 0 4px 0' }}>Batches Awaiting Quality Control</h3>
+              <h3 style={{ margin: '0 0 4px 0' }}>Bulk Release — QC Review</h3>
               <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>
-                Batch analytical assay results and compliance sign-off.
+                After production complete: Attachment-3, then QC decide. Approve or reject — both go to Bulk QA inbox.
               </p>
             </div>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -1061,12 +1208,26 @@ export default function Quality() {
                       </StatusPill>
                     </td>
                     <td>
-                      <Button
-                        variant="secondary"
-                        onClick={() => openDecision('qc', batch)}
-                      >
-                        Review
-                      </Button>
+                      {isProductionComplete(batch) ? (
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <Button
+                            variant="primary"
+                            onClick={() => setAtt3Batch(batch)}
+                          >
+                            Attachment-3
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            onClick={() => openDecision('qc', batch)}
+                          >
+                            QC Decision
+                          </Button>
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: 12, color: '#b45309', fontWeight: 600 }}>
+                          Waiting for production complete
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -1086,9 +1247,9 @@ export default function Quality() {
         <div className="inv-panel">
           <div className="inv-toolbar" style={{ flexWrap: 'wrap', gap: 12 }}>
             <div>
-              <h3 style={{ margin: '0 0 4px 0' }}>Batches Awaiting QA Release</h3>
+              <h3 style={{ margin: '0 0 4px 0' }}>Bulk Release — QA Inbox</h3>
               <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>
-                Final quality assurance verification and batch release clearance.
+                QC approve <em>and</em> reject both appear here. QA reviews every outcome before final release.
               </p>
             </div>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -1129,7 +1290,9 @@ export default function Quality() {
               </thead>
               <tbody>
                 {qaRows.map((batch) => {
-                  const qcCleared = batch.qc_status === 'APPROVED'
+                  // QC must have decided (approve OR reject) before QA acts
+                  const qcDecided =
+                    batch.qc_status === 'APPROVED' || batch.qc_status === 'REJECTED'
                   return (
                     <tr key={batch.id}>
                       <td className="cell-strong">{batch.number}</td>
@@ -1148,11 +1311,17 @@ export default function Quality() {
                       <td>
                         <Button
                           variant={batch.qa_status === 'PENDING' ? 'primary' : 'secondary'}
-                          disabled={!qcCleared}
-                          title={qcCleared ? undefined : 'Awaiting QC approval'}
+                          disabled={!qcDecided}
+                          title={
+                            qcDecided
+                              ? batch.qc_status === 'REJECTED'
+                                ? 'QC rejected — QA still reviews'
+                                : undefined
+                              : 'Awaiting QC decision'
+                          }
                           onClick={() => openDecision('qa', batch)}
                         >
-                          {batch.qa_status === 'PENDING' ? 'Take Approval' : 'Review'}
+                          {batch.qa_status === 'PENDING' ? 'QA Decide' : 'Review'}
                         </Button>
                       </td>
                     </tr>
@@ -1162,6 +1331,365 @@ export default function Quality() {
             </table>
             {!loading && qaRows.length === 0 && (
               <p className="inv-empty">No batches in this filter.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          2. MATERIAL REQUISITION QA
+          ======================================================== */}
+      {tab === 'requisition_qa' && (
+        <div className="inv-panel">
+          <div className="inv-toolbar" style={{ flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <h3 style={{ margin: '0 0 4px 0' }}>Material Requisition — QA Approval</h3>
+              <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>
+                Submitted requisitions await QA check of material requirements before issue to production.
+              </p>
+            </div>
+            <Button variant="secondary" onClick={loadQaPipeline} disabled={pipelineSaving}>
+              Refresh
+            </Button>
+          </div>
+          <div className="inv-table-scroll">
+            <table className="inv-table">
+              <thead>
+                <tr>
+                  <th>Reference</th>
+                  <th>Store</th>
+                  <th>Product / Batch</th>
+                  <th>Lines</th>
+                  <th>Submitted</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {submittedReqs.map((req) => {
+                  const lines = req.lines || req.requisition_lines || []
+                  return (
+                    <tr key={req.id}>
+                      <td className="cell-strong">{req.reference || `#${req.id}`}</td>
+                      <td>{req._storeName || '—'}</td>
+                      <td>
+                        {req.product_name || req.batch_plan_product_name || '—'}
+                        {(req.batch_number || req.batch_plan_number) && (
+                          <div style={{ fontSize: 12, color: '#64748b' }}>
+                            {req.batch_number || req.batch_plan_number}
+                          </div>
+                        )}
+                      </td>
+                      <td>{lines.length || '—'}</td>
+                      <td>{(req.submitted_at || req.updated_at || req.created_at || '').slice(0, 10) || '—'}</td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <Button
+                            variant="primary"
+                            disabled={pipelineSaving}
+                            onClick={async () => {
+                              setPipelineSaving(true)
+                              setError('')
+                              try {
+                                const sid = req._storeId || reqStoreMap[req.id]
+                                await approveMaterialRequisition(sid, req.id, req.version)
+                                try {
+                                  await qaPipelineService.decide(QA_STAGES.REQUISITION, req.id, {
+                                    decision: 'APPROVE',
+                                    remarks: 'QA approved requisition',
+                                  })
+                                } catch {
+                                  /* pipeline row optional */
+                                }
+                                setSuccess(`Requisition ${req.reference || req.id} approved by QA.`)
+                                await loadQaPipeline()
+                              } catch (err) {
+                                setError(getErrorMessage(err))
+                              } finally {
+                                setPipelineSaving(false)
+                              }
+                            }}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            variant="danger"
+                            disabled={pipelineSaving}
+                            onClick={() => {
+                              setReqRejectReason('')
+                              setReqRejectModal(req)
+                            }}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            {submittedReqs.length === 0 && (
+              <p className="inv-empty">No submitted requisitions awaiting QA.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          4. COA QA (placeholder until document arrives)
+          ======================================================== */}
+      {tab === 'coa_qa' && (
+        <div className="inv-panel">
+          <div className="inv-toolbar" style={{ flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <h3 style={{ margin: '0 0 4px 0' }}>COA — QC → QA Pipeline</h3>
+              <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>
+                Same QC then QA process as bulk release. Stages open as placeholders until the COA document is available.
+              </p>
+            </div>
+            <Button variant="secondary" onClick={loadQaPipeline}>Refresh</Button>
+          </div>
+          <div className="inv-table-scroll">
+            <table className="inv-table">
+              <thead>
+                <tr>
+                  <th>Batch / Ref</th>
+                  <th>Product</th>
+                  <th>Status</th>
+                  <th>QC Decision</th>
+                  <th>Note</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(Array.isArray(coaItems) ? coaItems : []).map((item) => (
+                  <tr key={`${item.stage}-${item.ref_id}`}>
+                    <td className="cell-strong">{item.title}</td>
+                    <td>{item.subtitle || '—'}</td>
+                    <td>
+                      <StatusPill
+                        tone={
+                          item.status === 'APPROVED'
+                            ? 'success'
+                            : item.status === 'REJECTED'
+                              ? 'danger'
+                              : item.status === 'PLACEHOLDER' || item.status === 'WAITING_QC'
+                                ? 'neutral'
+                                : 'warning'
+                        }
+                      >
+                        {item.status}
+                      </StatusPill>
+                    </td>
+                    <td>
+                      {item.qc_decision ? (
+                        <StatusPill tone={qcTone(item.qc_decision)}>{item.qc_decision}</StatusPill>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td style={{ fontSize: 12, color: '#64748b', maxWidth: 280 }}>
+                      {item.blocked_reason || item.qa_remarks || item.qc_remarks || '—'}
+                    </td>
+                    <td>
+                      {item.status === 'PLACEHOLDER' || item.status === 'WAITING_QC' ? (
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 12, color: '#92400e' }}>Waiting for COA document</span>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled={pipelineSaving}
+                            onClick={async () => {
+                              setPipelineSaving(true)
+                              try {
+                                await qaPipelineService.activateCoa({
+                                  batchId: item.ref_id,
+                                  batchNumber: item.title,
+                                  productName: item.subtitle,
+                                })
+                                await qaPipelineService.recordCoaQc({
+                                  batchId: item.ref_id,
+                                  batchNumber: item.title,
+                                  productName: item.subtitle,
+                                  qcDecision: 'APPROVED',
+                                  qcRemarks: 'COA uploaded — QC cleared (placeholder activate)',
+                                })
+                                setSuccess(`COA for ${item.title} activated — now in QA inbox.`)
+                                await loadQaPipeline()
+                              } catch (err) {
+                                setError(getErrorMessage(err))
+                              } finally {
+                                setPipelineSaving(false)
+                              }
+                            }}
+                          >
+                            Simulate COA ready
+                          </Button>
+                        </div>
+                      ) : item.status === 'PENDING' ? (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <Button
+                            variant="primary"
+                            disabled={pipelineSaving}
+                            onClick={async () => {
+                              setPipelineSaving(true)
+                              try {
+                                await qaPipelineService.decide(QA_STAGES.COA, item.ref_id, {
+                                  decision: 'APPROVE',
+                                  remarks: 'QA approved COA',
+                                })
+                                setSuccess(`COA QA approved for ${item.title}.`)
+                                await loadQaPipeline()
+                              } catch (err) {
+                                setError(getErrorMessage(err))
+                              } finally {
+                                setPipelineSaving(false)
+                              }
+                            }}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            variant="danger"
+                            disabled={pipelineSaving}
+                            onClick={async () => {
+                              setPipelineSaving(true)
+                              try {
+                                await qaPipelineService.decide(QA_STAGES.COA, item.ref_id, {
+                                  decision: 'REJECT',
+                                  remarks: 'QA rejected COA',
+                                })
+                                setSuccess(`COA QA rejected for ${item.title}.`)
+                                await loadQaPipeline()
+                              } catch (err) {
+                                setError(getErrorMessage(err))
+                              } finally {
+                                setPipelineSaving(false)
+                              }
+                            }}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: 12, color: '#64748b' }}>Decided</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {(!Array.isArray(coaItems) || coaItems.length === 0) && (
+              <p className="inv-empty">
+                No COA pipeline items yet. They appear after Bulk QC decides on a batch.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          5. PACKAGING QA
+          ======================================================== */}
+      {tab === 'packaging_qa' && (
+        <div className="inv-panel">
+          <div className="inv-toolbar" style={{ flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <h3 style={{ margin: '0 0 4px 0' }}>Packaging Complete — QA Approval</h3>
+              <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>
+                When packaging is marked Completed in Production, the batch/order lands here for QA sign-off.
+              </p>
+            </div>
+            <Button variant="secondary" onClick={loadQaPipeline}>Refresh</Button>
+          </div>
+          <div className="inv-table-scroll">
+            <table className="inv-table">
+              <thead>
+                <tr>
+                  <th>Order / Batch</th>
+                  <th>Product</th>
+                  <th>Status</th>
+                  <th>Received</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(Array.isArray(packagingItems) ? packagingItems : []).map((item) => (
+                  <tr key={`${item.stage}-${item.ref_id}`}>
+                    <td className="cell-strong">{item.title}</td>
+                    <td>{item.subtitle || '—'}</td>
+                    <td>
+                      <StatusPill
+                        tone={
+                          item.status === 'APPROVED'
+                            ? 'success'
+                            : item.status === 'REJECTED'
+                              ? 'danger'
+                              : 'warning'
+                        }
+                      >
+                        {item.status}
+                      </StatusPill>
+                    </td>
+                    <td>{(item.created_at || item.updated_at || '').slice(0, 16).replace('T', ' ') || '—'}</td>
+                    <td>
+                      {item.status === 'PENDING' ? (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <Button
+                            variant="primary"
+                            disabled={pipelineSaving}
+                            onClick={async () => {
+                              setPipelineSaving(true)
+                              try {
+                                await qaPipelineService.decide(QA_STAGES.PACKAGING, item.ref_id, {
+                                  decision: 'APPROVE',
+                                  remarks: 'Packaging QA approved',
+                                })
+                                setSuccess(`Packaging QA approved for ${item.title}.`)
+                                await loadQaPipeline()
+                              } catch (err) {
+                                setError(getErrorMessage(err))
+                              } finally {
+                                setPipelineSaving(false)
+                              }
+                            }}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            variant="danger"
+                            disabled={pipelineSaving}
+                            onClick={async () => {
+                              setPipelineSaving(true)
+                              try {
+                                await qaPipelineService.decide(QA_STAGES.PACKAGING, item.ref_id, {
+                                  decision: 'REJECT',
+                                  remarks: 'Packaging QA rejected',
+                                })
+                                setSuccess(`Packaging QA rejected for ${item.title}.`)
+                                await loadQaPipeline()
+                              } catch (err) {
+                                setError(getErrorMessage(err))
+                              } finally {
+                                setPipelineSaving(false)
+                              }
+                            }}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: 12, color: '#64748b' }}>
+                          {item.qa_remarks || 'Decided'}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {(!Array.isArray(packagingItems) || packagingItems.length === 0) && (
+              <p className="inv-empty">No packaging completions awaiting QA yet.</p>
             )}
           </div>
         </div>
@@ -1779,14 +2307,119 @@ export default function Quality() {
       )}
 
       {/* ========================================================
+          MODAL: ATTACHMENT-3 BULK RELEASE (production-complete QC)
+          ======================================================== */}
+      {att3Batch && (
+        <Modal
+          title={`Attachment-3 Bulk Release — ${att3Batch.number || att3Batch.product_name || 'Batch'}`}
+          onClose={() => setAtt3Batch(null)}
+          size="lg"
+          maxWidth="1100px"
+        >
+          <Alert type="info">
+            Production is complete for this product. Complete Attachment-3 now. A second QC document will be added here when you provide it.
+          </Alert>
+          <div style={{ marginTop: 12 }}>
+            <BulkReleaseSlipEditor
+              initialData={{
+                product: att3Batch.product_name || '',
+                batch_no: att3Batch.number || '',
+                batch_size: String(att3Batch.produced_quantity || att3Batch.planned_quantity || ''),
+                to_department: 'PRODUCTION',
+              }}
+            />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+            <Button variant="secondary" onClick={() => setAtt3Batch(null)}>Close</Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                const batch = att3Batch
+                setAtt3Batch(null)
+                openDecision('qc', batch)
+              }}
+            >
+              Continue to QC Decision
+            </Button>
+          </div>
+        </Modal>
+      )}
+
+      {/* ========================================================
+          MODAL: REQUISITION QA REJECT
+          ======================================================== */}
+      {reqRejectModal && (
+        <Modal
+          title={`Reject requisition — ${reqRejectModal.reference || reqRejectModal.id}`}
+          onClose={() => !pipelineSaving && setReqRejectModal(null)}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setReqRejectModal(null)} disabled={pipelineSaving}>
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                loading={pipelineSaving}
+                onClick={async () => {
+                  if (!reqRejectReason.trim() || reqRejectReason.trim().length < 5) {
+                    setError('Rejection reason is required (min 5 characters).')
+                    return
+                  }
+                  setPipelineSaving(true)
+                  setError('')
+                  try {
+                    const sid = reqRejectModal._storeId || reqStoreMap[reqRejectModal.id]
+                    await rejectMaterialRequisition(
+                      sid,
+                      reqRejectModal.id,
+                      reqRejectModal.version,
+                      reqRejectReason.trim()
+                    )
+                    try {
+                      await qaPipelineService.decide(QA_STAGES.REQUISITION, reqRejectModal.id, {
+                        decision: 'REJECT',
+                        remarks: reqRejectReason.trim(),
+                      })
+                    } catch {
+                      /* optional */
+                    }
+                    setSuccess(`Requisition ${reqRejectModal.reference || reqRejectModal.id} rejected by QA.`)
+                    setReqRejectModal(null)
+                    await loadQaPipeline()
+                  } catch (err) {
+                    setError(getErrorMessage(err))
+                  } finally {
+                    setPipelineSaving(false)
+                  }
+                }}
+              >
+                Reject
+              </Button>
+            </>
+          }
+        >
+          <div className="field">
+            <label className="field-label">Rejection reason</label>
+            <textarea
+              className="field-input"
+              rows={3}
+              value={reqRejectReason}
+              onChange={(e) => setReqRejectReason(e.target.value)}
+              placeholder="Why is this material requisition rejected?"
+            />
+          </div>
+        </Modal>
+      )}
+
+      {/* ========================================================
           MODAL: BATCH DECISION
           ======================================================== */}
       {decisionModal && (
         <Modal
           title={
             decisionModal.type === 'qc'
-              ? `QC review — ${decisionModal.batch.number}`
-              : `QA release — ${decisionModal.batch.number}`
+              ? `Bulk QC — ${decisionModal.batch.number}`
+              : `Bulk QA — ${decisionModal.batch.number}`
           }
           onClose={closeDecision}
           footer={
@@ -1815,7 +2448,7 @@ export default function Quality() {
                     loading={saving}
                     onClick={() => submitDecision('HOLD')}
                   >
-                    Hold
+                    Reject / Hold
                   </Button>
                   <Button loading={saving} onClick={() => submitDecision('RELEASE')}>
                     Release QA
@@ -1841,6 +2474,21 @@ export default function Quality() {
                 <dt>Produced quantity</dt>
                 <dd>{decisionModal.batch.produced_quantity}</dd>
               </div>
+              {decisionModal.type === 'qa' && (
+                <div>
+                  <dt>QC outcome</dt>
+                  <dd>
+                    <StatusPill tone={qcTone(decisionModal.batch.qc_status)}>
+                      {decisionModal.batch.qc_status || 'PENDING'}
+                    </StatusPill>
+                    {decisionModal.batch.qc_status === 'REJECTED' && (
+                      <span style={{ marginLeft: 8, fontSize: 12, color: '#b45309' }}>
+                        QC rejected — QA still reviews fully
+                      </span>
+                    )}
+                  </dd>
+                </div>
+              )}
             </dl>
           </div>
 

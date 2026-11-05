@@ -80,6 +80,8 @@ class SalesOrderLineSerializer(serializers.ModelSerializer):
     sales_uom_name = serializers.CharField(source="sales_uom_name_snapshot", read_only=True)
     product_is_active = serializers.BooleanField(source="product.is_active", read_only=True)
     sales_uom_is_active = serializers.BooleanField(source="product.sales_uom.is_active", read_only=True)
+    bmr_no = serializers.CharField(source="product.bmr_no", read_only=True, allow_blank=True, default="")
+    pack_size = serializers.CharField(source="product.pack_size", read_only=True, allow_blank=True, default="")
 
     class Meta:
         model = SalesOrderLine
@@ -98,6 +100,8 @@ class SalesOrderLineSerializer(serializers.ModelSerializer):
             "description",
             "line_amount",
             "product_type_snapshot",
+            "bmr_no",
+            "pack_size",
         ]
         read_only_fields = fields
 
@@ -111,6 +115,8 @@ class SalesOrderSerializer(serializers.ModelSerializer):
     created_by_id = serializers.IntegerField(read_only=True)
     lines = SalesOrderLineSerializer(many=True, read_only=True)
     subtotal = serializers.SerializerMethodField()
+    sample_qty = serializers.SerializerMethodField()
+    sample_unit = serializers.SerializerMethodField()
 
     class Meta:
         model = SalesOrder
@@ -131,6 +137,8 @@ class SalesOrderSerializer(serializers.ModelSerializer):
             "status",
             "lines",
             "subtotal",
+            "sample_qty",
+            "sample_unit",
             "version",
             "created_by_id",
             "confirmed_by_id",
@@ -144,6 +152,17 @@ class SalesOrderSerializer(serializers.ModelSerializer):
 
     confirmed_by_id = serializers.IntegerField(read_only=True)
     confirmation_policy = serializers.JSONField(source="confirmation_policy_snapshot", read_only=True)
+
+    def get_sample_qty(self, obj):
+        totals = self.context.get("sample_qty_by_order") or {}
+        total = totals.get(obj.id)
+        if total is None:
+            return None
+        return str(total)
+
+    def get_sample_unit(self, obj):
+        units = self.context.get("sample_unit_by_order") or {}
+        return units.get(obj.id) or None
 
     def get_subtotal(self, obj):
         """Pre-tax Decimal sum of line amounts in the order's single

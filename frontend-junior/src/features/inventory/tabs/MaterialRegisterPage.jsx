@@ -36,6 +36,8 @@ import {
 } from '../../store/storeService'
 import { cancelGoodsReceipt, createGoodsReceipt, getGoodsReceipt, postGoodsReceipt } from '../../store/receivingService'
 import { cancelMaterialIssue, getMaterialIssue } from '../../store/materialIssueService'
+import GrnPrintButtons from '../../store/GrnPrintButtons'
+import { GRN_KIND_PACKING, GRN_KIND_RAW } from '../../store/grnNotePrint'
 import './StockLedger.css'
 
 const PAGE_SIZE = 25
@@ -795,13 +797,22 @@ function Register({ material, materialId, storeId, stores, onSelectStore }) {
                       </td>
                       <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                         {row.source_goods_receipt_id && (
-                          <>
+                          <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
+                            <GrnPrintButtons
+                              storeId={storeId}
+                              receiptId={row.source_goods_receipt_id}
+                              preferKind={
+                                material?.kind === 'PACKAGING_MATERIAL'
+                                  ? GRN_KIND_PACKING
+                                  : GRN_KIND_RAW
+                              }
+                              size="sm"
+                            />
                             <button
                               type="button"
                               className="table-edit"
                               title="Edit this receipt"
                               onClick={() => setEditingReceiptRow(row)}
-                              style={{ marginRight: 8 }}
                             >Edit</button>
                             <button
                               type="button"
@@ -809,7 +820,7 @@ function Register({ material, materialId, storeId, stores, onSelectStore }) {
                               title="Cancel / delete this receipt"
                               onClick={() => openDeleteConfirm('inward', row)}
                             >Delete</button>
-                          </>
+                          </div>
                         )}
                       </td>
                     </tr>

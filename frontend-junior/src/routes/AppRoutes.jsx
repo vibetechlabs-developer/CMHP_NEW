@@ -44,8 +44,24 @@ import Orders
 import Quality
   from '../features/quality/Quality'
 
+import MaterialQC
+  from '../features/quality/MaterialQC'
+
+import Production
+  from '../features/production/Production'
+
+import ProductionInvoice
+  from '../features/production/ProductionInvoice'
+
+import BmrForm
+  from '../features/production/BmrForm'
+
+import InvoiceViewPage
+  from '../features/invoice/InvoiceViewPage'
+
 import Invoice
   from '../features/invoice/Invoice'
+
 
 import SupplyChain
   from '../features/supplyChain/SupplyChain'
@@ -260,6 +276,144 @@ export default function AppRoutes() {
             }
           />
 
+          {/* MATERIAL QC */}
+          <Route
+            path="/material-qc"
+            element={
+              <MaterialQC />
+            }
+          />
+
+
+          {/* =================================================
+              PRODUCTION & BMR
+              ================================================= */}
+
+          <Route
+            path="/production"
+            element={
+              <RoleRoute
+                roles={[
+                  'SUPER_ADMIN',
+                  'MANAGEMENT',
+                  'DEPARTMENT_MANAGER',
+                  'STORES_MANAGER',
+                  'HR_MANAGER',
+                  'EMPLOYEE',
+                ]}
+              >
+                <Production />
+              </RoleRoute>
+            }
+          />
+
+          <Route
+            path="/production/bmr"
+            element={
+              <RoleRoute
+                roles={[
+                  'SUPER_ADMIN',
+                  'MANAGEMENT',
+                  'DEPARTMENT_MANAGER',
+                  'STORES_MANAGER',
+                  'HR_MANAGER',
+                  'EMPLOYEE',
+                ]}
+              >
+                <BmrForm />
+              </RoleRoute>
+            }
+          />
+
+          <Route
+            path="/production/bmr/:orderId"
+            element={
+              <RoleRoute
+                roles={[
+                  'SUPER_ADMIN',
+                  'MANAGEMENT',
+                  'DEPARTMENT_MANAGER',
+                  'STORES_MANAGER',
+                  'HR_MANAGER',
+                  'EMPLOYEE',
+                ]}
+              >
+                <BmrForm />
+              </RoleRoute>
+            }
+          />
+
+          <Route
+            path="/production/invoice/:orderId"
+            element={
+              <RoleRoute
+                roles={[
+                  'SUPER_ADMIN',
+                  'MANAGEMENT',
+                  'DEPARTMENT_MANAGER',
+                  'STORES_MANAGER',
+                  'HR_MANAGER',
+                  'EMPLOYEE',
+                ]}
+              >
+                <ProductionInvoice />
+              </RoleRoute>
+            }
+          />
+
+          <Route
+            path="/invoices/new"
+            element={
+              <RoleRoute
+                roles={[
+                  'SUPER_ADMIN',
+                  'MANAGEMENT',
+                  'DEPARTMENT_MANAGER',
+                  'STORES_MANAGER',
+                  'HR_MANAGER',
+                  'EMPLOYEE',
+                ]}
+              >
+                <InvoiceViewPage isNew />
+              </RoleRoute>
+            }
+          />
+
+          <Route
+            path="/invoices/view/:id"
+            element={
+              <RoleRoute
+                roles={[
+                  'SUPER_ADMIN',
+                  'MANAGEMENT',
+                  'DEPARTMENT_MANAGER',
+                  'STORES_MANAGER',
+                  'HR_MANAGER',
+                  'EMPLOYEE',
+                ]}
+              >
+                <InvoiceViewPage />
+              </RoleRoute>
+            }
+          />
+
+          <Route
+            path="/invoices/:id"
+            element={
+              <RoleRoute
+                roles={[
+                  'SUPER_ADMIN',
+                  'MANAGEMENT',
+                  'DEPARTMENT_MANAGER',
+                  'STORES_MANAGER',
+                  'HR_MANAGER',
+                  'EMPLOYEE',
+                ]}
+              >
+                <InvoiceViewPage />
+              </RoleRoute>
+            }
+          />
 
           <Route
             path="/invoices"
@@ -267,6 +421,7 @@ export default function AppRoutes() {
               <Invoice />
             }
           />
+
 
 
           <Route

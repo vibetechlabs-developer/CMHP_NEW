@@ -1350,8 +1350,7 @@ export default function SalesOrdersTab({
 
                                       <small>
 
-                                        {customer.code &&
-                                          customer.code}
+                                        {customer.code}
 
 
                                         {customer.code &&
@@ -1362,8 +1361,7 @@ export default function SalesOrdersTab({
                                           ' • '}
 
 
-                                        {customer.phone &&
-                                          customer.phone}
+                                        {customer.phone}
 
 
                                         {customer.phone &&
@@ -1371,8 +1369,7 @@ export default function SalesOrdersTab({
                                           ' • '}
 
 
-                                        {customer.email &&
-                                          customer.email}
+                                        {customer.email}
 
                                       </small>
 

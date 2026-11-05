@@ -35,19 +35,33 @@ import {
   getBatchPlan,
   listBatchPlansForOrder,
   listEligibleRevisionsForProduct,
+  listPlanningUnits,
 } from '../../manufacturing/batchPlansService'
 import { listSalesOrders, getSalesOrder } from '../../manufacturing/salesOrdersService'
 import {
-  approveMaterialRequisition,
   createMaterialRequisition,
   listMaterialRequisitions,
-  rejectMaterialRequisition,
   reviseMaterialRequisition,
   submitMaterialRequisition,
   updateMaterialRequisition,
 } from '../../manufacturing/materialRequisitionsService'
+import { qaPipelineService } from '../../quality/qaPipelineService'
 import { getAvailableToIssue } from '../../store/materialIssueService'
 import './CommonInventory.css'
+
+const REQ_FLOW_STEPS = [
+  { key: 'DRAFT', label: '1. Draft' },
+  { key: 'SUBMITTED', label: '2. QA Review' },
+  { key: 'APPROVED', label: '3. Approved' },
+]
+
+function requisitionStepIndex(status) {
+  const s = String(status || '').toUpperCase()
+  if (s === 'APPROVED') return 2
+  if (s === 'SUBMITTED') return 1
+  if (s === 'REJECTED') return 1 // still in QA stage, rejected outcome
+  return 0
+}
 
 export default function BatchPlanningPage() {
   const { companies, companiesReady, companiesError, companyId, setCompanyId } = useSelectedCompany()
@@ -226,6 +240,11 @@ function BatchPlanCreateForm({ companyId, line, canCreate, canPrintingEdit, onCr
   const [revisions, setRevisions] = useState({ loading: true, results: [], error: '' })
   const [revisionId, setRevisionId] = useState('')
   const [targetQuantity, setTargetQuantity] = useState('')
+  const [targetQuantityCustomized, setTargetQuantityCustomized] = useState(false)
+  const [plannedPackQty, setPlannedPackQty] = useState(line?.quantity ? String(line.quantity) : '')
+  const [packingContentQty, setPackingContentQty] = useState('1')
+  const [packingContentUomId, setPackingContentUomId] = useState('')
+  const [planningUnits, setPlanningUnits] = useState([])
   const [plannedDate, setPlannedDate] = useState('')
   const [packingNote, setPackingNote] = useState('')
   const [notes, setNotes] = useState('')
@@ -239,12 +258,60 @@ function BatchPlanCreateForm({ companyId, line, canCreate, canPrintingEdit, onCr
     listEligibleRevisionsForProduct(companyId, line.product_id)
       .then((results) => setRevisions({ loading: false, results, error: '' }))
       .catch((err) => setRevisions({ loading: false, results: [], error: getErrorMessage(err) }))
+    listPlanningUnits(companyId)
+      .then((units) => setPlanningUnits(units || []))
+      .catch(() => {})
   }, [companyId, line.product_id])
+
+  const selectedRevision = revisions.results.find((r) => String(r.id) === String(revisionId)) || null
+  const lineUom = (line.sales_uom_code || '').trim().toUpperCase()
+  const revUom = (selectedRevision?.output_uom_code || '').trim().toUpperCase()
+  const unitsDiffer = Boolean(selectedRevision && lineUom && revUom && lineUom !== revUom)
+
+  const handleRevisionChange = (id) => {
+    setRevisionId(id)
+    const rev = revisions.results.find((r) => String(r.id) === String(id))
+    if (rev) {
+      setPackingContentUomId(String(rev.output_uom_id || ''))
+      if (!targetQuantityCustomized) {
+        const packQty = Number(plannedPackQty || line.quantity || 1)
+        const contentQty = Number(packingContentQty || 1)
+        const computed = packQty * contentQty
+        setTargetQuantity(computed > 0 ? String(computed) : String(line.quantity || ''))
+      }
+    }
+  }
+
+  const handlePackQtyChange = (val) => {
+    setPlannedPackQty(val)
+    if (!targetQuantityCustomized) {
+      const packQty = Number(val || 0)
+      const contentQty = Number(packingContentQty || 1)
+      const computed = packQty * contentQty
+      setTargetQuantity(computed > 0 ? String(computed) : '')
+    }
+  }
+
+  const handleContentQtyChange = (val) => {
+    setPackingContentQty(val)
+    if (!targetQuantityCustomized) {
+      const packQty = Number(plannedPackQty || 0)
+      const contentQty = Number(val || 1)
+      const computed = packQty * contentQty
+      setTargetQuantity(computed > 0 ? String(computed) : '')
+    }
+  }
 
   const submit = async () => {
     if (saving || !canCreate) return
     if (!revisionId || !targetQuantity.trim()) {
       setError('Choose an approved formula revision and enter the planned output quantity.')
+      return
+    }
+    if (unitsDiffer && (!plannedPackQty.trim() || !packingContentQty.trim() || !packingContentUomId)) {
+      setError(
+        `Order unit (${line.sales_uom_code}) and formula unit (${selectedRevision.output_uom_code}) differ. Please enter planned pack quantity, content per pack, and select content unit.`
+      )
       return
     }
     setSaving(true)
@@ -254,6 +321,11 @@ function BatchPlanCreateForm({ companyId, line, canCreate, canPrintingEdit, onCr
         sales_order_line_id: line.id,
         formula_revision_id: Number(revisionId),
         target_output_quantity: targetQuantity.trim(),
+      }
+      if (unitsDiffer || (plannedPackQty.trim() && packingContentQty.trim() && packingContentUomId)) {
+        payload.planned_pack_quantity = plannedPackQty.trim()
+        payload.packing_content_quantity = packingContentQty.trim()
+        payload.packing_content_uom_id = Number(packingContentUomId)
       }
       if (plannedDate) payload.planned_manufacturing_date = plannedDate
       if (packingNote.trim()) payload.packing_size_note = packingNote.trim()
@@ -289,16 +361,84 @@ function BatchPlanCreateForm({ companyId, line, canCreate, canPrintingEdit, onCr
           <div className="inv-form-grid">
             <div className="field">
               <label className="field-label" htmlFor="bp-revision">Approved formula revision *</label>
-              <select id="bp-revision" className="field-input" value={revisionId} onChange={(e) => setRevisionId(e.target.value)}>
+              <select id="bp-revision" className="field-input" value={revisionId} onChange={(e) => handleRevisionChange(e.target.value)}>
                 <option value="">Choose a revision</option>
                 {revisions.results.map((r) => (
                   <option key={r.id} value={r.id}>{r.formula_code} · Rev {r.revision_number} · {r.base_output_quantity} {r.output_uom_code}</option>
                 ))}
               </select>
             </div>
+
+            {unitsDiffer && (
+              <div style={{ gridColumn: '1 / -1', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 10, padding: '14px 18px', margin: '4px 0 10px' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>📦</span> Unit Conversion &amp; Packing Relationship
+                </div>
+                <p style={{ fontSize: 12, color: '#475569', margin: '0 0 12px', lineHeight: 1.5 }}>
+                  Order line unit is <strong>{line.sales_uom_code}</strong>, but formula revision produces <strong>{selectedRevision.output_uom_code}</strong>.
+                  Please specify the packing details below:
+                </p>
+                <div className="inv-form-grid" style={{ marginBottom: 0 }}>
+                  <div className="field">
+                    <label className="field-label" htmlFor="bp-pack-qty">Planned pack quantity ({line.sales_uom_code}) *</label>
+                    <input
+                      id="bp-pack-qty"
+                      className="field-input"
+                      inputMode="decimal"
+                      value={plannedPackQty}
+                      onChange={(e) => handlePackQtyChange(e.target.value)}
+                      placeholder={`e.g. ${line.quantity}`}
+                    />
+                  </div>
+                  <div className="field">
+                    <label className="field-label" htmlFor="bp-content-qty">Content per {line.sales_uom_code} *</label>
+                    <input
+                      id="bp-content-qty"
+                      className="field-input"
+                      inputMode="decimal"
+                      value={packingContentQty}
+                      onChange={(e) => handleContentQtyChange(e.target.value)}
+                      placeholder="e.g. 1"
+                    />
+                  </div>
+                  <div className="field">
+                    <label className="field-label" htmlFor="bp-content-uom">Packing content unit *</label>
+                    <select
+                      id="bp-content-uom"
+                      className="field-input"
+                      value={packingContentUomId}
+                      onChange={(e) => setPackingContentUomId(e.target.value)}
+                    >
+                      <option value="">Choose unit</option>
+                      {planningUnits.length > 0 ? (
+                        planningUnits.map((u) => (
+                          <option key={u.id} value={u.id}>{u.name} ({u.code})</option>
+                        ))
+                      ) : (
+                        <option value={selectedRevision.output_uom_id}>{selectedRevision.output_uom_code}</option>
+                      )}
+                    </select>
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, color: '#0369a1', marginTop: 8, background: '#f0f9ff', padding: '6px 12px', borderRadius: 6 }}>
+                  Expected packed total: <strong>{(Number(plannedPackQty) || 0) * (Number(packingContentQty) || 1)} {selectedRevision.output_uom_code}</strong> ({plannedPackQty || 0} {line.sales_uom_code} × {packingContentQty || 1} {selectedRevision.output_uom_code})
+                </div>
+              </div>
+            )}
+
             <div className="field">
-              <label className="field-label" htmlFor="bp-target">Planned output quantity *</label>
-              <input id="bp-target" className="field-input" inputMode="decimal" value={targetQuantity} onChange={(e) => setTargetQuantity(e.target.value)} placeholder="e.g. 500" />
+              <label className="field-label" htmlFor="bp-target">Planned output quantity {selectedRevision ? `(${selectedRevision.output_uom_code})` : ''} *</label>
+              <input
+                id="bp-target"
+                className="field-input"
+                inputMode="decimal"
+                value={targetQuantity}
+                onChange={(e) => {
+                  setTargetQuantity(e.target.value)
+                  setTargetQuantityCustomized(true)
+                }}
+                placeholder="e.g. 500"
+              />
             </div>
             <div className="field">
               <label className="field-label" htmlFor="bp-date">Planned manufacturing date</label>
@@ -580,23 +720,23 @@ function RequisitionSection({ plan, canEditPlan }) {
   const [requisition, setRequisition] = useState({ status: 'idle', data: null, error: '' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [rejectReason, setRejectReason] = useState('')
-  const [showReject, setShowReject] = useState(false)
+  const [success, setSuccess] = useState('')
   const [issuingLine, setIssuingLine] = useState(null)
 
   useEffect(() => {
     getMyStores().then((list) => {
-      setStores({ loading: false, results: list, error: '' })
-      if (list.length === 1) setStoreId(list[0].id)
+      const rows = Array.isArray(list) ? list : list?.results || list?.data || []
+      setStores({ loading: false, results: rows, error: '' })
+      if (rows.length === 1) setStoreId(rows[0].id)
     }).catch((err) => setStores({ loading: false, results: [], error: getErrorMessage(err) }))
   }, [])
 
   const loadRequisition = () => {
     if (!storeId) return
-    setRequisition({ status: 'loading', data: null, error: '' })
+    setRequisition((prev) => ({ ...prev, status: prev.data ? 'ready' : 'loading', error: '' }))
     listMaterialRequisitions(storeId, { batchPlanId: plan.id, pageSize: 1 })
       .then((data) => {
-        const existing = (data.results || [])[0]
+        const existing = (data.results || data.data?.results || [])[0]
         if (existing) {
           setRequisition({ status: 'ready', data: existing, error: '' })
         } else {
@@ -608,12 +748,22 @@ function RequisitionSection({ plan, canEditPlan }) {
 
   useEffect(loadRequisition, [storeId, plan.id])
 
+  // While awaiting QA, refresh so production sees approve/reject without leaving the page
+  useEffect(() => {
+    const st = String(requisition.data?.status || '').toUpperCase()
+    if (st !== 'SUBMITTED' || !storeId) return undefined
+    const timer = setInterval(loadRequisition, 12000)
+    return () => clearInterval(timer)
+  }, [requisition.data?.status, storeId, plan.id])
+
   const create = async () => {
     setBusy(true)
     setError('')
+    setSuccess('')
     try {
       const created = await createMaterialRequisition(storeId, { batch_plan_id: plan.id, expected_batch_plan_version: plan.version })
       setRequisition({ status: 'ready', data: created, error: '' })
+      setSuccess('Draft requisition created. Review lines, then submit for QA approval.')
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
@@ -623,46 +773,29 @@ function RequisitionSection({ plan, canEditPlan }) {
 
   const submit = async () => {
     if (!(await confirmAction(
-      'Submit this requisition for approval? It will no longer be editable until approved, rejected or revised.',
-      { title: 'Submit Requisition', confirmLabel: 'Submit' }
+      'Submit this requisition for QA approval? It will lock for editing until QA approves, rejects, or you revise it.',
+      { title: 'Submit for QA Approval', confirmLabel: 'Submit to QA' }
     ))) return
     setBusy(true)
     setError('')
+    setSuccess('')
     try {
       const saved = await submitMaterialRequisition(storeId, requisition.data.id, requisition.data.version)
+      try {
+        await qaPipelineService.enqueueRequisition({
+          requisitionId: saved.id || requisition.data.id,
+          reference: saved.reference || requisition.data.reference,
+          productName: saved.product_name || plan.product_name || '',
+          batchNumber: saved.batch_number || plan.batch_number || '',
+          companyId: plan.company || plan.company_id,
+          storeId,
+          version: saved.version,
+        })
+      } catch (e) {
+        console.warn('[BatchPlanning] QA pipeline enqueue:', e?.message || e)
+      }
       setRequisition({ status: 'ready', data: saved, error: '' })
-    } catch (err) {
-      setError(getErrorMessage(err))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const approve = async () => {
-    setBusy(true)
-    setError('')
-    try {
-      const saved = await approveMaterialRequisition(storeId, requisition.data.id, requisition.data.version)
-      setRequisition({ status: 'ready', data: saved, error: '' })
-    } catch (err) {
-      setError(getErrorMessage(err))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const reject = async () => {
-    if (!rejectReason.trim()) {
-      setError('Enter a reason for rejecting this requisition.')
-      return
-    }
-    setBusy(true)
-    setError('')
-    try {
-      const saved = await rejectMaterialRequisition(storeId, requisition.data.id, requisition.data.version, rejectReason.trim())
-      setRequisition({ status: 'ready', data: saved, error: '' })
-      setShowReject(false)
-      setRejectReason('')
+      setSuccess('Submitted to Quality Assurance. Open Quality → Requisition QA to approve or reject.')
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
@@ -674,9 +807,11 @@ function RequisitionSection({ plan, canEditPlan }) {
     if (!(await confirmAction('Revise this requisition back to draft?', { title: 'Revise Requisition', confirmLabel: 'Revise to Draft', danger: true }))) return
     setBusy(true)
     setError('')
+    setSuccess('')
     try {
       const saved = await reviseMaterialRequisition(storeId, requisition.data.id, requisition.data.version)
       setRequisition({ status: 'ready', data: saved, error: '' })
+      setSuccess('Requisition returned to draft. Edit lines and re-submit to QA when ready.')
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
@@ -697,10 +832,18 @@ function RequisitionSection({ plan, canEditPlan }) {
     }
   }
 
+  const reqStatus = String(requisition.data?.status || '').toUpperCase()
+  const stepIdx = requisitionStepIndex(reqStatus)
+
   return (
     <div style={{ minHeight: 'auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-        <h3 style={{ margin: 0 }}>Material requisition</h3>
+        <div>
+          <h3 style={{ margin: 0 }}>Material requisition</h3>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: '#64748b' }}>
+            Production prepares the request → Quality Assurance approves → then issue materials.
+          </p>
+        </div>
         {stores.results.length > 1 && (
           <select className="company-input" value={storeId ?? ''} onChange={(e) => setStoreId(e.target.value ? Number(e.target.value) : null)}>
             <option value="">Choose a store</option>
@@ -721,44 +864,86 @@ function RequisitionSection({ plan, canEditPlan }) {
           {requisition.status === 'none' && (
             <div style={{ marginTop: 10 }}>
               <p style={{ fontSize: 13, color: '#64748b' }}>No material requisition exists yet for this batch plan at this store.</p>
-              <Button type="button" onClick={create} loading={busy} disabled={busy}>Create requisition</Button>
+              <Button type="button" onClick={create} loading={busy} disabled={busy || !canEditPlan}>Create requisition</Button>
             </div>
           )}
 
           {requisition.status === 'ready' && requisition.data && (
             <div style={{ marginTop: 10 }}>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }}>
-                <span className={`ci-badge ${requisition.data.status === 'APPROVED' ? 'ci-badge-active' : 'ci-badge-inactive'}`}>{requisition.data.status}</span>
-                {requisition.data.status === 'DRAFT' && (
-                  <Button type="button" onClick={submit} loading={busy} disabled={busy}>Submit for approval</Button>
+              {/* Approval flow stepper */}
+              <div className="req-qa-flow-strip" aria-label="Requisition approval flow">
+                {REQ_FLOW_STEPS.map((step, idx) => {
+                  const done = idx < stepIdx || (idx === stepIdx && reqStatus === 'APPROVED')
+                  const active = idx === stepIdx && reqStatus !== 'APPROVED'
+                  const rejectedHere = reqStatus === 'REJECTED' && idx === 1
+                  return (
+                    <div
+                      key={step.key}
+                      className={`req-qa-flow-step${done ? ' done' : ''}${active ? ' active' : ''}${rejectedHere ? ' rejected' : ''}`}
+                    >
+                      <span className="req-qa-flow-dot" />
+                      <span className="req-qa-flow-label">
+                        {rejectedHere ? '2. QA Rejected' : step.label}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
+                <span
+                  className={`ci-badge ${
+                    reqStatus === 'APPROVED'
+                      ? 'ci-badge-active'
+                      : reqStatus === 'REJECTED'
+                        ? 'ci-badge-danger'
+                        : 'ci-badge-inactive'
+                  }`}
+                >
+                  {reqStatus === 'SUBMITTED' ? 'AWAITING QA' : reqStatus}
+                </span>
+                {reqStatus === 'DRAFT' && (
+                  <Button type="button" onClick={submit} loading={busy} disabled={busy || !canEditPlan}>
+                    Submit for QA Approval
+                  </Button>
                 )}
-                {requisition.data.status === 'SUBMITTED' && (
+                {reqStatus === 'SUBMITTED' && (
                   <>
-                    <Button type="button" onClick={approve} loading={busy} disabled={busy}>Approve</Button>
-                    {!showReject && <Button type="button" variant="secondary" onClick={() => setShowReject(true)} disabled={busy}>Reject</Button>}
+                    <span style={{ fontSize: 13, color: '#0369a1', fontWeight: 600 }}>
+                      Waiting for Quality Assurance decision
+                    </span>
+                    <Button type="button" variant="secondary" onClick={loadRequisition} disabled={busy}>
+                      Refresh status
+                    </Button>
+                    <a href="/quality" style={{ fontSize: 13, fontWeight: 600, color: '#0284c7' }}>
+                      Open Quality → Requisition QA
+                    </a>
                   </>
                 )}
-                {requisition.data.status === 'REJECTED' && (
-                  <Button type="button" variant="secondary" onClick={revise} loading={busy} disabled={busy}>Revise to draft</Button>
+                {reqStatus === 'APPROVED' && (
+                  <span style={{ fontSize: 13, color: '#166534', fontWeight: 600 }}>
+                    QA approved — materials can be issued
+                  </span>
+                )}
+                {reqStatus === 'REJECTED' && (
+                  <>
+                    <span style={{ fontSize: 13, color: '#b91c1c', fontWeight: 600 }}>
+                      QA rejected{requisition.data.rejection_reason ? `: ${requisition.data.rejection_reason}` : ''}
+                    </span>
+                    <Button type="button" variant="secondary" onClick={revise} loading={busy} disabled={busy || !canEditPlan}>
+                      Revise to draft
+                    </Button>
+                  </>
                 )}
               </div>
 
-              {showReject && (
-                <div className="field" style={{ marginBottom: 10 }}>
-                  <label className="field-label" htmlFor="req-reject-reason">Rejection reason *</label>
-                  <input id="req-reject-reason" className="field-input" value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
-                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                    <Button type="button" variant="secondary" onClick={() => setShowReject(false)} disabled={busy}>Cancel</Button>
-                    <Button type="button" onClick={reject} loading={busy} disabled={busy}>Confirm rejection</Button>
-                  </div>
-                </div>
-              )}
+              {success && <Alert type="success">{success}</Alert>}
               {error && <p className="field-error">{error}</p>}
 
               <RequisitionLinesTable
                 storeId={storeId}
                 requisition={requisition.data}
-                editable={requisition.data.status === 'DRAFT' && canEditPlan}
+                editable={reqStatus === 'DRAFT' && canEditPlan}
                 onSaveLine={saveLineQuantity}
                 onIssue={(line) => setIssuingLine(line)}
               />

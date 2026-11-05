@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import { LoadingState } from '../../components/Spinner'
 import { listGoodsReceipts } from './receivingService'
 import { listMaterials, listRecordedReceiptBalances } from './storeService'
 import './StoreDashboard.css'

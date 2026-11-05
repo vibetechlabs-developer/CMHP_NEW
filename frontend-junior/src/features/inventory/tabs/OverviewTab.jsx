@@ -387,7 +387,7 @@ export default function OverviewTab({
           to="/inventory/issue-return"
           className="ci-card"
           style={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}
-          title="Open Material Issues in Issue / Return tab"
+          title="Open Material Issue to Production"
         >
           <div className="ci-card-icon" style={{ background: '#faf5ff', color: '#9333ea' }}>
             📤

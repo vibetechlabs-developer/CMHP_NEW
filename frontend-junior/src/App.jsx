@@ -20,8 +20,6 @@ import ErrorBoundary
 import ToastContainer
   from './components/ToastContainer'
 
-import NotificationCenter
-  from './components/NotificationCenter'
 
 import './cmhp-reference.css'
 
@@ -44,7 +42,6 @@ export default function App() {
 
               <ToastContainer />
 
-              <NotificationCenter />
 
             </WorkspaceProvider>
 

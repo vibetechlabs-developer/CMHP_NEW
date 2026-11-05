@@ -85,13 +85,13 @@ describe('context switching without stale data leakage', () => {
   })
 })
 
-describe('QA Approval column rendering', () => {
-  it('renders the QA Approval column header and status badges', async () => {
+describe('QA Approval and BMR column rendering', () => {
+  it('renders the QA Approval and BMR column headers and buttons', async () => {
     listProducts.mockResolvedValueOnce({
       count: 2,
       results: [
-        { id: 10, code: 'PRD-1', name: 'Product Approved', is_active: true, qa_approval_status: 'APPROVED' },
-        { id: 11, code: 'PRD-2', name: 'Product Submitted', is_active: true, qa_approval_status: 'SUBMITTED' },
+        { id: 10, code: 'PRD-1', name: 'Product Approved', bmr_no: 'BMR/001', is_active: true, qa_approval_status: 'APPROVED' },
+        { id: 11, code: 'PRD-2', name: 'Product Submitted', bmr_no: '', is_active: true, qa_approval_status: 'SUBMITTED' },
       ],
     })
     renderPage()
@@ -99,5 +99,8 @@ describe('QA Approval column rendering', () => {
     expect(screen.getByText('QA Approval')).toBeTruthy()
     expect(screen.getByText('✓ Approved')).toBeTruthy()
     expect(screen.getByText('⏳ Submitted')).toBeTruthy()
+    expect(screen.getByText('BMR')).toBeTruthy()
+    expect(screen.getByText('BMR/001')).toBeTruthy()
+    expect(screen.getAllByText('📄 BMR').length).toBe(2)
   })
 })

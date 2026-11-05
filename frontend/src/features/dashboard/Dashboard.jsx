@@ -6,7 +6,6 @@ import {
   FlaskIcon,
   AlertIcon,
   TruckIcon,
-  DashboardIcon,
   ClipboardIcon,
   ShieldCheckIcon,
   ReceiptIcon,

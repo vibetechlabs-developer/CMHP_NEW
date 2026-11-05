@@ -179,6 +179,8 @@ class ProductImportRow(models.Model):
     code = models.CharField(max_length=32, blank=True, default="")
     name = models.CharField(max_length=255, blank=True, default="")
     product_type = models.CharField(max_length=100, blank=True, default="")
+    pack_size = models.CharField(max_length=100, blank=True, default="")
+    bmr_no = models.CharField(max_length=100, blank=True, default="")
     description = models.CharField(max_length=2000, blank=True, default="")
     sales_uom_code = models.CharField(max_length=20, blank=True, default="")
     resolved_sales_uom_id = models.PositiveIntegerField(null=True, blank=True)

@@ -61,9 +61,12 @@ export default function IssueOutwardModal({
   const [issuedAt, setIssuedAt] = useState(() => toLocalDateTimeInput(new Date().toISOString()))
   const [issuedQuantity, setIssuedQuantity] = useState(initialQuantity ? String(initialQuantity) : '')
   const [batchReference, setBatchReference] = useState(initialBatchReference || '')
+  const [selectedBatchPlanId, setSelectedBatchPlanId] = useState('')
+  const [selectedSalesOrderId, setSelectedSalesOrderId] = useState('')
   const [isCustomBatch, setIsCustomBatch] = useState(false)
   const [productReference, setProductReference] = useState(initialProductReference || '')
   const [remarks, setRemarks] = useState(initialRemarks || '')
+  const [extraLines, setExtraLines] = useState([]) // additional materials for multi-line slip
   const [draft, setDraft] = useState(null)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -169,7 +172,7 @@ export default function IssueOutwardModal({
     onClose()
   }
 
-  // Handle batch selection: derive product consistently from the chosen batch plan
+  // Handle batch selection: bind plan/order and derive product from the chosen batch plan
   const handleBatchSelect = (batchRef) => {
     setBatchReference(batchRef)
     markDirty()
@@ -177,12 +180,22 @@ export default function IssueOutwardModal({
       (p) => (p.official_batch_number && p.official_batch_number === batchRef) || String(p.id) === batchRef
     )
     if (matchedPlan) {
+      setSelectedBatchPlanId(String(matchedPlan.id))
+      setSelectedSalesOrderId(matchedPlan.sales_order_id ? String(matchedPlan.sales_order_id) : '')
       setProductReference(matchedPlan.product_name || matchedPlan.product_code || '')
+      if (matchedPlan.official_batch_number) setBatchReference(matchedPlan.official_batch_number)
+    } else {
+      setSelectedBatchPlanId('')
+      setSelectedSalesOrderId('')
     }
   }
 
   const handleIssueAndPost = async () => {
     if (savingRef.current || postingRef.current) return
+    if (!selectedBatchPlanId && !selectedSalesOrderId) {
+      setError('Select a batch plan (or sales order) before issuing material to production.')
+      return
+    }
     if (!sourceCompanyId || !issuedQuantity || Number(issuedQuantity) <= 0 || !productReference.trim() || !issuedAt) {
       setError('Please select a company, specify a positive issued quantity, destination product, and issue date.')
       return
@@ -213,6 +226,10 @@ export default function IssueOutwardModal({
 
   const saveDraft = async () => {
     if (savingRef.current) return null
+    if (!selectedBatchPlanId && !selectedSalesOrderId) {
+      setError('Select a batch plan (or sales order) before issuing material to production.')
+      return null
+    }
     if (!sourceCompanyId || !issuedQuantity || Number(issuedQuantity) <= 0 || !productReference.trim() || !issuedAt || !effectiveMaterialId) {
       setError('Please select a material, company, positive quantity, destination product, and issue date.')
       return null
@@ -221,24 +238,31 @@ export default function IssueOutwardModal({
     setSaving(true)
     setError('')
     try {
+      const lines = [
+        { material_id: Number(effectiveMaterialId), issued_quantity: issuedQuantity },
+        ...extraLines
+          .filter((l) => l.material_id && Number(l.issued_quantity) > 0)
+          .map((l) => ({ material_id: Number(l.material_id), issued_quantity: l.issued_quantity })),
+      ]
+      const bindPayload = {
+        batch_plan_id: selectedBatchPlanId ? Number(selectedBatchPlanId) : null,
+        sales_order_id: selectedSalesOrderId ? Number(selectedSalesOrderId) : null,
+        batch_reference: batchReference.trim(),
+        product_reference: productReference.trim(),
+        remarks: remarks.trim(),
+        lines,
+      }
       const issue = draft
         ? await updateMaterialIssue(storeId, draft.id, {
             expected_version: draft.version,
-            issued_quantity: issuedQuantity,
             issued_at: new Date(issuedAt).toISOString(),
-            batch_reference: batchReference.trim(),
-            product_reference: productReference.trim(),
-            remarks: remarks.trim(),
+            ...bindPayload,
           })
         : await createMaterialIssue(storeId, {
             source_company_id: Number(sourceCompanyId),
-            material_id: Number(effectiveMaterialId),
-            issued_quantity: issuedQuantity,
             issued_at: new Date(issuedAt).toISOString(),
-            batch_reference: batchReference.trim(),
-            product_reference: productReference.trim(),
-            remarks: remarks.trim(),
             idempotency_key: idempotencyKeyRef.current,
+            ...bindPayload,
           })
       setDraft(issue)
       setDirty(false)
@@ -290,6 +314,7 @@ export default function IssueOutwardModal({
     !saving_or_posting &&
     Boolean(effectiveMaterialId) &&
     Boolean(sourceCompanyId) &&
+    Boolean(selectedBatchPlanId || selectedSalesOrderId) &&
     Boolean(issuedQuantity) &&
     Number(issuedQuantity) > 0 &&
     Boolean(productReference.trim()) &&
@@ -485,19 +510,20 @@ export default function IssueOutwardModal({
 
             <div>
               <label className="field-label" htmlFor="issue-batch" style={{ marginBottom: 5, fontSize: 12 }}>
-                Official production batch no (optional)
+                Batch plan / production batch *
               </label>
               {batchPlans.length > 0 && !isCustomBatch ? (
                 <div style={{ display: 'flex', gap: 6 }}>
                   <select
                     id="issue-batch"
-                    aria-label="Official production batch no (optional)"
+                    aria-label="Batch plan / production batch (required)"
                     className="company-input"
-                    value={batchReference}
+                    value={selectedBatchPlanId ? (batchPlans.find((p) => String(p.id) === selectedBatchPlanId)?.official_batch_number || `Plan #${selectedBatchPlanId}`) : batchReference}
                     onChange={(e) => {
                       if (e.target.value === '__custom__') {
                         setIsCustomBatch(true)
                         setBatchReference('')
+                        setSelectedBatchPlanId('')
                         markDirty()
                       } else {
                         handleBatchSelect(e.target.value)
@@ -505,8 +531,9 @@ export default function IssueOutwardModal({
                     }}
                     disabled={draft?.status === 'POSTED'}
                     style={{ width: '100%', height: 38 }}
+                    required
                   >
-                    <option value="">-- Select Production Batch --</option>
+                    <option value="">-- Select Batch Plan --</option>
                     {batchPlans.map((bp) => {
                       const num = bp.official_batch_number || `Plan #${bp.id}`
                       return (
@@ -515,7 +542,6 @@ export default function IssueOutwardModal({
                         </option>
                       )
                     })}
-                    <option value="__custom__">+ Enter custom batch number…</option>
                   </select>
                 </div>
               ) : (

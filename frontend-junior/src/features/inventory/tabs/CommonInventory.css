@@ -632,12 +632,75 @@ textarea.ci-input {
 
 .ci-badge-active { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
 .ci-badge-inactive { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+.ci-badge-danger { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
 
 /* QA Approval Badges */
 .ci-badge-approved { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
 .ci-badge-submitted { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
 .ci-badge-draft { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
 .ci-badge-neutral { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+
+/* Production material requisition → QA approval flow */
+.req-qa-flow-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.req-qa-flow-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.req-qa-flow-step .req-qa-flow-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #94a3b8;
+}
+
+.req-qa-flow-step.active {
+  border-color: #0284c7;
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.req-qa-flow-step.active .req-qa-flow-dot {
+  background: #0284c7;
+}
+
+.req-qa-flow-step.done {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.req-qa-flow-step.done .req-qa-flow-dot {
+  background: #16a34a;
+}
+
+.req-qa-flow-step.rejected {
+  border-color: #fca5a5;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.req-qa-flow-step.rejected .req-qa-flow-dot {
+  background: #dc2626;
+}
 
 .ci-row-actions {
   display: flex;
@@ -720,6 +783,27 @@ textarea.ci-input {
 .ci-row-btn-formula:active:not(:disabled) {
   transform: translateY(0);
   box-shadow: 0 1px 4px rgba(21, 128, 61, 0.3);
+}
+
+/* BMR button — premium sky blue gradient */
+.ci-row-btn-bmr {
+  color: #ffffff;
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  border-color: #0369a1;
+  box-shadow: 0 1px 3px rgba(2, 132, 199, 0.35);
+  transition: background 0.18s, box-shadow 0.18s, transform 0.12s;
+  gap: 4px;
+}
+.ci-row-btn-bmr:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0369a1 0%, #075985 100%);
+  border-color: #075985;
+  box-shadow: 0 3px 10px rgba(2, 132, 199, 0.45), 0 0 0 3px rgba(2, 132, 199, 0.12);
+  transform: translateY(-1px);
+  color: #ffffff;
+}
+.ci-row-btn-bmr:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(2, 132, 199, 0.3);
 }
 
 

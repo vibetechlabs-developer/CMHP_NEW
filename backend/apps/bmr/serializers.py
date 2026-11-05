@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from apps.bmr.models import BatchManufacturingRecord, BMRLine
+from apps.bmr.models import BatchManufacturingRecord, BMRLine, BMRDocument, ProductionOrderStatus
 
 _UPDATE_ALLOWED = {"expected_version", "special_value", "label_claim", "ar_no", "qty_received"}
 
@@ -59,3 +59,43 @@ class BMRLineUpdateSerializer(serializers.Serializer):
                     {field: "Unknown or protected field." for field in sorted(rejected)}
                 )
         return attrs
+
+
+class BMRDocumentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BMRDocument
+        fields = [
+            "id",
+            "company_id",
+            "order_id",
+            "batch_no",
+            "bmr_type",
+            "data",
+            "is_draft",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
+
+class ProductionOrderStatusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductionOrderStatus
+        fields = [
+            "id",
+            "company_id",
+            "order_id",
+            "order_reference",
+            "batch_no",
+            "bmr_status",
+            "production_status",
+            "production_remark",
+            "packaging_status",
+            "dispatch_status",
+            "qa_status",
+            "qa_remark",
+            "updated_at",
+            "created_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]

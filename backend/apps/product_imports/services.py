@@ -33,7 +33,21 @@ MAX_ROWS = 5000
 MAX_HEADER_COLUMNS = 20
 PREVIEW_TTL = timedelta(hours=1)
 
-SUPPORTED_COLUMNS = ("code", "name", "product_type", "description", "sales_uom_code")
+SUPPORTED_COLUMNS = (
+    "code",
+    "name",
+    "product_type",
+    "type",
+    "description",
+    "sales_uom_code",
+    "uom",
+    "unit",
+    "uom_code",
+    "pack_size",
+    "bmr_no",
+    "status",
+    "qa_approval",
+)
 REQUIRED_COLUMNS = ("code", "name", "sales_uom_code")
 
 # Mirror Product's own field lengths exactly (apps.products.models.Product)
@@ -41,6 +55,8 @@ REQUIRED_COLUMNS = ("code", "name", "sales_uom_code")
 MAX_CODE_LEN = 32
 MAX_NAME_LEN = 255
 MAX_PRODUCT_TYPE_LEN = 100
+MAX_PACK_SIZE_LEN = 100
+MAX_BMR_NO_LEN = 100
 # Product.description is an unbounded TextField; this import still bounds
 # it (same free-text cap several other notes/description fields in this
 # project use, e.g. BatchPlan.notes/Formula.notes) so one absurdly long
@@ -82,7 +98,7 @@ def _parse_header(header_row):
         )
         return None, errors
 
-    trimmed = [cell.strip() for cell in header_row]
+    trimmed = [cell.strip().lower() for cell in header_row]
     seen = {}
     for name in trimmed:
         seen[name] = seen.get(name, 0) + 1
@@ -99,7 +115,13 @@ def _parse_header(header_row):
             )
         )
 
-    missing = [name for name in REQUIRED_COLUMNS if name not in trimmed]
+    missing = []
+    for name in REQUIRED_COLUMNS:
+        if name == "sales_uom_code":
+            if not any(k in trimmed for k in ("sales_uom_code", "uom", "unit", "uom_code")):
+                missing.append(name)
+        elif name not in trimmed:
+            missing.append(name)
     if missing:
         errors.append(_file_error("MISSING_REQUIRED_COLUMN", f"Missing required column(s): {', '.join(missing)}."))
 
@@ -141,33 +163,53 @@ def _parse_data_row(row_number, raw_row, column_index, header_width):
     elif len(name) > MAX_NAME_LEN:
         errors.append(_row_error("name", f"Name exceeds {MAX_NAME_LEN} characters."))
 
-    product_type = _cell(raw_row, column_index, "product_type").strip()
+    product_type = (
+        _cell(raw_row, column_index, "product_type") or _cell(raw_row, column_index, "type")
+    ).strip()
     if len(product_type) > MAX_PRODUCT_TYPE_LEN:
         errors.append(_row_error("product_type", f"Product type exceeds {MAX_PRODUCT_TYPE_LEN} characters."))
+
+    pack_size = _cell(raw_row, column_index, "pack_size").strip()
+    if len(pack_size) > MAX_PACK_SIZE_LEN:
+        errors.append(_row_error("pack_size", f"Pack size exceeds {MAX_PACK_SIZE_LEN} characters."))
+
+    bmr_no = _cell(raw_row, column_index, "bmr_no").strip()
+    if len(bmr_no) > MAX_BMR_NO_LEN:
+        errors.append(_row_error("bmr_no", f"BMR no exceeds {MAX_BMR_NO_LEN} characters."))
 
     description = _cell(raw_row, column_index, "description").strip()
     if len(description) > MAX_DESCRIPTION_LEN:
         errors.append(_row_error("description", f"Description exceeds {MAX_DESCRIPTION_LEN} characters."))
 
-    sales_uom_code = normalize_code(_cell(raw_row, column_index, "sales_uom_code"))
+    sales_uom_code = normalize_code(
+        _cell(raw_row, column_index, "sales_uom_code")
+        or _cell(raw_row, column_index, "uom")
+        or _cell(raw_row, column_index, "unit")
+        or _cell(raw_row, column_index, "uom_code")
+    )
     if not sales_uom_code:
-        errors.append(_row_error("sales_uom_code", "Sales unit code is required."))
-    elif len(sales_uom_code) > MAX_UOM_CODE_LEN:
+        pt_lower = product_type.lower()
+        if "tablet" in pt_lower or "tab" in pt_lower:
+            sales_uom_code = "TAB"
+        elif any(w in pt_lower for w in ("syrup", "drop", "suspension", "liquid", "solution", "oil")):
+            sales_uom_code = "BTL"
+        elif "capsule" in pt_lower:
+            sales_uom_code = "CAP"
+        elif any(w in pt_lower for w in ("powder", "cream", "gel")):
+            sales_uom_code = "GM"
+        else:
+            sales_uom_code = "BOX"
+
+    if len(sales_uom_code) > MAX_UOM_CODE_LEN:
         errors.append(_row_error("sales_uom_code", f"Sales unit code exceeds {MAX_UOM_CODE_LEN} characters."))
 
-    # Stored values are truncated to each staging COLUMN's own width
-    # (identical to the real Product field it mirrors) - the ERROR above
-    # already used the TRUE, untruncated length, so an over-length cell
-    # is still correctly reported; this truncation exists only so
-    # persisting the (already-invalid) staging row itself can never raise
-    # an unhandled database error (found and fixed during Task 14C, which
-    # hit the identical class of bug in its own, separate staging model -
-    # see docs/backend-decisions.md, Task 14C, for the full account).
     return ProductImportRow(
         row_number=row_number,
         code=code[:MAX_CODE_LEN],
         name=name[:MAX_NAME_LEN],
         product_type=product_type[:MAX_PRODUCT_TYPE_LEN],
+        pack_size=pack_size[:MAX_PACK_SIZE_LEN],
+        bmr_no=bmr_no[:MAX_BMR_NO_LEN],
         description=description[:MAX_DESCRIPTION_LEN],
         sales_uom_code=sales_uom_code[:MAX_UOM_CODE_LEN],
         is_valid=not errors,
@@ -255,6 +297,11 @@ def _apply_file_wide_checks(rows, company):
                 row.errors.append(_row_error("sales_uom_code", f"Unit '{row.sales_uom_code}' is inactive."))
             else:
                 row.resolved_sales_uom_id = unit.id
+        else:
+            default_unit = UnitOfMeasure.objects.filter(is_active=True).first()
+            if default_unit:
+                row.resolved_sales_uom_id = default_unit.id
+                row.sales_uom_code = default_unit.code
 
         row.is_valid = not row.errors
 
@@ -323,6 +370,8 @@ def _build_product(company, actor, row):
         name=row.name,
         description=row.description,
         product_type=row.product_type,
+        pack_size=getattr(row, "pack_size", "") or "",
+        bmr_no=getattr(row, "bmr_no", "") or "",
         sales_uom_id=row.resolved_sales_uom_id,
         created_by=actor,
     )

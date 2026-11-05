@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 import {
   NavLink,
@@ -11,7 +11,9 @@ import useAuth from '../hooks/useAuth'
 import useWorkspace from '../hooks/useWorkspace'
 import { demoNoticeText, demoStatusFor } from './demoStatus'
 
+import NotificationCenter from '../components/NotificationCenter'
 import {
+  UserIcon,
   DashboardIcon,
   InventoryIcon,
   FlaskIcon,
@@ -26,6 +28,7 @@ import {
   WalletIcon,
   ClipboardIcon,
   BuildingIcon,
+  FactoryIcon,
 } from '../components/icons'
 
 import {
@@ -81,11 +84,28 @@ const NAV_SECTIONS = [
       },
 
       {
-        label: 'Quality Control',
+        label: 'Quality Assurance',
         path: '/quality',
         icon: ShieldCheckIcon,
         accent: '#34d399',
         companyOnly: true,
+      },
+
+      {
+        label: 'Quality Control',
+        path: '/material-qc',
+        icon: ShieldCheckIcon,
+        accent: '#7c3aed',
+        companyOnly: true,
+      },
+
+      {
+        label: 'Production',
+        path: '/production',
+        icon: FactoryIcon,
+        accent: '#f97316',
+        companyOnly: true,
+        roles: ['SUPER_ADMIN', 'MANAGEMENT', 'DEPARTMENT_MANAGER', 'STORES_MANAGER', 'HR_MANAGER', 'EMPLOYEE'],
       },
 
       {
@@ -179,7 +199,15 @@ const NAV_SECTIONS = [
       },
 
       {
-        label: 'Issue / Return',
+        label: 'Control Samples',
+        path: '/inventory/control-samples',
+        icon: FlaskIcon,
+        accent: '#8b7cf6',
+        commonInventoryOnly: true,
+      },
+
+      {
+        label: 'Material Issue to Production',
         path: '/inventory/issue-return',
         icon: InventoryIcon,
         accent: '#8b7cf6',
@@ -519,6 +547,14 @@ function visibleSections(
 
               }
 
+              if (
+                Array.isArray(item.roles) &&
+                item.roles.length > 0 &&
+                !isAdmin &&
+                !item.roles.includes(role)
+              ) {
+                return false
+              }
 
               return true
 
@@ -755,6 +791,26 @@ export default function MainLayout() {
     }
   }, [user, effectiveWorkspace, navigate])
 
+
+  const [profileOpen, setProfileOpen] = useState(false)
+  const profileMenuRef = useRef(null)
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
+        setProfileOpen(false)
+      }
+    }
+    if (profileOpen) {
+      document.addEventListener('mousedown', handleOutsideClick)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick)
+    }
+  }, [profileOpen])
+
+  const userRole = (user?.profile?.role || user?.role || (user?.is_superuser ? 'SUPER_ADMIN' : 'USER')).toUpperCase()
+  const userEmail = user?.email || 'admin@cmhp.com'
 
   const displayName =
     user?.first_name ||
@@ -1025,98 +1081,69 @@ export default function MainLayout() {
 
             <WorkspaceSwitcher />
 
+            {/* NOTIFICATION CENTER */}
+            <NotificationCenter />
 
-            <button
-              type="button"
-              className="header-icon-btn"
-              aria-label="Notifications"
-            >
-
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+            {/* PROFILE MENU DROPDOWN */}
+            <div className="header-profile-wrapper" ref={profileMenuRef}>
+              <button
+                type="button"
+                className="user-chip user-chip-button"
+                onClick={() => setProfileOpen((prev) => !prev)}
+                title="Account Menu"
+                aria-label="Account Menu"
+                aria-expanded={profileOpen}
               >
-
-                <path
-                  d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"
-                />
-
-                <path d="M10 21h4" />
-
-              </svg>
-
-
-              <span
-                className="header-notification-dot"
-              />
-
-            </button>
-
-
-            {/* PROFILE */}
-
-            <button
-              type="button"
-              className="user-chip user-chip-button"
-              onClick={() =>
-                navigate('/profile')
-              }
-              title="Open my profile"
-              aria-label="Open my profile"
-            >
-
-              <span className="user-avatar">
-
-                {initial}
-
-              </span>
-
-
-              <span className="user-meta">
-
-                <span className="user-name">
-
-                  {displayName}
-
+                <span className="user-avatar" style={{ background: '#0284c7' }}>
+                  {initial}
                 </span>
 
-
-                {user?.email && (
-
-                  <span className="user-email">
-
-                    {user.email}
-
+                <span className="user-meta">
+                  <span className="user-name">
+                    {displayName}
                   </span>
+                  <span className="user-role" style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    {userRole}
+                  </span>
+                </span>
+              </button>
 
-                )}
+              {/* SLEEK DARK POPUP DROPDOWN (MATCHING SCREENSHOT) */}
+              {profileOpen && (
+                <div className="header-profile-dropdown" role="menu">
+                  <div className="header-profile-info">
+                    <div className="header-profile-name">{displayName}</div>
+                    <div className="header-profile-email">{userEmail}</div>
+                  </div>
 
-              </span>
+                  <div className="header-profile-divider" />
 
-            </button>
+                  <button
+                    type="button"
+                    className="header-profile-menu-item"
+                    onClick={() => {
+                      setProfileOpen(false)
+                      navigate('/profile')
+                    }}
+                  >
+                    <UserIcon size={16} />
+                    <span>My Profile</span>
+                  </button>
 
-
-            <button
-              type="button"
-              className="logout-btn"
-              onClick={logout}
-              title="Logout"
-              aria-label="Logout"
-            >
-
-              <LogoutIcon size={15} />
-
-              <span>
-                Logout
-              </span>
-
-            </button>
+                  <button
+                    type="button"
+                    className="header-profile-menu-item header-profile-signout"
+                    onClick={() => {
+                      setProfileOpen(false)
+                      logout()
+                    }}
+                  >
+                    <LogoutIcon size={16} />
+                    <span>Sign out</span>
+                  </button>
+                </div>
+              )}
+            </div>
 
           </div>
 

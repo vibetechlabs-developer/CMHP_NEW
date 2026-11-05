@@ -106,7 +106,20 @@ PURCHASE_ORDER_PERMS_BUYER = (
     "purchase_orders.issue",
 )
 RECEIVING_PERMS = ("receiving.view", "receiving.create", "receiving.edit", "receiving.post", "receiving.cancel")
-QC_PERMS = ("incoming_qc.view", "incoming_qc.create", "incoming_qc.edit", "incoming_qc.cancel")
+QC_PERMS = (
+    "incoming_qc.view",
+    "incoming_qc.create",
+    "incoming_qc.edit",
+    "incoming_qc.cancel",
+    "stock.view",
+)
+# Finished-batch retention / control samples (company-scoped quality register).
+CONTROL_SAMPLE_PERMS = (
+    "control_samples.view",
+    "control_samples.create",
+    "control_samples.edit",
+    "control_samples.dispose",
+)
 
 # Task 13E: the connected planning demo's three personas. Company and store
 # permissions are granted separately, exactly as every earlier persona in
@@ -122,6 +135,7 @@ PLANNER_COMPANY_PERMS = (
     "batch_plans.view",
     "batch_plans.create",
     "batch_plans.allocate_number",
+    *CONTROL_SAMPLE_PERMS,
 )
 # A separate, non-contributing approver - required so the demo can disable
 # self-approval (see FormulaApprovalPolicy below) and still reach an
@@ -448,7 +462,9 @@ class Command(BaseCommand):
         # company membership only, demonstrating that incoming QC access
         # never needs purchasing-price visibility (see
         # apps.quality.views._check_company_membership).
-        self._grant_company_role(actor, qc_user, company_a, "DEMO_QC_CO", "Demo QC (company access)", ())
+        self._grant_company_role(
+            actor, qc_user, company_a, "DEMO_QC_CO", "Demo QC (company access)", CONTROL_SAMPLE_PERMS
+        )
         self._grant_store_role(actor, qc_user, store, "DEMO_QC_ST", "Demo QC Inspector", QC_PERMS)
         # Company B membership only, no store access at all - an
         # access-separation demonstration account: proves a second

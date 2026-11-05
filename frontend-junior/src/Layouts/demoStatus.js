@@ -15,11 +15,12 @@
 //   * Formula Revisions & Requirements (/inventory/products/:cId/:pId/formulas)
 //   * Batch Planning, Allocation & Requisitions (/inventory/batch-planning)
 //   * Common Material Purchasing (/inventory/orders) - real purchase orders, inward receipts, material requests
-//   * Issue & Return (/inventory/issue-return) - real material issues, production custody,
-//     returns, defect classification and disposal (apps.stock_movements)
+//   * Stock & Lots (/inventory/stock) - real stock balances, receipt sources, issue outward
+//   * Material Issue to Production (/inventory/issue-return) - real material issues,
+//     production custody, returns, QC disposition, defect classification and disposal
+//   * Control Samples (/inventory/control-samples) - company-scoped GMP retention register
 // - Remaining demo flows:
-//   * Stocks & Lots tab (/inventory/stock) - mock Redux lots
-//   * Dashboard, Orders, Quality, Invoices, Supply Chain, HRMS (/dashboard, etc.)
+//   * Invoices, Supply Chain, HRMS (/invoices, /supply-chain, /hrms)
 // - Partial:
 //   * Profile (/profile) - real user identity, HR persona bridge
 
@@ -30,6 +31,7 @@ const REAL_PREFIXES = [
   '/inventory/orders',
   '/inventory/stock',
   '/inventory/issue-return',
+  '/inventory/control-samples',
   '/products',
   '/orders',
   '/customer-management',

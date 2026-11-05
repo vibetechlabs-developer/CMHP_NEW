@@ -484,6 +484,9 @@ class GoodsReceiptCreateTests(GoodsReceiptTestCase):
         self.assertEqual(len(body["lines"]), 1)
         self.assertEqual(body["lines"][0]["received_quantity"], "60.000")
         self.assertEqual(body["lines"][0]["material_code"], "MAT1")
+        self.assertEqual(body["lines"][0]["material_kind"], "RAW_MATERIAL")
+        self.assertEqual(body["company_legal_name"], self.company.legal_name)
+        self.assertTrue(body["supplier_display"])
 
     def test_only_issued_source_draft_rejected(self):
         pr = create_purchase_request(

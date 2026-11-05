@@ -159,6 +159,24 @@ export async function listMaterialReturns(storeId, { material, returnType, dispo
   return response.data
 }
 
+export async function decideMaterialReturnDisposition(storeId, returnId, { disposition, reason = '' } = {}) {
+  const response = await api.post(`/v1/stores/${storeId}/material-returns/${returnId}/disposition/`, {
+    disposition,
+    reason,
+  })
+  return response.data
+}
+
+export async function setLotQualityStatus(storeId, movementId, { status, arNo = '', chemist = '', remarks = '' } = {}) {
+  const response = await api.post(`/v1/stores/${storeId}/stock-movements/${movementId}/quality-status/`, {
+    status,
+    ar_no: arNo,
+    chemist,
+    remarks,
+  })
+  return response.data
+}
+
 // ---------------------------------------------------------------------------
 // Physical Count & Cutover Opening Drafts APIs
 // ---------------------------------------------------------------------------

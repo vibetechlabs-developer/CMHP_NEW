@@ -1083,6 +1083,49 @@ class PackingRelationshipTests(BatchPlanBase):
         self.assertEqual(assessment["difference"]["value"], "0.75")
         self.assertEqual(SalesOrderLine.objects.get(pk=self.line.id).quantity, Decimal("100.000"))
 
+    def test_count_to_count_packing_relationship_success(self):
+        unit_box = make_unit("BOX", dimension=UnitOfMeasure.Dimension.COUNT)
+        box_product = make_product(self.company, unit_box, self.admin)
+        so = create_sales_order(
+            company=self.company, customer_id=self.customer.id, currency="INR", order_date=datetime.date(2026, 1, 1),
+            actor=self.admin, lines=[{"product_id": box_product.id, "quantity": Decimal("100"), "unit_price": Decimal("10")}],
+        )
+        box_line = so.lines.first()
+        btl_formula = Formula.objects.create(
+            company=self.company, product=box_product, code="F-BTL-01", name="Box Product Bottled",
+            latest_revision_number=1, created_by=self.admin,
+        )
+        btl_revision = FormulaRevision.objects.create(
+            formula=btl_formula, revision_number=1, status=FormulaRevision.Status.DRAFT,
+            base_output_quantity=Decimal("100.000"), output_uom=self.unit_count, created_by=self.admin,
+        )
+        FormulaLine.objects.create(
+            revision=btl_revision, line_number=1, material=self.raw_mat, quantity=Decimal("50.000"),
+            unit=self.unit_kg, material_code_snapshot=self.raw_mat.code, material_name_snapshot=self.raw_mat.name,
+            material_kind_snapshot=self.raw_mat.kind, unit_code_snapshot=self.unit_kg.code, unit_name_snapshot=self.unit_kg.name,
+        )
+        approve_revision_directly(btl_revision, self.admin)
+
+        payload = {
+            "sales_order_line_id": box_line.id,
+            "formula_revision_id": btl_revision.id,
+            "target_output_quantity": "100",
+            "planned_pack_quantity": "100",
+            "packing_content_quantity": "1",
+            "packing_content_uom_id": self.unit_count.id,
+        }
+        res = self.client.post(
+            plan_list_url(self.company.id), data=json.dumps(payload), content_type="application/json",
+            **bearer(self.operator),
+        )
+        self.assertEqual(res.status_code, 201, res.content)
+        body = res.json()
+        self.assertEqual(body["planned_pack_quantity"], "100.000")
+        self.assertEqual(body["packing_content_quantity"], "1.000")
+        self.assertEqual(body["packing_content_uom_id"], self.unit_count.id)
+        self.assertEqual(body["target_output_quantity"], "100.000")
+        self.assertEqual(body["packing_assessment"]["expected_packed_content"]["value"], "100")
+
     def test_missing_or_incomplete_packing_fields_rejected(self):
         for kwargs in (
             {"planned_pack_quantity": "3024"},

@@ -170,38 +170,20 @@ export default function ProductsPage() {
 
   return (
     <div className="ci-container">
-      <div className="ci-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
-        {/* Row 1: title */}
+      <div className="ci-header">
         <div className="ci-header-titles">
           <h2>Products</h2>
-          <p>Finished products for the selected company's own catalog - never shared across companies.</p>
+          <p>Finished products for the company's catalog - never shared across companies.</p>
         </div>
-        {/* Row 2: company dropdown (left) + action buttons (right) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {companies.length > 1 && (
-            <select
-              className="company-input"
-              value={companyId ?? ''}
-              onChange={(e) => setCompanyId(e.target.value ? Number(e.target.value) : null)}
-              style={{ flex: 1, minWidth: 0 }}
-              aria-label="Company"
-            >
-              <option value="">Choose a company</option>
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>{c.display_name || c.legal_name || c.code}</option>
-              ))}
-            </select>
+        <div className="ci-header-actions">
+          {canImport && (
+            <Button type="button" variant="secondary" onClick={() => setImporting(true)}>
+              <span aria-hidden="true">📥</span> Import CSV
+            </Button>
           )}
-          <div style={{ display: 'flex', gap: 10, marginLeft: 'auto', flexShrink: 0 }}>
-            {canImport && (
-              <Button type="button" variant="secondary" onClick={() => setImporting(true)}>
-                <span aria-hidden="true">📥</span> Import CSV
-              </Button>
-            )}
-            {canCreate && (
-              <Button type="button" variant="primary" onClick={() => setEditing({ mode: 'create' })}>+ Add Product</Button>
-            )}
-          </div>
+          {canCreate && (
+            <Button type="button" variant="primary" onClick={() => setEditing({ mode: 'create' })}>+ Add Product</Button>
+          )}
         </div>
       </div>
 
@@ -220,14 +202,6 @@ export default function ProductsPage() {
         <Alert type="error">No company is linked to your account. Products cannot be shown.</Alert>
       )}
 
-      {companiesReady && companies.length > 0 && !companyId && (
-        <div className="ci-empty-card">
-          <div className="ci-empty-icon">🏢</div>
-          <div className="ci-empty-title">Choose a company</div>
-          <p className="ci-empty-desc">Select a company above to see its products.</p>
-        </div>
-      )}
-
       {companyId && !permissionsLoading && !canView && (
         <Alert type="error">You cannot see products for this company. Ask an administrator for access.</Alert>
       )}
@@ -235,6 +209,26 @@ export default function ProductsPage() {
       {companyId && (permissionsLoading || canView) && (
         <>
           <div className="inv-filters-bar">
+            {/* Company Selector — Products are company-scoped */}
+            {companiesReady && companies.length >= 1 && (
+              <select
+                className="company-input"
+                aria-label="Select company"
+                value={companyId}
+                onChange={(e) => {
+                  setCompanyId(Number(e.target.value))
+                  setFilter({ page: null, search: null, status: null })
+                }}
+                style={{ minWidth: 180, fontWeight: 600 }}
+              >
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    🏢 {c.legal_name || c.name || c.code}
+                  </option>
+                ))}
+              </select>
+            )}
+
             <input
               type="search"
               placeholder="Search by product code or name…"
@@ -277,49 +271,75 @@ export default function ProductsPage() {
                       <th>Status</th>
                       <th>QA Approval</th>
                       {canFormulas && <th>Formulas</th>}
+                      <th>BMR</th>
                       <th style={{ textAlign: 'right' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {data.results.map((product) => (
-                      <tr key={product.id}>
-                        <td className="ci-code">{product.code}</td>
-                        <td style={{ fontWeight: 600 }}>{product.name}</td>
-                        <td>{product.product_type || '—'}</td>
-                        <td>{product.pack_size || '—'}</td>
-                        <td>{product.bmr_no || '—'}</td>
-                        <td>
-                          <span className={`ci-badge ${product.is_active ? 'ci-badge-active' : 'ci-badge-inactive'}`}>
-                            {product.is_active ? 'Active' : 'Inactive'}
-                          </span>
-                        </td>
-                        <td>
-                          {renderQaBadge(product.qa_approval_status || product.qc_approval_status)}
-                        </td>
-                        {canFormulas && (
+                    {data.results.map((product) => {
+                      const bmrUrl = `/production/bmr?productId=${product.id}&productCode=${encodeURIComponent(product.code)}&productName=${encodeURIComponent(product.name)}&bmrNo=${encodeURIComponent(product.bmr_no || '')}&productType=${encodeURIComponent(product.product_type || '')}&packSize=${encodeURIComponent(product.pack_size || '')}&returnTo=/products`
+                      return (
+                        <tr key={product.id}>
+                          <td className="ci-code">{product.code}</td>
+                          <td style={{ fontWeight: 600 }}>{product.name}</td>
+                          <td>{product.product_type || '—'}</td>
+                          <td>{product.pack_size || '—'}</td>
                           <td>
-                            <Link className="ci-row-btn ci-row-btn-formula" to={`${formulasBasePath}/${companyId}/${product.id}/formulas`}>
-                              ✏️ Formula
+                            {product.bmr_no ? (
+                              <Link
+                                to={bmrUrl}
+                                className="ci-row-link"
+                                style={{ fontWeight: 600, color: '#0284c7' }}
+                                title={`Open BMR for ${product.name} (${product.bmr_no})`}
+                              >
+                                {product.bmr_no}
+                              </Link>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                          <td>
+                            <span className={`ci-badge ${product.is_active ? 'ci-badge-active' : 'ci-badge-inactive'}`}>
+                              {product.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+                          <td>
+                            {renderQaBadge(product.qa_approval_status || product.qc_approval_status)}
+                          </td>
+                          {canFormulas && (
+                            <td>
+                              <Link className="ci-row-btn ci-row-btn-formula" to={`${formulasBasePath}/${companyId}/${product.id}/formulas`}>
+                                ✏️ Formula
+                              </Link>
+                            </td>
+                          )}
+                          <td>
+                            <Link
+                              className="ci-row-btn ci-row-btn-bmr"
+                              to={bmrUrl}
+                              title={`Open BMR for ${product.name}`}
+                            >
+                              📄 BMR
                             </Link>
                           </td>
-                        )}
-                        <td>
-                          <div className="ci-row-actions">
-                            <button type="button" className="table-edit" onClick={() => setEditing({ mode: 'edit', productId: product.id })}>
-                              {canEdit || canActivate || canDeactivate ? 'Edit' : 'View'}
-                            </button>
-                            {canDelete && (
-                              <button type="button" className="table-delete" onClick={() => handleDelete(product)} disabled={busyId === product.id}>
-                                Delete
+                          <td>
+                            <div className="ci-row-actions">
+                              <button type="button" className="table-edit" onClick={() => setEditing({ mode: 'edit', productId: product.id })}>
+                                {canEdit || canActivate || canDeactivate ? 'Edit' : 'View'}
                               </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                              {canDelete && (
+                                <button type="button" className="table-delete" onClick={() => handleDelete(product)} disabled={busyId === product.id}>
+                                  Delete
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
                     {loading && data.results.length === 0 && (
                       <tr>
-                        <td colSpan={canFormulas ? 9 : 8} style={{ textAlign: 'center', padding: '28px 0' }}>
+                        <td colSpan={canFormulas ? 10 : 9} style={{ textAlign: 'center', padding: '28px 0' }}>
                           <Spinner tone="brand" label="Loading products…" />
                         </td>
                       </tr>

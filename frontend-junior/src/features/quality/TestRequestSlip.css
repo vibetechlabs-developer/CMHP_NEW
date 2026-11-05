@@ -1,0 +1,243 @@
+/* =========================================================
+   CMHP PHARMA — TEST REQUEST (BULK)
+   Table-based exact replica of SOP/QA/04/F-03/00
+   Font: Times New Roman
+   ========================================================= */
+
+.test-req-wrapper {
+  width: 100%;
+  padding: 10px 0 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ── TOOLBAR ── */
+.test-req-toolbar {
+  width: 720px;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin-bottom: 18px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  flex-wrap: wrap;
+}
+.test-req-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.test-req-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── PAGE WRAPPER (holds both copies) ── */
+.test-req-page {
+  width: 720px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin: 0 auto;
+}
+
+/* Gap between the two copies */
+.trs-copy-gap {
+  height: 22px;
+}
+
+/* ── SHEET CONTAINER ── */
+.test-req-sheet {
+  width: 100%;
+  background: #ffffff;
+  color: #000000;
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+  box-sizing: border-box;
+  font-size: 11pt;
+  line-height: 1.3;
+  border: 1.5px solid #000000;
+}
+
+/* ── MIRROR SPAN (read-only copy) ── */
+.trs-cell-mirror {
+  display: inline-block;
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 11pt;
+  color: #000;
+  font-weight: 400;
+  padding: 0 3px;
+  min-height: 22px;
+  vertical-align: middle;
+  background: transparent;
+  border-bottom: 1px dotted #aaa;
+  min-width: 20px;
+}
+
+/* ── MASTER TABLE ── */
+.trs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 11pt;
+  color: #000000;
+  table-layout: fixed;
+}
+
+/* All cells default border */
+.trs-table td {
+  border: 1px solid #000000;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+
+/* ── HEADER CELL: Logo + Company ── */
+.trs-header-cell {
+  padding: 0 !important;
+  border-bottom: 1.5px solid #000000 !important;
+}
+.trs-header-inner {
+  display: flex;
+  align-items: center;
+  padding: 7px 14px;
+  min-height: 54px;
+}
+.trs-logo-wrap {
+  width: 70px;
+  flex-shrink: 0;
+}
+.trs-logo-img {
+  height: 36px;
+  width: auto;
+  display: block;
+}
+.trs-company-title {
+  flex: 1;
+  text-align: center;
+  font-size: 17pt;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #000000;
+  margin-left: -70px;
+}
+
+/* ── CENTERED CELL ── */
+.trs-center-cell {
+  text-align: center;
+  padding: 5px 10px;
+  box-sizing: border-box;
+}
+
+/* ── LABEL CELL (gray shaded) ── */
+.trs-lbl-cell {
+  background: #e8e8e8;
+  font-weight: 700;
+  font-size: 10.8pt;
+  padding: 5px 8px;
+  vertical-align: middle;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+/* ── VALUE CELL (white bg) ── */
+.trs-val-cell {
+  background: #ffffff;
+  font-weight: 400;
+  padding: 3px 6px;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+
+/* ── SIGN ROW CELLS ── */
+.trs-sign-cell {
+  padding: 6px 8px;
+  min-height: 36px;
+  box-sizing: border-box;
+  font-size: 10.5pt;
+  vertical-align: middle;
+}
+.trs-sign-lbl {
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── TESTS TEXT CELL ── */
+.trs-tests-text-cell {
+  padding: 6px 10px 8px !important;
+  font-size: 10.5pt;
+  font-weight: 400;
+  line-height: 1.55;
+  vertical-align: top !important;
+}
+
+/* ── HELPERS ── */
+.trs-bold { font-weight: 700; }
+.trs-lbl {
+  font-weight: 700;
+  display: inline;
+  flex-shrink: 0;
+}
+.trs-no-pad { padding: 0 !important; }
+
+/* ── INLINE INPUT ── */
+.trs-cell-input {
+  border: none;
+  border-bottom: 1px dotted #777;
+  background: transparent;
+  outline: none;
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 11pt;
+  color: #000000;
+  padding: 1px 3px;
+  height: 22px;
+  line-height: 22px;
+  font-weight: 400;
+  box-sizing: border-box;
+  vertical-align: middle;
+  display: inline-block;
+}
+.trs-cell-input:focus {
+  background: rgba(2, 132, 199, 0.07);
+  border-bottom: 1.5px solid #0284c7;
+  border-radius: 2px;
+}
+
+/* ── PRINT ── */
+@media print {
+  body * { visibility: hidden; }
+  .test-req-page,
+  .test-req-page * { visibility: visible; }
+  .test-req-page {
+    position: absolute;
+    left: 0; top: 0;
+    width: 100% !important;
+    display: flex;
+    flex-direction: column;
+  }
+  .test-req-sheet {
+    box-shadow: none !important;
+    border: 1.5px solid #000 !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .trs-copy-gap { height: 12px; }
+  .no-print,
+  .test-req-toolbar,
+  header, nav, .sidebar { display: none !important; }
+  .trs-cell-input,
+  .trs-cell-mirror {
+    border-bottom: none !important;
+    background: transparent !important;
+  }
+}

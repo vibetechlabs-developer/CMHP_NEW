@@ -5,6 +5,7 @@ from rest_framework import serializers
 
 from apps.stock_movements.models import (
     CutoverStockDraft,
+    LotQualityStatus,
     MaterialIssue,
     MaterialIssueMovement,
     MaterialReturn,
@@ -117,6 +118,10 @@ class StockMovementSerializer(serializers.ModelSerializer):
     unit_price = serializers.SerializerMethodField()
     pricing_unit_code = serializers.SerializerMethodField()
     currency_code = serializers.SerializerMethodField()
+    quality_status = serializers.SerializerMethodField()
+    quality_ar_no = serializers.SerializerMethodField()
+    quality_chemist = serializers.SerializerMethodField()
+    quality_remarks = serializers.SerializerMethodField()
 
     class Meta:
         model = StockMovement
@@ -149,14 +154,45 @@ class StockMovementSerializer(serializers.ModelSerializer):
             "pricing_unit_code",
             "currency_code",
             "release_status",
+            "quality_status",
+            "quality_ar_no",
+            "quality_chemist",
+            "quality_remarks",
             "posted_by_id",
             "posted_at",
             "created_at",
         ]
         read_only_fields = fields
 
+    def _quality_row(self, obj):
+        try:
+            return obj.quality_status
+        except LotQualityStatus.DoesNotExist:
+            return None
+        except AttributeError:
+            return None
+
     def get_release_status(self, obj):
-        return "Not tracked"
+        row = self._quality_row(obj)
+        if row is None:
+            return "APPROVED"
+        return row.status
+
+    def get_quality_status(self, obj):
+        row = self._quality_row(obj)
+        return row.status if row is not None else None
+
+    def get_quality_ar_no(self, obj):
+        row = self._quality_row(obj)
+        return row.ar_no if row is not None else ""
+
+    def get_quality_chemist(self, obj):
+        row = self._quality_row(obj)
+        return row.chemist if row is not None else ""
+
+    def get_quality_remarks(self, obj):
+        row = self._quality_row(obj)
+        return row.remarks if row is not None else ""
 
     def get_supplier_code(self, obj):
         purchase_order = obj.source_goods_receipt.source_purchase_order
@@ -346,6 +382,18 @@ def _reject_prohibited_issue_fields(initial_data, prohibited):
         )
 
 
+class MaterialIssueLineSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    line_number = serializers.IntegerField(read_only=True)
+    material_id = serializers.IntegerField()
+    unit_id = serializers.IntegerField(required=False, allow_null=True)
+    issued_quantity = serializers.DecimalField(max_digits=14, decimal_places=3, min_value=Decimal("0.001"))
+    material_code_snapshot = serializers.CharField(read_only=True)
+    material_name_snapshot = serializers.CharField(read_only=True)
+    unit_code_snapshot = serializers.CharField(read_only=True)
+    unit_name_snapshot = serializers.CharField(read_only=True)
+
+
 class MaterialIssueSerializer(serializers.ModelSerializer):
     store_id = serializers.IntegerField(source="store.id", read_only=True)
     store_code = serializers.CharField(source="store.code", read_only=True)
@@ -354,6 +402,9 @@ class MaterialIssueSerializer(serializers.ModelSerializer):
     material_id = serializers.IntegerField(source="material.id", read_only=True)
     material_kind = serializers.CharField(source="material.kind", read_only=True)
     unit_id = serializers.IntegerField(source="unit.id", read_only=True)
+    batch_plan_id = serializers.IntegerField(read_only=True, allow_null=True)
+    sales_order_id = serializers.IntegerField(read_only=True, allow_null=True)
+    lines = MaterialIssueLineSerializer(many=True, read_only=True)
     created_by_id = serializers.IntegerField(source="created_by.id", read_only=True)
     posted_by_id = serializers.SerializerMethodField()
     cancelled_by_id = serializers.SerializerMethodField()
@@ -381,6 +432,9 @@ class MaterialIssueSerializer(serializers.ModelSerializer):
             "batch_reference",
             "product_reference",
             "remarks",
+            "batch_plan_id",
+            "sales_order_id",
+            "lines",
             "created_by_id",
             "created_at",
             "updated_at",
@@ -401,33 +455,41 @@ class MaterialIssueSerializer(serializers.ModelSerializer):
 
 
 class MaterialIssueCreateSerializer(serializers.Serializer):
-    """`store` comes from the URL; `source_company_id`/`material_id` are
-    both required and explicitly chosen by the caller - there is no
-    purchase order to derive either from (see MaterialIssue's own
-    docstring). `unit` is always the material's own base unit, never
-    independently accepted.
+    """Material issue to production. Requires batch_plan_id and/or
+    sales_order_id. Accepts either a single material header or `lines`
+    for a multi-material BMR/batch slip.
     """
 
     source_company_id = serializers.IntegerField()
-    material_id = serializers.IntegerField()
+    material_id = serializers.IntegerField(required=False)
     unit_id = serializers.IntegerField(required=False, allow_null=True)
-    issued_quantity = serializers.DecimalField(max_digits=14, decimal_places=3, min_value=Decimal("0.001"))
+    issued_quantity = serializers.DecimalField(
+        max_digits=14, decimal_places=3, min_value=Decimal("0.001"), required=False
+    )
     issued_at = serializers.DateTimeField()
     batch_reference = serializers.CharField(required=False, allow_blank=True, max_length=100, default="")
     product_reference = serializers.CharField(required=False, allow_blank=True, max_length=255, default="")
     remarks = serializers.CharField(required=False, allow_blank=True, max_length=2000, default="")
     idempotency_key = serializers.CharField(required=False, allow_blank=True, max_length=100, default="")
+    batch_plan_id = serializers.IntegerField(required=False, allow_null=True)
+    sales_order_id = serializers.IntegerField(required=False, allow_null=True)
+    lines = MaterialIssueLineSerializer(many=True, required=False)
 
     def validate(self, attrs):
         _reject_prohibited_issue_fields(self.initial_data, _ISSUE_HEADER_PROHIBITED)
+        if not attrs.get("batch_plan_id") and not attrs.get("sales_order_id"):
+            raise serializers.ValidationError({
+                "detail": "batch_plan_id or sales_order_id is required for material issue to production.",
+            })
+        if not attrs.get("lines") and not attrs.get("material_id"):
+            raise serializers.ValidationError({
+                "detail": "Provide material_id or a non-empty lines list.",
+            })
         return attrs
 
 
 class MaterialIssueUpdateSerializer(serializers.Serializer):
-    """PATCH-only, DRAFT only. `expected_version` is always required.
-    `source_company`/`material`/`unit` are immutable after creation -
-    only the remaining header fields may change.
-    """
+    """PATCH-only, DRAFT only. `expected_version` is always required."""
 
     expected_version = serializers.IntegerField()
     issued_quantity = serializers.DecimalField(max_digits=14, decimal_places=3, min_value=Decimal("0.001"), required=False)
@@ -435,10 +497,25 @@ class MaterialIssueUpdateSerializer(serializers.Serializer):
     batch_reference = serializers.CharField(required=False, allow_blank=True, max_length=100)
     product_reference = serializers.CharField(required=False, allow_blank=True, max_length=255)
     remarks = serializers.CharField(required=False, allow_blank=True, max_length=2000)
+    batch_plan_id = serializers.IntegerField(required=False, allow_null=True)
+    sales_order_id = serializers.IntegerField(required=False, allow_null=True)
+    lines = MaterialIssueLineSerializer(many=True, required=False)
 
     def validate(self, attrs):
         _reject_prohibited_issue_fields(self.initial_data, _ISSUE_HEADER_PROHIBITED | {"source_company_id", "material_id"})
         return attrs
+
+
+class MaterialReturnDispositionSerializer(serializers.Serializer):
+    disposition = serializers.ChoiceField(choices=["RELEASED_USABLE", "QUARANTINE_REJECTED"])
+    reason = serializers.CharField(required=False, allow_blank=True, max_length=500, default="")
+
+
+class LotQualityStatusSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=["APPROVED", "UNDER_TEST", "ON_HOLD", "REJECTED"])
+    ar_no = serializers.CharField(required=False, allow_blank=True, max_length=100, default="")
+    chemist = serializers.CharField(required=False, allow_blank=True, max_length=255, default="")
+    remarks = serializers.CharField(required=False, allow_blank=True, max_length=2000, default="")
 
 
 class MaterialIssueVersionSerializer(serializers.Serializer):
@@ -479,6 +556,7 @@ class NetRecordedBalanceSerializer(serializers.Serializer):
     recorded_issued_quantity = serializers.DecimalField(max_digits=14, decimal_places=3)
     net_quantity = serializers.DecimalField(max_digits=14, decimal_places=3)
     recorded_returned_quantity = serializers.DecimalField(max_digits=14, decimal_places=3)
+    recorded_released_usable_quantity = serializers.DecimalField(max_digits=14, decimal_places=3)
     book_quantity = serializers.DecimalField(max_digits=14, decimal_places=3)
 
 
@@ -598,6 +676,9 @@ class MaterialReturnSerializer(serializers.ModelSerializer):
             "recorded_by_id",
             "recorded_by_username",
             "created_at",
+            "disposition_decided_by_id",
+            "disposition_decided_at",
+            "disposition_reason",
         ]
         read_only_fields = fields
 

@@ -1,0 +1,434 @@
+/* =========================================================
+   CMHP PHARMA - PRODUCTION TRACKING STYLES (TABLE VIEW)
+   ========================================================= */
+
+.prod-page {
+  width: 100%;
+  padding-bottom: 60px;
+}
+
+.prod-header {
+  margin-bottom: 20px;
+}
+
+.prod-header h1 {
+  font-size: 24px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 6px;
+}
+
+.prod-header p {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+}
+
+/* FILTER BAR (Single horizontal row on desktop >= 1366px, smooth horizontal scroll on small screens) */
+.prod-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  background: #ffffff;
+  padding: 10px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  scrollbar-width: thin;
+}
+
+.prod-filter-bar::-webkit-scrollbar {
+  height: 4px;
+}
+
+.prod-filter-bar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.prod-filter-input {
+  height: 36px;
+  padding: 0 12px;
+  font-size: 13px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #1e293b;
+  outline: none;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.prod-filter-input:focus,
+.prod-filter-select:focus {
+  border-color: #0284c7;
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.12);
+}
+
+.prod-filter-search {
+  flex: 1 1 180px;
+  min-width: 150px;
+}
+
+.prod-filter-select {
+  height: 36px;
+  padding: 0 8px;
+  font-size: 13px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #1e293b;
+  outline: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  width: 125px;
+  box-sizing: border-box;
+}
+
+.prod-filter-date-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.prod-filter-date-input {
+  width: 130px;
+  flex-shrink: 0;
+}
+
+.prod-filter-date-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.prod-filter-reset {
+  height: 36px;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.prod-filter-reset:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+/* Dosage Form Badges */
+.dosage-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: capitalize;
+  letter-spacing: 0.3px;
+}
+
+.dosage-liquid { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+.dosage-tablet { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+.dosage-capsule { background: #ede9fe; color: #6d28d9; border: 1px solid #ddd6fe; }
+.dosage-syrup { background: #fce7f3; color: #be185d; border: 1px solid #fbcfe8; }
+.dosage-drops { background: #ccfbf1; color: #0f766e; border: 1px solid #99f6e4; }
+.dosage-oil { background: #fef9c3; color: #854d0e; border: 1px solid #fef08a; }
+.dosage-kits { background: #ffedd5; color: #c2410c; border: 1px solid #fed7aa; }
+.dosage-pills { background: #e0e7ff; color: #3730a3; border: 1px solid #c7d2fe; }
+.dosage-default { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+
+/* STATS ROW */
+.prod-stats-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.prod-stat-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.prod-stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.prod-stat-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+/* TABLE CONTAINER */
+.prod-table-container {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  overflow-x: auto;
+}
+
+.prod-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+  min-width: 1200px;
+}
+
+.prod-table th {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 700;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.prod-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+  vertical-align: middle;
+}
+
+.prod-table tr:hover {
+  background: #fbfcfe;
+}
+
+/* YES / NO TOGGLE IN ROWS */
+.prod-row-yn {
+  display: inline-flex;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.prod-row-yn-btn {
+  border: none;
+  background: #ffffff;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.prod-row-yn-btn.active-yes {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.prod-row-yn-btn.active-no {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+/* TABLE CONTROL INPUTS */
+.prod-table-select {
+  height: 32px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1e293b;
+  outline: none;
+  cursor: pointer;
+}
+
+.prod-table-input {
+  height: 32px;
+  padding: 0 8px;
+  font-size: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1e293b;
+  outline: none;
+  width: 150px;
+}
+
+.prod-table-input:focus,
+.prod-table-select:focus {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.12);
+}
+
+/* ACTION BUTTONS */
+.prod-action-btn-bmr {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  background: #0284c7;
+  color: #ffffff;
+  border: 1px solid #0284c7;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.prod-action-btn-bmr:hover {
+  background: #0369a1;
+  border-color: #0369a1;
+}
+
+.prod-action-btn-inv {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.prod-action-btn-inv:hover:not(:disabled) {
+  background: #dcfce7;
+}
+
+.prod-action-btn-inv:disabled,
+.prod-action-btn-inv.disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+  border-color: #e2e8f0;
+  cursor: not-allowed;
+  opacity: 0.65;
+  box-shadow: none;
+}
+
+/* QA STATUS BADGES FOR PRODUCTION & PRODUCTION QA */
+.prod-qa-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.prod-qa-pending {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.prod-qa-approved {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.prod-qa-issue {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.prod-qa-issue-cell {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: #dc2626;
+  max-width: 140px;
+  cursor: pointer;
+}
+
+.prod-qa-issue-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* PAGINATION */
+.prod-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  font-size: 13px;
+  color: #475569;
+}
+
+.prod-page-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #1e293b;
+  transition: all 0.15s ease;
+}
+
+.prod-page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.prod-page-btn:not(:disabled):hover {
+  background: #e2e8f0;
+}
+
+/* EMPTY STATE */
+.prod-empty-state {
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.prod-empty-state h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #334155;
+  margin: 0 0 6px;
+}
+
+.prod-empty-state p {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+}

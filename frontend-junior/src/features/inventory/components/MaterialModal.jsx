@@ -26,6 +26,7 @@ export default function MaterialModal({ mode = 'create', material = null, onClos
   const [kind, setKind] = useState(material?.kind || 'RAW_MATERIAL')
   const [unitId, setUnitId] = useState(material?.base_unit_id || '')
   const [defaultContainerTypeId, setDefaultContainerTypeId] = useState(material?.default_container_type_id || '')
+  const [location, setLocation] = useState(material?.location || '')
   const [description, setDescription] = useState(material?.description || '')
 
   const [units, setUnits] = useState([])
@@ -76,6 +77,7 @@ export default function MaterialModal({ mode = 'create', material = null, onClos
           description: description.trim(),
           kind,
           base_unit_id: Number(unitId),
+          location: location.trim(),
         }
         const originalContainerId = material.default_container_type_id ?? ''
         if (String(defaultContainerTypeId) !== String(originalContainerId)) {
@@ -90,6 +92,7 @@ export default function MaterialModal({ mode = 'create', material = null, onClos
           description: description.trim(),
           kind,
           base_unit_id: Number(unitId),
+          location: location.trim(),
         }
         if (defaultContainerTypeId !== '') payload.default_container_type_id = Number(defaultContainerTypeId)
         await createMaterial(payload)
@@ -169,15 +172,26 @@ export default function MaterialModal({ mode = 'create', material = null, onClos
           </div>
 
           <div className="company-field">
-            <label className="inv-modal-field-label">Default container type <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>(optional)</span></label>
-            <select className="company-input" value={defaultContainerTypeId} onChange={(e) => setDefaultContainerTypeId(e.target.value)}>
-              <option value="">None</option>
-              {containerTypes.map((ct) => (
-                <option key={ct.id} value={ct.id}>{ct.name} ({ct.code})</option>
-              ))}
-            </select>
-            {containerTypesError && <p className="field-error">{containerTypesError}</p>}
+            <label className="inv-modal-field-label">Location <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>(optional)</span></label>
+            <input
+              className="company-input"
+              value={location}
+              placeholder="e.g. Rack A-3, Cold Storage, Shelf 2"
+              onChange={(e) => setLocation(e.target.value)}
+            />
           </div>
+        </div>
+
+        {/* Row 3b: Default container type (full width) */}
+        <div className="company-field">
+          <label className="inv-modal-field-label">Default container type <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>(optional)</span></label>
+          <select className="company-input" value={defaultContainerTypeId} onChange={(e) => setDefaultContainerTypeId(e.target.value)}>
+            <option value="">None</option>
+            {containerTypes.map((ct) => (
+              <option key={ct.id} value={ct.id}>{ct.name} ({ct.code})</option>
+            ))}
+          </select>
+          {containerTypesError && <p className="field-error">{containerTypesError}</p>}
         </div>
 
         {/* Row 4: Description (full width) */}

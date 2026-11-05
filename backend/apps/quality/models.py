@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -487,5 +489,97 @@ class SpecificationTest(models.Model):
             raise ValidationError(errors)
 
     def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
+
+class ControlSample(models.Model):
+    """Company-scoped GMP control / retention sample register.
+
+    Tied to a finished product and optionally a sales order / batch plan.
+    Status is ACTIVE until expiry (then DUE_DISPOSAL) or an explicit DISPOSED.
+    """
+
+    class SampleType(models.TextChoices):
+        RETENTION = "RETENTION", "Retention / Control Room"
+        QC_TESTING = "QC_TESTING", "QC Testing Sample"
+
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE", "Active"
+        DUE_DISPOSAL = "DUE_DISPOSAL", "Due for disposal"
+        DISPOSED = "DISPOSED", "Disposed"
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="control_samples")
+    product = models.ForeignKey(
+        "products.Product", on_delete=models.PROTECT, null=True, blank=True, related_name="control_samples"
+    )
+    sales_order = models.ForeignKey(
+        "sales_orders.SalesOrder", on_delete=models.PROTECT, null=True, blank=True, related_name="control_samples"
+    )
+    batch_plan = models.ForeignKey(
+        "batch_plans.BatchPlan", on_delete=models.PROTECT, null=True, blank=True, related_name="control_samples"
+    )
+    batch_no = models.CharField(max_length=100)
+    product_code = models.CharField(max_length=32, blank=True)
+    product_name = models.CharField(max_length=255)
+    pack_size = models.CharField(max_length=100, blank=True)
+    sample_qty = models.DecimalField(max_digits=14, decimal_places=3)
+    unit = models.CharField(max_length=40, default="Bottles")
+    sample_type = models.CharField(max_length=20, choices=SampleType.choices, default=SampleType.RETENTION)
+    storage_location = models.CharField(max_length=255, blank=True)
+    ar_no = models.CharField(max_length=100, blank=True)
+    mfg_date = models.DateField(null=True, blank=True)
+    exp_date = models.DateField(null=True, blank=True)
+    tested_by = models.CharField(max_length=255, blank=True)
+    notes = models.CharField(max_length=2000, blank=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
+    fg_deducted = models.BooleanField(default=False)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="control_samples_created"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    disposed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="control_samples_disposed",
+    )
+    disposed_at = models.DateTimeField(null=True, blank=True)
+    disposal_remarks = models.CharField(max_length=2000, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self):
+        return f"ControlSample {self.batch_no} ({self.product_name})"
+
+    def clean(self):
+        self.batch_no = (self.batch_no or "").strip()
+        self.product_code = (self.product_code or "").strip()
+        self.product_name = (self.product_name or "").strip()
+        self.pack_size = (self.pack_size or "").strip()
+        self.unit = (self.unit or "Bottles").strip() or "Bottles"
+        self.storage_location = (self.storage_location or "").strip()
+        self.ar_no = (self.ar_no or "").strip()
+        self.tested_by = (self.tested_by or "").strip()
+        self.notes = (self.notes or "").strip()
+        self.disposal_remarks = (self.disposal_remarks or "").strip()
+        errors = {}
+        if not self.batch_no:
+            errors["batch_no"] = "Batch number is required."
+        if not self.product_name:
+            errors["product_name"] = "Product name is required."
+        if self.sample_qty is None or self.sample_qty <= Decimal("0"):
+            errors["sample_qty"] = "Sample quantity must be greater than zero."
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        if self.status != self.Status.DISPOSED and self.exp_date:
+            from django.utils import timezone as tz
+            if self.exp_date < tz.now().date():
+                self.status = self.Status.DUE_DISPOSAL
         self.clean()
         super().save(*args, **kwargs)

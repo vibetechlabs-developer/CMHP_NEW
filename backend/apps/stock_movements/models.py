@@ -136,6 +136,44 @@ class StockMovement(models.Model):
         raise ValidationError({"detail": "Stock movements cannot be deleted."})
 
 
+class LotQualityStatus(models.Model):
+    """QC release gate for one receipt lot (`StockMovement`).
+
+    APPROVED lots are issue-eligible. UNDER_TEST / ON_HOLD / REJECTED lots
+    are excluded from the posting cap used by `post_material_issue`.
+    Newly posted goods receipts start as UNDER_TEST (quarantine) until
+    incoming QC approves them. Missing row is treated as APPROVED so
+    historical receipts stay issuable until an explicit quarantine/reject
+    decision is recorded.
+    """
+
+    class Status(models.TextChoices):
+        APPROVED = "APPROVED", "Approved / Released"
+        UNDER_TEST = "UNDER_TEST", "Under Test / Quarantine"
+        ON_HOLD = "ON_HOLD", "On Hold"
+        REJECTED = "REJECTED", "Rejected"
+
+    stock_movement = models.OneToOneField(
+        StockMovement, on_delete=models.CASCADE, related_name="quality_status"
+    )
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.APPROVED)
+    ar_no = models.CharField(max_length=100, blank=True)
+    chemist = models.CharField(max_length=255, blank=True)
+    remarks = models.CharField(max_length=2000, blank=True)
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="lot_quality_decisions"
+    )
+    decided_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at", "-id"]
+
+    def __str__(self):
+        return f"LotQualityStatus movement={self.stock_movement_id} {self.status}"
+
+
 class MaterialIssue(models.Model):
     """A document recording material issued OUT of a shared store to a
     company's production, DRAFT -> POSTED -> CANCELLED - the same
@@ -185,6 +223,20 @@ class MaterialIssue(models.Model):
     product_reference = models.CharField(max_length=255, blank=True)
     remarks = models.CharField(max_length=2000, blank=True)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
+    batch_plan = models.ForeignKey(
+        "batch_plans.BatchPlan",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="material_issues",
+    )
+    sales_order = models.ForeignKey(
+        "sales_orders.SalesOrder",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="material_issues",
+    )
 
     material_code_snapshot = models.CharField(max_length=32, blank=True)
     material_name_snapshot = models.CharField(max_length=255, blank=True)
@@ -252,6 +304,40 @@ class MaterialIssue(models.Model):
         self.clean()
         super().save(*args, **kwargs)
 
+    @property
+    def movement(self):
+        return self.movements.order_by("id").first()
+
+    @property
+    def production_custody(self):
+        return self.production_custodies.order_by("id").first()
+
+
+class MaterialIssueLine(models.Model):
+    """One material line on a MaterialIssue slip. One document can carry
+    every RM/PM required for a batch / BMR instead of one material per slip.
+    """
+
+    material_issue = models.ForeignKey(MaterialIssue, on_delete=models.CASCADE, related_name="lines")
+    line_number = models.PositiveIntegerField()
+    material = models.ForeignKey("catalog.Material", on_delete=models.PROTECT, related_name="material_issue_lines")
+    unit = models.ForeignKey("catalog.UnitOfMeasure", on_delete=models.PROTECT, related_name="material_issue_lines")
+    issued_quantity = models.DecimalField(max_digits=14, decimal_places=3)
+    material_code_snapshot = models.CharField(max_length=32, blank=True)
+    material_name_snapshot = models.CharField(max_length=255, blank=True)
+    unit_code_snapshot = models.CharField(max_length=20, blank=True)
+    unit_name_snapshot = models.CharField(max_length=100, blank=True)
+
+    class Meta:
+        ordering = ["line_number", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["material_issue", "line_number"], name="unique_material_issue_line_number"),
+            models.CheckConstraint(check=models.Q(issued_quantity__gt=0), name="material_issue_line_quantity_positive"),
+        ]
+
+    def __str__(self):
+        return f"{self.material_issue.reference} line {self.line_number}"
+
 
 class MaterialIssueMovement(models.Model):
     """One append-only ledger entry created when a `MaterialIssue` is
@@ -271,8 +357,15 @@ class MaterialIssueMovement(models.Model):
     the real `DRAFT` -> `POSTED` transition.
     """
 
-    source_material_issue = models.OneToOneField(
-        MaterialIssue, on_delete=models.PROTECT, related_name="movement"
+    source_material_issue = models.ForeignKey(
+        MaterialIssue, on_delete=models.PROTECT, related_name="movements"
+    )
+    source_line = models.ForeignKey(
+        "stock_movements.MaterialIssueLine",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="movements",
     )
     store = models.ForeignKey("stores.SharedStore", on_delete=models.PROTECT, related_name="material_issue_movements")
     source_company = models.ForeignKey(
@@ -326,8 +419,15 @@ class ProductionCustody(models.Model):
       damaged_quantity is a condition subset of held custody: damaged_quantity <= remaining_quantity
     """
 
-    source_issue = models.OneToOneField(
-        MaterialIssue, on_delete=models.PROTECT, related_name="production_custody"
+    source_issue = models.ForeignKey(
+        MaterialIssue, on_delete=models.PROTECT, related_name="production_custodies"
+    )
+    source_line = models.ForeignKey(
+        "stock_movements.MaterialIssueLine",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="production_custodies",
     )
     store = models.ForeignKey("stores.SharedStore", on_delete=models.PROTECT, related_name="production_custodies")
     source_company = models.ForeignKey(
@@ -431,6 +531,15 @@ class MaterialReturn(models.Model):
     reason = models.CharField(max_length=500, blank=True)
     recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     created_at = models.DateTimeField(auto_now_add=True)
+    disposition_decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="material_returns_dispositioned",
+    )
+    disposition_decided_at = models.DateTimeField(null=True, blank=True)
+    disposition_reason = models.CharField(max_length=500, blank=True)
 
     class Meta:
         ordering = ["-created_at", "-id"]
