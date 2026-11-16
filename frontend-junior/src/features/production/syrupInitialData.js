@@ -70,7 +70,7 @@ export function getEmptySyrupBmrData(orderParam) {
   const customerName = order.customer_name || order.customer || ''
   const batchNumber = order.batch_no || order.batch || ''
   const mfgDate = order.planned_mfg_date || order.mfg_date || order.order_date || new Date().toISOString().slice(0, 10)
-  const compCode = order.company_code || (Number(order.company) === 2 ? 'TB' : 'CMHP')
+  const compCode = order.company_code || (Number(order.company) === 3 ? 'TEJ' : 'CMHP')
   const orderNum = order.number || order.order_number || (order.id ? String(order.id).slice(-4) : '01')
 
   return {

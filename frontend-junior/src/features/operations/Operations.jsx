@@ -1839,8 +1839,8 @@ export default function Operations({
     setSaving(true)
     setProduceError('')
     try {
-      const compId = produceModalOrder.company || getScopedCompanyId() || 1
-      const compKey = Number(compId) === 2 ? 'tej' : 'cmhp'
+      const compId = produceModalOrder.company || getScopedCompanyId() || 2
+      const compKey = Number(compId) === 3 ? 'tej' : 'cmhp'
       const finalBatchNum = commitDocumentNumber('BATCH', compId)
 
       await operationsService.produceBatchFromOrder({

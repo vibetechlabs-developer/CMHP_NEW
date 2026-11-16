@@ -196,10 +196,10 @@ export default function Dashboard() {
 
   useEffect(() => {
     inventoryService
-      .getDashboardSummary()
+      .getDashboardSummary(targetCompanyId)
       .then((res) => setInvSummary(res.data))
       .catch((err) => setInvError(getErrorMessage(err)))
-  }, [])
+  }, [targetCompanyId])
 
   useEffect(() => {
     if (!targetCompanyId) return

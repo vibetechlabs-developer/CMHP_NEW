@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import Button from '../../components/Button'
 import { exportFormulaExcel } from '../../utils/formulaExport'
+import { getCompanyBranding, isTejBiocare } from '../../utils/companyBranding.js'
 import './BmrRequisitionSlipModal.css'
 
 const DEFAULT_PACKING_ITEMS = [
@@ -44,11 +45,15 @@ export default function BmrRequisitionSlipModal({
   const [downloading, setDownloading] = useState(false)
 
   // Authentic pharmaceutical title matching BMR master format
+  // Resolve branding from the company object (id, name, code) first; fall back to active workspace
+  const isTejActive = isTejBiocare(company) || isTejBiocare()
+  const branding = getCompanyBranding(isTejActive ? 'tej' : 'cmhp')
   const rawCompanyName = company?.display_name || company?.name || ''
-  const companyTitle =
-    !rawCompanyName || rawCompanyName.toUpperCase() === 'CMHP' || rawCompanyName.toUpperCase().includes('CENTRAL')
-      ? 'CENTRAL MANUFACTURING HOMEOPATHIC PHARMACY'
-      : rawCompanyName.toUpperCase()
+  const companyTitle = branding.isTej
+    ? branding.headerName
+    : (!rawCompanyName || rawCompanyName.toUpperCase() === 'CMHP' || rawCompanyName.toUpperCase().includes('CENTRAL')
+        ? 'CENTRAL MANUFACTURING HOMEOPATHIC PHARMACY'
+        : rawCompanyName.toUpperCase())
 
   const slipRef = useRef(null)
 
@@ -299,8 +304,13 @@ export default function BmrRequisitionSlipModal({
   const renderHeader = () => (
     <div className="bmr-exact-header-box">
       <div className="bmr-exact-top-banner">
-        <div className="bmr-exact-logo-wrap">
-          <img src="/cmhp_logo.png" alt="CMHP Logo" className="bmr-exact-logo-img" crossOrigin="anonymous" />
+        <div className={`bmr-exact-logo-wrap ${branding.isTej ? 'bmr-exact-logo-wrap-tej' : ''}`}>
+          <img
+            src={branding.isTej ? branding.logoSrc : '/cmhp_logo.png'}
+            alt={branding.headerName}
+            className={`bmr-exact-logo-img ${branding.isTej ? 'bmr-exact-logo-img-tej' : ''}`}
+            crossOrigin="anonymous"
+          />
         </div>
         <div className="bmr-exact-company-title">
           {companyTitle}
@@ -346,7 +356,7 @@ export default function BmrRequisitionSlipModal({
           <tr>
             <td>
               <span className="bmr-field-lbl">COMPANY CODE : </span>
-              <span className="bmr-field-val">{company?.code || 'AAHP'}</span>
+              <span className="bmr-field-val">{branding.isTej ? branding.code : (company?.code || 'CMHP')}</span>
             </td>
             <td>
               <span className="bmr-field-lbl">SUPERSEDES NO : </span>

@@ -506,15 +506,24 @@
   hyphens: auto;
 }
 
-.bmr-table th {
-  background: #ffffff;
-  font-weight: bold;
+.bmr-table th,
+.bmr-sheet table thead th,
+.bmr-sheet table th,
+.bmr-table thead th {
+  height: auto !important;
+  min-height: unset !important;
+  max-height: none !important;
+  background: #ffffff !important;
+  font-weight: normal !important;
+  text-transform: none !important;
   text-align: left;
   font-size: 8pt !important;
-  line-height: 1.1 !important;
+  line-height: 1.15 !important;
   white-space: normal !important;
   word-break: break-word !important;
   overflow-wrap: anywhere !important;
+  color: #000000 !important;
+  padding: 1.5pt 2.5pt !important;
 }
 
 /* INPUTS INSIDE CELLS */
@@ -563,6 +572,18 @@
 .bmr-line-input:focus {
   border-bottom: 1px solid #0284c7;
   background: #f0fdf4;
+}
+
+/* PRINT ONLY / SCREEN UTILITIES */
+.print-only {
+  display: none !important;
+}
+
+.bmr-yes-no-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
 }
 
 /* YES / NO TOGGLE BUTTONS */
@@ -975,7 +996,7 @@
    ========================================================= */
 @media print {
   @page {
-    size: 596pt 842pt;
+    size: A4;
     margin: 0;
   }
 
@@ -1919,4 +1940,930 @@
 .bmr-syrup-p12 .bmr-syrup-radio-group {
   font-size: 7.5pt !important;
   gap: 4px !important;
+}
+
+
+/* =========================================================
+   TABLET BMR SPECIFIC STYLES (Form No. SOP/QA/04/F-05/00)
+   Exact 1-to-1 Replica of 19-Page Tablet BMR PDF
+   ========================================================= */
+
+.bmr-tablet-sheet {
+  width: 596pt;
+  height: 842pt;
+  min-height: 842pt;
+  max-height: 842pt;
+  box-sizing: border-box;
+  padding: 34pt 32pt 24pt 38pt;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: visible;
+  font-family: 'Times New Roman', Times, serif;
+  color: #000000;
+  margin: 0 auto 24px;
+}
+
+.bmr-tablet-sheet .bmr-header-box {
+  width: 100% !important;
+  height: 235pt !important;
+  min-height: 235pt !important;
+  max-height: 235pt !important;
+  border: 1.5px solid #000 !important;
+  box-sizing: border-box !important;
+  flex-shrink: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.bmr-tablet-sheet .bmr-header-top-row {
+  height: 105pt !important;
+  min-height: 105pt !important;
+  max-height: 105pt !important;
+}
+
+.bmr-tablet-sheet .bmr-dept-title {
+  height: 20pt !important;
+  min-height: 20pt !important;
+  max-height: 20pt !important;
+  line-height: 20pt !important;
+  font-size: 10pt !important;
+}
+
+.bmr-tablet-sheet .bmr-doc-title {
+  height: 18pt !important;
+  min-height: 18pt !important;
+  max-height: 18pt !important;
+  line-height: 18pt !important;
+  font-size: 10pt !important;
+}
+
+.bmr-tablet-sheet .bmr-header-grid {
+  height: 92pt !important;
+  min-height: 92pt !important;
+  max-height: 92pt !important;
+  grid-template-rows: 23pt 23pt 23pt 23pt !important;
+}
+
+.bmr-tablet-sheet .bmr-signoff-table th {
+  font-weight: normal !important;
+  text-transform: none !important;
+  font-size: 8.5pt !important;
+}
+
+.bmr-tablet-sheet .bmr-footer-corner-cell {
+  background-color: #d9d9d9 !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+.bmr-tablet-sheet .bmr-footer-label-cell {
+  font-weight: normal !important;
+  text-transform: none !important;
+  font-size: 8.5pt !important;
+}
+
+.bmr-tablet-sheet .bmr-body {
+  flex: 1 0 auto;
+  min-height: 0;
+  height: auto;
+  overflow: visible;
+  font-size: 8.5pt;
+  line-height: 1.2;
+  padding: 4pt 0 0 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.bmr-tablet-sheet .bmr-footer-box {
+  margin-top: auto;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.bmr-tablet-sheet .bmr-table th {
+  font-weight: normal !important;
+  text-transform: none !important;
+}
+
+.bmr-tablet-section-heading {
+  font-size: 8.5pt;
+  color: #000;
+  margin: 4pt 0 3pt;
+  letter-spacing: 0.1px;
+}
+
+/* Page 1 Details Grid */
+.bmr-tablet-p1-details {
+  display: flex;
+  flex-direction: column;
+  gap: 3pt;
+  margin: 6pt 0 10pt;
+}
+
+.bmr-tablet-p1-row {
+  display: flex;
+  align-items: center;
+  font-size: 8.5pt;
+  line-height: 1.2;
+}
+
+.bmr-tablet-p1-row .bmr-p1-num {
+  width: 18pt;
+  font-weight: normal;
+}
+
+.bmr-tablet-p1-row .bmr-p1-label {
+  width: 175pt;
+  font-weight: normal;
+}
+
+.bmr-tablet-p1-row .bmr-p1-colon {
+  width: 14pt;
+  text-align: center;
+}
+
+.bmr-tablet-p1-row .bmr-p1-field {
+  flex: 1;
+  max-width: 220pt;
+}
+
+/* Checklist of attachments table on Page 1 */
+.bmr-tablet-checklist-container {
+  margin-top: 6pt;
+  width: 100%;
+}
+
+.bmr-tablet-checklist-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 8.5pt;
+  table-layout: fixed;
+}
+
+.bmr-compliance-box {
+  width: 62pt;
+  height: 15.5pt;
+  border: 1px solid #000;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  background: #ffffff;
+  font-size: 11pt;
+  font-weight: bold;
+}
+
+.bmr-compliance-box:hover {
+  background: #f8fafc;
+}
+
+.bmr-compliance-box.checked {
+  background: #f0fdf4;
+  color: #000000;
+}
+
+@media print {
+  .bmr-compliance-box {
+    background: transparent !important;
+  }
+  .bmr-compliance-box.checked {
+    background: transparent !important;
+    color: #000000 !important;
+  }
+}
+
+.bmr-applicable-toggle-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: normal;
+  font-size: 8.5pt;
+  margin-left: 6px;
+}
+
+
+/* =========================================================
+   MOTHER TINCTURE BMR (SOP/QA/04/F-01/00 - 6 Pages)
+   ========================================================= */
+
+.dosage-mother-tincture,
+.dosage-mothertincture,
+.dosage-mother\ tincture {
+  background: #ecfdf5 !important;
+  color: #047857 !important;
+  border: 1px solid #a7f3d0 !important;
+}
+
+.bmr-mother-tincture-sheet {
+  width: 596pt;
+  min-height: 842pt;
+  height: auto;
+  max-height: none;
+  padding: 24pt 34pt 20pt 38pt;
+  box-sizing: border-box;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  position: relative;
+  overflow: visible;
+  font-family: 'Times New Roman', Times, serif;
+  color: #000000;
+  margin: 0 auto 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.bmr-mother-tincture-sheet .bmr-body {
+  flex: 1 0 auto;
+  min-height: 0;
+  width: 100%;
+}
+
+.bmr-mt-header-box {
+  width: 100%;
+  height: 202pt;
+  min-height: 202pt;
+  max-height: 202pt;
+  border: 1.5px solid #000;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  margin-bottom: 0;
+}
+
+.bmr-mt-header-top-row {
+  height: 74pt;
+  min-height: 74pt;
+  max-height: 74pt;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1.5px solid #000;
+  padding: 4pt 8pt;
+  box-sizing: border-box;
+}
+
+.bmr-mt-header-box .bmr-dept-title {
+  height: 20pt;
+  min-height: 20pt;
+  max-height: 20pt;
+  line-height: 20pt;
+  font-size: 10pt;
+  border-bottom: 1px solid #000;
+}
+
+.bmr-mt-header-box .bmr-doc-title {
+  height: 20pt;
+  min-height: 20pt;
+  max-height: 20pt;
+  line-height: 20pt;
+  font-size: 10pt;
+  border-bottom: 1.5px solid #000;
+}
+
+.bmr-mt-header-grid {
+  display: grid;
+  grid-template-columns: 50% 50%;
+  grid-template-rows: 22pt 22pt 22pt 22pt;
+  height: 88pt;
+  min-height: 88pt;
+  max-height: 88pt;
+  box-sizing: border-box;
+}
+
+.bmr-mt-header-grid .bmr-grid-cell {
+  height: 22pt;
+  min-height: 22pt;
+  max-height: 22pt;
+}
+
+.bmr-mt-inline-fields {
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  gap: 4pt !important;
+}
+
+.bmr-mt-nowrap-label {
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  flex-shrink: 0 !important;
+  font-size: 8.5pt !important;
+}
+
+.bmr-table input.bmr-mt-time-input,
+.bmr-mt-table input.bmr-mt-time-input,
+.bmr-mt-time-input {
+  width: 48pt !important;
+  max-width: 48pt !important;
+  flex: 0 0 48pt !important;
+  text-align: center !important;
+  border: none !important;
+  border-bottom: 1px dotted #000 !important;
+  height: 14pt !important;
+  padding: 0 2pt !important;
+  font-size: 8.5pt !important;
+  background: transparent !important;
+}
+
+.bmr-table input.bmr-mt-qty-input,
+.bmr-mt-table input.bmr-mt-qty-input,
+.bmr-mt-qty-input {
+  width: 65pt !important;
+  max-width: 65pt !important;
+  flex: 0 0 65pt !important;
+  text-align: center !important;
+  border: none !important;
+  border-bottom: 1px dotted #000 !important;
+  height: 14pt !important;
+  padding: 0 2pt !important;
+  font-size: 8.5pt !important;
+  background: transparent !important;
+}
+
+.bmr-table input.bmr-mt-dp-input,
+.bmr-mt-table input.bmr-mt-dp-input,
+.bmr-mt-dp-input {
+  width: 42pt !important;
+  max-width: 42pt !important;
+  display: inline-block !important;
+  border: none !important;
+  border-bottom: 1px solid #000 !important;
+  text-align: center !important;
+  font-size: 8.5pt !important;
+  padding: 0 2pt !important;
+  height: 13pt !important;
+  vertical-align: baseline !important;
+  background: transparent !important;
+}
+
+.bmr-table input.bmr-mt-yield-calc-input,
+.bmr-mt-yield-calc-input {
+  width: 160pt !important;
+  max-width: 160pt !important;
+  text-align: center !important;
+  border: none !important;
+  border-bottom: 1px dotted #000 !important;
+  font-size: 9pt !important;
+  background: transparent !important;
+}
+
+.bmr-table input.bmr-mt-yield-pct-input,
+.bmr-mt-yield-pct-input {
+  width: 45pt !important;
+  max-width: 45pt !important;
+  text-align: center !important;
+  border: none !important;
+  border-bottom: 1px dotted #000 !important;
+  font-size: 9pt !important;
+  background: transparent !important;
+}
+
+.bmr-mt-section-heading {
+  font-weight: bold;
+  font-size: 10pt;
+  text-decoration: underline;
+  margin: 10pt 0 8pt;
+  font-family: 'Times New Roman', Times, serif;
+  color: #000;
+}
+
+.bmr-mt-p1-details {
+  display: flex;
+  flex-direction: column;
+  gap: 7pt;
+  margin-bottom: 14pt;
+}
+
+.bmr-mt-p1-row {
+  display: flex;
+  align-items: center;
+  font-size: 9pt;
+  font-family: 'Times New Roman', Times, serif;
+}
+
+.bmr-mt-row-num {
+  width: 18pt;
+  flex-shrink: 0;
+  font-weight: normal;
+}
+
+.bmr-mt-row-label {
+  font-weight: normal;
+  margin-right: 6pt;
+  white-space: nowrap;
+}
+
+.bmr-mt-row-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.bmr-mt-p1-attachments-section {
+  margin-top: 10pt;
+  display: flex;
+  flex-direction: column;
+}
+
+.bmr-mt-p1-attach-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 6pt;
+}
+
+.bmr-mt-p1-attach-title {
+  font-weight: bold;
+  font-size: 9.5pt;
+  font-family: 'Times New Roman', Times, serif;
+}
+
+.bmr-mt-p1-compliance-title {
+  font-weight: bold;
+  font-size: 9pt;
+  font-family: 'Times New Roman', Times, serif;
+  width: 80pt;
+  text-align: center;
+}
+
+.bmr-mt-p1-attach-body {
+  display: flex;
+  justify-content: space-between;
+}
+
+.bmr-mt-p1-attach-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6pt;
+  flex: 1;
+}
+
+.bmr-mt-attach-item {
+  display: flex;
+  align-items: center;
+  font-size: 9pt;
+  font-family: 'Times New Roman', Times, serif;
+  height: 18pt;
+}
+
+.bmr-mt-attach-num {
+  width: 24pt;
+  flex-shrink: 0;
+}
+
+.bmr-mt-attach-text {
+  flex: 1;
+}
+
+.bmr-mt-compliance-boxes {
+  display: flex;
+  flex-direction: column;
+  width: 80pt;
+  align-items: center;
+}
+
+.bmr-mt-compliance-box {
+  width: 50pt;
+  height: 18pt;
+  border: 1.5px solid #000;
+  margin-top: -1.5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 13pt;
+  font-weight: bold;
+  user-select: none;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.bmr-mt-compliance-box:first-child {
+  margin-top: 0;
+}
+
+.bmr-mt-compliance-box.checked {
+  color: #000000;
+  background: #f0fdf4;
+}
+
+.bmr-mt-p2-gap {
+  height: 50pt;
+  flex-shrink: 0;
+}
+
+.bmr-mt-sign-two-col {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12pt;
+}
+
+.bmr-mt-sign-col {
+  display: flex;
+  flex-direction: column;
+  width: 45%;
+}
+
+.bmr-mt-sign-col-inline {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.bmr-mt-sign-title {
+  font-size: 9.5pt;
+  font-weight: normal;
+  font-family: 'Times New Roman', Times, serif;
+}
+
+.bmr-mt-sign-subtitle {
+  font-size: 9.5pt;
+  font-weight: normal;
+  font-family: 'Times New Roman', Times, serif;
+  margin-top: 2pt;
+}
+
+.bmr-mt-clearance-heading {
+  font-weight: bold;
+  font-size: 9.5pt;
+  margin: 12pt 0 8pt;
+  font-family: 'Times New Roman', Times, serif;
+  text-transform: uppercase;
+}
+
+.bmr-mt-underlined-heading {
+  font-weight: bold;
+  font-size: 9.5pt;
+  margin: 8pt 0 6pt;
+  font-family: 'Times New Roman', Times, serif;
+  text-decoration: underline;
+  text-transform: uppercase;
+}
+
+.bmr-mt-bold-label {
+  font-weight: bold;
+  font-size: 9pt;
+  font-family: 'Times New Roman', Times, serif;
+  white-space: nowrap;
+}
+
+.bmr-mt-prev-product-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8pt;
+}
+
+.bmr-mt-prev-col {
+  display: flex;
+  align-items: center;
+  width: 48%;
+}
+
+.bmr-mt-table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  border: 1.5px solid #000 !important;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 8.5pt;
+  table-layout: fixed;
+  margin-bottom: 4pt;
+}
+
+.bmr-mt-table th,
+.bmr-mt-table td {
+  border: 1px solid #000;
+  padding: 2.5pt 4pt;
+  vertical-align: middle;
+  color: #000;
+  box-sizing: border-box;
+}
+
+.bmr-mt-table th {
+  font-weight: bold;
+  font-size: 8.5pt;
+  background: #ffffff;
+}
+
+.bmr-mt-p3-sign-lines {
+  display: flex;
+  flex-direction: column;
+  margin-top: 6pt;
+}
+
+.bmr-mt-p3-sign-row {
+  display: flex;
+  align-items: center;
+  width: 60%;
+}
+
+.bmr-mt-p5-filter-qty-row {
+  display: flex;
+  align-items: center;
+  margin-top: 4pt;
+}
+
+.bmr-mt-formula-row {
+  display: flex;
+  align-items: center;
+  margin: 8pt 0 12pt;
+  font-size: 9.5pt;
+  font-family: 'Times New Roman', Times, serif;
+}
+
+.bmr-mt-formula-label {
+  font-weight: normal;
+  margin-right: 10pt;
+}
+
+.bmr-mt-fraction {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 8pt;
+  vertical-align: middle;
+}
+
+.bmr-mt-fraction-top {
+  border-bottom: 1px solid #000;
+  padding: 0 4pt 1pt;
+  font-size: 9pt;
+}
+
+.bmr-mt-fraction-bottom {
+  padding: 1pt 4pt 0;
+  font-size: 9pt;
+}
+
+.bmr-mt-formula-eq {
+  margin: 0 6pt;
+  font-size: 11pt;
+}
+
+.bmr-mt-dotted-lines {
+  margin-top: 6pt;
+  width: 100%;
+}
+
+.bmr-mt-dotted-textarea {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 9.5pt;
+  line-height: 18pt;
+  letter-spacing: 1px;
+  resize: none;
+  outline: none;
+  border-bottom: 1px dotted #000;
+  box-sizing: border-box;
+}
+
+.bmr-mt-corner-cell {
+  background-color: #ffffff !important;
+  border: 1px solid #000;
+}
+
+.bmr-mt-th-sans {
+  font-family: Arial, Helvetica, sans-serif !important;
+  font-size: 8pt !important;
+  font-weight: bold !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+.bmr-mt-label-sans {
+  font-family: Arial, Helvetica, sans-serif !important;
+  font-size: 8.5pt !important;
+  font-weight: normal !important;
+  text-align: left !important;
+  padding-left: 4pt !important;
+}
+
+.bmr-mt-label-serif {
+  font-family: 'Times New Roman', Times, serif !important;
+  font-size: 9pt !important;
+  font-weight: normal !important;
+  font-style: normal !important;
+  text-align: left !important;
+  padding-left: 4pt !important;
+}
+
+.bmr-mt-sig-input {
+  font-family: 'Times New Roman', Times, serif !important;
+  font-size: 9pt !important;
+}
+
+@media print {
+  .print-only {
+    display: inline-block !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .bmr-print-only-container .bmr-tablet-sheet {
+
+    width: 596pt !important;
+
+    height: 842pt !important;
+
+    min-height: 842pt !important;
+
+    max-height: 842pt !important;
+
+    padding: 34pt 32pt 24pt 38pt !important;
+
+    box-sizing: border-box !important;
+
+    page-break-after: always !important;
+
+    break-after: page !important;
+
+    page-break-inside: avoid !important;
+
+    break-inside: avoid !important;
+
+    overflow: hidden !important;
+
+  }
+
+
+
+  .bmr-print-only-container .bmr-mother-tincture-sheet {
+    width: 596pt !important;
+    height: 842pt !important;
+    min-height: 842pt !important;
+    max-height: 842pt !important;
+    padding: 24pt 34pt 20pt 38pt !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    overflow: hidden !important;
+    background: #ffffff !important;
+    border: none !important;
+    box-shadow: none !important;
+    font-family: 'Times New Roman', Times, serif !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .bmr-print-only-container .bmr-tablet-sheet {
+
+    width: 596pt !important;
+
+    height: 842pt !important;
+
+    min-height: 842pt !important;
+
+    max-height: 842pt !important;
+
+    padding: 34pt 32pt 24pt 38pt !important;
+
+    box-sizing: border-box !important;
+
+    page-break-after: always !important;
+
+    break-after: page !important;
+
+    page-break-inside: avoid !important;
+
+    break-inside: avoid !important;
+
+    overflow: hidden !important;
+
+  }
+
+
+
+  .bmr-print-only-container .bmr-mother-tincture-sheet:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  .bmr-print-only-container .bmr-mt-header-box {
+    width: 100% !important;
+    height: 202pt !important;
+    min-height: 202pt !important;
+    max-height: 202pt !important;
+    border: 1.5px solid #000 !important;
+    box-sizing: border-box !important;
+    flex-shrink: 0 !important;
+    margin-bottom: 0 !important;
+  }
+
+  .bmr-print-only-container .bmr-mt-header-top-row {
+    height: 74pt !important;
+    min-height: 74pt !important;
+    max-height: 74pt !important;
+  }
+
+  .bmr-print-only-container .bmr-mt-header-grid {
+    height: 88pt !important;
+    min-height: 88pt !important;
+    max-height: 88pt !important;
+  }
+
+  .bmr-print-only-container .bmr-mt-header-grid .bmr-grid-cell {
+    height: 22pt !important;
+    min-height: 22pt !important;
+    max-height: 22pt !important;
+  }
+
+  .bmr-mt-compliance-box {
+    background: transparent !important;
+  }
+
+  .bmr-mt-compliance-box.checked {
+    background: transparent !important;
+    color: #000000 !important;
+  }
+
+  .bmr-yn-print-text {
+    display: inline-block !important;
+    font-size: 8.5pt !important;
+    font-family: inherit !important;
+    font-weight: bold !important;
+    color: #000000 !important;
+    text-align: center !important;
+    width: 100% !important;
+  }
+
+  .bmr-date-print-value {
+    display: inline-block !important;
+    font-size: 8.5pt !important;
+    font-family: inherit !important;
+    color: #000000 !important;
+    width: 100% !important;
+  }
+
+  .bmr-date-print-cell {
+    text-align: center !important;
+  }
+
+  .bmr-date-print-line {
+    border-bottom: 1px dotted #000000 !important;
+    min-height: 12pt !important;
+    vertical-align: baseline !important;
+  }
+
+  .bmr-date-picker-icon {
+    display: none !important;
+  }
+
+  .bmr-print-only-container input::placeholder,
+  .bmr-print-only-container textarea::placeholder,
+  .bmr-print-only-container input::-webkit-input-placeholder,
+  .bmr-print-only-container textarea::-webkit-input-placeholder {
+    color: transparent !important;
+    opacity: 0 !important;
+    -webkit-text-fill-color: transparent !important;
+  }
+
+  .bmr-print-only-container input,
+  .bmr-print-only-container textarea,
+  .bmr-print-only-container select {
+    color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .bmr-print-only-container .bmr-line-input {
+    border: none !important;
+    border-bottom: 1px dotted #000 !important;
+  }
+}
+
+
+/* OIL DOSAGE FORM BADGE */
+.dosage-oil {
+  background: #fef3c7 !important;
+  color: #92400e !important;
+  border: 1px solid #fde68a !important;
+}
+
+/* Tej Biocare Logo Styling */
+.bmr-logo-wrap.bmr-logo-wrap-tej {
+  overflow: hidden;
+}
+.bmr-logo-img.bmr-logo-tej {
+  max-width: 80pt;
+  max-height: 35pt;
+  object-fit: contain;
+  transform: scale(1.15);
+  transform-origin: center;
 }

@@ -138,18 +138,26 @@ export const productionService = {
     ]
     const order = allOrders.find((o) => String(o.id) === targetStr)
 
-    // Packaging complete → enqueue Packaging QA stage
+    // Packaging complete → calls the batch quality packaging-complete API
     if (payload.packaging_status === 'Completed' && order) {
       import('../quality/qaPipelineService')
-        .then(({ qaPipelineService }) =>
-          qaPipelineService.enqueuePackaging({
-            batchId: order.id,
-            batchNumber: order.batch_no || order.number,
-            productName: order.product_name || '',
-            companyId: order.company,
-          })
-        )
-        .catch((e) => console.warn('[productionService] packaging QA enqueue:', e?.message))
+        .then(async ({ qaPipelineService }) => {
+          const cid = order.company || 1
+          const cases = await qaPipelineService.listCases(cid).catch(() => [])
+          const matchingCase = cases.find(
+            (c) =>
+              String(c.batch_plan_id) === String(order.id) ||
+              String(c.id) === String(order.id) ||
+              c.batch_number_snapshot === (order.batch_no || order.number)
+          )
+          if (matchingCase && !matchingCase.packaging_complete) {
+            await qaPipelineService.markPackagingComplete(cid, matchingCase.id, {
+              expected_version: matchingCase.version,
+              remarks: 'Packaging marked completed from production order',
+            })
+          }
+        })
+        .catch((e) => console.warn('[productionService] packaging QA API call:', e?.message || e))
     }
 
     return delay(order || null)
@@ -189,11 +197,11 @@ export const productionService = {
     const bmrs = state.bmrs || {}
 
     let record = null
-    if (type === 'syrup') {
-      if (orderKey && bmrs['syrup_' + orderKey]) {
-        record = bmrs['syrup_' + orderKey]
-      } else if (batchKey && bmrs['syrup_' + batchKey]) {
-        record = bmrs['syrup_' + batchKey]
+    if (type === 'syrup' || type === 'tablet' || type === 'oil' || type === 'mother_tincture') {
+      if (orderKey && bmrs[type + '_' + orderKey]) {
+        record = bmrs[type + '_' + orderKey]
+      } else if (batchKey && bmrs[type + '_' + batchKey]) {
+        record = bmrs[type + '_' + batchKey]
       }
       return record || null
     }
@@ -202,9 +210,9 @@ export const productionService = {
       record = bmrs['drops_' + orderKey]
     } else if (batchKey && bmrs['drops_' + batchKey]) {
       record = bmrs['drops_' + batchKey]
-    } else if (orderKey && bmrs[orderKey] && bmrs[orderKey].bmrType !== 'syrup') {
+    } else if (orderKey && bmrs[orderKey] && bmrs[orderKey].bmrType !== 'syrup' && bmrs[orderKey].bmrType !== 'tablet' && bmrs[orderKey].bmrType !== 'oil' && bmrs[orderKey].bmrType !== 'mother_tincture') {
       record = bmrs[orderKey]
-    } else if (batchKey && bmrs[batchKey] && bmrs[batchKey].bmrType !== 'syrup') {
+    } else if (batchKey && bmrs[batchKey] && bmrs[batchKey].bmrType !== 'syrup' && bmrs[batchKey].bmrType !== 'tablet' && bmrs[batchKey].bmrType !== 'oil' && bmrs[batchKey].bmrType !== 'mother_tincture') {
       record = bmrs[batchKey]
     }
     return record || null

@@ -34,8 +34,8 @@ export default function HrDashboard() {
     role === 'HR_MANAGER' ||
     role === 'MANAGEMENT'
 
-  const activeCompId = Number(activeCompanyId) || 1
-  const isCompanyB = activeCompId === 2
+  const activeCompId = Number(activeCompanyId) || 2
+  const isCompanyB = activeCompId === 3
   const companyName = isCompanyB ? 'Tej Biocare' : 'CMHP Pharma'
 
   useEffect(() => {

@@ -98,9 +98,10 @@ function buildInitialERPState() {
       result.byCompany.tej[slice] = []
 
       rootList.forEach((row) => {
-        const isTej = Number(row?.company) === 2 || row?.companyId === 'tej'
+        // DB: Company 3 = Tej Biocare, Company 2 = CMHP
+        const isTej = Number(row?.company) === 3 || row?.companyId === 'tej' || row?.company_code === 'TEJ'
         const compKey = isTej ? 'tej' : 'cmhp'
-        const compId = isTej ? 2 : 1
+        const compId = isTej ? 3 : 2
         const stamped = {
           ...row,
           company: row?.company !== undefined ? Number(row.company) : compId,
@@ -112,12 +113,12 @@ function buildInitialERPState() {
       // Ensure records in byCompany have both company and companyId stamped
       result.byCompany.cmhp[slice] = (result.byCompany.cmhp[slice] || []).map((row) => ({
         ...row,
-        company: 1,
+        company: row.company || 2,
         companyId: 'cmhp',
       }))
       result.byCompany.tej[slice] = (result.byCompany.tej[slice] || []).map((row) => ({
         ...row,
-        company: 2,
+        company: row.company || 3,
         companyId: 'tej',
       }))
     }
@@ -130,20 +131,21 @@ function buildInitialERPState() {
   })
 
   // Ensure activeCompanyId & activeCompanyKey
-  if (result.activeCompanyId === 2 || result.activeCompanyId === '2' || result.activeCompanyId === 'tej' || result.activeCompanyId === 'company_b') {
-    result.activeCompanyId = 2
+  // DB: Company 2 = CMHP, Company 3 = Tej Biocare
+  if (result.activeCompanyId === 3 || result.activeCompanyId === '3' || result.activeCompanyId === 'tej' || result.activeCompanyId === 'company_b' || result.activeCompanyKey === 'tej') {
+    result.activeCompanyId = 3
     result.activeCompanyKey = 'tej'
   } else {
-    result.activeCompanyId = 1
+    result.activeCompanyId = 2
     result.activeCompanyKey = 'cmhp'
   }
 
   if (Array.isArray(result.companies)) {
     result.companies = result.companies.map((c) => {
-      if (c.id === 1 && (c.name === 'Company A' || c.code === 'COMP-A')) {
-        return { ...c, name: 'CMHP Pharma', code: 'CMHP' }
+      if ((c.id === 2 || c.id === 1) && (c.name === 'Company A' || c.code === 'COMP-A')) {
+        return { ...c, id: 2, name: 'CMHP Pharma', code: 'CMHP' }
       }
-      if (c.id === 2 && (c.name === 'Company B' || c.code === 'COMP-B')) {
+      if (c.id === 3 && (c.name === 'Company B' || c.code === 'COMP-B')) {
         return { ...c, name: 'Tej Biocare', code: 'TEJ' }
       }
       return c

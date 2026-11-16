@@ -87,7 +87,11 @@ function normalizeOrder(apiOrder, statusMap = {}) {
     // --- company ---
     company: companyId,
     company_id: companyId,
-    company_name: apiOrder.company?.name || (companyId === 2 ? 'Tej Biocare' : 'CMHP Pharma'),
+    company_name:
+      apiOrder.company?.display_name ||
+      apiOrder.company?.legal_name ||
+      apiOrder.company?.name ||
+      (companyId === 3 ? 'Tej Biocare' : 'CMHP Pharma'),
 
     // --- production status (from ProductionOrderStatus table) ---
     bmr_status: ps.bmr_status || 'NO',
@@ -105,6 +109,8 @@ function normalizeOrder(apiOrder, statusMap = {}) {
 
 /* ---------- exported service ---------- */
 
+let _syncInFlight = null
+
 export const productionApiService = {
   /**
    * Fetch ALL pages of sales orders + production statuses for the active company,
@@ -115,45 +121,55 @@ export const productionApiService = {
     const companyId = getCompanyId()
     if (!companyId) return []
 
-    try {
-      // 1. Fetch all sales orders (handle pagination)
-      let allOrders = []
-      let page = 1
-      const pageSize = 100
-      while (true) {
-        const res = await api.get(`${ordersBase(companyId)}/`, {
-          params: { page, page_size: pageSize },
-        })
-        const data = res.data
-        const results = Array.isArray(data.results) ? data.results : (Array.isArray(data) ? data : [])
-        allOrders = allOrders.concat(results)
-        if (!data.next || results.length < pageSize) break
-        page += 1
-      }
-
-      // 2. Fetch all production statuses for this company
-      let statusMap = {}
-      try {
-        const sRes = await api.get(`${statusBase(companyId)}/`)
-        const statuses = Array.isArray(sRes.data) ? sRes.data : []
-        statuses.forEach((s) => {
-          statusMap[String(s.order_id)] = s
-        })
-      } catch {
-        // production statuses table may be empty; not fatal
-      }
-
-      // 3. Merge
-      const merged = allOrders.map((o) => normalizeOrder(o, statusMap))
-
-      // 4. Push into Redux so existing selectors / components all pick them up
-      store.dispatch(mergeApiOrders({ companyId, orders: merged }))
-
-      return merged
-    } catch (err) {
-      console.warn('[productionApiService] fetchAndSyncOrders error:', err?.message || err)
-      return []
+    if (_syncInFlight) {
+      return _syncInFlight
     }
+
+    _syncInFlight = (async () => {
+      try {
+        // 1. Fetch all sales orders (handle pagination)
+        let allOrders = []
+        let page = 1
+        const pageSize = 100
+        while (true) {
+          const res = await api.get(`${ordersBase(companyId)}/`, {
+            params: { page, page_size: pageSize },
+          })
+          const data = res.data
+          const results = Array.isArray(data.results) ? data.results : (Array.isArray(data) ? data : [])
+          allOrders = allOrders.concat(results)
+          if (!data.next || results.length < pageSize) break
+          page += 1
+        }
+
+        // 2. Fetch all production statuses for this company
+        let statusMap = {}
+        try {
+          const sRes = await api.get(`${statusBase(companyId)}/`)
+          const statuses = Array.isArray(sRes.data) ? sRes.data : []
+          statuses.forEach((s) => {
+            statusMap[String(s.order_id)] = s
+          })
+        } catch {
+          // production statuses table may be empty; not fatal
+        }
+
+        // 3. Merge
+        const merged = allOrders.map((o) => normalizeOrder(o, statusMap))
+
+        // 4. Push into Redux so existing selectors / components all pick them up
+        store.dispatch(mergeApiOrders({ companyId, orders: merged }))
+
+        return merged
+      } catch (err) {
+        console.warn('[productionApiService] fetchAndSyncOrders error:', err?.message || err)
+        return []
+      } finally {
+        _syncInFlight = null
+      }
+    })()
+
+    return _syncInFlight
   },
 
   /**

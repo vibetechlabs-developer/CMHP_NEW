@@ -168,10 +168,15 @@ export const inventoryService = {
     return delay(rows)
   },
 
-  getDashboardSummary: () => {
+  getDashboardSummary: (companyId = null) => {
     const state = store.getState().erp || {}
-    const items = state.items || []
-    const lots = state.lots || []
+    let items = state.items || []
+    let lots = state.lots || []
+    if (companyId) {
+      const cid = Number(companyId)
+      items = items.filter((i) => !i.company || Number(i.company) === cid)
+      lots = lots.filter((l) => !l.company || Number(l.company) === cid)
+    }
     const activeItems = items.filter((i) => i.is_active)
     const hydrated = activeItems.map((i) => hydrateItem(i, state))
     const low_stock_items = hydrated.filter((i) => i.available_quantity <= Number(i.reorder_level)).length

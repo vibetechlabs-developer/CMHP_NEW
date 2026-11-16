@@ -19,6 +19,12 @@ import useAuth from '../../hooks/useAuth'
 import { printBulkReleaseNote, downloadBulkReleaseNotePdf } from './bulkReleasePrint'
 import BulkReleaseSlipEditor from './BulkReleaseSlipEditor'
 import TestRequestSlipEditor from './TestRequestSlipEditor'
+import CoaDocumentTab from './CoaDocumentTab'
+import CoaUploadModal from './CoaUploadModal'
+import DocumentPreviewModal from './DocumentPreviewModal'
+import DocumentVersionsModal from './DocumentVersionsModal'
+import useSelectedCompany from '../../hooks/useSelectedCompany'
+import './DocumentManagement.css'
 import { getMyStores, listStockMovements } from '../store/storeService'
 import { setLotQualityStatus } from '../store/materialIssueService'
 import '../inventory/tabs/CommonInventory.css'
@@ -57,8 +63,8 @@ function mapApiQcStatus(movement) {
   if (raw === 'APPROVED') return 'APPROVED'
   if (raw === 'REJECTED') return 'REJECTED'
   if (raw === 'ON_HOLD' || raw === 'UNDER_TEST') return 'PENDING'
-  // Historical lots with no QC row are already issue-eligible.
-  if (!raw || raw === 'NOT TRACKED') return 'APPROVED'
+  // Lots with no QC row have NOT been inspected — treat as PENDING, never APPROVED.
+  if (!raw || raw === 'NOT TRACKED') return 'PENDING'
   return 'PENDING'
 }
 
@@ -96,15 +102,20 @@ export default function MaterialQC() {
   const { user } = useAuth()
   const workspace = getCurrentWorkspaceObject(user)
   const companyName = workspace?.shortName || workspace?.name || 'Company'
+  const { companyId } = useSelectedCompany()
+  const effectiveCompanyId = companyId || workspace?.realCompanyId || workspace?.companyId || 2
 
   const [records, setRecords] = useState([])
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [search, setSearch] = useState('')
-  const [activeTab, setActiveTab] = useState('inward_qc') // 'inward_qc' | 'bulk_slip' | 'test_request'
+  const [activeTab, setActiveTab] = useState('inward_qc') // 'inward_qc' | 'coa_documents' | 'bulk_slip' | 'test_request'
   const [slipInitialData, setSlipInitialData] = useState(null)
   const [testReqInitialData, setTestReqInitialData] = useState(null)
   const [selectedRecord, setSelectedRecord] = useState(null)  // for QC modal
   const [addModal, setAddModal] = useState(false)
+  const [coaUploadOpen, setCoaUploadOpen] = useState(false)
+  const [previewModal, setPreviewModal] = useState({ isOpen: false, docType: null, doc: null })
+  const [versionsModal, setVersionsModal] = useState({ isOpen: false, docType: null, doc: null })
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -471,9 +482,27 @@ export default function MaterialQC() {
             BMR Style Editor
           </span>
         </button>
+
+        <button
+          type="button"
+          className={`qc-filter${activeTab === 'coa_documents' ? ' active' : ''}`}
+          onClick={() => setActiveTab('coa_documents')}
+          style={{ fontSize: 13, padding: '8px 16px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+        >
+          <span>📜 COA Documents</span>
+          <span style={{ background: activeTab === 'coa_documents' ? 'rgba(255,255,255,0.25)' : '#dcfce7', color: activeTab === 'coa_documents' ? '#fff' : '#166534', padding: '1px 6px', borderRadius: 999, fontSize: 11, fontWeight: 700 }}>
+            Official QC Gate
+          </span>
+        </button>
       </div>
 
-      {activeTab === 'bulk_slip' ? (
+      {activeTab === 'coa_documents' ? (
+        <div style={{ marginTop: 10 }}>
+          <CoaDocumentTab
+            companyId={effectiveCompanyId}
+          />
+        </div>
+      ) : activeTab === 'bulk_slip' ? (
         <div style={{ marginTop: 10 }}>
           {/* Quick Auto-fill Selector */}
           <div className="no-print" style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 10, padding: '10px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
@@ -824,6 +853,33 @@ export default function MaterialQC() {
           </div>
         </Modal>
       )}
+
+      {/* COA Document Modals */}
+      <CoaUploadModal
+        isOpen={coaUploadOpen}
+        onClose={() => setCoaUploadOpen(false)}
+        companyId={effectiveCompanyId}
+        onSuccess={(msg) => {
+          setSuccess(msg)
+          setTimeout(() => setSuccess(''), 5000)
+        }}
+      />
+
+      <DocumentPreviewModal
+        isOpen={previewModal.isOpen}
+        onClose={() => setPreviewModal({ isOpen: false, docType: null, doc: null })}
+        docType={previewModal.docType}
+        doc={previewModal.doc}
+        companyId={effectiveCompanyId}
+      />
+
+      <DocumentVersionsModal
+        isOpen={versionsModal.isOpen}
+        onClose={() => setVersionsModal({ isOpen: false, docType: null, doc: null })}
+        docType={versionsModal.docType}
+        doc={versionsModal.doc}
+        companyId={effectiveCompanyId}
+      />
     </div>
   )
 }

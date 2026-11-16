@@ -1,0 +1,1059 @@
+/* =========================================================
+   CMHP PHARMA - QC CERTIFICATE OF ANALYSIS (COA - OIL)
+   Exact 1-to-1 Vector Geometry Replica of Form SOP/QC/11/F-05/00
+   ========================================================= */
+
+.qc-view-wrapper {
+  width: 100%;
+  color: #111827;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* =========================================================
+   TOPBAR (Matching BMR View Style)
+   ========================================================= */
+.qc-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 18px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  margin-bottom: 18px;
+  position: sticky;
+  top: 12px;
+  z-index: 50;
+  flex-wrap: wrap;
+}
+
+.qc-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.qc-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.qc-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.qc-back-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.qc-order-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 8px;
+}
+
+.qc-dosage-pill {
+  display: inline-flex;
+  align-items: center;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+
+.qc-save-feedback {
+  font-size: 12px;
+  font-weight: 700;
+  color: #16a34a;
+  background: #dcfce7;
+  padding: 4px 10px;
+  border-radius: 6px;
+  animation: qcFadeIn 0.2s ease;
+}
+
+@keyframes qcFadeIn {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.qc-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: #10b981;
+  color: #ffffff;
+  border: 1px solid #10b981;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.qc-btn-primary:hover {
+  background: #059669;
+}
+
+.qc-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.qc-btn-secondary:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+/* =========================================================
+   PAGE WORKSPACE LAYOUT (Left Nav + Main Content)
+   ========================================================= */
+.qc-layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+/* LEFT PAGE NAVIGATOR */
+.qc-sidebar-nav {
+  width: 290px;
+  flex-shrink: 0;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+  padding: 14px 12px;
+  position: sticky;
+  top: 80px;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+}
+
+.qc-nav-header {
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #64748b;
+  margin-bottom: 12px;
+  padding: 0 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.qc-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.qc-nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+.qc-nav-item:hover {
+  background: #f1f5f9;
+}
+
+.qc-nav-item.active {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.qc-nav-item-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  line-height: 1.3;
+}
+
+.qc-nav-item.active .qc-nav-item-title {
+  color: #15803d;
+  font-weight: 700;
+}
+
+.qc-nav-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.qc-nav-item.active .qc-nav-num {
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.qc-status-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.qc-status-badge.done {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.qc-status-badge.in_progress {
+  background: #fef9c3;
+  color: #a16207;
+}
+
+.qc-status-badge.pending {
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+/* MAIN CONTENT AREA */
+.qc-main-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.qc-interactive-screen-sheet {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+/* BOTTOM NAVIGATION */
+.qc-bottom-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 596pt;
+  margin: 12px auto 36px;
+  padding: 12px 18px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.qc-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.qc-nav-btn-prev {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+.qc-nav-btn-prev:hover:not(:disabled) {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.qc-nav-btn-prev:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.qc-nav-btn-next {
+  background: #10b981;
+  color: #ffffff;
+  border: 1px solid #10b981;
+}
+
+.qc-nav-btn-next:hover {
+  background: #059669;
+}
+
+/* =========================================================
+   A4 SHEET - EXACT VECTOR GEOMETRY (210 x 297 mm / 596 x 842 pt)
+   Margining: Left 45pt, Right 26.5pt, Top 36.5pt, Bottom 22.25pt
+   Table Width: 524pt
+   ========================================================= */
+.qc-sheet {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  width: 596pt;
+  height: 842pt;
+  min-height: 842pt;
+  max-height: 842pt;
+  padding: 36.5pt 26.5pt 22pt 45pt;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  border-radius: 2px;
+  margin: 0 auto 24px;
+  font-family: 'Times New Roman', Times, serif !important;
+  color: #000000 !important;
+  position: relative;
+  overflow: hidden;
+  line-height: 1.15;
+}
+
+/* COMPLETE GLOBAL OVERRIDES INSIDE QC SHEET */
+.qc-sheet * {
+  box-sizing: border-box !important;
+  color: #000000 !important;
+}
+
+.qc-sheet table {
+  border-collapse: collapse !important;
+  width: 100% !important;
+  table-layout: fixed !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.qc-sheet tr {
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.qc-sheet th {
+  height: unset !important;
+  min-height: unset !important;
+  max-height: unset !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  font-weight: normal;
+  padding: 0 3pt !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  color: #000000 !important;
+  background: transparent !important;
+  border: 1px solid #000000 !important;
+  vertical-align: top !important;
+  font-size: 11pt !important;
+  line-height: 1.15 !important;
+}
+
+.qc-sheet td {
+  height: unset !important;
+  min-height: unset !important;
+  padding: 0 3pt !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  color: #000000 !important;
+  background: transparent !important;
+  border: 1px solid #000000 !important;
+  vertical-align: top !important;
+  font-size: 11pt !important;
+  line-height: 1.15 !important;
+}
+
+/* SCREEN INPUT STYLING */
+.qc-sheet input,
+.qc-cell-input {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  border: none !important;
+  background: transparent !important;
+  color: #000000 !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  font-size: 11pt !important;
+  outline: none !important;
+  box-shadow: none !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  line-height: 1.15 !important;
+}
+
+.qc-sheet input:focus,
+.qc-cell-input:focus {
+  background: #f0fdf4 !important;
+}
+
+.qc-text-center {
+  text-align: center !important;
+}
+
+/* DATE PICKER COMPONENT */
+.qc-date-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.qc-date-display {
+  width: 100% !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  font-size: 11pt !important;
+  color: #000000 !important;
+  border: none !important;
+  background: transparent !important;
+  outline: none !important;
+  padding: 0 !important;
+}
+
+.qc-date-picker-icon {
+  position: absolute;
+  right: 0;
+  cursor: pointer;
+  font-size: 11px;
+  opacity: 0.6;
+  user-select: none;
+}
+
+.qc-date-picker-icon:hover {
+  opacity: 1;
+}
+
+.qc-date-print-value {
+  display: none;
+  font-family: 'Times New Roman', Times, serif !important;
+  font-size: 11pt !important;
+  color: #000000 !important;
+}
+
+/* =========================================================
+   1. HEADER BOX (y: 36.5 -> 147.5, Height: 111.0pt / ~13.2%)
+   ========================================================= */
+.qc-header-box {
+  width: 100%;
+  height: 111.0pt;
+  min-height: 111.0pt;
+  max-height: 111.0pt;
+  border: 1px solid #000000 !important;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.qc-header-content {
+  height: 48pt;
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 5pt;
+}
+
+.qc-logo-wrap {
+  position: absolute;
+  left: 6.75pt;
+  top: 2.6pt;
+  width: 63pt;
+  height: 28pt;
+}
+
+.qc-logo-img {
+  max-width: 63pt;
+  max-height: 28pt;
+  object-fit: contain;
+}
+
+/* Tej Biocare Branding Fit (Tej branch only - CMHP untouched) */
+.qc-logo-wrap-tej {
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qc-logo-img-tej {
+  width: 100%;
+  height: 100%;
+  max-width: 63pt;
+  max-height: 28pt;
+  object-fit: contain;
+  transform: scale(1.45);
+  transform-origin: center 43%;
+}
+
+.qc-company-title {
+  font-family: 'Times New Roman', Times, serif !important;
+  font-size: 20pt !important;
+  font-weight: normal !important;
+  text-align: center;
+  color: #000000 !important;
+  letter-spacing: 0.3px;
+  line-height: 1;
+}
+
+.qc-header-blank-space {
+  flex: 1;
+}
+
+/* =========================================================
+   2. TITLE ROWS ("Quality Control" & CoA TITLE)
+   ========================================================= */
+.qc-title-section {
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.qc-title-bar {
+  width: 100%;
+  border-left: 1px solid #000000 !important;
+  border-right: 1px solid #000000 !important;
+  border-bottom: 1px solid #000000 !important;
+  text-align: center;
+  font-family: 'Times New Roman', Times, serif !important;
+  font-weight: bold !important;
+  font-size: 11pt !important;
+  color: #000000 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.qc-bar-quality-control {
+  height: 23.0pt;
+  min-height: 23.0pt;
+  max-height: 23.0pt;
+}
+
+.qc-bar-coa-title {
+  height: 18.0pt;
+  min-height: 18.0pt;
+  max-height: 18.0pt;
+}
+
+/* =========================================================
+   3. INFO GRID (y: 188.5 -> 331.5, Height: 143.0pt)
+   ========================================================= */
+.qc-info-grid-wrap {
+  width: 100%;
+  height: 143.0pt;
+  min-height: 143.0pt;
+  max-height: 143.0pt;
+  flex-shrink: 0;
+}
+
+.qc-info-grid-table {
+  border: 1px solid #000000 !important;
+  border-top: none !important; /* Already bordered by title bar bottom */
+  height: 143.0pt;
+}
+
+.qc-info-grid-table td {
+  border: none !important;
+  border-right: 1px solid #000000 !important;
+  border-bottom: 1px solid #000000 !important;
+  padding: 1pt 3pt !important;
+  vertical-align: top !important;
+}
+
+.qc-info-grid-table td:last-child {
+  border-right: none !important;
+}
+
+.qc-label-cell {
+  font-weight: bold !important;
+  font-size: 11pt !important;
+  color: #000000 !important;
+  white-space: nowrap;
+}
+
+.qc-value-cell {
+  font-weight: normal !important;
+  font-size: 11pt !important;
+  color: #000000 !important;
+}
+
+.qc-ref-cell {
+  line-height: 1.15;
+}
+
+.qc-static-text {
+  font-size: 10.5pt;
+  line-height: 12pt;
+  color: #000000 !important;
+}
+
+/* Exact Row Heights of Info Grid */
+.qc-info-row-1 { height: 16.0pt; max-height: 16.0pt; }
+.qc-info-row-2 { height: 14.0pt; max-height: 14.0pt; }
+.qc-info-row-3 { height: 26.0pt; max-height: 26.0pt; }
+.qc-info-row-4 { height: 26.0pt; max-height: 26.0pt; }
+.qc-info-row-5 { height: 20.0pt; max-height: 20.0pt; }
+.qc-info-row-6 { height: 20.0pt; max-height: 20.0pt; }
+.qc-info-row-7 { height: 21.0pt; max-height: 21.0pt; }
+
+/* =========================================================
+   GAPS BETWEEN SECTIONS (Strict Vector Alignment)
+   ========================================================= */
+.qc-gap-18pt { height: 18.0pt; min-height: 18.0pt; max-height: 18.0pt; flex-shrink: 0; }
+.qc-gap-13pt { height: 13.6pt; min-height: 13.6pt; max-height: 13.6pt; flex-shrink: 0; }
+.qc-gap-37pt { height: 37.0pt; min-height: 37.0pt; max-height: 37.0pt; flex-shrink: 0; }
+.qc-gap-6pt  { height: 5.7pt;  min-height: 5.7pt;  max-height: 5.7pt;  flex-shrink: 0; }
+
+/* =========================================================
+   4. TEST TABLE (Page 1, Height: 154.0pt)
+   Header regular weight centered, parameters centered
+   ========================================================= */
+.qc-test-table {
+  border: 1px solid #000000 !important;
+  width: 100%;
+  flex-shrink: 0;
+  height: 154.0pt;
+  min-height: 154.0pt;
+  max-height: 154.0pt;
+}
+
+.qc-test-table th,
+.qc-test-table td {
+  border: 1px solid #000000 !important;
+  padding: 0 3pt !important;
+  vertical-align: top !important;
+}
+
+.qc-test-header-row {
+  height: 13.0pt;
+  max-height: 13.0pt;
+}
+
+.qc-test-th {
+  font-weight: normal !important;
+  font-size: 11pt !important;
+  text-align: center !important;
+  color: #000000 !important;
+  text-transform: none !important;
+}
+
+.qc-test-td-sr {
+  text-align: center !important;
+  font-size: 11pt !important;
+  color: #000000 !important;
+}
+
+.qc-test-td-param {
+  text-align: center !important;
+  font-size: 11pt !important;
+  color: #000000 !important;
+  white-space: nowrap;
+}
+
+.qc-test-td-input {
+  text-align: center !important;
+}
+
+.qc-test-row-1 { height: 15.0pt; max-height: 15.0pt; }
+.qc-test-row-2 { height: 14.0pt; max-height: 14.0pt; }
+.qc-test-row-3 { height: 13.0pt; max-height: 13.0pt; }
+.qc-test-row-4 { height: 14.0pt; max-height: 14.0pt; }
+.qc-test-row-5 { height: 13.0pt; max-height: 13.0pt; }
+.qc-test-row-6 { height: 13.0pt; max-height: 13.0pt; }
+.qc-test-row-7 { height: 14.0pt; max-height: 14.0pt; }
+.qc-test-row-8 { height: 13.0pt; max-height: 13.0pt; }
+.qc-test-row-9 { height: 16.0pt; max-height: 16.0pt; }
+.qc-test-row-10 { height: 16.0pt; max-height: 16.0pt; }
+
+/* =========================================================
+   5. LABEL CLAIM SECTION (Page 1)
+   Caption bold 11pt, Table height 120.0pt, Header bold
+   ========================================================= */
+.qc-label-claim-caption {
+  font-weight: bold !important;
+  font-size: 11pt !important;
+  color: #000000 !important;
+  height: 12.4pt;
+  min-height: 12.4pt;
+  max-height: 12.4pt;
+  line-height: 12.4pt;
+  flex-shrink: 0;
+}
+
+.qc-label-claim-table {
+  border: 1px solid #000000 !important;
+  width: 100%;
+  flex-shrink: 0;
+  height: 120.0pt;
+  min-height: 120.0pt;
+  max-height: 120.0pt;
+}
+
+.qc-label-claim-table th,
+.qc-label-claim-table td {
+  border: 1px solid #000000 !important;
+  padding: 0 3pt !important;
+  vertical-align: top !important;
+}
+
+.qc-lc-header-row {
+  height: 13.0pt;
+  max-height: 13.0pt;
+}
+
+.qc-lc-th {
+  font-weight: bold !important;
+  font-size: 11pt !important;
+  text-align: center !important;
+  color: #000000 !important;
+  text-transform: none !important;
+}
+
+.qc-lc-td-sr {
+  text-align: center !important;
+  font-size: 11pt !important;
+  color: #000000 !important;
+}
+
+.qc-lc-row {
+  height: 13.3pt;
+  max-height: 13.3pt;
+}
+
+/* =========================================================
+   6. SIGN-OFF TABLE (Height: 95.0pt, Grey Cell, Regular Labels)
+   ========================================================= */
+.qc-signoff-wrap {
+  width: 100%;
+  height: 95.0pt;
+  min-height: 95.0pt;
+  max-height: 95.0pt;
+  flex-shrink: 0;
+}
+
+.qc-signoff-table {
+  border: 1px solid #000000 !important;
+  width: 100%;
+  height: 95.0pt;
+}
+
+.qc-signoff-table th,
+.qc-signoff-table td {
+  border: 1px solid #000000 !important;
+  padding: 0 3pt !important;
+  vertical-align: top !important;
+}
+
+.qc-signoff-header-row {
+  height: 41.0pt;
+  max-height: 41.0pt;
+}
+
+.qc-signoff-grey-cell {
+  background-color: #d9d9d9 !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+.qc-signoff-th {
+  font-weight: normal !important;
+  font-size: 11pt !important;
+  text-align: center !important;
+  color: #000000 !important;
+  vertical-align: top !important;
+  padding-top: 2pt !important;
+  text-transform: none !important;
+}
+
+.qc-signoff-label-cell {
+  font-weight: normal !important;
+  font-size: 11pt !important;
+  color: #000000 !important;
+}
+
+.qc-signoff-name-row { height: 14.0pt; max-height: 14.0pt; }
+.qc-signoff-sig-row  { height: 26.0pt; max-height: 26.0pt; }
+.qc-signoff-date-row { height: 14.0pt; max-height: 14.0pt; }
+
+/* =========================================================
+   7. FOOTER SECTION (SOP Form No & Page No)
+   ========================================================= */
+.qc-page-footer {
+  margin-top: 1.0pt;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  width: 100%;
+  flex-shrink: 0;
+  padding: 0 1pt;
+  line-height: 1.2;
+}
+
+.qc-footer-sop {
+  font-weight: bold !important;
+  font-size: 11pt !important;
+  color: #000000 !important;
+}
+
+.qc-footer-page {
+  font-weight: normal !important;
+  font-size: 11pt !important;
+  color: #000000 !important;
+}
+
+.qc-footer-page strong {
+  font-weight: bold !important;
+  color: #000000 !important;
+}
+
+/* =========================================================
+   8. PAGE 2 SPECIFICS (Remarks & Blank Area)
+   ========================================================= */
+.qc-remarks-row {
+  height: 12.2pt;
+  min-height: 12.2pt;
+  max-height: 12.2pt;
+  font-size: 11pt !important;
+  color: #000000 !important;
+  line-height: 12.2pt;
+  flex-shrink: 0;
+}
+
+.qc-remarks-row strong {
+  font-weight: bold !important;
+  color: #000000 !important;
+}
+
+.qc-page2-blank-area {
+  flex: 1;
+  min-height: 330pt;
+  display: flex;
+  flex-direction: column;
+}
+
+.qc-blank-area-notes {
+  width: 100%;
+  height: 100%;
+  border: 1px dashed #cbd5e1 !important;
+  border-radius: 4px;
+  background: transparent !important;
+  color: #000000 !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  font-size: 11pt !important;
+  padding: 8pt !important;
+  resize: none;
+  outline: none;
+  margin: 6pt 0;
+}
+
+.qc-blank-area-notes:focus {
+  border-color: #94a3b8 !important;
+  background: #f8fafc !important;
+}
+
+.qc-blank-area-print {
+  display: none;
+  font-family: 'Times New Roman', Times, serif !important;
+  font-size: 11pt !important;
+  color: #000000 !important;
+  white-space: pre-wrap;
+  padding: 8pt 0;
+}
+
+/* =========================================================
+   UNAVAILABLE DOSAGE FORM CARD
+   ========================================================= */
+.qc-unavailable-card {
+  max-width: 640px;
+  margin: 40px auto;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  padding: 36px 32px;
+  text-align: center;
+}
+
+.qc-unavailable-icon {
+  font-size: 42px;
+  margin-bottom: 12px;
+}
+
+.qc-unavailable-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 8px;
+}
+
+.qc-unavailable-subtitle {
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+/* =========================================================
+   PRINT SPECIFIC CSS (@media print)
+   - Guarantees exact 2 pages or 1 page (if single selected)
+   - Zero overflow, zero extra pages, zero clipped rows
+   ========================================================= */
+.qc-print-only-container {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide app shell and on-screen interactive elements */
+  .no-print,
+  .app-sidebar,
+  .app-header,
+  .main-header,
+  nav,
+  aside,
+  header {
+    display: none !important;
+  }
+
+  /* Show the dedicated print container */
+  .qc-print-only-container {
+    display: block !important;
+    visibility: visible !important;
+    width: 596pt !important;
+    max-width: 596pt !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .qc-print-only-container * {
+    visibility: visible !important;
+  }
+
+  .print-only {
+    display: inline-block !important;
+  }
+
+  .qc-blank-area-print {
+    display: block !important;
+  }
+
+  /* Exact A4 Sheet Page Container */
+  .qc-print-only-container .qc-sheet {
+    width: 596pt !important;
+    height: 842pt !important;
+    min-height: 842pt !important;
+    max-height: 842pt !important;
+    padding: 36.5pt 26.5pt 22pt 45pt !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .qc-print-only-container .qc-sheet:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  /* Inputs become pure text in print */
+  .qc-print-only-container input,
+  .qc-print-only-container textarea {
+    border: none !important;
+    background: transparent !important;
+    color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
+    box-shadow: none !important;
+    outline: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .qc-print-only-container input::placeholder,
+  .qc-print-only-container textarea::placeholder {
+    color: transparent !important;
+    opacity: 0 !important;
+  }
+
+  /* Grey cell background must be preserved in print */
+  .qc-print-only-container .qc-signoff-grey-cell {
+    background-color: #d9d9d9 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .qc-date-picker-icon {
+    display: none !important;
+  }
+}

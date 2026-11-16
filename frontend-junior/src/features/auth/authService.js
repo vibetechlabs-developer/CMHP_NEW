@@ -52,16 +52,9 @@ const ROLE_LABELS = {
 // own real ids and there is no fixed "exactly two, named A and B" rule
 // on the backend at all - a real company list is open-ended. Until
 // workspace selection itself is rebuilt to show a real, open-ended
-// company list, this maps the first two REAL companies the logged-in
-// user actually has active membership in (apps.companies.services.
-// active_companies_for_user, which never grants access merely from
-// is_superuser - same rule here) onto those two fixed mock slots, in
-// ascending real id order. A user with a third+ real company, or none
-// at all, is a known limitation of this bridge, not a silent bug - the
-// real company list is also kept, unmapped, as `profile.real_companies`
-// for later use.
-const MOCK_COMPANY_SLOTS = [1, 2]
-
+// Ground-truth company bridge: uses the actual real company IDs returned by
+// the backend (/api/v1/companies/mine/). In PostgreSQL, Company 2 is CMHP and
+// Company 3 is Tej Biocare. We preserve real IDs throughout the session.
 function findMockCounterpart(username) {
   const { users } = store.getState().erp
   return users.find((u) => u.username.toLowerCase() === username.trim().toLowerCase())
@@ -81,8 +74,8 @@ async function fetchRealCompanyBridge(accessToken) {
     })
     const companies = response.data.companies || []
     const sorted = [...companies].sort((a, b) => a.id - b.id)
-    const mappedIds = sorted.slice(0, MOCK_COMPANY_SLOTS.length).map((_, i) => MOCK_COMPANY_SLOTS[i])
-    return { companies: mappedIds, realCompanies: sorted }
+    const realIds = sorted.map((c) => c.id)
+    return { companies: realIds, realCompanies: sorted }
   } catch {
     // A real lookup failure must never block login - fall back to
     // whatever the mock blend below provides instead.

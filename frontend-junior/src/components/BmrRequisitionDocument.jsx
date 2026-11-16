@@ -1,5 +1,7 @@
 import React from 'react'
+import { formatDateIN } from '../utils/formatters'
 import './BmrRequisitionDocument.css'
+import { getCompanyBranding, isTejBiocare } from '../utils/companyBranding.js'
 
 /**
  * BmrRequisitionDocument
@@ -16,41 +18,32 @@ export default function BmrRequisitionDocument({
   batchUnit = 'L',
   scaleFactor = 1,
   approval = null,
-  companyName = 'CMHP PRIVATE LIMITED',
+  company = null,
+  companyName = 'CMHP PHARMACEUTICALS PVT. LTD.',
   companyCode = 'CMHP',
   department = 'PRODUCTION ( ORAL LIQUID DEPARTMENT )',
   showWatermark = true,
   isPrintView = false,
 }) {
+  const isTej = isTejBiocare(company) || (companyName && isTejBiocare(companyName)) || (companyCode && isTejBiocare(companyCode)) || isTejBiocare()
+  const branding = getCompanyBranding(isTej ? 'tej' : 'cmhp')
+  const effectiveCompanyName = branding.isTej ? branding.headerName : (companyName && !companyName.toUpperCase().includes('TEJ') ? companyName : 'CMHP PHARMACEUTICALS PVT. LTD.')
+  const effectiveCompanyCode = branding.isTej ? branding.code : 'CMHP'
+
   const status = approval?.status || (product?.formula_approval_status) || 'NOT_SUBMITTED'
   const isApproved = status === 'APPROVED'
   const isPending = status === 'PENDING'
   const isDeclined = status === 'DECLINED'
 
-  const todayFormatted = new Date().toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  })
-
-  const submittedDate = approval?.submittedAt
-    ? new Date(approval.submittedAt).toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-      })
-    : todayFormatted
-
-  const decidedDate = approval?.decidedAt
-    ? new Date(approval.decidedAt).toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-      })
-    : ''
+  const todayFormatted = formatDateIN(new Date())
+  const submittedDate = approval?.submittedAt ? formatDateIN(approval.submittedAt) : todayFormatted
+  const decidedDate = approval?.decidedAt ? formatDateIN(approval.decidedAt) : ''
 
   const submitterName = approval?.submittedBy || 'Production Chemist'
-  const approverName = isApproved ? (approval?.decidedBy || 'Dr. R. K. Mehta (QA Head)') : ''
+  const approverName = isApproved ? (approval?.decidedBy || 'Dr. R. K. Mehta') : ''
+  const approverSig = isApproved && approverName
+    ? `/${approverName.replace(/^(Dr\.|Mr\.|Mrs\.|Ms\.)\s*/i, '').trim().split(/\s+/)[0]}/`
+    : ''
 
   // Format numbers cleanly
   const formatNum = (val) => {
@@ -71,7 +64,7 @@ export default function BmrRequisitionDocument({
   const hasExcipientSplit = excipientMaterials.length > 0 && activeMaterials.length > 0
 
   return (
-    <div className={`bmr-document-container ${isPrintView ? 'is-print-mode' : ''}`}>
+    <div id="bmr-requisition-print-doc" className={`bmr-document-container ${isPrintView ? 'is-print-mode' : ''}`}>
       {/* Visual Watermark for Draft / Pending / Declined */}
       {showWatermark && !isApproved && (
         <div className={`bmr-watermark ${isPending ? 'watermark-pending' : isDeclined ? 'watermark-declined' : 'watermark-draft'}`}>
@@ -90,24 +83,25 @@ export default function BmrRequisitionDocument({
             ========================================================= */}
         <div className="bmr-header-box">
           <div className="bmr-header-top">
-            <div className="bmr-logo-cell">
+            <div className={`bmr-logo-cell ${branding.isTej ? 'bmr-logo-cell-tej' : ''}`}>
               <img
-                src="/logo.jpg"
-                alt="CMHP"
-                className="bmr-logo-img"
+                src={branding.logoSrc}
+                alt={branding.headerName}
+                className={`bmr-logo-img ${branding.isTej ? 'bmr-logo-img-tej' : ''}`}
+                loading="eager"
                 onError={(e) => {
                   e.target.style.display = 'none'
                   if (e.target.nextSibling) e.target.nextSibling.style.display = 'block'
                 }}
               />
               <div className="bmr-logo-fallback" style={{ display: 'none' }}>
-                <span className="logo-initials">{companyCode || 'CMHP'}</span>
-                <span className="logo-sub">PHARMA</span>
+                <span className="logo-initials">{effectiveCompanyCode}</span>
+                <span className="logo-sub">{branding.isTej ? 'BIOCARE' : 'PHARMA'}</span>
               </div>
             </div>
 
             <div className="bmr-title-cell">
-              <h1 className="bmr-company-name">{companyName}</h1>
+              <h1 className="bmr-company-name">{effectiveCompanyName}</h1>
               <div className="bmr-dept-name">{department}</div>
               <h2 className="bmr-doc-title">BATCH MANUFACTURING RECORD (BMR)</h2>
             </div>
@@ -126,7 +120,7 @@ export default function BmrRequisitionDocument({
               </div>
               <div className="bmr-meta-row">
                 <span className="meta-label">COMPANY CODE :</span>
-                <span className="meta-value">{companyCode || 'CMHP'}</span>
+                <span className="meta-value">{effectiveCompanyCode}</span>
               </div>
               <div className="bmr-meta-row">
                 <span className="meta-label">BATCH NO. :</span>
@@ -145,7 +139,7 @@ export default function BmrRequisitionDocument({
             <div className="bmr-meta-col right-col">
               <div className="bmr-meta-row">
                 <span className="meta-label">BMR NO. :</span>
-                <span className="meta-value">{product.bmr_no || product.bmrNo || `BMR/${companyCode}/PRD/04`}</span>
+                <span className="meta-value">BMR/{effectiveCompanyCode}/PRD/04</span>
               </div>
               <div className="bmr-meta-row">
                 <span className="meta-label">EFFECTIVE DATE :</span>
@@ -162,7 +156,7 @@ export default function BmrRequisitionDocument({
               <div className="bmr-meta-row">
                 <span className="meta-label">MASTER FORMULA NO. :</span>
                 <span className="meta-value">
-                  {formula?.code || `MFN-${product.code ? product.code.replace('PRD-', '') : '001'}`}
+                  MFN-{product.code ? product.code.replace('PRD-', '') : '001'}
                 </span>
               </div>
             </div>
@@ -194,13 +188,13 @@ export default function BmrRequisitionDocument({
           <table className="bmr-requisition-table">
             <thead>
               <tr>
-                <th style={{ width: '50px' }}>Sr. No.</th>
-                <th style={{ width: '100px' }}>RM Code</th>
+                <th style={{ width: '45px' }}>Sr. No.</th>
+                <th style={{ width: '90px' }}>RM Code</th>
                 <th>RAW MATERIAL NAME</th>
                 <th style={{ width: '130px' }}>Label Claim / Spec</th>
-                <th style={{ width: '110px' }}>Qty. Req</th>
-                <th style={{ width: '70px' }}>Unit</th>
-                <th style={{ width: '130px' }}>AR.No. / Lot</th>
+                <th style={{ width: '85px' }}>Qty. Req</th>
+                <th style={{ width: '55px' }}>Unit</th>
+                <th style={{ width: '120px' }}>AR.No. / Lot</th>
               </tr>
             </thead>
             <tbody>
@@ -215,44 +209,53 @@ export default function BmrRequisitionDocument({
                   <tr className="bmr-group-header-row">
                     <td colSpan="7"><strong>ACTIVE PHARMACEUTICAL INGREDIENTS (API)</strong></td>
                   </tr>
-                  {activeMaterials.map((mat, idx) => (
+                  {activeMaterials.map((mat, idx) => {
+                    const scaledQtyNum = mat.scaledQuantity ?? mat.requiredQuantity ?? (Number(mat.baseQuantity || mat.base_quantity || 0) * (scaleFactor || 1))
+                    return (
+                      <tr key={mat.id || idx}>
+                        <td className="text-center">{idx + 1}</td>
+                        <td className="text-center bold-mono">{mat.rmCode || mat.rm_code || `RM-${String(idx + 1).padStart(3, '0')}`}</td>
+                        <td className="mat-name-cell">{mat.name}</td>
+                        <td>{mat.labelClaim || mat.label_claim || `${mat.baseQuantity || mat.base_quantity} ${mat.baseUnit || mat.unit || 'g'}`}</td>
+                        <td className="text-right bold-mono">{formatNum(scaledQtyNum)}</td>
+                        <td className="text-center">{mat.scaledUnit || mat.unit || 'kg'}</td>
+                        <td className="text-center text-muted">{mat.arNo || mat.ar_no || '—'}</td>
+                      </tr>
+                    )
+                  })}
+                  <tr className="bmr-group-header-row">
+                    <td colSpan="7"><strong>EXCIPIENTS &amp; VEHICLES</strong></td>
+                  </tr>
+                  {excipientMaterials.map((mat, idx) => {
+                    const scaledQtyNum = mat.scaledQuantity ?? mat.requiredQuantity ?? (Number(mat.baseQuantity || mat.base_quantity || 0) * (scaleFactor || 1))
+                    return (
+                      <tr key={mat.id || idx}>
+                        <td className="text-center">{activeMaterials.length + idx + 1}</td>
+                        <td className="text-center bold-mono">{mat.rmCode || mat.rm_code || `RM-${String(activeMaterials.length + idx + 1).padStart(3, '0')}`}</td>
+                        <td className="mat-name-cell">{mat.name}</td>
+                        <td>{mat.labelClaim || mat.label_claim || 'q.s.'}</td>
+                        <td className="text-right bold-mono">{formatNum(scaledQtyNum)}</td>
+                        <td className="text-center">{mat.scaledUnit || mat.unit || 'kg'}</td>
+                        <td className="text-center text-muted">{mat.arNo || mat.ar_no || '—'}</td>
+                      </tr>
+                    )
+                  })}
+                </>
+              ) : (
+                materials.map((mat, idx) => {
+                  const scaledQtyNum = mat.scaledQuantity ?? mat.requiredQuantity ?? (Number(mat.baseQuantity || mat.base_quantity || 0) * (scaleFactor || 1))
+                  return (
                     <tr key={mat.id || idx}>
                       <td className="text-center">{idx + 1}</td>
                       <td className="text-center bold-mono">{mat.rmCode || mat.rm_code || `RM-${String(idx + 1).padStart(3, '0')}`}</td>
                       <td className="mat-name-cell">{mat.name}</td>
                       <td>{mat.labelClaim || mat.label_claim || `${mat.baseQuantity || mat.base_quantity} ${mat.baseUnit || mat.unit || 'g'}`}</td>
-                      <td className="text-right bold-mono">{mat.displayQty || `${formatNum(mat.scaledQuantity || mat.requiredQuantity || mat.base_quantity * scaleFactor)} ${mat.scaledUnit || mat.unit || 'kg'}`}</td>
+                      <td className="text-right bold-mono">{formatNum(scaledQtyNum)}</td>
                       <td className="text-center">{mat.scaledUnit || mat.unit || 'kg'}</td>
                       <td className="text-center text-muted">{mat.arNo || mat.ar_no || '—'}</td>
                     </tr>
-                  ))}
-                  <tr className="bmr-group-header-row">
-                    <td colSpan="7"><strong>EXCIPIENTS & VEHICLES</strong></td>
-                  </tr>
-                  {excipientMaterials.map((mat, idx) => (
-                    <tr key={mat.id || idx}>
-                      <td className="text-center">{activeMaterials.length + idx + 1}</td>
-                      <td className="text-center bold-mono">{mat.rmCode || mat.rm_code || `RM-${String(activeMaterials.length + idx + 1).padStart(3, '0')}`}</td>
-                      <td className="mat-name-cell">{mat.name}</td>
-                      <td>{mat.labelClaim || mat.label_claim || 'q.s.'}</td>
-                      <td className="text-right bold-mono">{mat.displayQty || `${formatNum(mat.scaledQuantity || mat.requiredQuantity || mat.base_quantity * scaleFactor)} ${mat.scaledUnit || mat.unit || 'kg'}`}</td>
-                      <td className="text-center">{mat.scaledUnit || mat.unit || 'kg'}</td>
-                      <td className="text-center text-muted">{mat.arNo || mat.ar_no || '—'}</td>
-                    </tr>
-                  ))}
-                </>
-              ) : (
-                materials.map((mat, idx) => (
-                  <tr key={mat.id || idx}>
-                    <td className="text-center">{idx + 1}</td>
-                    <td className="text-center bold-mono">{mat.rmCode || mat.rm_code || `RM-${String(idx + 1).padStart(3, '0')}`}</td>
-                    <td className="mat-name-cell">{mat.name}</td>
-                    <td>{mat.labelClaim || mat.label_claim || `${mat.baseQuantity || mat.base_quantity} ${mat.baseUnit || mat.unit || 'g'}`}</td>
-                    <td className="text-right bold-mono">{mat.displayQty || `${formatNum(mat.scaledQuantity || mat.requiredQuantity || (Number(mat.base_quantity) * scaleFactor))} ${mat.scaledUnit || mat.unit || 'kg'}`}</td>
-                    <td className="text-center">{mat.scaledUnit || mat.unit || 'kg'}</td>
-                    <td className="text-center text-muted">{mat.arNo || mat.ar_no || '—'}</td>
-                  </tr>
-                ))
+                  )
+                })
               )}
             </tbody>
           </table>
@@ -270,6 +273,9 @@ export default function BmrRequisitionDocument({
             <div className="endorsement-icon">✓</div>
             <div>
               <strong>QC / QA Release Endorsement:</strong> {approval.decisionRemarks}
+              <div style={{ fontSize: '11px', marginTop: '2px', color: '#15803d' }}>
+                Certified by <strong>{approverName}</strong> ({approval?.decidedByRole || 'QA / QC Manager'}) on {decidedDate}.
+              </div>
             </div>
           </div>
         )}
@@ -278,7 +284,11 @@ export default function BmrRequisitionDocument({
           <div className="bmr-decline-endorsement">
             <div className="endorsement-icon">✕</div>
             <div>
-              <strong>QC Decline Notice [{approval.declineCategory || 'General'}]:</strong> {approval.declineReason}
+              <strong>QC Formulation Decline Notice [{approval.declineCategory || 'General'}]:</strong>{' '}
+              {approval.declineReason}
+              <div style={{ fontSize: '11px', marginTop: '2px', color: '#b91c1c' }}>
+                Returned by <strong>{approval?.decidedBy || 'QC In-Charge'}</strong> ({approval?.decidedByRole || 'QC Reviewer'}) on {decidedDate}. Formula adjustment required before re-submission.
+              </div>
             </div>
           </div>
         )}
@@ -287,6 +297,7 @@ export default function BmrRequisitionDocument({
             3-COLUMN SIGNOFF BOX
             ========================================================= */}
         <div className="bmr-signoff-box">
+          {/* Box 1: Prepared By */}
           <div className="signoff-col">
             <div className="signoff-title">
               <strong>Prepared By</strong>
@@ -308,6 +319,7 @@ export default function BmrRequisitionDocument({
             </div>
           </div>
 
+          {/* Box 2: Reviewed By */}
           <div className="signoff-col">
             <div className="signoff-title">
               <strong>Reviewed By</strong>
@@ -329,31 +341,55 @@ export default function BmrRequisitionDocument({
             </div>
           </div>
 
-          <div className="signoff-col">
-            <div className="signoff-title">
-              <strong>Approved By</strong>
-              <div className="signoff-designation">QA / QC Manager</div>
+          {/* Box 3: Approved / Declined By */}
+          {isDeclined ? (
+            <div className="signoff-col signoff-declined">
+              <div className="signoff-title">
+                <strong>Audit Outcome</strong>
+                <div className="signoff-designation" style={{ color: '#dc2626', fontWeight: 700 }}>DECLINED BY QC</div>
+              </div>
+              <div className="signoff-fields">
+                <div className="signoff-line">
+                  <span className="sign-lbl">Name:</span>
+                  <span className="sign-val">{approval?.decidedBy || 'QC In-Charge'}</span>
+                </div>
+                <div className="signoff-line">
+                  <span className="sign-lbl">Role:</span>
+                  <span className="sign-val">{approval?.decidedByRole || 'QC Reviewer'}</span>
+                </div>
+                <div className="signoff-line">
+                  <span className="sign-lbl">Date:</span>
+                  <span className="sign-val">{decidedDate || '—'}</span>
+                </div>
+              </div>
             </div>
-            <div className="signoff-fields">
-              <div className="signoff-line">
-                <span className="sign-lbl">Name:</span>
-                <span className="sign-val">{isApproved ? approverName : '________________'}</span>
+          ) : (
+            <div className={`signoff-col ${isApproved ? 'signoff-approved' : ''}`}>
+              <div className="signoff-title">
+                <strong>Approved By</strong>
+                <div className="signoff-designation">QA / QC Manager</div>
               </div>
-              <div className="signoff-line">
-                <span className="sign-lbl">Signature:</span>
-                <span className="sign-val sign-cursive">{isApproved ? '/RKMehta/' : ''}</span>
+              <div className="signoff-fields">
+                <div className="signoff-line">
+                  <span className="sign-lbl">Name:</span>
+                  <span className="sign-val">{isApproved ? approverName : '________________'}</span>
+                </div>
+                <div className="signoff-line">
+                  <span className="sign-lbl">Signature:</span>
+                  <span className="sign-val sign-cursive">{isApproved ? approverSig : ''}</span>
+                </div>
+                <div className="signoff-line">
+                  <span className="sign-lbl">Date:</span>
+                  <span className="sign-val">{isApproved ? decidedDate : '________________'}</span>
+                </div>
               </div>
-              <div className="signoff-line">
-                <span className="sign-lbl">Date:</span>
-                <span className="sign-val">{isApproved ? decidedDate : '________________'}</span>
-              </div>
+              {isApproved && (
+                <div className="official-stamp-badge">
+                  <span className="stamp-circle">APPROVED<br /><small>QA/QC</small></span>
+                </div>
+              )}
             </div>
-            {isApproved && (
-              <div className="official-stamp-badge">
-                <span className="stamp-circle">APPROVED<br /><small>QA/QC</small></span>
-              </div>
-            )}
-          </div>
+          )}
         </div>
 
         {/* =========================================================

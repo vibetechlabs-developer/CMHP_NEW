@@ -596,3 +596,15 @@
     border-color: #000000 !important;
   }
 }
+
+.bmr-exact-logo-wrap.bmr-exact-logo-wrap-tej {
+  overflow: hidden;
+}
+
+.bmr-exact-logo-img.bmr-exact-logo-img-tej {
+  max-height: 52px;
+  max-width: 125px;
+  object-fit: contain;
+  transform: scale(1.2);
+  transform-origin: left center;
+}
