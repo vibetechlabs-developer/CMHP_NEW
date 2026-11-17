@@ -10,6 +10,7 @@ import {
   selectActiveCompanyId,
 } from '../../utils/companySelectors'
 import { resolveOrderDosageForm } from './productionService'
+import { getCompanyBranding } from '../../utils/companyBranding.js'
 import './ProductionInvoice.css'
 
 // Format YYYY-MM-DD or ISO date string to DD.MM.YYYY
@@ -134,6 +135,8 @@ export default function ProductionInvoice() {
     return (reduxOrders || []).find((o) => String(o.id) === String(orderId))
   }, [reduxOrders, orderId])
 
+  const branding = getCompanyBranding(compKey === 'tej' ? 'tej' : (order || compKey))
+
   // Find customer linked to order
   const customer = useMemo(() => {
     if (!order) return null
@@ -239,13 +242,13 @@ export default function ProductionInvoice() {
       top_title_left: 'TAX INVOICE',
       top_title_right: 'ORIGINAL FOR RECEPIENT',
 
-      // Company Header (static text from screenshot 2, editable)
-      company_name: 'CMHP PRIVATE LIMITED',
-      company_factory: 'Factory : 18, Shubh Laxmi, Viramgam Road,Sanand,Ahmedabad-382110. Regd.Off.: 701, Safal Prelude, Corporate Road, Ahmedabad-380015',
-      company_contacts: 'Tel: +917947977198          Mob: +919327252466',
-      company_gstin: '24AAICC9380N1Z2',
-      company_dl: 'GH-7',
-      company_pan: 'AAICC9380N',
+      // Company Header (dynamic branding per active company / order)
+      company_name: branding.headerName,
+      company_factory: branding.factoryAddress,
+      company_contacts: branding.companyContacts,
+      company_gstin: branding.gstin,
+      company_dl: branding.dl,
+      company_pan: branding.pan,
 
       // Invoice info block (Rows 6-10)
       invoice_no: existingNum,
@@ -566,8 +569,8 @@ export default function ProductionInvoice() {
           <div className="inv-company-header-block">
             <div className="inv-company-logo-area">
               <img
-                src="/logo.jpg"
-                alt="CMHP Logo"
+                src={branding.isTej ? branding.invoiceLogoSrc : '/logo.jpg'}
+                alt={branding.headerName}
                 className="inv-company-logo-img"
                 onError={(e) => {
                   e.target.style.display = 'none'
@@ -1243,7 +1246,7 @@ export default function ProductionInvoice() {
               {/* Rows 43-47: Authorised Signatory */}
               <div className="inv-signatory-block">
                 <div className="inv-signatory-header">
-                  For CMHP Private Limited
+                  {branding.isTej ? branding.forCompany : 'For CMHP Private Limited'}
                 </div>
                 <div className="inv-signature-area">
                   <img

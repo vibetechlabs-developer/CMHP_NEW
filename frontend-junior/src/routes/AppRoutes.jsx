@@ -47,6 +47,12 @@ import Quality
 import MaterialQC
   from '../features/quality/MaterialQC'
 
+import QcList
+  from '../features/qc/QcList'
+
+import QcViewPage
+  from '../features/qc/QcViewPage'
+
 import Production
   from '../features/production/Production'
 
@@ -55,6 +61,9 @@ import ProductionInvoice
 
 import BmrForm
   from '../features/production/BmrForm'
+
+import BmrManagementPage
+  from '../features/production/BmrManagementPage'
 
 import InvoiceViewPage
   from '../features/invoice/InvoiceViewPage'
@@ -284,6 +293,21 @@ export default function AppRoutes() {
             }
           />
 
+          {/* QUALITY CONTROL / CERTIFICATE OF ANALYSIS */}
+          <Route
+            path="/qc"
+            element={
+              <QcList />
+            }
+          />
+
+          <Route
+            path="/qc/view/:orderId"
+            element={
+              <QcViewPage />
+            }
+          />
+
 
           {/* =================================================
               PRODUCTION & BMR
@@ -339,6 +363,24 @@ export default function AppRoutes() {
                 ]}
               >
                 <BmrForm />
+              </RoleRoute>
+            }
+          />
+
+          <Route
+            path="/bmr-records"
+            element={
+              <RoleRoute
+                roles={[
+                  'SUPER_ADMIN',
+                  'MANAGEMENT',
+                  'DEPARTMENT_MANAGER',
+                  'STORES_MANAGER',
+                  'HR_MANAGER',
+                  'EMPLOYEE',
+                ]}
+              >
+                <BmrManagementPage />
               </RoleRoute>
             }
           />

@@ -2230,8 +2230,9 @@ export default function Products() {
               batchUnit={requiredBatchUnit}
               scaleFactor={currentScaleFactor}
               approval={activeApproval}
-              companyName={activeCompanyId === 2 ? 'TEJ BIOCARE HEALTHCARE PVT. LTD.' : 'CMHP PHARMACEUTICALS PVT. LTD.'}
-              companyCode={activeCompanyId === 2 ? 'TEJ' : 'CMHP'}
+              company={activeCompanyId === 3 ? { id: 3, name: 'Tej Biocare' } : { id: 2, name: 'CMHP' }}
+              companyName={activeCompanyId === 3 ? 'TEJ BIOCARE HEALTHCARE PVT. LTD.' : 'CMHP PHARMACEUTICALS PVT. LTD.'}
+              companyCode={activeCompanyId === 3 ? 'TEJ' : 'CMHP'}
               department={activeProduct?.dosage_form === 'Syrups' || activeProduct?.dosage_form === 'Suspension' ? 'PRODUCTION ( ORAL LIQUID DEPARTMENT )' : 'PRODUCTION ( ORAL SOLID DOSAGE DEPARTMENT )'}
             />
           </div>

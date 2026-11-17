@@ -4,6 +4,7 @@
  */
 import { useState, useEffect, useRef } from 'react'
 import cmhpLogo from '../../assets/cmhp_invoice_logo.png'
+import { getCompanyBranding } from '../../utils/companyBranding.js'
 import Button from '../../components/Button'
 import './BulkReleaseSlip.css'
 
@@ -58,6 +59,7 @@ export const INITIAL_SLIP_DATA = {
 }
 
 export default function BulkReleaseSlipEditor({ initialData = null, onSaved = null }) {
+  const branding = getCompanyBranding(initialData)
   const [data, setData] = useState(() => {
     if (initialData) return { ...INITIAL_SLIP_DATA, ...initialData }
     try {
@@ -226,11 +228,11 @@ export default function BulkReleaseSlipEditor({ initialData = null, onSaved = nu
         {/* 1. Header Box: Logo at top left, CMHP PRIVATE LIMITED centered, empty space below */}
         <div className="att3-top-box">
           <div className="att3-header-row">
-            <div className="att3-logo-wrap">
-              <img src={cmhpLogo} alt="CMHP Logo" className="att3-logo-img" />
+            <div className={`att3-logo-wrap ${branding.isTej ? 'att3-logo-wrap-tej' : ''}`}>
+              <img src={branding.isTej ? branding.logoSrc : cmhpLogo} alt={branding.headerName} className="att3-logo-img" />
             </div>
             <div className="att3-company-title">
-              CMHP PRIVATE LIMITED
+              {branding.isTej ? branding.headerName : 'CMHP PRIVATE LIMITED'}
             </div>
           </div>
         </div>

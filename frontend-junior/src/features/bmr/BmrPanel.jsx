@@ -15,6 +15,7 @@ import { LoadingState } from '../../components/Spinner'
 import { getErrorMessage } from '../../utils/errors'
 import { createBmrForPlan, getBmrForPlan, updateBmrLine } from './bmrService'
 import './BmrPanel.css'
+import { getCompanyBranding, isTejBiocare } from '../../utils/companyBranding.js'
 
 const SIGNOFFS = [
   ['Prepared by', 'Production Chemist'],
@@ -24,6 +25,9 @@ const SIGNOFFS = [
 ]
 
 export default function BmrPanel({ companyId, planId, plan = null, canView = true, canCreate = false, canEdit = false }) {
+  const isTej = isTejBiocare(companyId) || isTejBiocare(plan?.company) || isTejBiocare()
+  const branding = getCompanyBranding(isTej ? 'tej' : 'cmhp')
+
   const [bmr, setBmr] = useState(null)
   const [state, setState] = useState('loading')
   const [error, setError] = useState('')
@@ -105,15 +109,22 @@ export default function BmrPanel({ companyId, planId, plan = null, canView = tru
               marginBottom: 16,
               background: '#f8fafc',
             }}>
-              <div style={{ textAlign: 'center', borderBottom: '1px solid #cbd5e1', paddingBottom: 8, marginBottom: 10 }}>
-                <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: '0.5px', color: '#0f172a' }}>
-                  CMHP PRIVATE LIMITED
-                </div>
-                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#334155', marginTop: 2 }}>
-                  PRODUCTION (ORAL LIQUID DEPARTMENT) · BATCH MANUFACTURING RECORD (BMR)
-                </div>
-                <div style={{ fontSize: 11.5, fontWeight: 600, color: '#64748b', marginTop: 2 }}>
-                  ATTACHMENT - 1 · RAW MATERIAL REQUISITION SLIP
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, borderBottom: '1px solid #cbd5e1', paddingBottom: 8, marginBottom: 10 }}>
+                <img
+                  src={branding.logoSrc}
+                  alt={branding.headerName}
+                  style={{ height: 42, maxWidth: 110, objectFit: 'contain' }}
+                />
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: '0.5px', color: '#0f172a' }}>
+                    {branding.headerName}
+                  </div>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: '#334155', marginTop: 2 }}>
+                    PRODUCTION (ORAL LIQUID DEPARTMENT) · BATCH MANUFACTURING RECORD (BMR)
+                  </div>
+                  <div style={{ fontSize: 11.5, fontWeight: 600, color: '#64748b', marginTop: 2 }}>
+                    ATTACHMENT - 1 · RAW MATERIAL REQUISITION SLIP
+                  </div>
                 </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '6px 16px', fontSize: 12.5 }}>

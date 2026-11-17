@@ -38,13 +38,8 @@ export default function useSelectedCompany() {
   const resolveCompanyId = (list, preferredId = null) => {
     if (!list || list.length === 0) return null
 
-    // If an explicitly requested valid id exists in list, keep it
-    if (preferredId && list.some((c) => c.id === preferredId)) {
-      return preferredId
-    }
-
-    // 1. Try matching active workspace option name/code
-    if (activeOption?.name) {
+    // 1. Priority: Match currently open active workspace (context)
+    if (activeOption?.name && activeWorkspace !== 'common_inventory') {
       const targetName = String(activeOption.name).toLowerCase().trim()
       const match = list.find((c) => {
         const names = [c.code, c.display_name, c.legal_name, c.name].filter(Boolean)
@@ -55,7 +50,7 @@ export default function useSelectedCompany() {
 
     // 2. Try matching activeOption companyId / realCompanyId
     const targetCompId = activeOption?.realCompanyId ?? activeOption?.companyId
-    if (targetCompId && list.some((c) => c.id === targetCompId)) {
+    if (targetCompId && activeWorkspace !== 'common_inventory' && list.some((c) => c.id === targetCompId)) {
       return targetCompId
     }
 
@@ -67,13 +62,18 @@ export default function useSelectedCompany() {
       return list[1]?.id ?? list[0].id
     }
 
-    // 4. Fallback to localStorage saved id if valid
+    // 4. If an explicitly requested valid id exists in list, keep it
+    if (preferredId && list.some((c) => c.id === preferredId)) {
+      return preferredId
+    }
+
+    // 5. Fallback to localStorage saved id if valid
     const saved = storageKey ? Number(window.localStorage.getItem(storageKey)) : null
     if (saved && list.some((c) => c.id === saved)) {
       return saved
     }
 
-    // 5. Default to the first company in the user's list
+    // 6. Default to the first company in the user's list
     return list[0].id
   }
 

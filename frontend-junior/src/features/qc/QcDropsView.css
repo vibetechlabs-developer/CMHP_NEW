@@ -1,0 +1,456 @@
+/* =========================================================
+   CMHP PHARMA - QC CERTIFICATE OF ANALYSIS (COA - DROPS)
+   Form SOP/QC/11/F-05/00
+   1-Page A4 Portrait Layout matching Master DOCX / PDF
+   Reference size: A4 at 96 dpi = 794 x 1123 px (595.3 x 841.9 pt)
+   Margins: Top 0.5 in (48px), Right 0.5 in, Bottom 0.5 in (48px), Left 1.5 in
+   Tables start 0.3 in to the left of the left margin (left = 1.2 in = 115px)
+   Table width = 6.75 in = 648px (9720 twips). Borders: 0.5pt single black.
+   ========================================================= */
+
+/* DROPS A4 SHEET CONTAINER */
+.qc-drops-sheet {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  width: 794px;
+  height: 1123px;
+  min-height: 1123px;
+  max-height: 1123px;
+  padding: 48px 31px 48px 115px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  border-radius: 2px;
+  margin: 0 auto 24px;
+  font-family: 'Times New Roman', Times, serif !important;
+  color: #000000 !important;
+  position: relative;
+  overflow: hidden;
+  line-height: 1.15;
+}
+
+/* COMPLETE GLOBAL OVERRIDES INSIDE QC DROPS SHEET */
+.qc-drops-sheet * {
+  box-sizing: border-box !important;
+  color: #000000 !important;
+}
+
+.qc-drops-sheet table {
+  border-collapse: collapse !important;
+  width: 648px !important;
+  max-width: 648px !important;
+  table-layout: fixed !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.qc-drops-sheet tr {
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.qc-drops-sheet th,
+.qc-drops-sheet td {
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  color: #000000 !important;
+  background: transparent;
+  border: 1px solid #000000 !important;
+  vertical-align: top !important;
+  line-height: 1.15 !important;
+  padding: 1px 4px !important;
+  font-size: 11pt !important;
+}
+
+/* =========================================================
+   HEADER BLOCK (6 columns: 12.23% / 11.82% / 18.11% / 18.94% / 21.31% / 17.60%)
+   ========================================================= */
+.qc-drops-header-table {
+  border: 1px solid #000000 !important;
+  width: 648px !important;
+  flex-shrink: 0;
+}
+
+.qc-drops-header-row-1 {
+  height: 38px;
+  min-height: 38px;
+  max-height: 38px;
+}
+
+.qc-drops-header-row-1-cell {
+  height: 38px !important;
+  min-height: 38px !important;
+  max-height: 38px !important;
+  padding: 0 4px !important;
+  vertical-align: middle !important;
+}
+
+.qc-drops-header-row-1-content {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  position: relative;
+  justify-content: center;
+}
+
+.qc-drops-logo-wrap {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 84px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.qc-drops-logo-wrap-tej {
+  width: 90px;
+}
+
+.qc-drops-logo-img {
+  max-width: 84px;
+  max-height: 36px;
+  object-fit: contain;
+}
+
+.qc-drops-logo-img-tej {
+  max-width: 90px;
+  max-height: 36px;
+  object-fit: contain;
+}
+
+.qc-drops-company-title {
+  font-family: 'Times New Roman', Times, serif !important;
+  font-size: 18pt !important;
+  font-weight: normal !important; /* 18 pt regular */
+  line-height: 1 !important;
+  color: #000000 !important;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.qc-drops-title-cell {
+  text-align: center !important;
+  font-weight: bold !important;
+  font-size: 11pt !important;
+  padding: 2px 4px !important;
+  line-height: 1.2 !important;
+}
+
+.qc-drops-label-cell {
+  font-weight: bold !important;
+  font-size: 11pt !important;
+  vertical-align: middle !important;
+}
+
+.qc-drops-value-cell {
+  font-weight: normal !important;
+  font-size: 11pt !important;
+  vertical-align: middle !important;
+  padding: 0 !important;
+}
+
+.qc-drops-static-text {
+  padding: 1px 4px !important;
+  font-weight: normal !important;
+  font-size: 11pt !important;
+  line-height: 1.15 !important;
+}
+
+/* =========================================================
+   TEST PARAMETERS TABLE (Sr 834 / Param 2676 / Result 2790 / Limit 3420 twips)
+   Percentages: 8.58% / 27.53% / 28.70% / 35.19%
+   ========================================================= */
+.qc-drops-test-table {
+  border: 1px solid #000000 !important;
+  width: 648px !important;
+  margin-top: 0 !important;
+  flex-shrink: 0;
+}
+
+.qc-drops-test-th {
+  font-weight: bold !important;
+  font-size: 11pt !important;
+  text-align: center !important;
+  padding: 2px 4px !important;
+  background: transparent !important;
+}
+
+.qc-drops-test-td-sr {
+  text-align: center !important;
+  font-size: 11pt !important;
+  vertical-align: middle !important;
+}
+
+.qc-drops-test-td-param {
+  text-align: left !important;
+  font-size: 11pt !important;
+  vertical-align: middle !important;
+  padding-left: 4px !important;
+}
+
+.qc-drops-test-td-input {
+  vertical-align: middle !important;
+  padding: 0 !important;
+}
+
+/* =========================================================
+   LABEL CLAIM SECTION
+   ========================================================= */
+.qc-drops-lc-caption {
+  font-family: 'Times New Roman', Times, serif !important;
+  font-size: 11pt !important;
+  font-weight: bold !important;
+  margin-top: 10px;
+  margin-bottom: 3px;
+  line-height: 1.2;
+}
+
+.qc-drops-lc-table {
+  border: 1px solid #000000 !important;
+  width: 648px !important;
+  flex-shrink: 0;
+}
+
+.qc-drops-lc-th {
+  font-weight: bold !important;
+  font-size: 11pt !important;
+  text-align: center !important;
+  padding: 2px 4px !important;
+}
+
+.qc-drops-lc-td-sr {
+  text-align: center !important;
+  font-size: 11pt !important;
+  vertical-align: middle !important;
+}
+
+.qc-drops-lc-td-content {
+  text-align: left !important;
+  font-size: 11pt !important;
+  vertical-align: middle !important;
+  padding: 0 !important;
+}
+
+.qc-drops-lc-td-center {
+  text-align: center !important;
+  font-size: 11pt !important;
+  vertical-align: middle !important;
+  padding: 0 !important;
+}
+
+.qc-drops-footnote {
+  font-size: 11pt !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  margin-top: 3px;
+  margin-bottom: 8px;
+  line-height: 1.2;
+}
+
+/* =========================================================
+   ANALYSIS & REMARKS PARAGRAPHS
+   ========================================================= */
+.qc-drops-text-block {
+  font-size: 11pt !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  line-height: 1.2;
+  margin-bottom: 8px;
+}
+
+.qc-drops-text-block p {
+  margin: 0 0 3px 0;
+  text-align: justify;
+}
+
+.qc-drops-remarks-block {
+  font-size: 11pt !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  line-height: 1.2;
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+/* =========================================================
+   FOOTER BLOCK (PINNED AT BOTTOM)
+   Sign-off: 1473 (15.15%) / 3657 (37.62%) / 4590 (47.22%)
+   ========================================================= */
+.qc-drops-footer-section {
+  margin-top: auto;
+  flex-shrink: 0;
+  width: 648px;
+}
+
+.qc-drops-signoff-table {
+  border: 1px solid #000000 !important;
+  width: 648px !important;
+}
+
+.qc-drops-signoff-grey-cell {
+  background-color: #D9D9D9 !important;
+  border: 1px solid #000000 !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+.qc-drops-signoff-th {
+  text-align: center !important;
+  font-weight: normal !important;
+  font-size: 11pt !important;
+  line-height: 1.15 !important;
+  vertical-align: middle !important;
+  padding: 2px 4px !important;
+}
+
+.qc-drops-signoff-label {
+  font-size: 11pt !important;
+  vertical-align: middle !important;
+  padding-left: 4px !important;
+}
+
+.qc-drops-signoff-sig-cell {
+  height: 32px !important;
+  min-height: 32px !important;
+  vertical-align: bottom !important;
+  padding: 0 !important;
+}
+
+.qc-drops-page-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11pt !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  margin-top: 4px;
+  width: 648px;
+}
+
+.qc-drops-footer-sop {
+  font-weight: bold !important;
+}
+
+.qc-drops-footer-page {
+  font-weight: normal !important;
+}
+
+/* =========================================================
+   CELL INPUTS & INTERACTIVITY
+   ========================================================= */
+.qc-drops-sheet input.qc-cell-input {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 18px !important;
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  font-size: 11pt !important;
+  color: #000000 !important;
+  padding: 1px 4px !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+  line-height: 1.15 !important;
+}
+
+.qc-drops-sheet input.qc-cell-input:focus {
+  background-color: #f0fdf4 !important;
+}
+
+.qc-drops-sheet .qc-text-center {
+  text-align: center !important;
+}
+
+.qc-drops-sheet .qc-text-left {
+  text-align: left !important;
+}
+
+/* =========================================================
+   PRINT / PDF MEDIA STYLES
+   ========================================================= */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  body, html {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .qc-topbar,
+  .qc-layout aside,
+  .qc-bottom-nav,
+  .no-print {
+    display: none !important;
+  }
+
+  .qc-print-only-container {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .qc-print-only-container .qc-drops-sheet {
+    width: 595.3pt !important;
+    height: 841.9pt !important;
+    min-height: 841.9pt !important;
+    max-height: 841.9pt !important;
+    padding: 36pt 23pt 36pt 86.4pt !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    page-break-after: avoid !important;
+    page-break-before: avoid !important;
+    break-after: avoid !important;
+    break-before: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    position: relative !important;
+  }
+
+  .qc-print-only-container .qc-drops-header-table,
+  .qc-print-only-container .qc-drops-test-table,
+  .qc-print-only-container .qc-drops-lc-table,
+  .qc-print-only-container .qc-drops-footer-section,
+  .qc-print-only-container .qc-drops-signoff-table,
+  .qc-print-only-container .qc-drops-page-footer {
+    width: 486pt !important;
+    max-width: 486pt !important;
+  }
+
+  .qc-print-only-container .qc-drops-signoff-grey-cell {
+    background-color: #D9D9D9 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .qc-print-only-container input.qc-cell-input {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: #000000 !important;
+    padding: 0 !important;
+  }
+
+  .qc-date-picker-icon {
+    display: none !important;
+  }
+
+  .qc-date-print-value {
+    display: inline !important;
+  }
+}

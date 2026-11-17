@@ -76,7 +76,8 @@ export default function ProductsPage() {
   const canFormulas = hasPermission('formulas.view')
 
   const location = useLocation()
-  const formulasBasePath = location.pathname.startsWith('/inventory')
+  const isInventory = location.pathname.startsWith('/inventory')
+  const formulasBasePath = isInventory
     ? '/inventory/products'
     : '/products'
 
@@ -209,8 +210,8 @@ export default function ProductsPage() {
       {companyId && (permissionsLoading || canView) && (
         <>
           <div className="inv-filters-bar">
-            {/* Company Selector — Products are company-scoped */}
-            {companiesReady && companies.length >= 1 && (
+            {/* Company Selector — inventory only; /products uses global Active Context */}
+            {isInventory && companiesReady && companies.length >= 1 && (
               <select
                 className="company-input"
                 aria-label="Select company"

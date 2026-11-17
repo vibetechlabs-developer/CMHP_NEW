@@ -947,7 +947,7 @@ export default function HrReports() {
                 <span style={{ fontSize: 18 }}>🏭</span>
               </div>
               <div className="hr-kpi-val" style={{ color: '#0f172a' }}>
-                {activeInView.filter((e) => Number(e.primary_company) === 1).length}
+                {activeInView.filter((e) => Number(e.primary_company) === 2 || Number(e.primary_company) === 1).length}
               </div>
               <div className="hr-kpi-sub">Unit 1 Staff</div>
             </div>
@@ -958,7 +958,7 @@ export default function HrReports() {
                 <span style={{ fontSize: 18 }}>💊</span>
               </div>
               <div className="hr-kpi-val" style={{ color: '#0f172a' }}>
-                {activeInView.filter((e) => Number(e.primary_company) === 2).length}
+                {activeInView.filter((e) => Number(e.primary_company) === 3).length}
               </div>
               <div className="hr-kpi-sub">Unit 2 Staff</div>
             </div>

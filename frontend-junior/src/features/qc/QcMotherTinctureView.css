@@ -1,0 +1,490 @@
+/* =========================================================
+   CMHP PHARMA - QC CERTIFICATE OF ANALYSIS (COA - MOTHER TINCTURE)
+   Form SOP/QC/11/F-04/00
+   Exact 1-to-1 Vector Geometry Replica of Master Mother Tincture DOCX / PDF
+   Reference size: A4 at 96 dpi = 794 x 1123 px (595.3 x 841.9 pt)
+   All tables share left edge at x = 108 px (81 pt) and right edge at x = 756 px (567 pt)
+   Table width = 648 px (486 pt). Left margin 13.6%, right margin 4.8%.
+   ========================================================= */
+
+/* MOTHER TINCTURE A4 SHEET CONTAINER */
+.qc-mt-sheet {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  width: 794px;
+  height: 1123px;
+  min-height: 1123px;
+  max-height: 1123px;
+  padding: 30px 38px 0 108px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  border-radius: 2px;
+  margin: 0 auto 24px;
+  font-family: 'Times New Roman', Times, serif !important;
+  color: #000000 !important;
+  position: relative;
+  overflow: hidden;
+  line-height: 1.15;
+}
+
+/* COMPLETE GLOBAL OVERRIDES INSIDE QC MOTHER TINCTURE SHEET */
+.qc-mt-sheet * {
+  box-sizing: border-box !important;
+  color: #000000 !important;
+}
+
+.qc-mt-sheet table {
+  border-collapse: collapse !important;
+  width: 648px !important;
+  max-width: 648px !important;
+  table-layout: fixed !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.qc-mt-sheet tr {
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.qc-mt-sheet th,
+.qc-mt-sheet td {
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  color: #000000 !important;
+  background: transparent;
+  border: 1px solid #000000 !important;
+  vertical-align: top !important;
+  line-height: 1.15 !important;
+  padding: 1px 3px !important;
+}
+
+/* =========================================================
+   HEADER BLOCK (top at y = 30px, 6 columns, 10 rows)
+   Column widths: 12.1% / 12.2% / 18.8% / 20.4% / 21.7% / 14.8%
+   ========================================================= */
+.qc-mt-header-table {
+  border: 1px solid #000000 !important;
+  width: 648px !important;
+  flex-shrink: 0;
+}
+
+/* Row 1: Logo & Company Name (~38 px tall) */
+.qc-mt-header-row-1 {
+  height: 38px;
+  min-height: 38px;
+  max-height: 38px;
+}
+
+.qc-mt-header-row-1-cell {
+  height: 38px !important;
+  min-height: 38px !important;
+  max-height: 38px !important;
+  padding: 0 4px !important;
+  vertical-align: middle !important;
+}
+
+.qc-mt-header-row-1-content {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  position: relative;
+}
+
+.qc-mt-logo-wrap {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 84px;
+  height: 37px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.qc-mt-logo-wrap-tej {
+  width: 90px;
+}
+
+.qc-mt-logo-img {
+  max-width: 84px;
+  max-height: 37px;
+  object-fit: contain;
+}
+
+.qc-mt-logo-img-tej {
+  max-width: 90px;
+  max-height: 37px;
+  object-fit: contain;
+}
+
+.qc-mt-company-title {
+  margin-left: 182px; /* starting ~1.9 in / ~182 px from left edge */
+  font-family: 'Times New Roman', Times, serif !important;
+  font-size: 18pt !important;
+  font-weight: normal !important; /* regular weight, NOT bold */
+  line-height: 1 !important;
+  color: #000000 !important;
+  white-space: nowrap;
+}
+
+/* Row 2: "Quality Control" (about 29 px tall, 12pt bold centered) */
+.qc-mt-header-row-qc {
+  height: 29px;
+  min-height: 29px;
+  max-height: 29px;
+}
+
+/* Row 3: "CERTIFICATE OF ANALYSIS (MOTHER TINCTURE)" (about 23 px tall, 12pt bold centered) */
+.qc-mt-header-row-coa {
+  height: 23px;
+  min-height: 23px;
+  max-height: 23px;
+}
+
+.qc-mt-title-cell {
+  text-align: center !important;
+  font-weight: bold !important;
+  font-size: 12pt !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  color: #000000 !important;
+  vertical-align: middle !important;
+  padding: 0 3px !important;
+}
+
+/* Info Rows: 12pt font */
+.qc-mt-info-row td {
+  font-size: 12pt !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  color: #000000 !important;
+  vertical-align: top !important;
+  line-height: 1.15 !important;
+}
+
+.qc-mt-label-cell {
+  font-weight: bold !important;
+  font-size: 12pt !important;
+  color: #000000 !important;
+  text-align: left !important;
+  padding: 1px 3px !important;
+}
+
+.qc-mt-value-cell {
+  font-weight: normal !important;
+  font-size: 12pt !important;
+  color: #000000 !important;
+  padding: 1px 3px !important;
+}
+
+.qc-mt-static-text {
+  font-weight: normal !important;
+  font-size: 12pt !important;
+  color: #000000 !important;
+  line-height: 1.15;
+}
+
+/* Specific Info Row Heights */
+.qc-mt-info-row-product {
+  height: 21px;
+  min-height: 21px;
+  max-height: 21px;
+}
+
+.qc-mt-info-row-spc {
+  height: 34px;
+  min-height: 34px;
+  max-height: 34px;
+}
+
+.qc-mt-info-row-reference {
+  height: 35px;
+  min-height: 35px;
+  max-height: 35px;
+}
+
+.qc-mt-info-row-spc-asper {
+  height: 34px;
+  min-height: 34px;
+  max-height: 34px;
+}
+
+.qc-mt-info-row-batch {
+  height: 35px;
+  min-height: 35px;
+  max-height: 35px;
+}
+
+.qc-mt-info-row-sample-date {
+  height: 34px;
+  min-height: 34px;
+  max-height: 34px;
+}
+
+.qc-mt-info-row-ar {
+  height: 26px;
+  min-height: 26px;
+  max-height: 26px;
+}
+
+/* Gap below header block (~18 px) */
+.qc-mt-header-gap {
+  height: 18px;
+  min-height: 18px;
+  max-height: 18px;
+  flex-shrink: 0;
+}
+
+/* =========================================================
+   BODY: TEST PARAMETERS TABLE (full width 648px, 11pt font)
+   Columns: Sr.No. 8.6% | Test Parameters 24.9% | Result 26.7% | Limits 39.8%
+   ========================================================= */
+.qc-mt-test-table {
+  border: 1px solid #000000 !important;
+  width: 648px !important;
+  flex-shrink: 0;
+}
+
+.qc-mt-test-header-row {
+  height: 18px;
+  min-height: 18px;
+  max-height: 18px;
+}
+
+.qc-mt-test-th {
+  font-size: 11pt !important;
+  font-weight: bold !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+  padding: 0 3px !important;
+  border: 1px solid #000000 !important;
+}
+
+.qc-mt-test-row {
+  height: 17.5px;
+  min-height: 17px;
+  max-height: 18px;
+}
+
+.qc-mt-test-td-sr {
+  font-size: 11pt !important;
+  font-weight: normal !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+  padding: 0 2px !important;
+  border: 1px solid #000000 !important;
+}
+
+.qc-mt-test-td-param {
+  font-size: 11pt !important;
+  font-weight: normal !important;
+  text-align: left !important;
+  vertical-align: middle !important;
+  padding: 0 3px !important;
+  border: 1px solid #000000 !important;
+}
+
+.qc-mt-test-td-input {
+  font-size: 11pt !important;
+  vertical-align: middle !important;
+  padding: 0 2px !important;
+  border: 1px solid #000000 !important;
+}
+
+/* Remarks (~24 px gap above, 11pt font) */
+.qc-mt-remarks-wrap {
+  margin-top: 24px;
+  width: 648px;
+  flex-shrink: 0;
+}
+
+.qc-mt-remarks-text {
+  font-size: 11pt !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  color: #000000 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1.25 !important;
+}
+
+.qc-mt-remarks-text strong {
+  font-weight: bold !important;
+}
+
+/* Large blank area */
+.qc-mt-blank-area {
+  flex: 1;
+  min-height: 40px;
+}
+
+/* =========================================================
+   SIGN-OFF TABLE & FOOTER SECTION
+   Top at y = 874 px, Total Height ~125 px
+   Width 648 px, same edges (x = 108 px to x = 756 px)
+   ========================================================= */
+.qc-mt-signoff-section {
+  position: absolute;
+  top: 874px;
+  left: 108px;
+  width: 648px;
+  box-sizing: border-box;
+}
+
+.qc-mt-signoff-table {
+  border: 1px solid #000000 !important;
+  width: 648px !important;
+  height: 125px;
+  border-collapse: collapse !important;
+  table-layout: fixed !important;
+}
+
+.qc-mt-signoff-header-row {
+  height: 53px;
+  min-height: 53px;
+  max-height: 53px;
+}
+
+.qc-mt-signoff-grey-cell {
+  background-color: #d9d9d9 !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+  border: 1px solid #000000 !important;
+}
+
+.qc-mt-signoff-th {
+  font-weight: normal !important; /* regular weight */
+  font-size: 11pt !important;
+  text-align: center !important;
+  color: #000000 !important;
+  vertical-align: top !important;
+  padding-top: 4px !important;
+  border: 1px solid #000000 !important;
+  line-height: 1.2 !important;
+}
+
+.qc-mt-signoff-label {
+  font-weight: normal !important; /* regular weight */
+  font-size: 11pt !important;
+  color: #000000 !important;
+  text-align: left !important;
+  padding-left: 3px !important;
+  border: 1px solid #000000 !important;
+  vertical-align: top !important;
+}
+
+.qc-mt-signoff-name-row {
+  height: 17px;
+  min-height: 17px;
+  max-height: 17px;
+}
+
+.qc-mt-signoff-sig-row {
+  height: 38px;
+  min-height: 38px;
+  max-height: 38px;
+}
+
+.qc-mt-signoff-date-row {
+  height: 17px;
+  min-height: 17px;
+  max-height: 17px;
+}
+
+.qc-mt-signoff-input-cell {
+  vertical-align: top !important;
+  padding: 0 3px !important;
+  border: 1px solid #000000 !important;
+}
+
+/* =========================================================
+   FOOTER (immediately below sign-off table, 12pt font)
+   ========================================================= */
+.qc-mt-page-footer {
+  width: 648px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 3px;
+  font-family: 'Times New Roman', Times, serif !important;
+  font-size: 12pt !important;
+  color: #000000 !important;
+  box-sizing: border-box;
+}
+
+.qc-mt-footer-sop {
+  font-weight: bold !important;
+  font-size: 12pt !important;
+  color: #000000 !important;
+}
+
+.qc-mt-footer-page {
+  font-weight: normal !important;
+  font-size: 12pt !important;
+  color: #000000 !important;
+}
+
+.qc-mt-footer-page strong {
+  font-weight: bold !important;
+}
+
+/* =========================================================
+   PRINT STYLES FOR MOTHER TINCTURE COA
+   Guarantees EXACTLY 1 A4 page output
+   Zero overflow, zero extra pages, zero clipped rows
+   ========================================================= */
+@media print {
+  .qc-print-only-container .qc-mt-sheet {
+    width: 595.3pt !important;
+    height: 841.9pt !important;
+    min-height: 841.9pt !important;
+    max-height: 841.9pt !important;
+    padding: 22.5pt 28.5pt 0 81pt !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    page-break-after: avoid !important;
+    page-break-before: avoid !important;
+    break-after: avoid !important;
+    break-before: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    position: relative !important;
+  }
+
+  .qc-print-only-container .qc-mt-header-table,
+  .qc-print-only-container .qc-mt-test-table,
+  .qc-print-only-container .qc-mt-signoff-table,
+  .qc-print-only-container .qc-mt-remarks-wrap,
+  .qc-print-only-container .qc-mt-page-footer {
+    width: 486pt !important;
+    max-width: 486pt !important;
+  }
+
+  .qc-print-only-container .qc-mt-company-title {
+    margin-left: 136.5pt !important; /* ~1.9 in / ~182 px at 96 dpi */
+    font-size: 18pt !important;
+  }
+
+  .qc-print-only-container .qc-mt-signoff-section {
+    position: absolute !important;
+    top: 655.5pt !important; /* 874px * 72 / 96 = 655.5pt */
+    left: 81pt !important; /* 108px * 72 / 96 = 81pt */
+    width: 486pt !important; /* 648px * 72 / 96 = 486pt */
+  }
+
+  .qc-print-only-container .qc-mt-signoff-grey-cell {
+    background-color: #d9d9d9 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}

@@ -109,6 +109,15 @@ const NAV_SECTIONS = [
       },
 
       {
+        label: 'BMR Records',
+        path: '/bmr-records',
+        icon: ClipboardIcon,
+        accent: '#8b5cf6',
+        companyOnly: true,
+        roles: ['SUPER_ADMIN', 'MANAGEMENT', 'DEPARTMENT_MANAGER', 'STORES_MANAGER', 'HR_MANAGER', 'EMPLOYEE'],
+      },
+
+      {
         label: 'Invoicing',
         path: '/invoices',
         icon: ReceiptIcon,

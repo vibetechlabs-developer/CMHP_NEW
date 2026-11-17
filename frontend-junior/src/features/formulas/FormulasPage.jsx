@@ -55,7 +55,12 @@ function RevisionBadge({ status }) {
 
 export default function FormulasPage({ companyId, productId, product, backTo = '/products' }) {
   const { companies } = useSelectedCompany()
-  const company = companies.find((c) => c.id === companyId) || { code: 'CMHP', name: 'CMHP PHARMACEUTICALS', display_name: 'CMHP Pharma' }
+  const isTejCompany = Number(companyId) === 3
+  const company =
+    companies.find((c) => Number(c.id) === Number(companyId)) ||
+    (isTejCompany
+      ? { id: 3, code: 'TEJ BIOCARE', name: 'Tej Biocare', display_name: 'Tej Biocare' }
+      : { id: 2, code: 'CMHP', name: 'CMHP PHARMACEUTICALS', display_name: 'CMHP Pharma' })
 
   const { loading: permissionsLoading, hasPermission } = useCompanyPermissions(companyId)
   const canView = hasPermission('formulas.view')
@@ -786,10 +791,10 @@ function RevisionView({
         const calcMode = line.calculation_mode === 'AS_PER_LABEL_CLAIM'
           ? 'AS_PER_LABEL_CLAIM'
           : line.special_value && line.special_value.toUpperCase().includes('Q.S.')
-          ? 'EXCIPIENT_QS'
-          : line.label_claim && !line.label_claim_quantity
-          ? 'AS_PER_LABEL_CLAIM'
-          : line.calculation_mode || 'AS_PER_FORMULA'
+            ? 'EXCIPIENT_QS'
+            : line.label_claim && !line.label_claim_quantity
+              ? 'AS_PER_LABEL_CLAIM'
+              : line.calculation_mode || 'AS_PER_FORMULA'
 
         const displayQty = qtyText
           || (line.special_value && ['N/A', 'NA', 'N.A.', '-', '0'].includes(line.special_value.toUpperCase()) ? line.special_value : '')
@@ -1080,9 +1085,8 @@ function RevisionView({
       <div className="fm-footer-bar">
         <div className="fm-footer-left">
           <span
-            className={`fm-pulse-dot ${
-              saving ? 'fm-pulse-blue' : dirty ? 'fm-pulse-amber' : 'fm-pulse-green'
-            }`}
+            className={`fm-pulse-dot ${saving ? 'fm-pulse-blue' : dirty ? 'fm-pulse-amber' : 'fm-pulse-green'
+              }`}
           />
           <span
             style={{
@@ -1209,7 +1213,7 @@ function MaterialTable({ title, subtitle, badge, kind, partNumber = 1, rows, set
               type="checkbox"
               className="fm-p2-uses-p1-checkbox"
               checked={part2UsesPart1}
-              onChange={onTogglePart2UsesPart1 || (() => {})}
+              onChange={onTogglePart2UsesPart1 || (() => { })}
               disabled={!editable}
             />
             <span className="fm-p2-uses-p1-text">
@@ -1318,12 +1322,12 @@ function MaterialTable({ title, subtitle, badge, kind, partNumber = 1, rows, set
                               rows.map((r, i) =>
                                 i === index
                                   ? {
-                                      ...r,
-                                      calculation_mode: e.target.value,
-                                      ...(e.target.value === 'AS_PER_FORMULA'
-                                        ? { label_claim_quantity: '', label_claim_uom: null }
-                                        : {}),
-                                    }
+                                    ...r,
+                                    calculation_mode: e.target.value,
+                                    ...(e.target.value === 'AS_PER_FORMULA'
+                                      ? { label_claim_quantity: '', label_claim_uom: null }
+                                      : {}),
+                                  }
                                   : r
                               )
                             )
@@ -1335,9 +1339,8 @@ function MaterialTable({ title, subtitle, badge, kind, partNumber = 1, rows, set
                         </select>
                       ) : (
                         <span
-                          className={`fm-basis-badge ${
-                            isClaim ? 'fm-basis-claim' : isExcipient ? 'fm-basis-excipient' : 'fm-basis-formula'
-                          }`}
+                          className={`fm-basis-badge ${isClaim ? 'fm-basis-claim' : isExcipient ? 'fm-basis-excipient' : 'fm-basis-formula'
+                            }`}
                         >
                           {isClaim ? 'Label Claim' : isExcipient ? 'Excipient Q.S.' : 'Formula Based'}
                         </span>

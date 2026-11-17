@@ -133,3 +133,67 @@ class ProductionOrderStatus(models.Model):
 
     def __str__(self):
         return f"ProductionStatus order={self.order_id} company={self.company_id}"
+
+
+class BMRDocumentAttachment(models.Model):
+    """Stores physical BMR document files (PDFs, scans, signed forms) attached to a batch.
+    Supports multiple documents per batch (Master BMR, Material Slips, Weighing, Manufacturing,
+    In-process QC, Packaging, Reconciliation, etc.) with SHA-256 verification and version tracking.
+    """
+
+    class DocumentType(models.TextChoices):
+        MASTER_BMR = "MASTER_BMR", "Master BMR"
+        RAW_MATERIAL_SLIP = "RAW_MATERIAL_SLIP", "Raw Material Issue Slip"
+        WEIGHING_SLIP = "WEIGHING_SLIP", "Weighing Slip"
+        MANUFACTURING_RECORD = "MANUFACTURING_RECORD", "Manufacturing Record"
+        IN_PROCESS_QC = "IN_PROCESS_QC", "In-Process QC Record"
+        PACKAGING_RECORD = "PACKAGING_RECORD", "Packaging Record"
+        RECONCILIATION = "RECONCILIATION", "Yield & Reconciliation Record"
+        FINAL_APPROVAL = "FINAL_APPROVAL", "Final BMR Approval"
+        OTHER = "OTHER", "Other BMR Attachment"
+
+    class Status(models.TextChoices):
+        ATTACHED = "ATTACHED", "Attached"
+        ARCHIVED = "ARCHIVED", "Archived"
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="bmr_attachments")
+    batch_plan = models.ForeignKey(BatchPlan, on_delete=models.PROTECT, related_name="bmr_attachments")
+    batch_number = models.CharField(max_length=100, db_index=True)
+    product_name_snapshot = models.CharField(max_length=255)
+    product_code_snapshot = models.CharField(max_length=32, blank=True)
+    bmr_number = models.CharField(max_length=100, blank=True)
+    document_name = models.CharField(max_length=255)
+    document_type = models.CharField(max_length=50, choices=DocumentType.choices, default=DocumentType.MASTER_BMR)
+    file = models.FileField(upload_to="bmr_documents/%Y/%m/")
+    file_size = models.PositiveBigIntegerField(default=0)
+    mime_type = models.CharField(max_length=100, blank=True)
+    sha256_checksum = models.CharField(max_length=64, blank=True, db_index=True)
+    version = models.PositiveIntegerField(default=1)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ATTACHED)
+    remarks = models.TextField(blank=True, default="")
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="bmr_attachments_uploaded"
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-uploaded_at", "-id"]
+
+    def __str__(self):
+        return f"BMR Attachment: {self.document_name} ({self.batch_number}) v{self.version}"
+
+    @property
+    def is_physically_attached(self):
+        import os
+        try:
+            return bool(self.file and os.path.exists(self.file.path) and os.path.getsize(self.file.path) > 0)
+        except Exception:
+            return False
+
+    @property
+    def effective_attachment_status(self):
+        if self.status == self.Status.ATTACHED and not self.is_physically_attached:
+            return "FILE_MISSING"
+        return self.status
+

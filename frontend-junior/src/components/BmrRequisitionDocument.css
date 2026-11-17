@@ -86,6 +86,19 @@
   object-fit: contain;
 }
 
+/* Tej Biocare Branding Fit (Tej branch only - CMHP untouched) */
+.bmr-logo-cell-tej {
+  overflow: hidden;
+}
+
+.bmr-logo-img-tej {
+  max-width: 125px;
+  max-height: 75px;
+  object-fit: contain;
+  transform: scale(1.35);
+  transform-origin: center 43%;
+}
+
 .bmr-logo-fallback {
   text-align: center;
 }
@@ -333,21 +346,31 @@
   display: flex;
   border-bottom: 1.5px solid #000000;
   position: relative;
+  page-break-inside: avoid !important;
+  break-inside: avoid !important;
 }
 
 .signoff-col {
   flex: 1;
   border-right: 1.5px solid #000000;
-  padding: 8px 12px;
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 105px;
+  min-height: 115px;
   position: relative;
 }
 
 .signoff-col:last-child {
   border-right: none;
+}
+
+.signoff-col.signoff-approved .signoff-fields {
+  max-width: calc(100% - 80px);
+}
+
+.signoff-col.signoff-declined {
+  background-color: #fffaf0;
 }
 
 .signoff-title {
@@ -375,11 +398,13 @@
 
 .signoff-line {
   display: flex;
-  align-items: center;
+  align-items: baseline;
+  line-height: 1.4;
 }
 
 .sign-lbl {
   width: 65px;
+  min-width: 65px;
   font-weight: 600;
   color: #374151;
 }
@@ -387,6 +412,7 @@
 .sign-val {
   flex: 1;
   color: #000000;
+  word-break: break-word;
 }
 
 .sign-cursive {
@@ -398,23 +424,31 @@
 
 .official-stamp-badge {
   position: absolute;
-  right: 12px;
-  bottom: 8px;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
   pointer-events: none;
+  z-index: 10;
 }
 
 .stamp-circle {
-  display: inline-block;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   border: 2px solid #16a34a;
   color: #16a34a;
   padding: 4px 8px;
   font-weight: 800;
-  font-size: 11px;
+  font-size: 10.5px;
   text-align: center;
   border-radius: 4px;
-  transform: rotate(-10deg);
+  transform: rotate(-9deg);
   letter-spacing: 0.5px;
-  background: rgba(220, 252, 231, 0.4);
+  background: rgba(220, 252, 231, 0.55);
+  box-shadow: 0 0 0 1px rgba(22, 163, 74, 0.2);
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
 }
 
 /* Document Footer */
@@ -433,7 +467,15 @@
    PRINT STYLES (@media print)
    ========================================================= */
 @media print {
-  body * {
+  html, body {
+    overflow: visible !important;
+    height: auto !important;
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body:has(.bmr-document-container) * {
     visibility: hidden;
   }
 
@@ -443,9 +485,7 @@
   }
 
   .bmr-document-container {
-    position: absolute;
-    left: 0;
-    top: 0;
+    position: static !important;
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
@@ -458,10 +498,41 @@
   .bmr-document-sheet {
     box-shadow: none !important;
     border: 2px solid #000000 !important;
+    page-break-inside: avoid;
+  }
+
+  .bmr-table-wrap {
+    overflow: visible !important;
+  }
+
+  .bmr-requisition-table {
+    width: 100% !important;
+    table-layout: auto !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .bmr-signoff-box {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .official-stamp-badge {
+    display: block !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .stamp-circle {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   @page {
     size: A4 portrait;
-    margin: 12mm 10mm;
+    margin: 10mm 8mm;
   }
 }

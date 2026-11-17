@@ -201,6 +201,11 @@ BUSINESS_TIME_ZONE = env("BUSINESS_TIME_ZONE", default="Asia/Kolkata")
 
 STATIC_URL = "static/"
 
+MEDIA_URL = env("MEDIA_URL", default="/media/")
+MEDIA_ROOT = env("MEDIA_ROOT", default=str(BASE_DIR / "media"))
+FILE_UPLOAD_MAX_MEMORY_SIZE = 26214400  # 25 MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 26214400
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # --- Logging -------------------------------------------------------------

@@ -59,93 +59,197 @@ function hydrateQaRecord(qa, state) {
 }
 
 export const qualityService = {
-  // Existing Batch Methods (Preserved)
-  getBatches: () => {
+  // Existing Batch Methods (Backed by real PostgreSQL BatchQualityCase)
+  getBatches: async (companyId) => {
+    const cid = companyId || getScopedCompanyId()
     const state = store.getState().erp
-    const companyId = getScopedCompanyId()
-    const rows = (state.batches || []).filter((b) => !companyId || Number(b.company) === Number(companyId))
-    return delay(rows.map((b) => hydrateBatch(b, state)))
+    const rows = (state.batches || []).filter((b) => !cid || Number(b.company) === Number(cid))
+    let mapped = rows.map((b) => hydrateBatch(b, state))
+
+    try {
+      const cases = await qaPipelineService.listCases(cid)
+      if (Array.isArray(cases)) {
+        const matchedCaseIds = new Set()
+        mapped = mapped.map((batch) => {
+          const matchingCase = cases.find(
+            (c) =>
+              Number(c.batch_plan_id) === Number(batch.id) ||
+              Number(c.id) === Number(batch.id) ||
+              (batch.number && c.batch_number_snapshot === batch.number)
+          )
+          if (matchingCase) {
+            matchedCaseIds.add(matchingCase.id)
+            return {
+              ...batch,
+              qc_status: matchingCase.qc_status,
+              qa_status: matchingCase.qa_release_status,
+              stage_status: matchingCase.stage_status,
+              coa_status: matchingCase.coa_status,
+              packaging_qa_status: matchingCase.packaging_qa_status,
+              packaging_complete: matchingCase.packaging_complete,
+              quality_case_id: matchingCase.id,
+              quality_case_version: matchingCase.version,
+              version: matchingCase.version,
+            }
+          }
+          return batch
+        })
+
+        // Also expose backend quality cases created in Batch Planning that are not in local state
+        cases.forEach((c) => {
+          if (!matchedCaseIds.has(c.id)) {
+            mapped.push({
+              id: c.batch_plan_id || c.id,
+              batch_plan_id: c.batch_plan_id,
+              quality_case_id: c.id,
+              quality_case_version: c.version,
+              version: c.version,
+              number: c.batch_number_snapshot,
+              company: c.company_id,
+              company_name: c.company_id === 2 ? 'CMHP Pharma' : 'Tej Biocare',
+              product_name: c.product_name_snapshot,
+              product_code: c.product_code_snapshot,
+              formula_name: 'Master Formula',
+              planned_quantity: '—',
+              produced_quantity: '—',
+              qc_status: c.qc_status,
+              qa_status: c.qa_release_status,
+              stage_status: c.stage_status,
+              coa_status: c.coa_status,
+              packaging_qa_status: c.packaging_qa_status,
+              packaging_complete: c.packaging_complete,
+              production_status: 'COMPLETED',
+              is_backend: true,
+            })
+          }
+        })
+      }
+    } catch (e) {
+      console.warn('[qualityService] getBatches backend sync failed:', e?.message || e)
+    }
+
+    return mapped
   },
 
-  qcDecision: async (batchId, payload) => {
+  qcDecision: async (batchId, payload, companyId) => {
+    const cid = companyId || getScopedCompanyId()
+    const qcDecision = payload.decision === 'APPROVE' ? 'APPROVED' : 'REJECTED'
+
+    // 1. Submit to PostgreSQL backend FIRST — throws on failure
+    const backendResult = await qaPipelineService.enqueueBulkReleaseFromQc({
+      batchId,
+      companyId: cid,
+      qcDecision,
+      qcRemarks: payload.remarks || '',
+      batchNumber: payload.batchNumber,
+    })
+
+    // 2. Only on backend confirmation, update Redux cache
     store.dispatch(setBatchQc({ batchId, decision: payload.decision, remarks: payload.remarks }))
     recordAudit({
       action: 'qc/batchDecision',
       entityType: 'Batch',
       entityId: batchId,
-      payload,
+      payload: { ...payload, backend_case_id: backendResult?.id },
     })
-    // Approve OR reject — both go to QA Bulk Release inbox
-    const state = store.getState().erp
-    const batch =
-      (state.batches || []).find((b) => Number(b.id) === Number(batchId)) ||
-      (state.byCompany?.cmhp?.batches || []).find((b) => Number(b.id) === Number(batchId)) ||
-      (state.byCompany?.tej?.batches || []).find((b) => Number(b.id) === Number(batchId))
-    const product = batch
-      ? (state.products || []).find((p) => Number(p.id) === Number(batch.product))
-      : null
-    const qcDecision = payload.decision === 'APPROVE' ? 'APPROVED' : 'REJECTED'
-    await qaPipelineService.enqueueBulkReleaseFromQc({
-      batchId,
-      batchNumber: batch?.number,
-      productName: product?.name || batch?.product_name,
-      companyId: batch?.company || getScopedCompanyId(),
-      qcDecision,
-      qcRemarks: payload.remarks || '',
-    })
-    return delay(null)
+
+    return backendResult
   },
 
-  qaDecision: async (batchId, payload) => {
+  qaDecision: async (batchId, payload, companyId) => {
+    const cid = companyId || getScopedCompanyId()
+    const outcome = payload.decision === 'RELEASE' ? 'APPROVE' : payload.decision === 'HOLD' ? 'HOLD' : 'REJECT'
+
+    // 1. Submit to PostgreSQL backend FIRST — throws on failure
+    const backendResult = await qaPipelineService.decide('BULK_RELEASE', batchId, {
+      decision: outcome,
+      remarks: payload.remarks || '',
+      companyId: cid,
+      batchNumber: payload.batchNumber,
+    })
+
+    // 2. Only on backend confirmation, update Redux cache
     store.dispatch(setBatchQa({ batchId, decision: payload.decision, remarks: payload.remarks }))
     recordAudit({
       action: 'qa/batchDecision',
       entityType: 'Batch',
       entityId: batchId,
-      payload,
+      payload: { ...payload, backend_case_id: backendResult?.id },
     })
-    try {
-      await qaPipelineService.decide('BULK_RELEASE', batchId, {
-        decision: payload.decision === 'RELEASE' ? 'APPROVE' : 'REJECT',
-        remarks: payload.remarks || '',
-      })
-    } catch {
-      // Pipeline row may not exist for legacy batches — batch QA still applies
-    }
-    return delay(null)
+
+    return backendResult
   },
 
-  getBatchTraceability: (batchId) => {
+  getBatchTraceability: async (batchId, companyId) => {
+    const cid = companyId || getScopedCompanyId()
     const state = store.getState().erp
-    const batch = state.batches.find((b) => b.id === Number(batchId))
+    const batch = (state.batches || []).find((b) => Number(b.id) === Number(batchId))
 
-    if (!batch) {
-      return delay({ material_consumption: [], qc_history: [], qa_history: [], order: null, invoice: null })
+    let material_consumption = []
+    let order = null
+    let invoice = null
+    let qc_history = batch?.qc_history || []
+    let qa_history = batch?.qa_history || []
+
+    if (batch) {
+      material_consumption = (batch.material_consumption || []).map((mc) => {
+        const item = state.items.find((i) => i.id === Number(mc.item))
+        const uom = item ? state.uoms.find((u) => u.id === Number(item.uom)) : null
+        return {
+          item_code: item?.code || '',
+          item_name: item?.name || '',
+          lot_number: mc.lot_number || '',
+          quantity: mc.quantity,
+          uom: uom?.code || '',
+          issued_at: mc.issued_at,
+        }
+      })
+      order = state.orders.find((o) => o.id === Number(batch.order)) || null
+      invoice = state.invoices.find((i) => Number(i.batch) === batch.id) || null
     }
 
-    const material_consumption = (batch.material_consumption || []).map((mc) => {
-      const item = state.items.find((i) => i.id === Number(mc.item))
-      const uom = item ? state.uoms.find((u) => u.id === Number(item.uom)) : null
-      return {
-        item_code: item?.code || '',
-        item_name: item?.name || '',
-        lot_number: mc.lot_number || '',
-        quantity: mc.quantity,
-        uom: uom?.code || '',
-        issued_at: mc.issued_at,
+    try {
+      const allCases = await qaPipelineService.listCases(cid)
+      const matchingCase = allCases.find(
+        (c) =>
+          Number(c.batch_plan_id) === Number(batchId) ||
+          Number(c.id) === Number(batchId) ||
+          (batch?.number && c.batch_number_snapshot === batch.number)
+      )
+      if (matchingCase) {
+        const caseDetail = await qaPipelineService.getCase(cid, matchingCase.id)
+        if (Array.isArray(caseDetail.decisions) && caseDetail.decisions.length > 0) {
+          const backendQc = caseDetail.decisions
+            .filter((d) => d.decision_type === 'BATCH_QC')
+            .map((d) => ({
+              decision: d.outcome,
+              remarks: d.remarks || 'No remarks',
+              by: d.decided_by_name || 'QC Analyst',
+              at: d.decided_at,
+            }))
+          const backendQa = caseDetail.decisions
+            .filter((d) => d.decision_type !== 'BATCH_QC')
+            .map((d) => ({
+              decision: `${d.decision_type}: ${d.outcome}`,
+              remarks: d.remarks || d.document_reference || 'No remarks',
+              by: d.decided_by_name || 'QA Officer',
+              at: d.decided_at,
+            }))
+          if (backendQc.length > 0) qc_history = backendQc
+          if (backendQa.length > 0) qa_history = backendQa
+        }
       }
-    })
+    } catch (e) {
+      console.warn('[qualityService] getBatchTraceability backend history sync:', e?.message || e)
+    }
 
-    const order = state.orders.find((o) => o.id === Number(batch.order)) || null
-    const invoice = state.invoices.find((i) => Number(i.batch) === batch.id) || null
-
-    return delay({
+    return {
       material_consumption,
-      qc_history: batch.qc_history || [],
-      qa_history: batch.qa_history || [],
+      qc_history,
+      qa_history,
       order,
       invoice,
-    })
+    }
   },
 
   // Order QC Methods
@@ -163,8 +267,8 @@ export const qualityService = {
       return delay(hydrateQcRecord(existing, state))
     }
 
-    const companyId = order.company || getScopedCompanyId() || 1
-    const companyKey = Number(companyId) === 2 ? 'tej' : 'cmhp'
+    const companyId = order.company || getScopedCompanyId() || 2
+    const companyKey = Number(companyId) === 3 ? 'tej' : 'cmhp'
     const number = commitDocumentNumber('QC', companyId)
     const totalQty = (order.lines || []).reduce((sum, line) => sum + (Number(line.quantity) || 0), 0)
 
@@ -238,8 +342,8 @@ export const qualityService = {
       // Auto-create QA record if not exists
       const qaExists = state.qaRecords.some((q) => Number(q.order_id) === Number(qc.order_id))
       if (!qaExists) {
-        const qaCompanyId = qc.company || 1
-        const qaCompanyKey = Number(qaCompanyId) === 2 ? 'tej' : 'cmhp'
+        const qaCompanyId = qc.company || 2
+        const qaCompanyKey = Number(qaCompanyId) === 3 ? 'tej' : 'cmhp'
         const qaNumber = commitDocumentNumber('QA', qaCompanyId)
         store.dispatch(
           addQaRecord({

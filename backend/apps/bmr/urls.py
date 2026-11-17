@@ -7,6 +7,7 @@ from apps.bmr.views import (
     BMRDocumentDetailView,
     ProductionOrderStatusListCreateView,
     ProductionOrderStatusDetailView,
+    ProductionOrderQaReleaseView,
 )
 
 urlpatterns = [
@@ -47,6 +48,11 @@ urlpatterns = [
         "<int:company_id>/production-statuses/<str:order_id>/",
         ProductionOrderStatusDetailView.as_view(),
         name="production-status-detail",
+    ),
+    path(
+        "<int:company_id>/production-statuses/<str:order_id>/qa-release/",
+        ProductionOrderQaReleaseView.as_view(),
+        name="production-status-qa-release",
     ),
     path(
         "production-statuses/",

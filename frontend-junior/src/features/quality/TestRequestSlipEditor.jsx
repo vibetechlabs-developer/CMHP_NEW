@@ -5,6 +5,7 @@
  */
 import { useState, useEffect, useRef } from 'react'
 import cmhpLogo from '../../assets/cmhp_invoice_logo.png'
+import { getCompanyBranding } from '../../utils/companyBranding.js'
 import Button from '../../components/Button'
 import './TestRequestSlip.css'
 
@@ -28,7 +29,7 @@ export const INITIAL_TR_DATA = {
 }
 
 /* ── Single copy of the form sheet ── */
-function SheetTable({ data, update, copyIndex }) {
+function SheetTable({ data, update, copyIndex, branding }) {
   /* Inline editable field — only first copy is editable, second is read-only mirror */
   const F = ({ field, style = {} }) =>
     copyIndex === 0 ? (
@@ -58,10 +59,10 @@ function SheetTable({ data, update, copyIndex }) {
         <tr>
           <td colSpan={4} className="trs-header-cell">
             <div className="trs-header-inner">
-              <div className="trs-logo-wrap">
-                <img src={cmhpLogo} alt="CMHP" className="trs-logo-img" />
+              <div className={`trs-logo-wrap ${branding?.isTej ? 'trs-logo-wrap-tej' : ''}`}>
+                <img src={branding?.isTej ? branding.logoSrc : cmhpLogo} alt={branding?.headerName || 'Logo'} className="trs-logo-img" />
               </div>
-              <div className="trs-company-title">CMHP PRIVATE LIMITED</div>
+              <div className="trs-company-title">{branding?.isTej ? branding.headerName : 'CMHP PRIVATE LIMITED'}</div>
             </div>
           </td>
         </tr>
@@ -206,6 +207,7 @@ function SheetTable({ data, update, copyIndex }) {
 
 /* ── Main Editor Component ── */
 export default function TestRequestSlipEditor({ initialData = null, onSaved = null }) {
+  const branding = getCompanyBranding(initialData)
   const [data, setData] = useState(() => {
     if (initialData) return { ...INITIAL_TR_DATA, ...initialData }
     try {
@@ -257,14 +259,22 @@ export default function TestRequestSlipEditor({ initialData = null, onSaved = nu
     try {
       const html2canvas = (await import('html2canvas')).default
       const { jsPDF } = await import('jspdf')
+
+      // A4 at 96dpi = 794px wide, 1123px tall
+      // Our page element is 794px wide → scale 2 → 1588px canvas → maps to 190mm on A4
+      // This gives proper font sizes (not shrunken)
       const canvas = await html2canvas(sheetRef.current, {
-        scale: 3,
+        scale: 2,
         useCORS: true,
         allowTaint: true,
         backgroundColor: '#ffffff',
         logging: false,
         onclone: (clonedDoc) => {
-          // Style inputs in-place (no replace) — keeps cell constraints intact
+          // Hide toolbar in cloned doc
+          const toolbar = clonedDoc.querySelector('.test-req-toolbar')
+          if (toolbar) toolbar.style.display = 'none'
+
+          // Fix inputs: remove border, keep value visible
           clonedDoc.querySelectorAll('input').forEach((inp) => {
             inp.style.border = 'none'
             inp.style.borderBottom = 'none'
@@ -274,35 +284,44 @@ export default function TestRequestSlipEditor({ initialData = null, onSaved = nu
             inp.style.color = '#000000'
             inp.style.fontFamily = "'Times New Roman', Times, Georgia, serif"
             inp.style.fontSize = '11pt'
-            inp.style.fontWeight = '400'
+            inp.style.fontWeight = '700'
             inp.style.padding = '0 2px'
-            inp.style.overflow = 'hidden'
-            inp.style.textOverflow = 'ellipsis'
+            inp.style.overflow = 'visible'
             inp.style.whiteSpace = 'nowrap'
           })
-          // Remove dotted border from mirror spans
+
+          // Fix mirror spans: remove dotted border
           clonedDoc.querySelectorAll('.trs-cell-mirror').forEach((el) => {
             el.style.borderBottom = 'none'
           })
-          // Remove toolbar
-          const toolbar = clonedDoc.querySelector('.test-req-toolbar')
-          if (toolbar) toolbar.style.display = 'none'
+
+          // Make all label cells properly bold and large
+          clonedDoc.querySelectorAll('.trs-lbl-cell, .trs-lbl, .trs-sign-lbl').forEach((el) => {
+            el.style.fontWeight = '700'
+            el.style.fontSize = '11pt'
+          })
         },
       })
+
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true })
       const pageW = pdf.internal.pageSize.getWidth()   // 210mm
       const pageH = pdf.internal.pageSize.getHeight()  // 297mm
       const marginX = 10
       const marginY = 10
-      // Fit both copies across full A4 height — no vertical centering gap
-      const availW = pageW - marginX * 2
-      const availH = pageH - marginY * 2
+      const availW = pageW - marginX * 2  // 190mm
+      const availH = pageH - marginY * 2  // 277mm
+
+      // canvas width at scale:2 is ~1588px (794*2)
+      // 1588px / 2 = 794px → at 96dpi → 210mm — perfect A4 width mapping
+      // So ratio = availW / (canvas.width / 2) = availW * 2 / canvas.width
+      // But simpler: just fit to available area maintaining aspect ratio
       const ratio = Math.min(availW / canvas.width, availH / canvas.height)
       const imgW = canvas.width * ratio
       const imgH = canvas.height * ratio
       const x = marginX + (availW - imgW) / 2
       const y = marginY
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', x, y, imgW, imgH, undefined, 'FAST')
+
+      pdf.addImage(canvas.toDataURL('image/jpeg', 1.0), 'JPEG', x, y, imgW, imgH, undefined, 'FAST')
       const fileName = `Attachment2_TestRequest_${(data.batch_no || 'slip').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`
       pdf.save(fileName)
       setFeedback(`⬇️ ${fileName}`)
@@ -351,7 +370,7 @@ export default function TestRequestSlipEditor({ initialData = null, onSaved = nu
 
         {/* Copy 1 — Editable */}
         <div className="test-req-sheet">
-          <SheetTable data={data} update={update} copyIndex={0} />
+          <SheetTable data={data} update={update} copyIndex={0} branding={branding} />
         </div>
 
         {/* Gap between copies */}
@@ -359,7 +378,7 @@ export default function TestRequestSlipEditor({ initialData = null, onSaved = nu
 
         {/* Copy 2 — Mirror (read-only, same data) */}
         <div className="test-req-sheet">
-          <SheetTable data={data} update={update} copyIndex={1} />
+          <SheetTable data={data} update={update} copyIndex={1} branding={branding} />
         </div>
 
       </div>

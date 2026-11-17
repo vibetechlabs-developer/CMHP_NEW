@@ -1,3 +1,5 @@
+import { SEED_ORDERS, SEED_ORDER_QC } from './seedData'
+
 const ERP_STORAGE_KEY =
   'cmhp_erp_state_v5'
 
@@ -98,6 +100,24 @@ export function loadPersistedERPState() {
       if (!Array.isArray(data.commonProducts)) data.commonProducts = []
       if (!Array.isArray(data.commonRawMaterials)) data.commonRawMaterials = []
       if (!Array.isArray(data.stockLedgerEntries)) data.stockLedgerEntries = []
+
+      if (!data.orderQc || Object.keys(data.orderQc).length === 0) {
+        data.orderQc = { ...SEED_ORDER_QC }
+      }
+      if (!Array.isArray(data.orders) || data.orders.length === 0) {
+        data.orders = [...SEED_ORDERS]
+      }
+      if (!data.byCompany) {
+        data.byCompany = { cmhp: {}, tej: {} }
+      }
+      if (!Array.isArray(data.byCompany.cmhp?.orders) || data.byCompany.cmhp.orders.length === 0) {
+        if (!data.byCompany.cmhp) data.byCompany.cmhp = {}
+        data.byCompany.cmhp.orders = SEED_ORDERS.filter((o) => o.company === 2 || o.company === 1 || o.companyId === 'cmhp' || o.company_code === 'CMHP')
+      }
+      if (!Array.isArray(data.byCompany.tej?.orders) || data.byCompany.tej.orders.length === 0) {
+        if (!data.byCompany.tej) data.byCompany.tej = {}
+        data.byCompany.tej.orders = SEED_ORDERS.filter((o) => o.company === 3 || o.companyId === 'tej' || o.company_code === 'TEJ' || String(o.number || '').includes('010'))
+      }
 
       return data
     }

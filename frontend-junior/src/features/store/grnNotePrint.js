@@ -1,5 +1,6 @@
 import cmhpLogoUrl from '../../assets/cmhp_invoice_logo.png'
 import { formatDateIN } from '../../utils/formatters'
+import { getCompanyBranding } from '../../utils/companyBranding.js'
 
 export const GRN_KIND_RAW = 'RAW_MATERIAL'
 export const GRN_KIND_PACKING = 'PACKAGING_MATERIAL'
@@ -59,6 +60,8 @@ function kindBanner(kind) {
 }
 
 export function companyTitle(receipt) {
+  const branding = getCompanyBranding(receipt)
+  if (branding.isTej) return 'TEJ BIOCARE'
   const legal = String(receipt?.company_legal_name || '').trim()
   const display = String(receipt?.company_display_name || '').trim()
   const code = String(receipt?.company_code || '').trim()
@@ -305,7 +308,8 @@ export function buildGoodsReceiptNoteHtml(receipt, kind, { logoSrc } = {}) {
   const grnNo = receipt?.reference || NA
   const grnDate = receipt?.posted_at || receipt?.created_at || receipt?.arrived_at
   const banner = kindBanner(kind)
-  const logo = logoSrc || cmhpLogoUrl
+  const branding = getCompanyBranding(receipt)
+  const logo = logoSrc || (branding.isTej ? branding.logoSrc : cmhpLogoUrl)
 
   return `<!DOCTYPE html>
 <html>

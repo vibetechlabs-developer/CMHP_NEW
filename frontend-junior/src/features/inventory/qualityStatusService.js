@@ -32,13 +32,14 @@ export const qualityStatusService = {
     const idKey = String(movementId)
     if (map[idKey]) return map[idKey]
     if (defaultIfUnset) return defaultIfUnset
-    // Default: approved / issue-eligible until explicitly quarantined.
+    // Default: UNDER_TEST until an explicit QC decision is recorded.
+    // Never default to APPROVED — uninspected lots must NOT be issue-eligible.
     return {
-      status: 'APPROVED',
+      status: 'UNDER_TEST',
       arNo: '',
       chemist: '',
       releasedAt: null,
-      remarks: 'No explicit QC decision recorded — treated as issue-eligible.',
+      remarks: 'Awaiting incoming material QC inspection.',
     }
   },
 
@@ -48,7 +49,7 @@ export const qualityStatusService = {
     const existing = map[idKey] || {}
     const updated = {
       ...existing,
-      status: status || existing.status || 'APPROVED',
+      status: status || existing.status || 'UNDER_TEST',
       arNo: arNo !== undefined ? arNo : (existing.arNo || ''),
       chemist: chemist || existing.chemist || 'QC Chemist In-Charge',
       remarks: remarks || existing.remarks || '',
@@ -81,7 +82,7 @@ export const qualityStatusService = {
       else if (q.status === 'UNDER_TEST') underTest++
       else if (q.status === 'REJECTED') rejected++
       else if (q.status === 'ON_HOLD') onHold++
-      else approved++
+      else underTest++   // unknown status → treat as UNDER_TEST, never as approved
     })
 
     return {

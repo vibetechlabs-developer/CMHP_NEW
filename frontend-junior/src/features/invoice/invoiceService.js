@@ -78,7 +78,7 @@ export function resolveDueDate(inv, order, customer) {
 }
 
 function hydrateInvoice(inv, state) {
-  const compKey = state?.activeCompanyKey || (Number(inv.company) === 2 ? 'tej' : 'cmhp')
+  const compKey = state?.activeCompanyKey || (Number(inv.company) === 3 ? 'tej' : 'cmhp')
   const compOrders = state?.byCompany?.[compKey]?.orders || state?.orders || []
   const orderId = inv.order || inv.order_id
   const order = compOrders.find((o) =>
@@ -202,7 +202,7 @@ function hydrateInvoice(inv, state) {
 function assertInvoiceCompany(id) {
   const state = store.getState().erp
   const companyId = getScopedCompanyId()
-  const compKey = companyId === 2 ? 'tej' : 'cmhp'
+  const compKey = Number(companyId) === 3 ? 'tej' : 'cmhp'
   const list = state?.byCompany?.[compKey]?.invoices || state.invoices || []
   const invoice = list.find((row) => Number(row.id) === Number(id))
   if (!companyId || !invoice || (invoice.company && Number(invoice.company) !== Number(companyId))) {
@@ -216,7 +216,7 @@ export const invoiceService = {
     const state = store.getState().erp
     const companyId = getScopedCompanyId()
     if (!companyId) return delay([])
-    const compKey = companyId === 2 ? 'tej' : 'cmhp'
+    const compKey = Number(companyId) === 3 ? 'tej' : 'cmhp'
     const list = state?.byCompany?.[compKey]?.invoices || state.invoices || []
 
     return delay(
@@ -229,7 +229,7 @@ export const invoiceService = {
   getInvoice: (id) => {
     const state = store.getState().erp
     const companyId = getScopedCompanyId()
-    const compKey = companyId === 2 ? 'tej' : 'cmhp'
+    const compKey = Number(companyId) === 3 ? 'tej' : 'cmhp'
     const list = state?.byCompany?.[compKey]?.invoices || state.invoices || []
     const invoice = list.find((row) => Number(row.id) === Number(id))
     if (!invoice || (companyId && invoice.company && Number(invoice.company) !== Number(companyId))) {
@@ -240,8 +240,8 @@ export const invoiceService = {
 
   createInvoice: (payload, user = null) => {
     const scoped = enforceCompanyPayload(payload)
-    const companyId = Number(scoped.company) || 1
-    const companyKey = companyId === 2 ? 'tej' : 'cmhp'
+    const companyId = Number(scoped.company) || 2
+    const companyKey = companyId === 3 ? 'tej' : 'cmhp'
     const invoiceNumber = payload.number || commitDocumentNumber('INVOICE', companyId)
 
     const rawTotal = (payload.lines || []).reduce((sum, l) => {
@@ -313,7 +313,7 @@ export const invoiceService = {
       invoice_id: invoice.id,
       invoice_number: invoice.number,
       company: invoice.company,
-      companyId: Number(invoice.company) === 2 ? 'tej' : 'cmhp',
+      companyId: Number(invoice.company) === 3 ? 'tej' : 'cmhp',
       customer: invoice.customer,
       amount: payAmount,
       mode: mode || 'NEFT',

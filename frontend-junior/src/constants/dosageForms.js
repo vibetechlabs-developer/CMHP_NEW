@@ -7,6 +7,7 @@ export const DOSAGE_FORMS = [
   'Oil',
   'Kits',
   'Pills',
+  'Mother Tincture',
 ]
 
 export const DEFAULT_DOSAGE_FORM = 'Liquid'

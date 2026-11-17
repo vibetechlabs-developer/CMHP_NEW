@@ -12,6 +12,7 @@ import { controlSamplesService } from '../inventory/controlSamplesService'
 import { finishedGoodsService } from '../inventory/finishedGoodsService'
 import { getErrorMessage } from '../../utils/errors'
 import './ProductionRawMaterialCalculator.css'
+import { getCompanyBranding, isTejBiocare } from '../../utils/companyBranding.js'
 
 // Robust unit conversion utility between volumetric and mass units
 export function convertQuantity(value, fromUnit, toUnit) {
@@ -76,6 +77,9 @@ export default function ProductionRawMaterialCalculator({
   product,
   onOpenBmrSlip,
 }) {
+  const isTejActive = isTejBiocare({ id: companyId }) || isTejBiocare()
+  const branding = getCompanyBranding(isTejActive ? 'tej' : 'cmhp')
+
   // Target & Pack Mode
   const [calcMode, setCalcMode] = useState('BOTTLES') // 'BOTTLES' | 'VOLUME'
   const [bottleCount, setBottleCount] = useState('3000')
@@ -1281,9 +1285,9 @@ export default function ProductionRawMaterialCalculator({
       <div className="prc-batch-header-card">
         <div className="prc-header-topbar">
           <div className="prc-header-brand">
-            <span className="prc-brand-pill">CYMHP</span>
+            <span className="prc-brand-pill">{branding.code}</span>
             <div className="prc-header-titles">
-              <div className="prc-header-company">CMHP PRIVATE LIMITED</div>
+              <div className="prc-header-company">{branding.headerName}</div>
               <div className="prc-header-dept">Production Division · Oral Liquid & Drops Department · Batch Formulation Master</div>
             </div>
           </div>

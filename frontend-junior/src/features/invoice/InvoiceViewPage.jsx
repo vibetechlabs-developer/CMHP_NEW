@@ -13,6 +13,7 @@ import {
   selectActiveCompanyKey,
   selectActiveCompanyId,
 } from '../../utils/companySelectors'
+import { getCompanyBranding, isTejBiocare } from '../../utils/companyBranding.js'
 import {
   generateInvoiceNumber,
   amountInWordsINR,
@@ -238,6 +239,8 @@ function InvoiceSheet({
   onGhostLineChange,
   onRemoveLine,
 }) {
+  const isTej = isTejBiocare(sheet?.company_name) || isTejBiocare(sheet) || isTejBiocare()
+  const branding = getCompanyBranding(isTej ? 'tej' : 'cmhp')
   return (
     <div className="invoice-printable-sheet">
       {/* Top Strip (Outside master table border) */}
@@ -287,11 +290,11 @@ function InvoiceSheet({
           <tr style={{ height: '26pt' }}>
             <td colSpan={2} rowSpan={2} className="inv-logo-cell">
               <img
-                src="/cmhp_invoice_logo.png"
-                alt="CMHP Logo"
+                src={branding?.isTej ? branding.invoiceLogoSrc : '/cmhp_invoice_logo.png'}
+                alt={branding?.headerName || 'Logo'}
                 className="inv-header-logo-img"
                 onError={(e) => {
-                  e.target.src = '/logo.jpg'
+                  e.target.src = branding?.isTej ? '/logo2.jpeg' : '/logo.jpg'
                 }}
               />
             </td>
@@ -1050,6 +1053,9 @@ export default function InvoiceViewPage({ isNew: isNewProp = false }) {
   }, [currentInvoice, order, reduxCustomers, isNew, createdId])
 
   // UI state
+  const isTej = isTejBiocare(currentInvoice) || isTejBiocare(order) || isTejBiocare(compKey) || isTejBiocare()
+  const branding = getCompanyBranding(isTej ? 'tej' : 'cmhp')
+
   const [saveFeedback, setSaveFeedback] = useState('')
   const [validationError, setValidationError] = useState('')
   const [showPayModal, setShowPayModal] = useState(false)
@@ -1084,14 +1090,13 @@ export default function InvoiceViewPage({ isNew: isNewProp = false }) {
         top_title_right: 'ORIGINAL FOR RECEPIENT',
 
         // Company Header (Master PDF exact)
-        company_name: 'CMHP PRIVATE LIMITED',
-        company_factory_address:
-          'Factory :18, Shubh Laxmi, Viramgam Road,Sanand,Ahmedabad-382110. Regd.Off.: 701, Safal Prelude, Corporate Road, Ahmedabad-380015',
-        company_tel: 'Tel: +917947977198',
-        company_mob: 'Mob: +919327252466',
-        company_gstin: '24AAICC9380N1Z2',
-        company_dl: 'GH-7',
-        company_pan: 'AAICC9380N',
+        company_name: branding.headerName,
+        company_factory_address: branding.factoryAddress,
+        company_tel: branding.companyContacts.split('Mob')[0].trim(),
+        company_mob: (branding.companyContacts.split('Mob')[1] || '').trim(),
+        company_gstin: branding.gstin,
+        company_dl: branding.dl,
+        company_pan: branding.pan,
 
         // Supplier State is ALWAYS Gujarat, Code 24
         supplier_state: 'GUJARAT',
@@ -1145,7 +1150,7 @@ export default function InvoiceViewPage({ isNew: isNewProp = false }) {
 
         // Footer labels
         company_seal_label: 'Company Seal',
-        for_company: 'For CMHP Private Limited',
+        for_company: branding.forCompany,
         cert_statement: 'Ceritified that the particulars given above are true and correct',
         authorised_signatory: 'Authorised signatory',
       }
@@ -1315,14 +1320,13 @@ export default function InvoiceViewPage({ isNew: isNewProp = false }) {
       top_title_right: 'ORIGINAL FOR RECEPIENT',
 
       // Company Header (Master PDF exact)
-      company_name: 'CMHP PRIVATE LIMITED',
-      company_factory_address:
-        'Factory :18, Shubh Laxmi, Viramgam Road,Sanand,Ahmedabad-382110. Regd.Off.: 701, Safal Prelude, Corporate Road, Ahmedabad-380015',
-      company_tel: 'Tel: +917947977198',
-      company_mob: 'Mob: +919327252466',
-      company_gstin: '24AAICC9380N1Z2',
-      company_dl: 'GH-7',
-      company_pan: 'AAICC9380N',
+      company_name: branding.headerName,
+      company_factory_address: branding.factoryAddress,
+      company_tel: branding.companyContacts.split('Mob')[0].trim(),
+      company_mob: (branding.companyContacts.split('Mob')[1] || '').trim(),
+      company_gstin: branding.gstin,
+      company_dl: branding.dl,
+      company_pan: branding.pan,
 
       // Supplier State is ALWAYS Gujarat, Code 24
       supplier_state: 'GUJARAT',
@@ -1376,7 +1380,7 @@ export default function InvoiceViewPage({ isNew: isNewProp = false }) {
 
       // Footer labels
       company_seal_label: 'Company Seal',
-      for_company: 'For CMHP Private Limited',
+      for_company: branding.forCompany,
       cert_statement: 'Ceritified that the particulars given above are true and correct',
       authorised_signatory: 'Authorised signatory',
     }

@@ -4,8 +4,10 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 
+from apps.batch_plans.models import BatchPlan
 from apps.catalog.models import Material, UnitOfMeasure
 from apps.companies.models import Company, normalize_code
+from apps.products.models import Product
 from apps.receiving.models import GoodsReceiptLine
 from apps.stores.models import SharedStore
 
@@ -583,3 +585,528 @@ class ControlSample(models.Model):
                 self.status = self.Status.DUE_DISPOSAL
         self.clean()
         super().save(*args, **kwargs)
+
+
+class BatchQualityCase(models.Model):
+    """Company-scoped batch quality case connecting a BatchPlan (that has an
+    official batch number allocated) to append-only QC, QA release, COA,
+    and packaging QA decisions.
+    """
+
+    class StageStatus(models.TextChoices):
+        PENDING_QC = "PENDING_QC", "Pending QC"
+        QC_APPROVED = "QC_APPROVED", "QC Approved"
+        QC_REJECTED = "QC_REJECTED", "QC Rejected"
+        QC_HOLD = "QC_HOLD", "QC Hold"
+        QA_RELEASED = "QA_RELEASED", "QA Released"
+        QA_REJECTED = "QA_REJECTED", "QA Rejected"
+        QA_HOLD = "QA_HOLD", "QA Hold"
+        PACKAGING_COMPLETED = "PACKAGING_COMPLETED", "Packaging Completed"
+        PACKAGING_APPROVED = "PACKAGING_APPROVED", "Packaging Approved"
+        PACKAGING_REJECTED = "PACKAGING_REJECTED", "Packaging Rejected"
+        PACKAGING_HOLD = "PACKAGING_HOLD", "Packaging Hold"
+        CLOSED = "CLOSED", "Closed"
+
+    class DecisionOutcome(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        APPROVED = "APPROVED", "Approved"
+        REJECTED = "REJECTED", "Rejected"
+        HOLD = "HOLD", "Hold"
+        WAITING_DOCUMENT = "WAITING_DOCUMENT", "Waiting Document"
+
+    batch_plan = models.OneToOneField(
+        BatchPlan,
+        on_delete=models.PROTECT,
+        related_name="quality_case",
+    )
+    company = models.ForeignKey(
+        Company,
+        on_delete=models.PROTECT,
+        related_name="batch_quality_cases",
+    )
+
+    # Snapshots copied from BatchPlan at case creation
+    batch_number_snapshot = models.CharField(max_length=100)
+    product_id_snapshot = models.PositiveIntegerField()
+    product_code_snapshot = models.CharField(max_length=32)
+    product_name_snapshot = models.CharField(max_length=255)
+
+    # Current stage statuses
+    stage_status = models.CharField(
+        max_length=30,
+        choices=StageStatus.choices,
+        default=StageStatus.PENDING_QC,
+    )
+    qc_status = models.CharField(
+        max_length=20,
+        choices=DecisionOutcome.choices,
+        default=DecisionOutcome.PENDING,
+    )
+    qa_release_status = models.CharField(
+        max_length=20,
+        choices=DecisionOutcome.choices,
+        default=DecisionOutcome.PENDING,
+    )
+    coa_status = models.CharField(
+        max_length=20,
+        choices=DecisionOutcome.choices,
+        default=DecisionOutcome.PENDING,
+    )
+    coa_document_reference = models.CharField(max_length=255, blank=True, default="")
+
+    packaging_complete = models.BooleanField(default=False)
+    packaging_complete_at = models.DateTimeField(null=True, blank=True)
+    packaging_complete_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="batch_quality_cases_packaging_completed",
+    )
+    packaging_qa_status = models.CharField(
+        max_length=20,
+        choices=DecisionOutcome.choices,
+        default=DecisionOutcome.PENDING,
+    )
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="batch_quality_cases_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    version = models.PositiveIntegerField(default=1)
+    fg_posted = models.BooleanField(
+        default=False,
+        help_text="Whether an active finished goods stock posting currently exists for this batch plan.",
+    )
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["batch_plan"],
+                name="unique_batch_quality_case_per_plan",
+            ),
+            models.UniqueConstraint(
+                fields=["company", "coa_document_reference"],
+                condition=~models.Q(coa_document_reference=""),
+                name="unique_company_coa_document_reference",
+            ),
+        ]
+
+    def __str__(self):
+        return f"BatchQualityCase for {self.batch_number_snapshot} ({self.stage_status})"
+
+    def clean(self):
+        self.batch_number_snapshot = (self.batch_number_snapshot or "").strip()
+        self.product_code_snapshot = (self.product_code_snapshot or "").strip()
+        self.product_name_snapshot = (self.product_name_snapshot or "").strip()
+        self.coa_document_reference = (self.coa_document_reference or "").strip()
+        errors = {}
+        if not self.batch_number_snapshot:
+            errors["batch_number_snapshot"] = "Batch number snapshot is required."
+        if not self.product_name_snapshot:
+            errors["product_name_snapshot"] = "Product name snapshot is required."
+        if self.pk:
+            original = (
+                BatchQualityCase.objects.filter(pk=self.pk)
+                .values("company_id", "batch_plan_id")
+                .first()
+            )
+            if original is not None:
+                if original["company_id"] != self.company_id:
+                    errors["company"] = "Company cannot be changed after creation."
+                if original["batch_plan_id"] != self.batch_plan_id:
+                    errors["batch_plan"] = "Batch plan cannot be changed after creation."
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError({"detail": "Batch quality cases cannot be deleted."})
+
+
+class BatchQualityDecisionQuerySet(models.QuerySet):
+    """Enforces audit log immutability for BatchQualityDecision records.
+    Direct updates, bulk updates, and bulk deletes via QuerySet are prohibited.
+    """
+
+    def update(self, **kwargs):
+        raise ValidationError({"detail": "Batch quality decision audit records are immutable and cannot be updated."})
+
+    def bulk_update(self, objs, fields, batch_size=None):
+        raise ValidationError({"detail": "Batch quality decision audit records are immutable and cannot be bulk updated."})
+
+    def delete(self):
+        raise ValidationError({"detail": "Batch quality decision audit records are immutable and cannot be deleted."})
+
+
+class BatchQualityDecisionManager(models.Manager.from_queryset(BatchQualityDecisionQuerySet)):
+    pass
+
+
+class BatchQualityDecision(models.Model):
+    """One append-only decision row recording QC, QA release, COA, or
+    packaging QA disposition. Never updated or deleted.
+    """
+
+    objects = BatchQualityDecisionManager()
+
+    class DecisionType(models.TextChoices):
+        BATCH_QC = "BATCH_QC", "Batch QC"
+        QA_RELEASE = "QA_RELEASE", "QA Release"
+        COA = "COA", "Certificate of Analysis (COA)"
+        PACKAGING_QA = "PACKAGING_QA", "Packaging QA"
+
+    class Outcome(models.TextChoices):
+        APPROVED = "APPROVED", "Approved"
+        REJECTED = "REJECTED", "Rejected"
+        HOLD = "HOLD", "Hold"
+        WAITING_DOCUMENT = "WAITING_DOCUMENT", "Waiting Document"
+
+    quality_case = models.ForeignKey(
+        BatchQualityCase,
+        on_delete=models.PROTECT,
+        related_name="decisions",
+    )
+    decision_type = models.CharField(
+        max_length=20,
+        choices=DecisionType.choices,
+    )
+    outcome = models.CharField(
+        max_length=20,
+        choices=Outcome.choices,
+    )
+    previous_status = models.CharField(max_length=64, blank=True, default="")
+    new_status = models.CharField(max_length=64)
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="batch_quality_decisions",
+    )
+    decided_at = models.DateTimeField(auto_now_add=True)
+    remarks = models.TextField(blank=True, default="")
+    document_reference = models.CharField(max_length=255, blank=True, default="")
+
+    class Meta:
+        ordering = ["decided_at", "id"]
+
+    def __str__(self):
+        return f"{self.decision_type} - {self.outcome} for Case #{self.quality_case_id}"
+
+    def clean(self):
+        self.remarks = (self.remarks or "").strip()
+        self.document_reference = (self.document_reference or "").strip()
+        if self.pk:
+            raise ValidationError({"detail": "Decision records cannot be updated."})
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError({"detail": "Decision records cannot be deleted."})
+
+
+class FinishedGoodsStockQuerySet(models.QuerySet):
+    """Protects finished goods stock records from unauthorized updates and deletions,
+    even when called via QuerySet.update(), bulk_update(), or delete().
+    """
+
+    def update(self, **kwargs):
+        allowed_reversal_keys = {
+            "is_reversed",
+            "reversed_by",
+            "reversed_by_id",
+            "reversed_at",
+            "reversal_reason",
+        }
+        if not set(kwargs.keys()).issubset(allowed_reversal_keys):
+            raise ValidationError(
+                {"detail": "Finished goods stock records are immutable. Direct updates are prohibited."}
+            )
+        return super().update(**kwargs)
+
+    def delete(self):
+        raise ValidationError(
+            {"detail": "Finished goods stock records cannot be deleted. Use reversal instead."}
+        )
+
+    def bulk_update(self, objs, fields, batch_size=None):
+        allowed_reversal_keys = {
+            "is_reversed",
+            "reversed_by",
+            "reversed_by_id",
+            "reversed_at",
+            "reversal_reason",
+        }
+        if not set(fields).issubset(allowed_reversal_keys):
+            raise ValidationError(
+                {"detail": "Bulk update of immutable finished goods stock fields is prohibited."}
+            )
+        return super().bulk_update(objs, fields, batch_size=batch_size)
+
+
+class FinishedGoodsStockManager(models.Manager.from_queryset(FinishedGoodsStockQuerySet)):
+    pass
+
+
+class FinishedGoodsStock(models.Model):
+    """Immutable ledger of finished pharmaceutical goods released by QA into
+    company inventory from an approved BatchQualityCase.
+
+    Historical records are never deleted. If an error occurs, an authorized reversal
+    marks `is_reversed=True`, recording user, timestamp, and justification.
+    A subsequent corrected posting can then be created for the case without
+    violating database constraints or erasing history.
+    """
+
+    company = models.ForeignKey(
+        "companies.Company",
+        on_delete=models.PROTECT,
+        related_name="finished_goods_stocks",
+    )
+    quality_case = models.ForeignKey(
+        BatchQualityCase,
+        on_delete=models.PROTECT,
+        related_name="finished_goods_entries",
+        help_text="The quality case authorizing this finished goods posting.",
+    )
+    batch_plan = models.ForeignKey(
+        "batch_plans.BatchPlan",
+        on_delete=models.PROTECT,
+        related_name="finished_goods_stocks",
+    )
+    product = models.ForeignKey(
+        "products.Product",
+        on_delete=models.PROTECT,
+        related_name="finished_goods_stocks",
+    )
+
+    # Immutable snapshot fields preserving complete batch traceability
+    batch_number = models.CharField(max_length=64, db_index=True)
+    product_code_snapshot = models.CharField(max_length=32)
+    product_name_snapshot = models.CharField(max_length=255)
+
+    # Quantity & BMR Packaging Reconciliation Verification
+    quantity = models.DecimalField(
+        max_digits=14,
+        decimal_places=3,
+        help_text="Actual commercial quantity posted into finished goods inventory.",
+    )
+    unit = models.ForeignKey(
+        "catalog.UnitOfMeasure",
+        on_delete=models.PROTECT,
+        related_name="finished_goods_stock_uses",
+    )
+    unit_code_snapshot = models.CharField(max_length=20)
+
+    # Mandatory BMR Reconciliation linkage to prevent arbitrary quantity entries
+    verified_packed_quantity = models.DecimalField(
+        max_digits=14,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text="Actual packed quantity verified in the BMR packaging reconciliation.",
+    )
+    planned_pack_quantity_snapshot = models.DecimalField(
+        max_digits=14,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text="Planned pack quantity snapshot from the manufacturing batch plan.",
+    )
+    reconciliation_document_ref = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Document or BMR reference confirming packaging reconciliation verification.",
+    )
+    tolerance_deviation_percent = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Percentage deviation between planned and actual packed quantity.",
+    )
+    tolerance_justification = models.CharField(
+        max_length=1000,
+        blank=True,
+        default="",
+        help_text="Documented and authorized justification for any yield/packaging deviation.",
+    )
+
+    storage_location = models.CharField(max_length=255, blank=True, default="")
+    remarks = models.CharField(max_length=1000, blank=True, default="")
+
+    posted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="finished_goods_posted",
+    )
+    posted_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    # Controlled Reversal Fields (Immutable correction pattern)
+    is_reversed = models.BooleanField(default=False, db_index=True)
+    reversed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="finished_goods_reversed",
+    )
+    reversed_at = models.DateTimeField(null=True, blank=True)
+    reversal_reason = models.CharField(max_length=1000, blank=True, default="")
+
+    objects = FinishedGoodsStockManager()
+
+    class Meta:
+        ordering = ["-posted_at", "-id"]
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(quantity__gt=0),
+                name="finished_goods_stock_quantity_positive",
+            ),
+            models.UniqueConstraint(
+                fields=["quality_case"],
+                condition=models.Q(is_reversed=False),
+                name="unique_active_finished_goods_per_case",
+            ),
+        ]
+
+    def __str__(self):
+        status_str = "REVERSED" if self.is_reversed else "ACTIVE"
+        return f"FG Stock #{self.pk} - {self.batch_number} ({self.quantity} {self.unit_code_snapshot}) [{status_str}]"
+
+    def clean(self):
+        errors = {}
+        if not self.batch_number:
+            errors["batch_number"] = "Batch number is required."
+        if not self.product_id:
+            errors["product"] = "Product reference is required."
+        if not self.quality_case_id:
+            errors["quality_case"] = "Batch quality case reference is required."
+
+        # Entity relationship consistency validations
+        if self.quality_case_id:
+            if self.company_id and self.quality_case.company_id != self.company_id:
+                errors["company"] = "Finished goods company must match quality case company."
+            if self.batch_plan_id and self.quality_case.batch_plan_id != self.batch_plan_id:
+                errors["batch_plan"] = "Batch plan must match quality case batch plan."
+
+        if self.product_id and self.unit_id:
+            if self.product.sales_uom_id != self.unit_id:
+                errors["unit"] = "Finished goods stock unit must match product sales unit."
+
+        if self.pk:
+            orig = FinishedGoodsStock.objects.filter(pk=self.pk).first()
+            if orig is not None:
+                if orig.is_reversed:
+                    errors["detail"] = "Reversed finished goods records cannot be modified."
+                # Protect immutable fields
+                immutable_fields = [
+                    "company_id",
+                    "quality_case_id",
+                    "batch_plan_id",
+                    "product_id",
+                    "batch_number",
+                    "quantity",
+                    "unit_id",
+                    "posted_by_id",
+                    "posted_at",
+                ]
+                for f in immutable_fields:
+                    if getattr(self, f) != getattr(orig, f):
+                        errors[f] = f"Field {f} is immutable and cannot be changed."
+
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError({"detail": "Finished goods stock records cannot be deleted. Use reversal instead."})
+
+
+class COADocumentAttachment(models.Model):
+    """Stores physical Certificate of Analysis (COA) document files (PDFs) attached to batches.
+    Maintains document versions, QC test reference, QA approval workflow, and physical file verification.
+    """
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        PENDING_APPROVAL = "PENDING_APPROVAL", "Pending QA Approval"
+        APPROVED = "APPROVED", "Approved"
+        REJECTED = "REJECTED", "Rejected"
+        ARCHIVED = "ARCHIVED", "Archived"
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="coa_documents")
+    batch_plan = models.ForeignKey(
+        BatchPlan, on_delete=models.PROTECT, related_name="coa_attachments", null=True, blank=True
+    )
+    quality_case = models.ForeignKey(
+        BatchQualityCase, on_delete=models.PROTECT, related_name="coa_attachments", null=True, blank=True
+    )
+    batch_number = models.CharField(max_length=100, db_index=True)
+    product_name_snapshot = models.CharField(max_length=255)
+    product_code_snapshot = models.CharField(max_length=32, blank=True)
+    coa_number = models.CharField(max_length=100, db_index=True)
+    document_name = models.CharField(max_length=255)
+    qc_reference = models.CharField(max_length=100, blank=True, default="")
+    mfg_date = models.DateField(null=True, blank=True)
+    expiry_date = models.DateField(null=True, blank=True)
+    file = models.FileField(upload_to="coa_documents/%Y/%m/")
+    file_size = models.PositiveBigIntegerField(default=0)
+    mime_type = models.CharField(max_length=100, blank=True)
+    sha256_checksum = models.CharField(max_length=64, blank=True, db_index=True)
+    version = models.PositiveIntegerField(default=1)
+    status = models.CharField(max_length=25, choices=Status.choices, default=Status.PENDING_APPROVAL)
+    qc_status = models.CharField(max_length=20, default="PASSED")
+    qa_status = models.CharField(max_length=20, default="PENDING")
+    remarks = models.TextField(blank=True, default="")
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="coa_documents_uploaded"
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="coa_documents_approved",
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    approval_remarks = models.TextField(blank=True, default="")
+    rejection_reason = models.TextField(blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-uploaded_at", "-id"]
+
+    def __str__(self):
+        return f"COA Attachment: {self.coa_number} ({self.batch_number}) v{self.version} [{self.status}]"
+
+    @property
+    def is_physically_attached(self):
+        import os
+        try:
+            return bool(self.file and os.path.exists(self.file.path) and os.path.getsize(self.file.path) > 0)
+        except Exception:
+            return False
+
+    @property
+    def effective_file_status(self):
+        if not self.is_physically_attached:
+            return "FILE_MISSING"
+        return "ATTACHED"
+
+
+

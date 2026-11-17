@@ -1,0 +1,391 @@
+/* =========================================================
+   CMHP PHARMA - QC CERTIFICATE OF ANALYSIS (COA - TABLET)
+   Form SOP/QC/11/F-05/00
+   Exact 1-to-1 Vector Geometry Replica of Master Tablet PDF
+   ========================================================= */
+
+/* Tablet Header Box */
+.qc-tablet-header-box {
+  width: 100%;
+  height: 111.0pt;
+  min-height: 111.0pt;
+  max-height: 111.0pt;
+  border: 1px solid #000000 !important;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.qc-tablet-header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 4pt 8pt 0 6.75pt;
+  position: relative;
+  height: 32pt;
+}
+
+.qc-tablet-company-title {
+  font-family: 'Times New Roman', Times, serif !important;
+  font-size: 20pt !important;
+  font-weight: normal !important;
+  text-align: right !important;
+  color: #000000 !important;
+  letter-spacing: 0.3px;
+  line-height: 1.1;
+  margin-left: auto;
+}
+
+.qc-tablet-header-blank {
+  flex: 1;
+}
+
+/* Tablet Title Section */
+.qc-tablet-title-section {
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.qc-tablet-title-bar {
+  width: 100%;
+  border-left: 1px solid #000000 !important;
+  border-right: 1px solid #000000 !important;
+  border-bottom: 1px solid #000000 !important;
+  text-align: center;
+  font-family: 'Times New Roman', Times, serif !important;
+  font-weight: bold !important;
+  font-size: 11pt !important;
+  color: #000000 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.qc-tablet-bar-qc {
+  height: 23.0pt;
+  min-height: 23.0pt;
+  max-height: 23.0pt;
+}
+
+.qc-tablet-bar-coa {
+  height: 18.0pt;
+  min-height: 18.0pt;
+  max-height: 18.0pt;
+}
+
+/* Tablet Info Grid Table (6-column layout: approx 12% / 12% / 18% / 19% / 21% / 18%) */
+.qc-tablet-info-grid-wrap {
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.qc-tablet-info-grid-table {
+  border: 1px solid #000000 !important;
+  border-top: none !important;
+  width: 100% !important;
+  border-collapse: collapse !important;
+  table-layout: fixed !important;
+}
+
+.qc-tablet-info-grid-table td {
+  border: none !important;
+  border-right: 1px solid #000000 !important;
+  border-bottom: 1px solid #000000 !important;
+  padding: 1pt 3pt !important;
+  vertical-align: top !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  font-size: 11pt !important;
+  color: #000000 !important;
+}
+
+.qc-tablet-info-grid-table td:last-child {
+  border-right: none !important;
+}
+
+.qc-tablet-info-row-1 { height: 18.0pt; max-height: 18.0pt; }
+.qc-tablet-info-row-2 { height: 18.0pt; max-height: 18.0pt; }
+.qc-tablet-info-row-3 { height: 18.0pt; max-height: 18.0pt; }
+.qc-tablet-info-row-4 { height: 18.0pt; max-height: 18.0pt; }
+.qc-tablet-info-row-5 { height: 18.0pt; max-height: 18.0pt; }
+.qc-tablet-info-row-6 { height: 21.0pt; max-height: 21.0pt; }
+.qc-tablet-info-row-7 { height: 21.0pt; max-height: 21.0pt; }
+
+.qc-tablet-static-text {
+  font-size: 10.5pt !important;
+  line-height: 1.15;
+  color: #000000 !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  white-space: nowrap;
+}
+
+/* Tablet Page 1 Gaps */
+.qc-tablet-gap-header-body {
+  height: 24.0pt;
+  min-height: 24.0pt;
+  max-height: 24.0pt;
+  flex-shrink: 0;
+}
+
+.qc-tablet-gap-test-lc {
+  height: 4.0pt;
+  min-height: 4.0pt;
+  max-height: 4.0pt;
+  flex-shrink: 0;
+}
+
+/* Tablet Test Parameters Table */
+.qc-tablet-test-table {
+  border: 1px solid #000000 !important;
+  width: 100% !important;
+  flex-shrink: 0;
+  border-collapse: collapse !important;
+  table-layout: fixed !important;
+}
+
+.qc-tablet-test-table th,
+.qc-tablet-test-table td {
+  border: 1px solid #000000 !important;
+  padding: 0 3pt !important;
+  vertical-align: top !important;
+  font-family: 'Times New Roman', Times, serif !important;
+}
+
+.qc-tablet-test-header-row {
+  height: 14.0pt;
+  max-height: 14.0pt;
+}
+
+.qc-tablet-test-th {
+  font-weight: bold !important;
+  font-size: 11pt !important;
+  text-align: center !important;
+  color: #000000 !important;
+  vertical-align: middle !important;
+  padding: 1pt 3pt !important;
+}
+
+.qc-tablet-test-row {
+  height: 15.0pt;
+  max-height: 15.0pt;
+}
+
+.qc-tablet-test-row-8 {
+  height: 28.0pt;
+  max-height: 28.0pt;
+}
+
+.qc-tablet-test-td-sr {
+  text-align: center !important;
+  font-size: 11pt !important;
+  color: #000000 !important;
+  vertical-align: top !important;
+  padding-top: 1pt !important;
+}
+
+.qc-tablet-test-td-param {
+  text-align: left !important;
+  font-size: 11pt !important;
+  font-weight: normal !important;
+  color: #000000 !important;
+  padding-left: 4pt !important;
+  vertical-align: top !important;
+  padding-top: 1pt !important;
+  line-height: 1.15;
+}
+
+.qc-tablet-test-td-input {
+  text-align: center !important;
+  vertical-align: top !important;
+}
+
+/* Tablet Label Claim Section */
+.qc-tablet-lc-caption {
+  font-family: 'Times New Roman', Times, serif !important;
+  font-weight: bold !important;
+  font-size: 11pt !important;
+  color: #000000 !important;
+  height: 13.0pt;
+  min-height: 13.0pt;
+  max-height: 13.0pt;
+  line-height: 13.0pt;
+  flex-shrink: 0;
+  text-align: left;
+}
+
+.qc-tablet-lc-table {
+  border: 1px solid #000000 !important;
+  width: 100% !important;
+  flex-shrink: 0;
+  border-collapse: collapse !important;
+  table-layout: fixed !important;
+}
+
+.qc-tablet-lc-table th,
+.qc-tablet-lc-table td {
+  border: 1px solid #000000 !important;
+  padding: 0 3pt !important;
+  vertical-align: top !important;
+  font-family: 'Times New Roman', Times, serif !important;
+}
+
+.qc-tablet-lc-header-row {
+  height: 14.0pt;
+  max-height: 14.0pt;
+}
+
+.qc-tablet-lc-th {
+  font-weight: bold !important;
+  font-size: 11pt !important;
+  text-align: center !important;
+  color: #000000 !important;
+  vertical-align: middle !important;
+  padding: 1pt 3pt !important;
+}
+
+.qc-tablet-lc-row {
+  height: 15.0pt;
+  max-height: 15.0pt;
+}
+
+.qc-tablet-lc-td-sr {
+  text-align: center !important;
+  font-size: 11pt !important;
+  color: #000000 !important;
+  vertical-align: top !important;
+  padding-top: 1pt !important;
+}
+
+.qc-tablet-lc-note {
+  font-family: 'Times New Roman', Times, serif !important;
+  font-size: 9pt !important;
+  font-weight: normal !important;
+  color: #000000 !important;
+  text-align: left;
+  margin-top: 2pt;
+  line-height: 1.1;
+  flex-shrink: 0;
+}
+
+/* Tablet Spacer to anchor Sign-off near bottom */
+.qc-tablet-spacer-signoff {
+  flex: 1;
+  min-height: 18pt;
+}
+
+/* Tablet Sign-off Table (3 columns: ~15% / 37% / 48%) */
+.qc-tablet-signoff-wrap {
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.qc-tablet-signoff-table {
+  border: 1px solid #000000 !important;
+  width: 100% !important;
+  border-collapse: collapse !important;
+  table-layout: fixed !important;
+}
+
+.qc-tablet-signoff-table th,
+.qc-tablet-signoff-table td {
+  border: 1px solid #000000 !important;
+  padding: 0 3pt !important;
+  vertical-align: top !important;
+  font-family: 'Times New Roman', Times, serif !important;
+}
+
+.qc-tablet-signoff-header-row {
+  height: 48.0pt;
+  max-height: 48.0pt;
+}
+
+.qc-tablet-signoff-grey-cell {
+  background-color: #d9d9d9 !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+.qc-tablet-signoff-th {
+  font-weight: normal !important;
+  font-size: 11pt !important;
+  text-align: center !important;
+  color: #000000 !important;
+  vertical-align: top !important;
+  padding-top: 3pt !important;
+  line-height: 1.25;
+}
+
+.qc-tablet-signoff-label {
+  font-weight: normal !important;
+  font-size: 11pt !important;
+  color: #000000 !important;
+  text-align: left !important;
+  padding-left: 3pt !important;
+  vertical-align: top !important;
+  padding-top: 1pt !important;
+}
+
+.qc-tablet-signoff-name-row {
+  height: 16.0pt;
+  max-height: 16.0pt;
+}
+
+.qc-tablet-signoff-sig-row {
+  height: 31.0pt;
+  max-height: 31.0pt;
+}
+
+.qc-tablet-signoff-date-row {
+  height: 16.0pt;
+  max-height: 16.0pt;
+}
+
+.qc-tablet-signoff-input-cell {
+  vertical-align: top !important;
+}
+
+/* Tablet Page 2 Specifics */
+.qc-tablet-gap-page2 {
+  height: 22.0pt;
+  min-height: 22.0pt;
+  max-height: 22.0pt;
+  flex-shrink: 0;
+}
+
+.qc-tablet-p2-textblock {
+  width: 100%;
+  font-family: 'Times New Roman', Times, serif !important;
+  font-size: 10pt !important;
+  line-height: 1.25 !important;
+  color: #000000 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  white-space: pre-wrap !important;
+  flex-shrink: 0;
+}
+
+.qc-tablet-p2-para {
+  margin: 0 0 1.5pt 0 !important;
+  padding: 0 !important;
+  text-align: left !important;
+  text-indent: 0 !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  font-size: 10pt !important;
+  line-height: 1.25 !important;
+  color: #000000 !important;
+  white-space: pre-wrap !important;
+}
+
+.qc-tablet-p2-para strong {
+  font-weight: bold !important;
+  color: #000000 !important;
+}
+
+.qc-tablet-page2-blank-area {
+  flex: 1;
+  min-height: 60pt;
+  display: flex;
+  flex-direction: column;
+}

@@ -1,16 +1,17 @@
 /**
- * QA Pipeline — company-scoped stage tracker for:
- * 1. Formula revision (handled by formulas API; mirrored here for overview)
- * 2. Material requisition QA approval
+ * QA Pipeline — company-scoped stage tracker backed by real backend APIs:
+ * /api/v1/companies/<company_id>/batch-quality/
+ *
+ * Tracks:
+ * 1. Formula revision
+ * 2. Material requisition QA approval (from store requisitions API)
  * 3. Bulk release (after QC decide — approve OR reject both visible to QA)
- * 4. COA (placeholder until document arrives)
+ * 4. COA (waiting document / reference decision)
  * 5. Packaging QA (after packaging complete)
  */
-import { delay } from '../../store/mockApi'
+import api from '../../api/axios'
 import { recordAudit } from '../../utils/audit'
 import { getScopedCompanyId } from '../../utils/companyScope'
-
-const STORAGE_KEY = 'cmhp_qa_pipeline_v1'
 
 export const QA_STAGES = {
   FORMULA: 'FORMULA',
@@ -31,226 +32,346 @@ export const STAGE_LABELS = {
 const PENDING = 'PENDING'
 const APPROVED = 'APPROVED'
 const REJECTED = 'REJECTED'
-const WAITING_QC = 'WAITING_QC'
 const PLACEHOLDER = 'PLACEHOLDER'
 
-function loadAll() {
+const basePath = (companyId) => `/v1/companies/${companyId || getScopedCompanyId() || 1}/batch-quality`
+
+export async function listCases(companyId, params = {}) {
+  const cid = companyId || getScopedCompanyId() || 1
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}
-  } catch {
-    return {}
+    const res = await api.get(`${basePath(cid)}/`, { params })
+    return Array.isArray(res.data) ? res.data : res.data?.results || []
+  } catch (err) {
+    console.warn('[qaPipelineService] listCases failed:', err?.message || err)
+    return []
   }
 }
 
-function saveAll(map) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(map))
-  } catch (e) {
-    console.warn('[qaPipelineService] persist failed', e)
-  }
+export async function getCase(companyId, caseId) {
+  const cid = companyId || getScopedCompanyId() || 1
+  const res = await api.get(`${basePath(cid)}/${caseId}/`)
+  return res.data
 }
 
-function companyKey(companyId = getScopedCompanyId()) {
-  return String(companyId || 'default')
+export async function openCase(companyId, batchPlanId) {
+  const cid = companyId || getScopedCompanyId() || 1
+  const res = await api.post(`${basePath(cid)}/`, { batch_plan_id: batchPlanId })
+  return res.data
 }
 
-function listForCompany(companyId) {
-  const all = loadAll()
-  const key = companyKey(companyId)
-  if (!Array.isArray(all[key])) all[key] = []
-  return { all, key, rows: all[key] }
+export async function recordQcDecision(companyId, caseId, { expected_version, outcome, remarks = '' }) {
+  const cid = companyId || getScopedCompanyId() || 1
+  const res = await api.post(`${basePath(cid)}/${caseId}/qc-decisions/`, {
+    expected_version,
+    outcome,
+    remarks,
+  })
+  return res.data
 }
 
-function upsert(companyId, item) {
-  const { all, key, rows } = listForCompany(companyId)
-  const idx = rows.findIndex(
-    (r) => r.stage === item.stage && String(r.ref_id) === String(item.ref_id)
-  )
-  const next = {
-    ...item,
-    company_id: Number(companyId) || null,
-    updated_at: new Date().toISOString(),
-  }
-  if (idx >= 0) rows[idx] = { ...rows[idx], ...next }
-  else rows.unshift({ ...next, created_at: new Date().toISOString() })
-  all[key] = rows
-  saveAll(all)
-  return next
+export async function recordQaRelease(companyId, caseId, { expected_version, outcome, remarks = '' }) {
+  const cid = companyId || getScopedCompanyId() || 1
+  const res = await api.post(`${basePath(cid)}/${caseId}/qa-release/`, {
+    expected_version,
+    outcome,
+    remarks,
+  })
+  return res.data
+}
+
+export async function openCoa(companyId, caseId, { expected_version, remarks = '' }) {
+  const cid = companyId || getScopedCompanyId() || 1
+  const res = await api.post(`${basePath(cid)}/${caseId}/coa/`, {
+    expected_version,
+    remarks,
+  })
+  return res.data
+}
+
+export async function recordCoaDecision(
+  companyId,
+  caseId,
+  { expected_version, outcome, document_reference, remarks = '' }
+) {
+  const cid = companyId || getScopedCompanyId() || 1
+  const res = await api.post(`${basePath(cid)}/${caseId}/coa-decisions/`, {
+    expected_version,
+    outcome,
+    document_reference,
+    remarks,
+  })
+  return res.data
+}
+
+export async function markPackagingComplete(companyId, caseId, { expected_version, remarks = '' }) {
+  const cid = companyId || getScopedCompanyId() || 1
+  const res = await api.post(`${basePath(cid)}/${caseId}/packaging-complete/`, {
+    expected_version,
+    remarks,
+  })
+  return res.data
+}
+
+export async function recordPackagingDecision(companyId, caseId, { expected_version, outcome, remarks = '' }) {
+  const cid = companyId || getScopedCompanyId() || 1
+  const res = await api.post(`${basePath(cid)}/${caseId}/packaging-decisions/`, {
+    expected_version,
+    outcome,
+    remarks,
+  })
+  return res.data
 }
 
 export const qaPipelineService = {
-  list(stage = null, companyId = getScopedCompanyId()) {
-    const { rows } = listForCompany(companyId)
-    const filtered = stage ? rows.filter((r) => r.stage === stage) : rows
-    return delay([...filtered])
+  listCases,
+  getCase,
+  openCase,
+  recordQcDecision,
+  recordQaRelease,
+  openCoa,
+  recordCoaDecision,
+  markPackagingComplete,
+  recordPackagingDecision,
+
+  async list(stage = null, companyId = getScopedCompanyId()) {
+    const cid = companyId || getScopedCompanyId() || 1
+    const cases = await listCases(cid)
+
+    let items = []
+    if (stage === QA_STAGES.COA) {
+      items = cases
+        .filter((c) => c.coa_status !== 'PENDING' || c.qc_status === 'APPROVED')
+        .map((c) => {
+          let st = PENDING
+          if (c.coa_status === 'WAITING_DOCUMENT') st = PLACEHOLDER
+          else if (c.coa_status === 'APPROVED') st = APPROVED
+          else if (c.coa_status === 'REJECTED') st = REJECTED
+          else if (c.coa_status === 'HOLD') st = 'HOLD'
+          else if (c.qc_status === 'APPROVED') st = PLACEHOLDER
+
+          return {
+            id: c.id,
+            case_id: c.id,
+            ref_id: c.id,
+            ref_type: 'batch',
+            title: c.batch_number_snapshot || `Batch Case #${c.id}`,
+            subtitle: c.product_name_snapshot || '',
+            status: st,
+            version: c.version,
+            document_reference: c.coa_document_reference,
+            blocked_reason:
+              st === PLACEHOLDER
+                ? 'COA document waiting for arrival / document reference.'
+                : '',
+            source: 'backend_api',
+          }
+        })
+    } else if (stage === QA_STAGES.PACKAGING) {
+      items = cases
+        .filter((c) => c.packaging_complete || c.packaging_qa_status !== 'PENDING')
+        .map((c) => {
+          let st = PENDING
+          if (c.packaging_qa_status === 'APPROVED') st = APPROVED
+          else if (c.packaging_qa_status === 'REJECTED') st = REJECTED
+          else if (c.packaging_qa_status === 'HOLD') st = 'HOLD'
+
+          return {
+            id: c.id,
+            case_id: c.id,
+            ref_id: c.id,
+            ref_type: 'batch',
+            title: c.batch_number_snapshot || `Batch Case #${c.id}`,
+            subtitle: c.product_name_snapshot || '',
+            status: st,
+            version: c.version,
+            packaging_complete: c.packaging_complete,
+            source: 'backend_api',
+          }
+        })
+    } else if (stage === QA_STAGES.BULK_RELEASE) {
+      items = cases
+        .filter((c) => c.qc_status !== 'PENDING')
+        .map((c) => {
+          let st = PENDING
+          if (c.qa_release_status === 'APPROVED') st = APPROVED
+          else if (c.qa_release_status === 'REJECTED') st = REJECTED
+          else if (c.qa_release_status === 'HOLD') st = 'HOLD'
+
+          return {
+            id: c.id,
+            case_id: c.id,
+            ref_id: c.id,
+            ref_type: 'batch',
+            title: c.batch_number_snapshot || `Batch Case #${c.id}`,
+            subtitle: c.product_name_snapshot || '',
+            status: st,
+            version: c.version,
+            qc_decision: c.qc_status,
+            source: 'backend_api',
+          }
+        })
+    }
+    return items
   },
 
-  counts(companyId = getScopedCompanyId()) {
-    const { rows } = listForCompany(companyId)
-    const byStage = {}
-    Object.keys(QA_STAGES).forEach((s) => {
-      byStage[s] = rows.filter((r) => r.stage === s && r.status === PENDING).length
-    })
-    return delay({
-      pendingTotal: rows.filter((r) => r.status === PENDING).length,
-      byStage,
+  async counts(companyId = getScopedCompanyId()) {
+    const cid = companyId || getScopedCompanyId() || 1
+    const cases = await listCases(cid)
+    const bulkPending = cases.filter((c) => c.qc_status === 'APPROVED' && c.qa_release_status === 'PENDING').length
+    const coaPending = cases.filter(
+      (c) => c.coa_status === 'WAITING_DOCUMENT' || (c.qc_status === 'APPROVED' && c.coa_status === 'PENDING')
+    ).length
+    const packagingPending = cases.filter((c) => c.packaging_complete && c.packaging_qa_status === 'PENDING').length
+
+    return {
+      pendingTotal: bulkPending + coaPending + packagingPending,
+      byStage: {
+        [QA_STAGES.BULK_RELEASE]: bulkPending,
+        [QA_STAGES.COA]: coaPending,
+        [QA_STAGES.PACKAGING]: packagingPending,
+        [QA_STAGES.REQUISITION]: 0,
+        [QA_STAGES.FORMULA]: 0,
+      },
+    }
+  },
+
+  async decide(stage, refId, { decision, remarks = '', companyId, expected_version, document_reference, batchNumber } = {}) {
+    const cid = companyId || getScopedCompanyId() || 1
+    const caseId = Number(refId)
+
+    let currentCase = null
+    try {
+      currentCase = await getCase(cid, caseId)
+    } catch {
+      // If refId was a batch plan id instead of case id, look up case by batch_plan_id or batchNumber
+      const allCases = await listCases(cid)
+      currentCase = allCases.find(
+        (c) =>
+          Number(c.batch_plan_id) === caseId ||
+          Number(c.id) === caseId ||
+          (batchNumber && c.batch_number_snapshot === batchNumber)
+      )
+    }
+
+    if (!currentCase) {
+      throw new Error(`Batch quality case for ID ${refId} not found in this company.`)
+    }
+
+    const version = expected_version || currentCase.version
+    const outcome = decision === 'APPROVE' || decision === 'RELEASE' ? 'APPROVED' : decision === 'HOLD' ? 'HOLD' : 'REJECTED'
+
+    if (stage === QA_STAGES.BULK_RELEASE) {
+      return await recordQaRelease(cid, currentCase.id, {
+        expected_version: version,
+        outcome,
+        remarks,
+      })
+    }
+
+    if (stage === QA_STAGES.COA) {
+      const docRef = document_reference || currentCase.coa_document_reference || `COA-${currentCase.batch_number_snapshot || currentCase.id}`
+      return await recordCoaDecision(cid, currentCase.id, {
+        expected_version: version,
+        outcome,
+        document_reference: docRef,
+        remarks,
+      })
+    }
+
+    if (stage === QA_STAGES.PACKAGING) {
+      return await recordPackagingDecision(cid, currentCase.id, {
+        expected_version: version,
+        outcome,
+        remarks,
+      })
+    }
+
+    return currentCase
+  },
+
+  async activateCoa({ batchId, companyId, caseId, expected_version, batchNumber }) {
+    const cid = companyId || getScopedCompanyId() || 1
+    let targetCaseId = caseId
+    let version = expected_version
+    if (!targetCaseId) {
+      const allCases = await listCases(cid)
+      const found = allCases.find(
+        (c) =>
+          Number(c.batch_plan_id) === Number(batchId) ||
+          Number(c.id) === Number(batchId) ||
+          (batchNumber && c.batch_number_snapshot === batchNumber)
+      )
+      if (found) {
+        targetCaseId = found.id
+        version = version || found.version
+      }
+    }
+    if (!targetCaseId) return null
+    return await openCoa(cid, targetCaseId, { expected_version: version || 1 })
+  },
+
+  async recordCoaQc({ batchId, companyId, caseId, expected_version, qcDecision, qcRemarks = '', document_reference, batchNumber }) {
+    const cid = companyId || getScopedCompanyId() || 1
+    let targetCaseId = caseId
+    let version = expected_version
+    let docRef = document_reference
+    if (!targetCaseId) {
+      const allCases = await listCases(cid)
+      const found = allCases.find(
+        (c) =>
+          Number(c.batch_plan_id) === Number(batchId) ||
+          Number(c.id) === Number(batchId) ||
+          (batchNumber && c.batch_number_snapshot === batchNumber)
+      )
+      if (found) {
+        targetCaseId = found.id
+        version = version || found.version
+        docRef = docRef || `COA-${found.batch_number_snapshot || found.id}`
+      }
+    }
+    if (!targetCaseId) return null
+    return await recordCoaDecision(cid, targetCaseId, {
+      expected_version: version || 1,
+      outcome: qcDecision || 'APPROVED',
+      document_reference: docRef || `COA-${targetCaseId}`,
+      remarks: qcRemarks,
     })
   },
 
-  /** QC finished bulk release (approve OR reject) → always enqueue for QA. */
-  enqueueBulkReleaseFromQc({
-    batchId,
-    batchNumber,
-    productName,
-    companyId,
-    qcDecision,
-    qcRemarks = '',
-  }) {
-    const cid = companyId || getScopedCompanyId()
-    const item = upsert(cid, {
-      stage: QA_STAGES.BULK_RELEASE,
-      ref_id: batchId,
-      ref_type: 'batch',
-      title: batchNumber || `Batch #${batchId}`,
-      subtitle: productName || '',
-      status: PENDING,
-      qc_decision: qcDecision, // APPROVED | REJECTED
-      qc_remarks: qcRemarks,
-      qa_remarks: '',
-      source: 'batch_qc',
-    })
-    // Also open COA placeholder once bulk has a QC outcome
-    upsert(cid, {
-      stage: QA_STAGES.COA,
-      ref_id: batchId,
-      ref_type: 'batch',
-      title: batchNumber || `Batch #${batchId}`,
-      subtitle: productName || 'COA pending — document not uploaded yet',
-      status: PLACEHOLDER,
-      qc_decision: null,
-      qa_remarks: '',
-      source: 'coa_placeholder',
-      blocked_reason: 'COA document not yet available. Same QC → QA process will apply when uploaded.',
-    })
-    recordAudit({
-      action: 'qa/pipeline.bulkFromQc',
-      entityType: 'Batch',
-      entityId: batchId,
-      payload: { qcDecision },
-    })
-    return delay(item)
-  },
-
-  enqueueRequisition({
-    requisitionId,
-    reference,
-    productName,
-    batchNumber,
-    companyId,
-    storeId,
-    version,
-  }) {
-    const item = upsert(companyId || getScopedCompanyId(), {
-      stage: QA_STAGES.REQUISITION,
-      ref_id: requisitionId,
-      ref_type: 'material_requisition',
-      title: reference || `REQ #${requisitionId}`,
-      subtitle: [productName, batchNumber].filter(Boolean).join(' · '),
-      status: PENDING,
-      store_id: storeId,
-      version,
-      source: 'requisition_submit',
-    })
-    recordAudit({
-      action: 'qa/pipeline.requisition',
-      entityType: 'MaterialRequisition',
-      entityId: requisitionId,
-    })
-    return delay(item)
-  },
-
-  enqueuePackaging({
-    batchId,
-    batchNumber,
-    productName,
-    companyId,
-  }) {
-    const item = upsert(companyId || getScopedCompanyId(), {
-      stage: QA_STAGES.PACKAGING,
-      ref_id: batchId,
-      ref_type: 'batch',
-      title: batchNumber || `Batch #${batchId}`,
-      subtitle: productName || '',
-      status: PENDING,
-      source: 'packaging_complete',
-    })
-    recordAudit({
-      action: 'qa/pipeline.packaging',
-      entityType: 'Batch',
-      entityId: batchId,
-    })
-    return delay(item)
-  },
-
-  async decide(stage, refId, { decision, remarks = '', companyId } = {}) {
-    const cid = companyId || getScopedCompanyId()
-    const { all, key, rows } = listForCompany(cid)
-    const idx = rows.findIndex(
-      (r) => r.stage === stage && String(r.ref_id) === String(refId)
+  async enqueueBulkReleaseFromQc({ batchId, companyId, qcDecision, qcRemarks = '', batchNumber }) {
+    const cid = companyId || getScopedCompanyId() || 1
+    const allCases = await listCases(cid)
+    let c = allCases.find(
+      (x) =>
+        Number(x.batch_plan_id) === Number(batchId) ||
+        Number(x.id) === Number(batchId) ||
+        (batchNumber && x.batch_number_snapshot === batchNumber)
     )
-    if (idx < 0) {
-      throw new Error('QA pipeline item not found.')
+    if (!c) {
+      // Try to open a case for this batch plan
+      c = await openCase(cid, batchId)
     }
-    if (rows[idx].status === PLACEHOLDER) {
-      throw new Error('This stage is waiting for the document (e.g. COA). Cannot decide yet.')
+    if (c) {
+      return await recordQcDecision(cid, c.id, {
+        expected_version: c.version,
+        outcome: qcDecision === 'APPROVE' || qcDecision === 'APPROVED' ? 'APPROVED' : qcDecision === 'HOLD' ? 'HOLD' : 'REJECTED',
+        remarks: qcRemarks,
+      })
     }
-    const status = decision === 'APPROVE' || decision === 'RELEASE' ? APPROVED : REJECTED
-    rows[idx] = {
-      ...rows[idx],
-      status,
-      qa_remarks: remarks || '',
-      decided_at: new Date().toISOString(),
-    }
-    all[key] = rows
-    saveAll(all)
-    recordAudit({
-      action: 'qa/pipeline.decide',
-      entityType: rows[idx].ref_type,
-      entityId: refId,
-      payload: { stage, status, remarks },
-    })
-    return delay(rows[idx])
+    throw new Error(`Could not find or open batch quality case for batch ID ${batchId}.`)
   },
 
-  /** When COA document becomes available later — promote placeholder → PENDING. */
-  activateCoa({ batchId, batchNumber, productName, companyId }) {
-    const item = upsert(companyId || getScopedCompanyId(), {
-      stage: QA_STAGES.COA,
-      ref_id: batchId,
-      ref_type: 'batch',
-      title: batchNumber || `Batch #${batchId}`,
-      subtitle: productName || '',
-      status: WAITING_QC,
-      blocked_reason: '',
-      source: 'coa_ready',
-    })
-    return delay(item)
-  },
-
-  recordCoaQc({ batchId, batchNumber, productName, companyId, qcDecision, qcRemarks = '' }) {
-    const item = upsert(companyId || getScopedCompanyId(), {
-      stage: QA_STAGES.COA,
-      ref_id: batchId,
-      ref_type: 'batch',
-      title: batchNumber || `Batch #${batchId}`,
-      subtitle: productName || '',
-      status: PENDING,
-      qc_decision: qcDecision,
-      qc_remarks: qcRemarks,
-      source: 'coa_qc',
-      blocked_reason: '',
-    })
-    return delay(item)
+  async enqueuePackaging({ batchId, companyId }) {
+    const cid = companyId || getScopedCompanyId() || 1
+    const allCases = await listCases(cid)
+    const c = allCases.find((x) => Number(x.batch_plan_id) === Number(batchId) || Number(x.id) === Number(batchId))
+    if (c && !c.packaging_complete) {
+      return await markPackagingComplete(cid, c.id, {
+        expected_version: c.version,
+        remarks: 'Packaging marked complete from production',
+      })
+    }
+    return null
   },
 }
 

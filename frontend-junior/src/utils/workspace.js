@@ -22,22 +22,22 @@ export const WORKSPACE_OPTIONS = {
 
   COMPANY_A: {
     id: WORKSPACES.COMPANY_A,
-    name: 'Company A',
-    shortName: 'Company A',
-    label: 'Company A',
-    description: 'Access Company A operations and records',
+    name: 'CMHP Pharma',
+    shortName: 'CMHP',
+    label: 'CMHP Pharma',
+    description: 'Access CMHP operations and records',
     icon: 'building',
-    companyId: 1,
+    companyId: 2,
   },
 
   COMPANY_B: {
     id: WORKSPACES.COMPANY_B,
-    name: 'Company B',
-    shortName: 'Company B',
-    label: 'Company B',
-    description: 'Access Company B operations and records',
+    name: 'Tej Biocare',
+    shortName: 'Tej Biocare',
+    label: 'Tej Biocare',
+    description: 'Access Tej Biocare operations and records',
     icon: 'building',
-    companyId: 2,
+    companyId: 3,
   },
 
   COMMON: {
@@ -156,12 +156,14 @@ export function getUserCompanyIds(user) {
 
 
 export function hasCompanyAAccess(user) {
-  return getUserCompanyIds(user).includes(1)
+  const ids = getUserCompanyIds(user)
+  return ids.includes(2) || ids.includes(1)
 }
 
 
 export function hasCompanyBAccess(user) {
-  return getUserCompanyIds(user).includes(2)
+  const ids = getUserCompanyIds(user)
+  return ids.includes(3) || (ids.includes(2) && ids.length > 1)
 }
 
 
@@ -439,7 +441,7 @@ export function getActiveCompanyId(user) {
     hasCompanyAAccess(user)
   ) {
 
-    return realCompanies[0]?.id ?? 1
+    return realCompanies[0]?.id ?? 2
 
   }
 
@@ -449,7 +451,7 @@ export function getActiveCompanyId(user) {
     hasCompanyBAccess(user)
   ) {
 
-    return realCompanies[1]?.id ?? 2
+    return realCompanies[1]?.id ?? 3
 
   }
 

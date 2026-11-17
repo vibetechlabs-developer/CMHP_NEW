@@ -31,8 +31,17 @@ urlpatterns = [
     path("api/v1/stores/", include("apps.receiving.urls")),
     path("api/v1/stores/", include("apps.quality.urls")),
     path("api/v1/companies/", include("apps.quality.control_sample_urls")),
+    path("api/v1/companies/", include("apps.quality.batch_quality_urls")),
+    path("api/v1/companies/", include("apps.quality.document_urls")),
     path("api/v1/stores/", include("apps.stock_movements.urls")),
     path("api/v1/stores/", include("apps.store_preparation.urls")),
     path("api/v1/suppliers/", include("apps.suppliers.urls")),
     path("api/v1/users/", include("apps.users.urls")),
 ]
+
+from django.conf import settings
+from django.conf.urls.static import static
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+

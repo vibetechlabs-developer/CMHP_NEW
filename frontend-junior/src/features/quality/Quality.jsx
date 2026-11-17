@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
@@ -26,6 +26,7 @@ import {
 import useSelectedCompany from '../../hooks/useSelectedCompany'
 import { approveRevision, rejectRevision, listFormulas, getRevision } from '../formulas/formulasService'
 import BulkReleaseSlipEditor from './BulkReleaseSlipEditor'
+import DocumentManagement from './DocumentManagement'
 import { qaPipelineService, QA_STAGES, STAGE_LABELS } from './qaPipelineService'
 import { getMyStores } from '../store/storeService'
 import {
@@ -51,6 +52,7 @@ const TABS = [
   { key: 'qa', label: '3. Bulk QA' },
   { key: 'coa_qa', label: '4. COA QA' },
   { key: 'packaging_qa', label: '5. Packaging QA' },
+  { key: 'documents', label: '6. Document Management' },
   { key: 'order_qc', label: 'Order QC' },
   { key: 'order_qa', label: 'Order QA' },
   { key: 'trace', label: 'Traceability' },
@@ -186,11 +188,11 @@ export default function Quality() {
     setError('')
     try {
       const [batchRes, qcRes, qaRes] = await Promise.all([
-        operationsService.getBatches(),
+        qualityService.getBatches(effectiveCompanyId),
         qualityService.getQcRecords(),
         qualityService.getQaRecords(),
       ])
-      setBatches(listData(batchRes))
+      setBatches(Array.isArray(batchRes) ? batchRes : listData(batchRes))
       setOrderQcRecords(listData(qcRes))
       setOrderQaRecords(listData(qaRes))
     } catch (err) {
@@ -203,9 +205,9 @@ export default function Quality() {
   const loadQaPipeline = useCallback(async () => {
     try {
       const [coaRes, packagingRes, countsRes] = await Promise.all([
-        qaPipelineService.list(QA_STAGES.COA),
-        qaPipelineService.list(QA_STAGES.PACKAGING),
-        qaPipelineService.counts(),
+        qaPipelineService.list(QA_STAGES.COA, effectiveCompanyId),
+        qaPipelineService.list(QA_STAGES.PACKAGING, effectiveCompanyId),
+        qaPipelineService.counts(effectiveCompanyId),
       ])
       // delay() returns axios-style { data }
       const coa = Array.isArray(coaRes?.data) ? coaRes.data : Array.isArray(coaRes) ? coaRes : []
@@ -252,7 +254,7 @@ export default function Quality() {
     } catch (err) {
       console.warn('[Quality] loadQaPipeline:', err?.message || err)
     }
-  }, [])
+  }, [effectiveCompanyId])
 
   useEffect(() => {
     load()
@@ -663,16 +665,27 @@ export default function Quality() {
 
     try {
       const { type, batch } = decisionModal
+      const cid = batch.company || effectiveCompanyId
 
       if (type === 'qc') {
-        await qualityService.qcDecision(batch.id, { decision, remarks })
+        if (decision === 'REJECT' && !remarks.trim()) {
+          setError('Remarks are mandatory for a rejection decision.')
+          setSaving(false)
+          return
+        }
+        await qualityService.qcDecision(batch.id, { decision, remarks, batchNumber: batch.number }, cid)
         setSuccess(
-          `Batch ${batch.number} QC ${decision === 'APPROVE' ? 'approved' : 'rejected'} — sent to Bulk QA inbox.`
+          `Batch ${batch.number} QC ${decision === 'APPROVE' ? 'approved' : 'rejected'} — saved to PostgreSQL database.`
         )
       } else {
-        await qualityService.qaDecision(batch.id, { decision, remarks })
+        if ((decision === 'HOLD' || decision === 'REJECT') && !remarks.trim()) {
+          setError('Remarks are mandatory for a reject or hold decision.')
+          setSaving(false)
+          return
+        }
+        await qualityService.qaDecision(batch.id, { decision, remarks, batchNumber: batch.number }, cid)
         setSuccess(
-          `Batch ${batch.number} Bulk QA ${decision === 'RELEASE' ? 'released' : 'rejected/hold'}.`
+          `Batch ${batch.number} Bulk QA ${decision === 'RELEASE' ? 'released' : 'rejected/hold'} — saved to PostgreSQL database.`
         )
       }
 
@@ -793,8 +806,8 @@ export default function Quality() {
 
     setTraceLoading(true)
     try {
-      const response = await qualityService.getBatchTraceability(batchId)
-      setTrace(response.data)
+      const response = await qualityService.getBatchTraceability(batchId, effectiveCompanyId)
+      setTrace(response?.data || response)
     } catch (err) {
       setTraceError(getErrorMessage(err))
     } finally {
@@ -825,7 +838,7 @@ export default function Quality() {
       <HeroBanner
         eyebrow="GMP Compliance &amp; Laboratory"
         title="Quality Assurance &amp; QA Release"
-        subtitle="Full QA pipeline: Formula → Requisition → Bulk Release (QC→QA) → COA → Packaging — plus order QC/QA and batch traceability."
+        subtitle="Full QA pipeline: Formula ? Requisition ? Bulk Release (QC?QA) ? COA ? Packaging — plus order QC/QA and batch traceability."
       />
 
       <PageHeader
@@ -845,7 +858,7 @@ export default function Quality() {
       {/* Summary KPI Cards */}
       <div className="ci-summary-grid" style={{ marginBottom: 18 }}>
         <div className="ci-card">
-          <div className="ci-card-icon" style={{ background: '#eff6ff', color: '#2563eb' }}>🔬</div>
+          <div className="ci-card-icon" style={{ background: '#eff6ff', color: '#2563eb' }}>??</div>
           <div className="ci-card-info">
             <span className="ci-card-label">Total Inspections</span>
             <span className="ci-card-value">{totalInspections}</span>
@@ -853,7 +866,7 @@ export default function Quality() {
           </div>
         </div>
         <div className="ci-card">
-          <div className="ci-card-icon" style={{ background: '#fefce8', color: '#ca8a04' }}>⏳</div>
+          <div className="ci-card-icon" style={{ background: '#fefce8', color: '#ca8a04' }}>?</div>
           <div className="ci-card-info">
             <span className="ci-card-label">Pending Review</span>
             <span className="ci-card-value" style={{ color: '#ca8a04' }}>{pendingCount}</span>
@@ -861,7 +874,7 @@ export default function Quality() {
           </div>
         </div>
         <div className="ci-card">
-          <div className="ci-card-icon" style={{ background: '#f0fdf4', color: '#16a34a' }}>✓</div>
+          <div className="ci-card-icon" style={{ background: '#f0fdf4', color: '#16a34a' }}>?</div>
           <div className="ci-card-info">
             <span className="ci-card-label">Passed &amp; Approved</span>
             <span className="ci-card-value" style={{ color: '#16a34a' }}>{passedCount}</span>
@@ -869,7 +882,7 @@ export default function Quality() {
           </div>
         </div>
         <div className="ci-card">
-          <div className="ci-card-icon" style={{ background: '#fef2f2', color: '#dc2626' }}>✕</div>
+          <div className="ci-card-icon" style={{ background: '#fef2f2', color: '#dc2626' }}>?</div>
           <div className="ci-card-info">
             <span className="ci-card-label">Rejections / Discrepancies</span>
             <span className="ci-card-value" style={{ color: '#dc2626' }}>{rejectedCount}</span>
@@ -877,7 +890,7 @@ export default function Quality() {
           </div>
         </div>
         <div className="ci-card">
-          <div className="ci-card-icon" style={{ background: '#f5f3ff', color: '#7c3aed' }}>📋</div>
+          <div className="ci-card-icon" style={{ background: '#f5f3ff', color: '#7c3aed' }}>??</div>
           <div className="ci-card-info">
             <span className="ci-card-label">QA Released</span>
             <span className="ci-card-value" style={{ color: '#7c3aed' }}>{qaReleasedCount}</span>
@@ -1442,7 +1455,7 @@ export default function Quality() {
         <div className="inv-panel">
           <div className="inv-toolbar" style={{ flexWrap: 'wrap', gap: 12 }}>
             <div>
-              <h3 style={{ margin: '0 0 4px 0' }}>COA — QC → QA Pipeline</h3>
+              <h3 style={{ margin: '0 0 4px 0' }}>COA — QC ? QA Pipeline</h3>
               <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>
                 Same QC then QA process as bulk release. Stages open as placeholders until the COA document is available.
               </p>
@@ -1494,37 +1507,9 @@ export default function Quality() {
                     <td>
                       {item.status === 'PLACEHOLDER' || item.status === 'WAITING_QC' ? (
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 12, color: '#92400e' }}>Waiting for COA document</span>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            disabled={pipelineSaving}
-                            onClick={async () => {
-                              setPipelineSaving(true)
-                              try {
-                                await qaPipelineService.activateCoa({
-                                  batchId: item.ref_id,
-                                  batchNumber: item.title,
-                                  productName: item.subtitle,
-                                })
-                                await qaPipelineService.recordCoaQc({
-                                  batchId: item.ref_id,
-                                  batchNumber: item.title,
-                                  productName: item.subtitle,
-                                  qcDecision: 'APPROVED',
-                                  qcRemarks: 'COA uploaded — QC cleared (placeholder activate)',
-                                })
-                                setSuccess(`COA for ${item.title} activated — now in QA inbox.`)
-                                await loadQaPipeline()
-                              } catch (err) {
-                                setError(getErrorMessage(err))
-                              } finally {
-                                setPipelineSaving(false)
-                              }
-                            }}
-                          >
-                            Simulate COA ready
-                          </Button>
+                          <span style={{ fontSize: 12, color: '#92400e', fontWeight: 500 }}>
+                            Waiting for official COA document
+                          </span>
                         </div>
                       ) : item.status === 'PENDING' ? (
                         <div style={{ display: 'flex', gap: 6 }}>
@@ -1537,6 +1522,8 @@ export default function Quality() {
                                 await qaPipelineService.decide(QA_STAGES.COA, item.ref_id, {
                                   decision: 'APPROVE',
                                   remarks: 'QA approved COA',
+                                  companyId: effectiveCompanyId,
+                                  expected_version: item.version,
                                 })
                                 setSuccess(`COA QA approved for ${item.title}.`)
                                 await loadQaPipeline()
@@ -1558,6 +1545,8 @@ export default function Quality() {
                                 await qaPipelineService.decide(QA_STAGES.COA, item.ref_id, {
                                   decision: 'REJECT',
                                   remarks: 'QA rejected COA',
+                                  companyId: effectiveCompanyId,
+                                  expected_version: item.version,
                                 })
                                 setSuccess(`COA QA rejected for ${item.title}.`)
                                 await loadQaPipeline()
@@ -1644,6 +1633,8 @@ export default function Quality() {
                                 await qaPipelineService.decide(QA_STAGES.PACKAGING, item.ref_id, {
                                   decision: 'APPROVE',
                                   remarks: 'Packaging QA approved',
+                                  companyId: effectiveCompanyId,
+                                  expected_version: item.version,
                                 })
                                 setSuccess(`Packaging QA approved for ${item.title}.`)
                                 await loadQaPipeline()
@@ -1665,6 +1656,8 @@ export default function Quality() {
                                 await qaPipelineService.decide(QA_STAGES.PACKAGING, item.ref_id, {
                                   decision: 'REJECT',
                                   remarks: 'Packaging QA rejected',
+                                  companyId: effectiveCompanyId,
+                                  expected_version: item.version,
                                 })
                                 setSuccess(`Packaging QA rejected for ${item.title}.`)
                                 await loadQaPipeline()
@@ -1859,7 +1852,7 @@ export default function Quality() {
                 onClick={loadApiFormulaApprovals}
                 style={{ padding: '6px 14px', fontSize: '13px' }}
               >
-                🔄 Refresh Live Data
+                ?? Refresh Live Data
               </Button>
             </div>
           </div>
@@ -1867,7 +1860,7 @@ export default function Quality() {
           {/* KPI Summary Cards */}
           <div className="qc-formula-kpi-grid">
             <div className="qc-kpi-card">
-              <div className="kpi-icon" style={{ background: '#f0f9ff', color: '#0369a1' }}>📑</div>
+              <div className="kpi-icon" style={{ background: '#f0f9ff', color: '#0369a1' }}>??</div>
               <div className="kpi-content">
                 <span className="kpi-label">Total Requests</span>
                 <span className="kpi-value" style={{ color: '#0369a1' }}>{totalFormulaRequests}</span>
@@ -1876,7 +1869,7 @@ export default function Quality() {
             </div>
 
             <div className="qc-kpi-card">
-              <div className="kpi-icon" style={{ background: '#fef3c7', color: '#b45309' }}>⏳</div>
+              <div className="kpi-icon" style={{ background: '#fef3c7', color: '#b45309' }}>?</div>
               <div className="kpi-content">
                 <span className="kpi-label">Pending QC Review</span>
                 <span className="kpi-value" style={{ color: '#b45309' }}>{pendingFormulaApprovals}</span>
@@ -1885,7 +1878,7 @@ export default function Quality() {
             </div>
 
             <div className="qc-kpi-card">
-              <div className="kpi-icon" style={{ background: '#dcfce7', color: '#15803d' }}>✓</div>
+              <div className="kpi-icon" style={{ background: '#dcfce7', color: '#15803d' }}>?</div>
               <div className="kpi-content">
                 <span className="kpi-label">Approved Formulas</span>
                 <span className="kpi-value" style={{ color: '#15803d' }}>{approvedFormulaApprovals}</span>
@@ -1894,7 +1887,7 @@ export default function Quality() {
             </div>
 
             <div className="qc-kpi-card">
-              <div className="kpi-icon" style={{ background: '#fee2e2', color: '#b91c1c' }}>✕</div>
+              <div className="kpi-icon" style={{ background: '#fee2e2', color: '#b91c1c' }}>?</div>
               <div className="kpi-content">
                 <span className="kpi-label">Declined Formulations</span>
                 <span className="kpi-value" style={{ color: '#b91c1c' }}>{declinedFormulaApprovals}</span>
@@ -1963,7 +1956,7 @@ export default function Quality() {
                 {filteredFormulaRequests.length === 0 ? (
                   <tr>
                     <td colSpan="8" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
-                      <div style={{ fontSize: '32px', marginBottom: '8px' }}>📋</div>
+                      <div style={{ fontSize: '32px', marginBottom: '8px' }}>??</div>
                       <div style={{ fontWeight: 600, color: '#123f61', fontSize: '15px' }}>
                         No Formula Approval Requests Found
                       </div>
@@ -2013,11 +2006,11 @@ export default function Quality() {
                       </td>
                       <td>
                         {req.status === 'APPROVED' ? (
-                          <span className="qc-status-pill pill-approved">✓ Approved</span>
+                          <span className="qc-status-pill pill-approved">? Approved</span>
                         ) : req.status === 'PENDING' ? (
-                          <span className="qc-status-pill pill-pending">⏳ Pending QC</span>
+                          <span className="qc-status-pill pill-pending">? Pending QC</span>
                         ) : req.status === 'DECLINED' ? (
-                          <span className="qc-status-pill pill-declined">✕ Declined</span>
+                          <span className="qc-status-pill pill-declined">? Declined</span>
                         ) : (
                           <span className="qc-status-pill pill-neutral">{req.status}</span>
                         )}
@@ -2028,7 +2021,7 @@ export default function Quality() {
                           onClick={() => handleOpenReviewModal(req)}
                           style={{ padding: '6px 12px', fontSize: '12px' }}
                         >
-                          Review Formula →
+                          Review Formula ?
                         </Button>
                       </td>
                     </tr>
@@ -2037,6 +2030,15 @@ export default function Quality() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          DOCUMENT MANAGEMENT (BMR & COA)
+          ======================================================== */}
+      {tab === 'documents' && (
+        <div className="inv-panel">
+          <DocumentManagement companyId={effectiveCompanyId} />
         </div>
       )}
 
@@ -2063,20 +2065,20 @@ export default function Quality() {
                   onClick={() => submitOrderQc('FAIL')}
                   style={{ color: '#dc2626', borderColor: '#fca5a5' }}
                 >
-                  ✗ Fail Inspection
+                  ? Fail Inspection
                 </Button>
                 <Button
                   variant="secondary"
                   loading={saving}
                   onClick={() => submitOrderQc('PARTIAL')}
                 >
-                  ⚠️ Partial Pass
+                  ?? Partial Pass
                 </Button>
                 <Button
                   loading={saving}
                   onClick={() => submitOrderQc('PASS')}
                 >
-                  ✓ Pass Inspection
+                  ? Pass Inspection
                 </Button>
               </div>
             </div>
@@ -2215,13 +2217,13 @@ export default function Quality() {
                   onClick={() => submitOrderQa('REJECT')}
                   style={{ color: '#dc2626', borderColor: '#fca5a5' }}
                 >
-                  ✗ Reject Release
+                  ? Reject Release
                 </Button>
                 <Button
                   loading={saving}
                   onClick={() => submitOrderQa('APPROVE')}
                 >
-                  ✓ Authorize QA Release (Make Billable)
+                  ? Authorize QA Release (Make Billable)
                 </Button>
               </div>
             </div>
@@ -2538,10 +2540,10 @@ export default function Quality() {
                     })
                   }
                 >
-                  📊 Export Excel (.xls)
+                  ?? Export Excel (.xls)
                 </Button>
                 <Button variant="secondary" onClick={() => exportFormulaPrint()}>
-                  🖨️ Print / Save PDF
+                  ??? Print / Save PDF
                 </Button>
               </div>
 
@@ -2556,13 +2558,13 @@ export default function Quality() {
                       variant="danger"
                       onClick={() => handleOpenDeclineModal(reviewFormulaModal)}
                     >
-                      ✕ Decline Formulation
+                      ? Decline Formulation
                     </Button>
                     <Button
                       variant="primary"
                       onClick={() => handleOpenApproveModal(reviewFormulaModal)}
                     >
-                      ✓ Approve Formulation
+                      ? Approve Formulation
                     </Button>
                   </>
                 )}
@@ -2597,6 +2599,7 @@ export default function Quality() {
                 batchUnit={reviewFormulaModal.batchUnit}
                 scaleFactor={reviewFormulaModal.scaleFactor}
                 approval={reviewFormulaModal}
+                company={activeCompanyId === 3 ? { id: 3, name: 'Tej Biocare' } : { id: 2, name: 'CMHP' }}
                 companyName={activeCompanyId === 3 ? 'TEJ BIOCARE HEALTHCARE PVT. LTD.' : 'CMHP PHARMACEUTICALS PVT. LTD.'}
                 companyCode={activeCompanyId === 3 ? 'TEJ' : 'CMHP'}
                 department={
@@ -2623,7 +2626,7 @@ export default function Quality() {
                 Cancel
               </Button>
               <Button onClick={handleConfirmApprove} disabled={approving}>
-                {approving ? 'Approving…' : '✓ Confirm & Certify Formula'}
+                {approving ? 'Approving…' : '? Confirm & Certify Formula'}
               </Button>
             </div>
           }
@@ -2689,7 +2692,7 @@ export default function Quality() {
                 Cancel
               </Button>
               <Button variant="danger" onClick={handleConfirmDecline}>
-                ✕ Confirm Decline &amp; Log Finding
+                ? Confirm Decline &amp; Log Finding
               </Button>
             </div>
           }

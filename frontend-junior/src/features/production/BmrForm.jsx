@@ -1,10 +1,16 @@
 import { formatDateDDMMYYYY, toIsoDate } from './bmrDateUtils'
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useSelector } from 'react-redux'
 import { productionService } from './productionService'
 import { BMR_SECTIONS, normalizeBmrData, getSectionStatus } from './bmrInitialData'
 import { getBmrTemplate } from './bmrTemplates'
 import { getSyrupPageRenderers } from './SyrupBmrPages'
+import { getTabletPageRenderers } from './TabletBmrPages'
+import { getMotherTincturePageRenderers } from './MotherTinctureBmrPages'
+import { getOilPageRenderers } from './OilBmrPages'
+import { getCompanyBranding, isTejBiocare } from '../../utils/companyBranding.js'
+import { selectActiveCompanyKey } from '../../utils/companySelectors'
 import cmhpLogo from '../../assets/cmhp_bmr_logo.png'
 import masterCopyImg from '../../assets/cmhp_master_copy.png'
 import './BmrForm.css'
@@ -37,6 +43,11 @@ export default function BmrForm() {
   const [saving, setSaving] = useState(false)
   const [saveFeedback, setSaveFeedback] = useState('')
   const [printCurrentOnly, setPrintCurrentOnly] = useState(false)
+
+  // Dynamic company branding — switches logo/name when Tej Biocare is active
+  const compKey = useSelector(selectActiveCompanyKey)
+  const isTejActive = isTejBiocare(currentOrder) || isTejBiocare(compKey) || isTejBiocare()
+  const branding = getCompanyBranding(isTejActive ? 'tej' : 'cmhp')
 
   const dosageForm = currentOrder ? (currentOrder.dosage_form || currentOrder.dosageForm || currentOrder.product_type || currentOrder.type || '') : ''
   const template = useMemo(() => getBmrTemplate(dosageForm), [dosageForm])
@@ -72,10 +83,13 @@ export default function BmrForm() {
         }
         if (!order && (productId || productCode || bmrNo)) {
           const allOrders = await productionService.getOrders()
+          // First attempt to match an order belonging to the currently active company
           order = allOrders?.find((o) =>
-            (productId && String(o.product_id) === String(productId)) ||
-            (productCode && (o.product_code === productCode || o.code === productCode)) ||
-            (bmrNo && o.bmr_no === bmrNo)
+            isTejBiocare(o) === isTejActive && (
+              (productId && String(o.product_id) === String(productId)) ||
+              (productCode && (o.product_code === productCode || o.code === productCode)) ||
+              (bmrNo && o.bmr_no === bmrNo)
+            )
           ) || null
 
           if (!order) {
@@ -89,7 +103,10 @@ export default function BmrForm() {
               dosageForm: productType,
               product_type: productType,
               type: productType,
-              bmr_no: bmrNo || `BMR/${productCode || productId}`,
+              company: isTejActive ? 3 : 2,
+              company_code: isTejActive ? 'TEJ' : 'CMHP',
+              company_name: isTejActive ? 'Tej Biocare' : 'CMHP PRIVATE LIMITED',
+              bmr_no: bmrNo || `BMR/${isTejActive ? 'TEJ' : 'CMHP'}/${productCode || productId}`,
               batch_no: bmrNo || `${productCode || 'BATCH'}-01`,
               batch_size: packSize,
               is_product_bmr: true,
@@ -367,10 +384,16 @@ function BmrDateField({
   const renderHeader = () => (
     <div className="bmr-header-box">
       <div className="bmr-header-top-row">
-        <div className="bmr-logo-wrap">
-          <img src={cmhpLogo} alt="CMHP Logo" className="bmr-logo-img" />
+        <div className={`bmr-logo-wrap${branding.isTej ? ' bmr-logo-wrap-tej' : ''}`}>
+          {branding.isTej ? (
+            <img src={branding.logoSrc} alt={branding.headerName} className="bmr-logo-img bmr-logo-tej" loading="eager" />
+          ) : (
+            <img src={cmhpLogo} alt="CMHP Logo" className="bmr-logo-img" />
+          )}
         </div>
-        <div className="bmr-company-title">CMHP PRIVATE LIMITED</div>
+        <div className="bmr-company-title">
+          {branding.isTej ? branding.headerName : 'CMHP PRIVATE LIMITED'}
+        </div>
         <div className="bmr-master-copy">
           <img src={masterCopyImg} alt="MASTER COPY" className="bmr-master-copy-img" />
         </div>
@@ -416,7 +439,7 @@ function BmrDateField({
           <span className="bmr-grid-label">COMPANY CODE :</span>
           <input
             className="bmr-grid-input"
-            value={data.header?.company_code || ''}
+            value={branding.isTej ? 'TEJ' : (data.header?.company_code || 'CMHP')}
             onChange={(e) => updateHeader('company_code', e.target.value)}
           />
         </div>
@@ -4296,6 +4319,234 @@ function BmrDateField({
     renderPage19,
   ]
 
+  const renderMotherTinctureHeader = (pageNumber) => (
+    <div className="bmr-header-box bmr-mt-header-box">
+      <div className="bmr-header-top-row bmr-mt-header-top-row">
+        <div className={`bmr-logo-wrap${branding.isTej ? ' bmr-logo-wrap-tej' : ''}`}>
+          {branding.isTej ? (
+            <img src={branding.logoSrc} alt={branding.headerName} className="bmr-logo-img bmr-logo-tej" loading="eager" />
+          ) : (
+            <img src={cmhpLogo} alt="CMHP Logo" className="bmr-logo-img" />
+          )}
+        </div>
+        <div className="bmr-company-title">
+          {branding.isTej ? branding.headerName : 'CMHP PRIVATE LIMITED'}
+        </div>
+        <div className="bmr-logo-wrap" style={{ visibility: 'hidden' }} aria-hidden="true" />
+      </div>
+      <div className="bmr-dept-title">PRODUCTION ( MOTHER TINCTURE DEPARTMENT)</div>
+      <div className="bmr-doc-title">BATCH MANUFACTURING RECORD (BMR)</div>
+      <div className="bmr-header-grid bmr-mt-header-grid">
+        <div className="bmr-grid-cell">
+          <span className="bmr-grid-label">PRODUCT CODE :</span>
+          <input
+            className="bmr-grid-input"
+            value={data.header?.product_code || ''}
+            onChange={(e) => updateHeader('product_code', e.target.value)}
+          />
+        </div>
+        <div className="bmr-grid-cell">
+          <span className="bmr-grid-label">EFFECTIVE DATE :</span>
+          <input
+            className="bmr-grid-input"
+            value={data.header?.effective_date !== undefined ? data.header.effective_date : '05/01/2025'}
+            onChange={(e) => updateHeader('effective_date', e.target.value)}
+          />
+        </div>
+
+        <div className="bmr-grid-cell">
+          <span className="bmr-grid-label">BMR NO. : BMR:</span>
+          <input
+            className="bmr-grid-input"
+            value={data.header?.bmr_no ? String(data.header.bmr_no).replace(/^BMR:\s*/i, '') : ''}
+            onChange={(e) => updateHeader('bmr_no', e.target.value)}
+          />
+        </div>
+        <div className="bmr-grid-cell">
+          <span className="bmr-grid-label">VERSION NO :</span>
+          <input
+            className="bmr-grid-input"
+            value={data.header?.version_no !== undefined ? data.header.version_no : '01'}
+            onChange={(e) => updateHeader('version_no', e.target.value)}
+          />
+        </div>
+
+        <div className="bmr-grid-cell">
+          <span className="bmr-grid-label">PRODUCT :</span>
+          <input
+            className="bmr-grid-input"
+            value={data.header?.product || ''}
+            onChange={(e) => updateHeader('product', e.target.value)}
+          />
+        </div>
+        <div className="bmr-grid-cell">
+          <span className="bmr-grid-label">SUPERSEDES NO :</span>
+          <input
+            className="bmr-grid-input"
+            value={data.header?.supersedes_no !== undefined ? data.header.supersedes_no : '00'}
+            onChange={(e) => updateHeader('supersedes_no', e.target.value)}
+          />
+        </div>
+
+        <div className="bmr-grid-cell">
+          <span className="bmr-grid-label">BATCH NO :</span>
+          <input
+            className="bmr-grid-input"
+            value={data.header?.batch_no || ''}
+            onChange={(e) => updateHeader('batch_no', e.target.value)}
+          />
+        </div>
+        <div className="bmr-grid-cell">
+          <span className="bmr-grid-label">MFG. FOR :</span>
+          <input
+            className="bmr-grid-input"
+            value={data.header?.mfg_for !== undefined ? data.header.mfg_for : 'CMHP'}
+            onChange={(e) => updateHeader('mfg_for', e.target.value)}
+          />
+        </div>
+      </div>
+    </div>
+  )
+
+  const renderMotherTinctureFooter = (pageNumber) => {
+    const pageIdx = pageNumber - 1
+    const footer = data.footers?.[pageIdx] || {}
+    return (
+      <div className="bmr-footer-box bmr-mt-footer-box">
+        <table className="bmr-signoff-table bmr-mt-signoff-table">
+          <colgroup>
+            <col style={{ width: '22%' }} />
+            <col style={{ width: '26%' }} />
+            <col style={{ width: '26%' }} />
+            <col style={{ width: '26%' }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th className="bmr-mt-corner-cell"></th>
+              <th className="bmr-mt-th-sans">
+                Prepared By<br />Production Chemist
+              </th>
+              <th className="bmr-mt-th-sans">
+                Reviewed By<br />Production In-Charge
+              </th>
+              <th className="bmr-mt-th-sans">
+                Approved By<br />QA Manager
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="bmr-footer-row-name">
+              <td className="bmr-footer-label-cell bmr-mt-label-sans">Name</td>
+              <td>
+                <input
+                  className="bmr-cell-input"
+                  value={footer.prepared_name || ''}
+                  onChange={(e) => updateFooter(pageIdx, 'prepared_name', e.target.value)}
+                />
+              </td>
+              <td>
+                <input
+                  className="bmr-cell-input"
+                  value={footer.reviewed_name || ''}
+                  onChange={(e) => updateFooter(pageIdx, 'reviewed_name', e.target.value)}
+                />
+              </td>
+              <td>
+                <input
+                  className="bmr-cell-input"
+                  value={footer.approved_name || ''}
+                  onChange={(e) => updateFooter(pageIdx, 'approved_name', e.target.value)}
+                />
+              </td>
+            </tr>
+            <tr className="bmr-footer-row-sig">
+              <td className="bmr-footer-label-cell bmr-mt-label-serif">Signature</td>
+              <td>
+                <input
+                  className="bmr-cell-input bmr-mt-sig-input"
+                  value={footer.prepared_signature || ''}
+                  onChange={(e) => updateFooter(pageIdx, 'prepared_signature', e.target.value)}
+                />
+              </td>
+              <td>
+                <input
+                  className="bmr-cell-input bmr-mt-sig-input"
+                  value={footer.reviewed_signature || ''}
+                  onChange={(e) => updateFooter(pageIdx, 'reviewed_signature', e.target.value)}
+                />
+              </td>
+              <td>
+                <input
+                  className="bmr-cell-input bmr-mt-sig-input"
+                  value={footer.approved_signature || ''}
+                  onChange={(e) => updateFooter(pageIdx, 'approved_signature', e.target.value)}
+                />
+              </td>
+            </tr>
+            <tr className="bmr-footer-row-date">
+              <td className="bmr-footer-label-cell bmr-mt-label-sans">Date</td>
+              <td>
+                <BmrDateField
+                  value={footer.prepared_date || ''}
+                  onChange={(e) => updateFooter(pageIdx, 'prepared_date', e.target.value)}
+                  className="bmr-cell-input"
+                />
+              </td>
+              <td>
+                <BmrDateField
+                  value={footer.reviewed_date || ''}
+                  onChange={(e) => updateFooter(pageIdx, 'reviewed_date', e.target.value)}
+                  className="bmr-cell-input"
+                />
+              </td>
+              <td>
+                <BmrDateField
+                  value={footer.approved_date || ''}
+                  onChange={(e) => updateFooter(pageIdx, 'approved_date', e.target.value)}
+                  className="bmr-cell-input"
+                />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div className="bmr-footer-bottom">
+          <span className="bmr-form-no">SOP/QA/04/F-01/00</span>
+          <span className="bmr-page-no">Page {pageNumber} of 6</span>
+        </div>
+      </div>
+    )
+  }
+
+  const motherTincturePageRenderers = useMemo(() => {
+    if (template?.dosageForm !== 'Mother Tincture') return null
+    return getMotherTincturePageRenderers({
+      data,
+      setData,
+      updateHeader,
+      updateFooter,
+      updatePage,
+      renderHeader: renderMotherTinctureHeader,
+      renderFooter: renderMotherTinctureFooter,
+      renderYesNo,
+      BmrDateField,
+    })
+  }, [template, data])
+
+  const tabletPageRenderers = useMemo(() => {
+    if (template?.dosageForm !== 'Tablet') return null
+    return getTabletPageRenderers({
+      data,
+      setData,
+      updateHeader,
+      updateFooter,
+      updatePage,
+      renderHeader,
+      renderFooter,
+      renderYesNo,
+      BmrDateField,
+    })
+  }, [template, data])
+
   const syrupPageRenderers = useMemo(() => {
     if (template?.dosageForm !== 'Syrup') return null
     return getSyrupPageRenderers({
@@ -4311,7 +4562,22 @@ function BmrDateField({
     })
   }, [template, data])
 
-  const pageRenderers = syrupPageRenderers || dropsPageRenderers
+  const oilPageRenderers = useMemo(() => {
+    if (template?.dosageForm !== 'Oil') return null
+    return getOilPageRenderers({
+      data,
+      setData,
+      updateHeader,
+      updateFooter,
+      updatePage,
+      renderHeader,
+      renderFooter,
+      renderYesNo,
+      BmrDateField,
+    })
+  }, [template, data])
+
+  const pageRenderers = motherTincturePageRenderers || tabletPageRenderers || syrupPageRenderers || oilPageRenderers || dropsPageRenderers
 
   if (loading) {
     return (

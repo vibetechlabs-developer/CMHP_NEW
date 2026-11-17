@@ -15,6 +15,7 @@ import {
   SEED_DISPATCHES,
   SEED_FORMULAS,
   SEED_FORMULA_APPROVALS,
+  SEED_ORDER_QC,
 } from './seedData'
 import { DOSAGE_FORMS } from '../constants/dosageForms'
 
@@ -135,9 +136,10 @@ function resolveCompanyKey(state, payload) {
     return payload.companyId
   }
   const comp = Number(payload?.company)
-  if (comp === 2) return 'tej'
-  if (comp === 1) return 'cmhp'
-  return state?.activeCompanyKey || (state?.activeCompanyId === 2 ? 'tej' : 'cmhp')
+  // DB: Company 2 = CMHP, Company 3 = Tej Biocare
+  if (comp === 3) return 'tej'
+  if (comp === 2 || comp === 1) return 'cmhp'
+  return state?.activeCompanyKey || (state?.activeCompanyId === 3 ? 'tej' : 'cmhp')
 }
 
 function ensureByCompanyState(state) {
@@ -204,7 +206,7 @@ function deleteCompanyEntity(state, sliceName, id) {
 
 export const initialState = {
 
-  activeCompanyId: 1,
+  activeCompanyId: 2,
   activeCompanyKey: 'cmhp',
 
   byCompany: {
@@ -212,7 +214,7 @@ export const initialState = {
       products: [],
       formulas: SEED_FORMULAS.filter((f) => f.company === 1),
       formulaApprovals: SEED_FORMULA_APPROVALS.filter((a) => a.company === 1),
-      orders: [],
+      orders: SEED_ORDERS.filter((o) => o.company === 1 || o.companyId === 'cmhp' || o.company_code === 'CMHP'),
       batches: [],
       qcRecords: [],
       qaRecords: [],
@@ -243,7 +245,7 @@ export const initialState = {
       products: [],
       formulas: SEED_FORMULAS.filter((f) => f.company === 2),
       formulaApprovals: SEED_FORMULA_APPROVALS.filter((a) => a.company === 2),
-      orders: [],
+      orders: SEED_ORDERS.filter((o) => o.company === 2 || o.companyId === 'tej' || o.company_code === 'TEJ' || String(o.number || '').includes('010')),
       batches: [],
       qcRecords: [],
       qaRecords: [],
@@ -503,6 +505,7 @@ export const initialState = {
   bmrs: {},
 
   orderInvoices: {},
+  orderQc: { ...SEED_ORDER_QC },
 
 
   /*
@@ -599,14 +602,14 @@ const erpSlice = createSlice({
       action
     ) => {
       const val = action.payload
-      if (val === 2 || val === '2' || val === 'tej' || val === 'company_b') {
-        state.activeCompanyId = 2
+      if (val === 3 || val === '3' || val === 'tej' || val === 'company_b') {
+        state.activeCompanyId = 3
         state.activeCompanyKey = 'tej'
       } else if (val === null || val === 'common_inventory') {
         state.activeCompanyId = null
         state.activeCompanyKey = null
       } else {
-        state.activeCompanyId = 1
+        state.activeCompanyId = 2
         state.activeCompanyKey = 'cmhp'
       }
     },
@@ -1942,7 +1945,7 @@ const erpSlice = createSlice({
 
       const newApproval = {
         id,
-        company: p.company !== undefined ? Number(p.company) : (state.activeCompanyId || 1),
+        company: p.company !== undefined ? Number(p.company) : (state.activeCompanyId || 2),
         companyId: p.companyId || (state.activeCompanyKey || 'cmhp'),
         productId: Number(p.productId) || p.productId,
         productName: p.productName || '',
@@ -2561,6 +2564,25 @@ const erpSlice = createSlice({
           ...mappedPayload,
           order: orderId,
         })
+      }
+    },
+
+    saveOrderQc: (
+      state,
+      action
+    ) => {
+      const { orderId, qcData } = action.payload || {}
+      if (!state.orderQc) {
+        state.orderQc = {}
+      }
+      if (orderId) {
+        const existing = state.orderQc[String(orderId)] || {}
+        state.orderQc[String(orderId)] = {
+          ...existing,
+          ...qcData,
+          orderId: String(orderId),
+          savedAt: nowIso(),
+        }
       }
     },
 
@@ -3775,6 +3797,7 @@ export const {
   setInvoiceStatus,
 
   saveOrderInvoice,
+  saveOrderQc,
 
   resetOrderInvoice,
 

@@ -11,6 +11,7 @@ import { selectDosageForms, addInvoice, saveOrderInvoice } from '../../store/erp
 import { selectActiveCompanyKey } from '../../utils/companySelectors'
 import { generateInvoiceNumber } from '../invoice/invoiceService'
 import './Production.css'
+import { getCompanyBranding } from '../../utils/companyBranding.js'
 
 function money(value) {
   const n = Number(value) || 0
@@ -199,15 +200,16 @@ export default function Production() {
       const totalTax = totalCgst + totalSgst
       const grandTotal = Math.round(totalTaxable + totalTax)
 
+      const branding = getCompanyBranding(order || compKey)
       const initialSheet = {
         top_title_left: 'TAX INVOICE',
         top_title_right: 'ORIGINAL FOR RECEPIENT',
-        company_name: 'CMHP PRIVATE LIMITED',
-        company_factory: 'Factory : 18, Shubh Laxmi, Viramgam Road,Sanand,Ahmedabad-382110. Regd.Off.: 701, Safal Prelude, Corporate Road, Ahmedabad-380015',
-        company_contacts: 'Tel: +917947977198          Mob: +919327252466',
-        company_gstin: '24AAICC9380N1Z2',
-        company_dl: 'GH-7',
-        company_pan: 'AAICC9380N',
+        company_name: branding.headerName,
+        company_factory: branding.factoryAddress,
+        company_contacts: branding.companyContacts,
+        company_gstin: branding.gstin,
+        company_dl: branding.dl,
+        company_pan: branding.pan,
         invoice_no: invoiceNumber,
         purchase_no: order.po_number || order.purchase_no || '',
         invoice_date: new Date().toLocaleDateString('en-GB').replace(/\//g, '.'),

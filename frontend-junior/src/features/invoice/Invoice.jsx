@@ -159,7 +159,7 @@ export default function Invoice() {
         number,
         invoice_no: number,
         customer_name: customerName,
-        company_name: Number(inv.company) === 2 ? 'Tej Biocare' : 'CMHP Pharma',
+        company_name: Number(inv.company) === 3 ? 'Tej Biocare' : 'CMHP Pharma',
         order_number: order?.number || inv.order_number || (order?.id ? `ORD-${order.id}` : '—'),
         total: grandTotal,
         total_amount: grandTotal,

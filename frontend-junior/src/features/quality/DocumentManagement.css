@@ -1,0 +1,605 @@
+/* DocumentManagement.css */
+
+.doc-mgmt-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.doc-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.doc-kpi-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.doc-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+}
+
+.doc-kpi-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.doc-kpi-icon.blue {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.doc-kpi-icon.green {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.doc-kpi-icon.orange {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.doc-kpi-icon.purple {
+  background: #faf5ff;
+  color: #9333ea;
+}
+
+.doc-kpi-icon.red {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.doc-kpi-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.doc-kpi-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.doc-kpi-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 2px 0;
+}
+
+.doc-kpi-sub {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.doc-subtabs-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 0;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.doc-subtabs-group {
+  display: flex;
+  gap: 8px;
+}
+
+.doc-subtab-btn {
+  padding: 10px 18px;
+  background: none;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.doc-subtab-btn:hover {
+  color: #2563eb;
+}
+
+.doc-subtab-btn.active {
+  color: #2563eb;
+  border-bottom: 3px solid #2563eb;
+}
+
+.doc-subtab-count {
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 12px;
+}
+
+.doc-subtab-btn.active .doc-subtab-count {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.doc-table-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.doc-search-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.doc-input {
+  padding: 7px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #1e293b;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.doc-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.doc-select {
+  padding: 7px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #1e293b;
+  background-color: #fff;
+  outline: none;
+  cursor: pointer;
+}
+
+.doc-table-wrapper {
+  overflow-x: auto;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+
+.doc-table th {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.doc-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  vertical-align: middle;
+}
+
+.doc-table tr:hover td {
+  background: #f8fafc;
+}
+
+.doc-actions-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.doc-btn-icon {
+  background: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #475569;
+  transition: all 0.15s ease;
+}
+
+.doc-btn-icon:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+  border-color: #cbd5e1;
+}
+
+.doc-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.doc-badge.attached {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.doc-badge.missing {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.doc-badge.pending {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.doc-badge.approved {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.doc-badge.rejected {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.doc-badge.archived {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.doc-form-group {
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.doc-form-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.doc-form-input {
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.doc-form-input:focus {
+  border-color: #2563eb;
+  outline: none;
+}
+
+.doc-alert-info {
+  background: #eff6ff;
+  border-left: 4px solid #3b82f6;
+  padding: 10px 14px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #1e40af;
+  margin-bottom: 14px;
+  line-height: 1.4;
+}
+
+.doc-alert-warning {
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 14px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #92400e;
+  margin-bottom: 14px;
+  line-height: 1.4;
+}
+
+.doc-preview-frame {
+  width: 100%;
+  height: 520px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.doc-version-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+
+
+/* =====================================================================
+   Official Pharmaceutical Certificate of Analysis (COA) Document Styles
+   Exact replica matching SOP/HPI/IP monograph specifications
+   ===================================================================== */
+
+.dosage-badge {
+  letter-spacing: 0.2px;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.dosage-liquid {
+  color: #0284c7;
+  background: #e0f2fe;
+}
+
+.dosage-tablet {
+  color: #0369a1;
+  background: #e0f2fe;
+}
+
+.dosage-capsule {
+  color: #7e22ce;
+  background: #f3e8ff;
+}
+
+.dosage-syrup {
+  color: #b45309;
+  background: #fef3c7;
+}
+
+.dosage-drops {
+  color: #0f766e;
+  background: #ccfbf1;
+}
+
+.dosage-oil {
+  color: #c2410c;
+  background: #ffedd5;
+}
+
+.dosage-kits {
+  color: #be185d;
+  background: #fce7f3;
+}
+
+.dosage-pills {
+  color: #334155;
+  background: #f1f5f9;
+}
+
+.dosage-mother-tincture,
+.dosage-mothertincture,
+.dosage-mother\ tincture {
+  color: #047857;
+  background: #ecfdf5;
+}
+
+.dosage-default {
+  color: #475569;
+  background: #f1f5f9;
+}
+
+.coa-official-sheet {
+  background: #ffffff;
+  border: 1.5px solid #000000;
+  border-radius: 2px;
+  padding: 16px 20px;
+  font-family: 'Times New Roman', Times, serif;
+  color: #000000;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+.coa-official-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1.2px solid #000000;
+  position: relative;
+}
+
+.coa-logo-box {
+  width: 60px;
+  height: 40px;
+  background: #dc2626;
+  border: 1px solid #991b1b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.coa-logo-text {
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+.coa-header-center {
+  flex: 1;
+  text-align: center;
+}
+
+.coa-company-name {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #000000;
+}
+
+.coa-dept-name {
+  font-size: 13px;
+  color: #334155;
+  margin-top: 2px;
+  font-weight: 600;
+}
+
+.coa-title-bar {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  background: #f1f5f9;
+  padding: 6px 12px;
+  border-bottom: 1px solid #000000;
+  letter-spacing: 0.4px;
+}
+
+.coa-meta-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  margin-top: 0;
+}
+
+.coa-meta-table td {
+  border: 1px solid #000000;
+  padding: 5px 8px;
+  vertical-align: middle;
+}
+
+.coa-meta-table .coa-lbl {
+  background: #fafafa;
+  font-weight: 600;
+  width: 18%;
+  color: #1e293b;
+}
+
+.coa-meta-table .coa-val {
+  width: 32%;
+  color: #000000;
+}
+
+.coa-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.coa-data-table th {
+  background: #e2e8f0;
+  border: 1px solid #000000;
+  padding: 6px 8px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.coa-data-table td {
+  border: 1px solid #000000;
+  padding: 5px 8px;
+  vertical-align: middle;
+}
+
+.coa-data-table tr:nth-child(even) td {
+  background: #fcfcfd;
+}
+
+.coa-signoff-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.2fr;
+  border: 1px solid #000000;
+  margin-top: 16px;
+  background: #fbfcfe;
+}
+
+.coa-signoff-box {
+  padding: 10px 12px;
+  border-right: 1px solid #000000;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 85px;
+}
+
+.coa-sign-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #334155;
+  text-transform: uppercase;
+}
+
+.coa-sign-sub {
+  font-size: 11.5px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.coa-sign-stamp {
+  font-size: 12px;
+  font-weight: 700;
+  color: #15803d;
+  margin: 6px 0;
+}
+
+.coa-sign-date {
+  font-size: 11px;
+  color: #475569;
+}
+
+.coa-decision-box {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: #f0fdf4;
+  text-align: center;
+}
+
+.coa-decision-badge {
+  font-size: 14px;
+  font-weight: 800;
+  color: #166534;
+  letter-spacing: 0.8px;
+  border: 1.5px solid #22c55e;
+  padding: 4px 12px;
+  border-radius: 4px;
+  background: #dcfce7;
+}
+
+.coa-decision-note {
+  font-size: 11px;
+  color: #15803d;
+  margin-top: 6px;
+  line-height: 1.25;
+}

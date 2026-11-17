@@ -4,6 +4,7 @@
  * Generates spacious, balanced A4 portrait document with perfect line alignment.
  */
 import cmhpLogoUrl from '../../assets/cmhp_invoice_logo.png'
+import { getCompanyBranding } from '../../utils/companyBranding.js'
 
 const FORM_NO = 'SOP/QC/03/F-02/00'
 
@@ -212,7 +213,8 @@ function styles() {
 }
 
 export function buildBulkReleaseNoteHtml(data = {}, { logoSrc } = {}) {
-  const logo = logoSrc || cmhpLogoUrl
+  const branding = getCompanyBranding(data)
+  const logo = logoSrc || (branding.isTej ? branding.logoSrc : cmhpLogoUrl)
 
   const {
     to_department = '',
@@ -283,10 +285,10 @@ export function buildBulkReleaseNoteHtml(data = {}, { logoSrc } = {}) {
   <div class="att3-top-box">
     <div class="att3-header-row">
       <div class="att3-logo-wrap">
-        <img src="${esc(logo)}" alt="CMHP Logo"/>
+        <img src="${esc(logo)}" alt="${esc(branding.headerName)} Logo"/>
       </div>
       <div class="att3-company-title">
-        CMHP PRIVATE LIMITED
+        ${esc(branding.headerName)}
       </div>
     </div>
   </div>
