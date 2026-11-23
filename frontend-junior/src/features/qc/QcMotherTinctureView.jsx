@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
 import { saveOrderQc } from '../../store/erpSlice'
 import { selectActiveCompanyKey } from '../../utils/companySelectors'
-import { formatDateDDMMYYYY, toIsoDate } from '../production/bmrDateUtils'
+import { formatDateDDMMYYYY } from '../production/bmrDateUtils'
 import cmhpLogo from '../../assets/cmhp_bmr_logo.png'
 import { getCompanyBranding, isTejBiocare } from '../../utils/companyBranding.js'
+import { QcAutoCell, QcDateField } from './qcSharedComponents'
 import './QcViewPage.css'
 import './QcMotherTinctureView.css'
 
@@ -18,113 +19,18 @@ const DEFAULT_MT_TEST_PARAMETERS = [
   { sr: '6.', param: 'λ max', result: '', limit: '' },
 ]
 
-/**
- * Standardized Date Field matching BmrDateField and Oil/Tablet CoA:
- * Display DD/MM/YYYY text + calendar picker icon on screen;
- * Clean unbordered text in print preview / PDF.
- */
-function QcDateField({
-  value,
-  onChange,
-  className = 'qc-cell-input',
-  style,
-  placeholder = 'DD/MM/YYYY',
-  readOnly = false,
-  disabled = false,
-  ...props
-}) {
-  const hiddenInputRef = useRef(null)
-  const displayVal = formatDateDDMMYYYY(value)
-
-  const handleDisplayChange = (e) => {
-    const raw = e.target.value
-    if (!raw.trim()) {
-      onChange({ target: { value: '' } })
-      return
-    }
-    const parts = raw.split('/')
-    if (parts.length === 3 && parts[2].length === 4) {
-      const d = parts[0].padStart(2, '0')
-      const m = parts[1].padStart(2, '0')
-      const y = parts[2]
-      onChange({ target: { value: `${y}-${m}-${d}` } })
-    } else {
-      onChange({ target: { value: raw } })
-    }
-  }
-
-  const openCalendar = (e) => {
-    e.stopPropagation()
-    if (hiddenInputRef.current && !readOnly && !disabled) {
-      if (typeof hiddenInputRef.current.showPicker === 'function') {
-        hiddenInputRef.current.showPicker()
-      } else {
-        hiddenInputRef.current.click()
-      }
-    }
-  }
-
-  return (
-    <div className="qc-date-wrap">
-      <input
-        type="text"
-        className={`${className} qc-date-display no-print`}
-        value={displayVal}
-        placeholder={placeholder}
-        onChange={handleDisplayChange}
-        onClick={openCalendar}
-        readOnly={readOnly}
-        disabled={disabled}
-        style={{
-          ...style,
-          width: '100%',
-          paddingRight: '14px',
-          boxSizing: 'border-box',
-        }}
-        {...props}
-      />
-      <span
-        className="qc-date-picker-icon no-print"
-        title="Choose date"
-        onClick={openCalendar}
-      >
-        📅
-      </span>
-      <input
-        ref={hiddenInputRef}
-        type="date"
-        tabIndex={-1}
-        aria-hidden="true"
-        className="no-print"
-        style={{
-          position: 'absolute',
-          opacity: 0,
-          width: 0,
-          height: 0,
-          pointerEvents: 'none',
-          bottom: 0,
-          left: 0,
-        }}
-        value={toIsoDate(value)}
-        onChange={(e) => {
-          onChange({ target: { value: e.target.value } })
-        }}
-      />
-      <span className="qc-date-print-value print-only">
-        {displayVal || ''}
-      </span>
-    </div>
-  )
-}
-
-export default function QcMotherTinctureView({ 
+export default function QcMotherTinctureView({
   orderId: propOrderId,
   currentOrder: propOrder,
   currentProduct: propProduct,
   currentBmr: propBmr,
-  dosageForm: propDosageForm, onBack }) {
+  dosageForm: propDosageForm,
+  storageKey: propStorageKey,
+  onBack,
+}) {
   const params = useParams()
   const orderId = propOrderId || params.orderId
+  const storageKey = propStorageKey || String(orderId)
   const navigate = useNavigate()
   const dispatch = useDispatch()
 
@@ -145,7 +51,6 @@ export default function QcMotherTinctureView({
   const reduxBmrs = useSelector((state) => state.erp.bmrs || {})
   const reduxOrderQc = useSelector((state) => state.erp.orderQc || {})
 
-  // Navigation / action states
   const [saving, setSaving] = useState(false)
   const [saveFeedback, setSaveFeedback] = useState('')
 
@@ -160,7 +65,7 @@ export default function QcMotherTinctureView({
   const isTejActive = isTejBiocare(currentOrder) || isTejBiocare(compKey) || isTejBiocare()
   const branding = getCompanyBranding(isTejActive ? 'tej' : 'cmhp')
 
-  // Find corresponding product
+  // Find product
   const currentProduct = useMemo(() => {
     if (propProduct) return propProduct
     if (!currentOrder) return null
@@ -172,7 +77,7 @@ export default function QcMotherTinctureView({
     )
   }, [propProduct, reduxProducts, currentOrder])
 
-  // Corresponding BMR record if available
+  // Corresponding BMR
   const currentBmr = useMemo(() => {
     if (propBmr) return propBmr
     if (!orderId) return null
@@ -188,9 +93,9 @@ export default function QcMotherTinctureView({
 
   const dosageForm = propDosageForm || 'Mother Tincture'
 
-  // Build initial QC state with auto-fetched fields from order/bmr
+  // Build initial QC state: Auto-fill from order/product only where stored; leave rest blank
   const initialData = useMemo(() => {
-    const saved = reduxOrderQc[String(orderId)]
+    const saved = reduxOrderQc[storageKey] || reduxOrderQc[String(orderId)]
     if (saved) return saved
 
     const productTitle = currentOrder?.product_name || currentOrder?.product || currentProduct?.name || ''
@@ -200,29 +105,15 @@ export default function QcMotherTinctureView({
     const mfgDate = formatDateDDMMYYYY(
       currentOrder?.planned_mfg_date || currentOrder?.mfg_date || currentBmr?.page1?.mfg_date || currentBmr?.header?.effective_date || ''
     )
-    const bestBefore = '05 Years'
+    const bestBefore = currentOrder?.best_before ? formatDateDDMMYYYY(currentOrder.best_before) : '05 Years'
     const mfgLicNo = currentOrder?.mfg_lic_no || currentProduct?.mfg_lic_no || currentBmr?.header?.mfg_lic_no || ''
-
-    // Auto-fill from order fields
-    const arNo = currentOrder?.ar_no || ''
-    const spcNo = currentOrder?.spc_no || currentProduct?.spc_no || ''
-    const refStpNo = currentOrder?.reference_stp_no || currentProduct?.reference_stp_no || ''
-    const qtySample = currentOrder?.quantity_sample || '05 Nos.'
-    const sampleRecDate = formatDateDDMMYYYY(
-      (() => {
-        try {
-          const d = new Date(currentOrder?.planned_mfg_date || currentOrder?.mfg_date || '')
-          if (!isNaN(d)) { d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10) }
-        } catch { /* ignore */ }
-        return ''
-      })()
-    )
+    const qtySample = currentOrder?.quantity_sample || ''
 
     return {
       product: productTitle,
       product_code: productCode,
-      spc_no: spcNo,
-      reference_stp_no: refStpNo,
+      spc_no: '',
+      reference_stp_no: '',
       reference: 'Homeopathic Pharmacopoeia of India',
       quantity_sample: qtySample,
       spc_as_per: 'Homeopathic Pharmacopoeia of India',
@@ -230,9 +121,9 @@ export default function QcMotherTinctureView({
       batch_no: batchNumber,
       mfg_date: mfgDate,
       best_before: bestBefore,
-      sample_received_date: sampleRecDate,
-      date_of_analysis: sampleRecDate,
-      ar_no: arNo,
+      sample_received_date: '',
+      date_of_analysis: '',
+      ar_no: '',
       mfg_lic_no: mfgLicNo,
 
       test_rows: DEFAULT_MT_TEST_PARAMETERS.map((row) => ({ ...row })),
@@ -243,19 +134,20 @@ export default function QcMotherTinctureView({
       approved_name: '',
       approved_signature: '',
       approved_date: '',
+
+      remarks_notes: '',
     }
-  }, [reduxOrderQc, orderId, currentOrder, currentProduct, currentBmr])
+  }, [reduxOrderQc, storageKey, orderId, currentOrder, currentProduct, currentBmr])
 
   const [data, setData] = useState(initialData)
 
-  // Sync state if Redux loads fresh data for this order
   useEffect(() => {
-    if (reduxOrderQc[String(orderId)]) {
-      setData(reduxOrderQc[String(orderId)])
+    const saved = reduxOrderQc[storageKey] || reduxOrderQc[String(orderId)]
+    if (saved) {
+      setData(saved)
     }
-  }, [reduxOrderQc, orderId])
+  }, [reduxOrderQc, storageKey, orderId])
 
-  // Field update handler
   const updateField = (field, val) => {
     setData((prev) => ({
       ...prev,
@@ -263,7 +155,6 @@ export default function QcMotherTinctureView({
     }))
   }
 
-  // Test row update
   const updateTestRow = (index, field, val) => {
     setData((prev) => {
       const nextRows = [...prev.test_rows]
@@ -272,98 +163,73 @@ export default function QcMotherTinctureView({
     })
   }
 
-  // Save to Redux store
   const handleSaveDraft = useCallback(() => {
     if (!orderId) return
     setSaving(true)
     dispatch(
       saveOrderQc({
-        orderId: String(orderId),
+        orderId: storageKey,
         qcData: data,
       })
     )
     setSaving(false)
     setSaveFeedback('✓ Draft Saved')
     setTimeout(() => setSaveFeedback(''), 2200)
-  }, [dispatch, orderId, data])
+  }, [dispatch, storageKey, orderId, data])
 
-  // Print Handlers
-    const handleDownloadPdf = useCallback(() => {
+  const handleDownloadPdf = useCallback(() => {
     if (orderId) {
-      dispatch(saveOrderQc({ orderId: String(orderId), qcData: data }))
+      dispatch(saveOrderQc({ orderId: storageKey, qcData: data }))
     }
-    const element = document.getElementById('qc-mother-tincture-page-1') || document.querySelector('.qc-sheet')
+    const element = document.querySelector('.qc-print-only-container') || document.querySelector('.qc-mt-sheet')
     if (!element || typeof window === 'undefined') {
       window.print()
       return
     }
-    import('html2pdf.js').then((module) => {
-      const html2pdf = module.default || module
-      const opt = {
-        margin: [4, 4, 4, 4],
-        filename: `COA_${data.batch_no || 'Mother_Tincture'}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, logging: false },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      }
-      html2pdf().set(opt).from(element).save()
-    }).catch((err) => {
-      console.warn('html2pdf fallback to print:', err)
-      window.print()
-    })
-  }, [dispatch, orderId, data])
+    import('html2pdf.js')
+      .then((module) => {
+        const html2pdf = module.default || module
+        const opt = {
+          margin: [0, 0, 0, 0],
+          filename: `COA_MOTHER_TINCTURE_${data.batch_no || 'Document'}.pdf`,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, logging: false },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        }
+        html2pdf().set(opt).from(element).save()
+      })
+      .catch((err) => {
+        console.warn('html2pdf fallback to print:', err)
+        window.print()
+      })
+  }, [dispatch, storageKey, orderId, data])
 
-  const handlePrint = useCallback(() => {
+  const handlePrintFull = useCallback(() => {
     if (orderId) {
-      dispatch(
-        saveOrderQc({
-          orderId: String(orderId),
-          qcData: data,
-        })
-      )
+      dispatch(saveOrderQc({ orderId: storageKey, qcData: data }))
     }
     setTimeout(() => {
       window.print()
     }, 150)
-  }, [dispatch, orderId, data])
+  }, [dispatch, storageKey, orderId, data])
 
-  // Completion status
-  const pageStatus = useMemo(() => {
-    const filledTests = (data.test_rows || []).filter((r) => r.result || r.limit).length
-    const hasApprovals = !!(data.analysed_name && data.approved_name)
-    if (filledTests >= 6 && hasApprovals) return 'done'
-    if (filledTests > 0 || data.analysed_name || data.approved_name) return 'in_progress'
-    return 'pending'
-  }, [data])
-
-  // =================================================================
-  // REUSABLE MOTHER TINCTURE SUB-COMPONENTS
-  // =================================================================
-
-  // 1. Header Block Table (6 grid columns: 12.1% / 12.2% / 18.8% / 20.4% / 21.7% / 14.8%)
+  // 1. Header Block Table
   const renderHeaderBlock = () => (
     <table className="qc-mt-header-table">
       <colgroup>
-        <col style={{ width: '12.1%' }} />
-        <col style={{ width: '12.2%' }} />
-        <col style={{ width: '18.8%' }} />
-        <col style={{ width: '20.4%' }} />
-        <col style={{ width: '21.7%' }} />
-        <col style={{ width: '14.8%' }} />
+        <col style={{ width: '13.3%' }} />
+        <col style={{ width: '36.7%' }} />
+        <col style={{ width: '17.3%' }} />
+        <col style={{ width: '32.7%' }} />
       </colgroup>
       <tbody>
-        {/* Row 1: Logo & Company Title (about 38 px tall) */}
-        <tr className="qc-mt-header-row-1">
-          <td colSpan={6} className="qc-mt-header-row-1-cell">
-            <div className="qc-mt-header-row-1-content">
+        {/* Row 1: Logo & Company Name */}
+        <tr className="qc-mt-info-row qc-mt-info-row-logo">
+          <td colSpan={4} className="qc-mt-header-cell">
+            <div className="qc-mt-header-box">
               <div className={`qc-mt-logo-wrap ${branding.isTej ? 'qc-mt-logo-wrap-tej' : ''}`}>
                 {branding.isTej ? (
-                  <img
-                    src={branding.logoSrc}
-                    alt={branding.headerName}
-                    className="qc-mt-logo-img qc-mt-logo-img-tej"
-                    loading="eager"
-                  />
+                  <img src={branding.logoSrc} alt={branding.headerName} className="qc-mt-logo-img qc-mt-logo-img-tej" loading="eager" />
                 ) : (
                   <img src={cmhpLogo} alt="CMHP Logo" className="qc-mt-logo-img" />
                 )}
@@ -375,138 +241,132 @@ export default function QcMotherTinctureView({
           </td>
         </tr>
 
-        {/* Row 2: Quality Control (about 29 px tall, 12pt bold centered) */}
-        <tr className="qc-mt-header-row-qc">
-          <td colSpan={6} className="qc-mt-title-cell">
+        {/* Row 2: Quality Control */}
+        <tr className="qc-mt-info-row qc-mt-info-row-qc">
+          <td colSpan={4} className="qc-mt-title-bar qc-mt-bar-qc">
             Quality Control
           </td>
         </tr>
 
-        {/* Row 3: CERTIFICATE OF ANALYSIS (MOTHER TINCTURE) (about 23 px tall, 12pt bold centered) */}
-        <tr className="qc-mt-header-row-coa">
-          <td colSpan={6} className="qc-mt-title-cell">
+        {/* Row 3: CERTIFICATE OF ANALYSIS (MOTHER TINCTURE) */}
+        <tr className="qc-mt-info-row qc-mt-info-row-coa">
+          <td colSpan={4} className="qc-mt-title-bar qc-mt-bar-coa">
             CERTIFICATE OF ANALYSIS (MOTHER TINCTURE)
           </td>
         </tr>
 
-        {/* Row 4: Product | [editable] | Product Code | [editable] (about 21 px tall) */}
-        <tr className="qc-mt-info-row qc-mt-info-row-product">
-          <td colSpan={2} className="qc-mt-label-cell">Product</td>
-          <td colSpan={2} className="qc-mt-value-cell">
-            <input
-              type="text"
-              className="qc-cell-input"
-              value={data.product || ''}
+        {/* Row 4: Product | [editable] | Product Code | [editable] */}
+        <tr className="qc-mt-info-row">
+          <td className="qc-mt-label-cell">Product</td>
+          <td className="qc-mt-value-cell">
+            <QcAutoCell
+              value={data.product}
               onChange={(e) => updateField('product', e.target.value)}
             />
           </td>
           <td className="qc-mt-label-cell">Product Code</td>
           <td className="qc-mt-value-cell">
-            <input
-              type="text"
-              className="qc-cell-input"
-              value={data.product_code || ''}
+            <QcAutoCell
+              value={data.product_code}
               onChange={(e) => updateField('product_code', e.target.value)}
             />
           </td>
         </tr>
 
-        {/* Row 5: SPC No. | [editable] | Reference STP No. | [editable] (about 34 px tall) */}
-        <tr className="qc-mt-info-row qc-mt-info-row-spc">
-          <td colSpan={2} className="qc-mt-label-cell">SPC No.</td>
-          <td colSpan={2} className="qc-mt-value-cell">
-            <input
-              type="text"
-              className="qc-cell-input"
-              value={data.spc_no || ''}
+        {/* Row 5: SPC No. | [editable] | Reference STP No. | [editable] */}
+        <tr className="qc-mt-info-row">
+          <td className="qc-mt-label-cell">SPC No.</td>
+          <td className="qc-mt-value-cell">
+            <QcAutoCell
+              value={data.spc_no}
               onChange={(e) => updateField('spc_no', e.target.value)}
             />
           </td>
-          <td className="qc-mt-label-cell">
-            Reference<br />STP No.
-          </td>
+          <td className="qc-mt-label-cell">Reference STP No.</td>
           <td className="qc-mt-value-cell">
-            <input
-              type="text"
-              className="qc-cell-input"
-              value={data.reference_stp_no || ''}
+            <QcAutoCell
+              value={data.reference_stp_no}
               onChange={(e) => updateField('reference_stp_no', e.target.value)}
             />
           </td>
         </tr>
 
-        {/* Row 6: Reference | Homeopathic Pharmacopoeia of India | Quantity Sample | [editable] (about 35 px tall) */}
-        <tr className="qc-mt-info-row qc-mt-info-row-reference">
-          <td colSpan={2} className="qc-mt-label-cell">Reference</td>
-          <td colSpan={2} className="qc-mt-value-cell">
-            <div className="qc-mt-static-text">
-              Homeopathic Pharmacopoeia of<br />India
-            </div>
+        {/* Row 6: Reference | Homeopathic Pharmacopoeia of India | Quantity Sample | [editable] */}
+        <tr className="qc-mt-info-row">
+          <td className="qc-mt-label-cell">Reference</td>
+          <td className="qc-mt-value-cell">
+            <div className="qc-static-text">Homeopathic Pharmacopoeia of India</div>
           </td>
           <td className="qc-mt-label-cell">Quantity Sample</td>
           <td className="qc-mt-value-cell">
-            <input
-              type="text"
-              className="qc-cell-input"
-              value={data.quantity_sample || ''}
+            <QcAutoCell
+              value={data.quantity_sample}
               onChange={(e) => updateField('quantity_sample', e.target.value)}
             />
           </td>
         </tr>
 
-        {/* Row 7: SPC as per | Homeopathic Pharmacopoeia of India | Batch Quantity | [editable] (about 34 px tall) */}
-        <tr className="qc-mt-info-row qc-mt-info-row-spc-asper">
-          <td colSpan={2} className="qc-mt-label-cell">SPC as per</td>
-          <td colSpan={2} className="qc-mt-value-cell">
-            <div className="qc-mt-static-text">
-              Homeopathic Pharmacopoeia of<br />India
-            </div>
+        {/* Row 7: SPC as per | Homeopathic Pharmacopoeia of India | Batch Quantity | [editable] */}
+        <tr className="qc-mt-info-row">
+          <td className="qc-mt-label-cell">SPC as per</td>
+          <td className="qc-mt-value-cell">
+            <div className="qc-static-text">Homeopathic Pharmacopoeia of India</div>
           </td>
           <td className="qc-mt-label-cell">Batch Quantity</td>
           <td className="qc-mt-value-cell">
-            <input
-              type="text"
-              className="qc-cell-input"
-              value={data.batch_quantity || ''}
+            <QcAutoCell
+              value={data.batch_quantity}
               onChange={(e) => updateField('batch_quantity', e.target.value)}
             />
           </td>
         </tr>
 
-        {/* Row 8: Batch No. | [editable small] | Mfg. Date | [editable] | Best before use | 05 Years (about 35 px tall) */}
-        <tr className="qc-mt-info-row qc-mt-info-row-batch">
-          <td className="qc-mt-label-cell">
-            Batch<br />No.
-          </td>
-          <td className="qc-mt-value-cell">
-            <input
-              type="text"
-              className="qc-cell-input"
-              value={data.batch_no || ''}
-              onChange={(e) => updateField('batch_no', e.target.value)}
-            />
-          </td>
-          <td className="qc-mt-label-cell">Mfg. Date</td>
-          <td className="qc-mt-value-cell">
-            <QcDateField
-              value={data.mfg_date}
-              onChange={(e) => updateField('mfg_date', e.target.value)}
-            />
-          </td>
-          <td className="qc-mt-label-cell">Best before use</td>
-          <td className="qc-mt-value-cell">
-            <div className="qc-mt-static-text">
-              05 Years
-            </div>
+        {/* Row 8: 6 dedicated columns (Batch No. | [editable] | Mfg. Date | [editable] | Best before use | [editable]) */}
+        <tr className="qc-mt-info-row">
+          <td colSpan={4} style={{ padding: 0, border: 'none' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', border: 'none' }}>
+              <colgroup>
+                <col style={{ width: '13.3%' }} />
+                <col style={{ width: '15.0%' }} />
+                <col style={{ width: '13.0%' }} />
+                <col style={{ width: '15.0%' }} />
+                <col style={{ width: '17.3%' }} />
+                <col style={{ width: '26.4%' }} />
+              </colgroup>
+              <tbody>
+                <tr>
+                  <td className="qc-mt-label-cell" style={{ borderLeft: 'none', borderTop: 'none', borderBottom: 'none' }}>Batch No.</td>
+                  <td className="qc-mt-value-cell" style={{ borderTop: 'none', borderBottom: 'none' }}>
+                    <QcAutoCell
+                      value={data.batch_no}
+                      onChange={(e) => updateField('batch_no', e.target.value)}
+                    />
+                  </td>
+                  <td className="qc-mt-label-cell" style={{ borderTop: 'none', borderBottom: 'none' }}>Mfg. Date</td>
+                  <td className="qc-mt-value-cell" style={{ borderTop: 'none', borderBottom: 'none' }}>
+                    <QcDateField
+                      value={data.mfg_date}
+                      onChange={(e) => updateField('mfg_date', e.target.value)}
+                    />
+                  </td>
+                  <td className="qc-mt-label-cell" style={{ borderTop: 'none', borderBottom: 'none' }}>Best before use</td>
+                  <td className="qc-mt-value-cell" style={{ borderRight: 'none', borderTop: 'none', borderBottom: 'none' }}>
+                    <QcAutoCell
+                      value={data.best_before}
+                      align="center"
+                      onChange={(e) => updateField('best_before', e.target.value)}
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </td>
         </tr>
 
-        {/* Row 9: Sample Received Date | [editable] | Date of Analysis | [editable] (about 34 px tall) */}
-        <tr className="qc-mt-info-row qc-mt-info-row-sample-date">
-          <td colSpan={2} className="qc-mt-label-cell">
-            Sample Received<br />Date
-          </td>
-          <td colSpan={2} className="qc-mt-value-cell">
+        {/* Row 9: Sample Received Date | Date of Analysis */}
+        <tr className="qc-mt-info-row">
+          <td className="qc-mt-label-cell">Sample Received Date</td>
+          <td className="qc-mt-value-cell">
             <QcDateField
               value={data.sample_received_date}
               onChange={(e) => updateField('sample_received_date', e.target.value)}
@@ -521,23 +381,19 @@ export default function QcMotherTinctureView({
           </td>
         </tr>
 
-        {/* Row 10: AR. No. | [editable] | Mfg. Lic. No. | [editable] (about 26 px tall) */}
-        <tr className="qc-mt-info-row qc-mt-info-row-ar">
-          <td colSpan={2} className="qc-mt-label-cell">AR. No.</td>
-          <td colSpan={2} className="qc-mt-value-cell">
-            <input
-              type="text"
-              className="qc-cell-input"
-              value={data.ar_no || ''}
+        {/* Row 10: AR. No. | Mfg. Lic. No. */}
+        <tr className="qc-mt-info-row">
+          <td className="qc-mt-label-cell">AR. No.</td>
+          <td className="qc-mt-value-cell">
+            <QcAutoCell
+              value={data.ar_no}
               onChange={(e) => updateField('ar_no', e.target.value)}
             />
           </td>
           <td className="qc-mt-label-cell">Mfg. Lic. No.</td>
           <td className="qc-mt-value-cell">
-            <input
-              type="text"
-              className="qc-cell-input"
-              value={data.mfg_lic_no || ''}
+            <QcAutoCell
+              value={data.mfg_lic_no}
               onChange={(e) => updateField('mfg_lic_no', e.target.value)}
             />
           </td>
@@ -546,7 +402,7 @@ export default function QcMotherTinctureView({
     </table>
   )
 
-  // 2. Test Parameters Table (4 columns: 8.6% | 24.9% | 26.7% | 39.8%, 11pt font)
+  // 2. Test Parameters Table (6 rows)
   const renderTestTable = () => (
     <table className="qc-mt-test-table">
       <colgroup>
@@ -557,30 +413,28 @@ export default function QcMotherTinctureView({
       </colgroup>
       <thead>
         <tr className="qc-mt-test-header-row">
-          <th className="qc-mt-test-th qc-text-center">Sr.No.</th>
-          <th className="qc-mt-test-th qc-text-center">Test Parameters</th>
-          <th className="qc-mt-test-th qc-text-center">Result</th>
-          <th className="qc-mt-test-th qc-text-center">Limits</th>
+          <th className="qc-mt-test-th" style={{ textAlign: 'center' }}>Sr.No.</th>
+          <th className="qc-mt-test-th" style={{ textAlign: 'center' }}>Test Parameters</th>
+          <th className="qc-mt-test-th" style={{ textAlign: 'center' }}>Result</th>
+          <th className="qc-mt-test-th" style={{ textAlign: 'center' }}>Limits</th>
         </tr>
       </thead>
       <tbody>
         {data.test_rows.map((row, idx) => (
           <tr key={row.sr || idx} className="qc-mt-test-row">
-            <td className="qc-mt-test-td-sr qc-text-center">{row.sr}</td>
+            <td className="qc-mt-test-td-sr" style={{ textAlign: 'center' }}>{row.sr}</td>
             <td className="qc-mt-test-td-param">{row.param}</td>
             <td className="qc-mt-test-td-input">
-              <input
-                type="text"
-                className="qc-cell-input qc-text-center"
-                value={row.result || ''}
+              <QcAutoCell
+                value={row.result}
+                align="center"
                 onChange={(e) => updateTestRow(idx, 'result', e.target.value)}
               />
             </td>
             <td className="qc-mt-test-td-input">
-              <input
-                type="text"
-                className="qc-cell-input qc-text-center"
-                value={row.limit || ''}
+              <QcAutoCell
+                value={row.limit}
+                align="center"
                 onChange={(e) => updateTestRow(idx, 'limit', e.target.value)}
               />
             </td>
@@ -590,7 +444,7 @@ export default function QcMotherTinctureView({
     </table>
   )
 
-  // 3. Sign-off Table (3 columns: 15.2% | 37.6% | 47.2%, height ~125 px) & Footer (12pt)
+  // 3. Sign-off Table & Footer
   const renderSignOffSection = () => (
     <div className="qc-mt-signoff-section">
       <table className="qc-mt-signoff-table">
@@ -602,58 +456,41 @@ export default function QcMotherTinctureView({
         <thead>
           <tr className="qc-mt-signoff-header-row">
             <th className="qc-mt-signoff-grey-cell" />
-            <th className="qc-mt-signoff-th">
-              Analysed by<br />(QC)
-            </th>
-            <th className="qc-mt-signoff-th">
-              Approved By<br />(QA)
-            </th>
+            <th className="qc-mt-signoff-th">Analysed by (QC)</th>
+            <th className="qc-mt-signoff-th">Approved By (QA)</th>
           </tr>
         </thead>
         <tbody>
-          {/* Name Row */}
           <tr className="qc-mt-signoff-name-row">
             <td className="qc-mt-signoff-label">Name</td>
             <td className="qc-mt-signoff-input-cell">
-              <input
-                type="text"
-                className="qc-cell-input"
-                value={data.analysed_name || ''}
+              <QcAutoCell
+                value={data.analysed_name}
                 onChange={(e) => updateField('analysed_name', e.target.value)}
               />
             </td>
             <td className="qc-mt-signoff-input-cell">
-              <input
-                type="text"
-                className="qc-cell-input"
-                value={data.approved_name || ''}
+              <QcAutoCell
+                value={data.approved_name}
                 onChange={(e) => updateField('approved_name', e.target.value)}
               />
             </td>
           </tr>
-
-          {/* Signature Row */}
           <tr className="qc-mt-signoff-sig-row">
             <td className="qc-mt-signoff-label">Signature</td>
             <td className="qc-mt-signoff-input-cell">
-              <input
-                type="text"
-                className="qc-cell-input"
-                value={data.analysed_signature || ''}
+              <QcAutoCell
+                value={data.analysed_signature}
                 onChange={(e) => updateField('analysed_signature', e.target.value)}
               />
             </td>
             <td className="qc-mt-signoff-input-cell">
-              <input
-                type="text"
-                className="qc-cell-input"
-                value={data.approved_signature || ''}
+              <QcAutoCell
+                value={data.approved_signature}
                 onChange={(e) => updateField('approved_signature', e.target.value)}
               />
             </td>
           </tr>
-
-          {/* Date Row */}
           <tr className="qc-mt-signoff-date-row">
             <td className="qc-mt-signoff-label">Date</td>
             <td className="qc-mt-signoff-input-cell">
@@ -672,7 +509,6 @@ export default function QcMotherTinctureView({
         </tbody>
       </table>
 
-      {/* Footer outside table, 12pt font */}
       <div className="qc-mt-page-footer">
         <span className="qc-mt-footer-sop">SOP/QC/11/F-04/00</span>
         <span className="qc-mt-footer-page">
@@ -682,40 +518,50 @@ export default function QcMotherTinctureView({
     </div>
   )
 
-  // -----------------------------------------------------------------
-  // MOTHER TINCTURE PAGE 1 RENDERER (Exactly 1 Page)
-  // -----------------------------------------------------------------
-  const renderPage1 = () => (
+  const renderSheet = () => (
     <div className="qc-mt-sheet" id="qc-mother-tincture-page-1" key="qc-mother-tincture-page-1">
-      {/* 1. Header Block Table */}
       {renderHeaderBlock()}
-
-      {/* 2. Gap below Header (~18 px) */}
       <div className="qc-mt-header-gap" />
-
-      {/* 3. Test Parameters Table */}
       {renderTestTable()}
-
-      {/* 4. Remarks Text Block */}
       <div className="qc-mt-remarks-wrap">
         <p className="qc-mt-remarks-text">
           <strong>Remarks:</strong> The above product complies / does not comply as per Homeopathic Pharmacopoeia of India.
         </p>
       </div>
 
-      {/* 5. Blank Area down to Sign-off table */}
-      <div className="qc-mt-blank-area" />
+      {/* Large empty area with optional notes */}
+      <div className="qc-mt-blank-area" style={{ flex: 1, minHeight: '180pt', position: 'relative' }}>
+        <textarea
+          className="qc-blank-area-notes no-print"
+          placeholder=""
+          value={data.remarks_notes || ''}
+          onChange={(e) => updateField('remarks_notes', e.target.value)}
+          style={{
+            width: '100%',
+            height: '100%',
+            minHeight: '180pt',
+            border: 'none',
+            background: 'transparent',
+            resize: 'none',
+            outline: 'none',
+            fontFamily: 'inherit',
+            fontSize: '11pt',
+          }}
+        />
+        {data.remarks_notes ? (
+          <div className="qc-blank-area-print print-only" style={{ whiteSpace: 'pre-wrap' }}>
+            {data.remarks_notes}
+          </div>
+        ) : null}
+      </div>
 
-      {/* 6. Sign-off Table & Footer (Anchored at y = 874 px) */}
       {renderSignOffSection()}
     </div>
   )
 
   return (
     <div className="qc-view-wrapper">
-      {/* ========================================================
-          STICKY TOP TOOLBAR (Matching Oil and Tablet CoA Style)
-          ======================================================== */}
+      {/* Top Bar */}
       <div className="qc-topbar no-print">
         <div className="qc-topbar-left">
           <button
@@ -733,11 +579,9 @@ export default function QcMotherTinctureView({
             </div>
           )}
 
-          {dosageForm && (
-            <span className="qc-dosage-pill">
-              {dosageForm} (1 Page CoA)
-            </span>
-          )}
+          <span className="qc-dosage-pill">
+            {dosageForm} (1 Page CoA)
+          </span>
 
           {saveFeedback && (
             <span className="qc-save-feedback">
@@ -759,8 +603,8 @@ export default function QcMotherTinctureView({
           <button
             type="button"
             className="qc-btn-primary"
-            onClick={handlePrint}
-            title="Print Mother Tincture Certificate of Analysis (1 Page)"
+            onClick={handlePrintFull}
+            title="Print 1 Page Certificate of Analysis"
           >
             🖨️ Print CoA
           </button>
@@ -768,72 +612,24 @@ export default function QcMotherTinctureView({
           <button
             type="button"
             className="qc-btn-secondary"
-            onClick={handleDownloadPdf} title="Download PDF Certificate of Analysis"
+            onClick={handleDownloadPdf}
+            title="Download PDF Certificate of Analysis"
           >
             📥 Download PDF
           </button>
         </div>
       </div>
 
-      {/* ========================================================
-          PAGE-WISE WORKSPACE LAYOUT (Left Navigator + Active Form Page)
-          ======================================================== */}
-      <div className="qc-layout no-print">
-        {/* LEFT PAGE NAVIGATOR */}
-        <aside className="qc-sidebar-nav">
-          <div className="qc-nav-header">
-            <span>QC Pages ({pageStatus === 'done' ? 1 : 0}/1)</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#0284c7' }}>
-              {pageStatus === 'done' ? '100%' : pageStatus === 'in_progress' ? '50%' : '0%'}
-            </span>
-          </div>
-
-          <div className="qc-nav-list">
-            <button
-              type="button"
-              className="qc-nav-item active"
-              onClick={handleSaveDraft}
-            >
-              <div className="qc-nav-item-title">
-                <span className="qc-nav-num">1</span>
-                <span>Page 1 of 1 (Certificate of Analysis)</span>
-              </div>
-
-              <span className={`qc-status-badge ${pageStatus}`}>
-                {pageStatus === 'done' ? '✓ Done' : pageStatus === 'in_progress' ? '● In Prog' : '○ Pending'}
-              </span>
-            </button>
-          </div>
-        </aside>
-
-        {/* ACTIVE PAGE CONTENT */}
-        <main className="qc-main-content">
-          <div className="qc-interactive-screen-sheet">
-            {renderPage1()}
-          </div>
-
-          {/* BOTTOM NAVIGATION */}
-          <div className="qc-bottom-nav">
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>
-              Page 1 of 1 — Certificate of Analysis (Mother Tincture)
-            </span>
-
-            <button
-              type="button"
-              className="qc-nav-btn qc-nav-btn-next"
-              onClick={handleSaveDraft}
-            >
-              Save Draft ✓
-            </button>
-          </div>
-        </main>
+      {/* Screen Sheet Display */}
+      <div className="qc-layout no-print" style={{ justifyContent: 'center', padding: '24px 0' }}>
+        <div className="qc-interactive-screen-sheet">
+          {renderSheet()}
+        </div>
       </div>
 
-      {/* ========================================================
-          PRINT CONTAINER (Hidden on screen, rendered in print preview)
-          ======================================================== */}
+      {/* Print-Only Container */}
       <div className="qc-print-only-container">
-        {renderPage1()}
+        {renderSheet()}
       </div>
     </div>
   )

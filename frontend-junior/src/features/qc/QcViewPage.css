@@ -480,74 +480,80 @@
 }
 
 /* =========================================================
-   1. HEADER BOX (y: 36.5 -> 147.5, Height: 111.0pt / ~13.2%)
+   1. HEADER BOX (Standardized 38pt Flexbox for Tablet & Oil)
    ========================================================= */
 .qc-header-box {
-  width: 100%;
-  height: 111.0pt;
-  min-height: 111.0pt;
-  max-height: 111.0pt;
-  border: 1px solid #000000 !important;
-  box-sizing: border-box;
-  flex-shrink: 0;
-  position: relative;
-  display: flex;
-  flex-direction: column;
+  width: 100% !important;
+  border: 1.5pt solid #000000 !important;
+  border-bottom: none !important;
+  box-sizing: border-box !important;
+  background: #ffffff !important;
+  position: relative !important;
+  flex-shrink: 0 !important;
 }
 
 .qc-header-content {
-  height: 48pt;
-  position: relative;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 5pt;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  padding: 0 8pt !important;
+  position: relative !important;
+  width: 100% !important;
+  height: 38pt !important;
+  min-height: 38pt !important;
+  max-height: 38pt !important;
+  box-sizing: border-box !important;
 }
 
 .qc-logo-wrap {
-  position: absolute;
-  left: 6.75pt;
-  top: 2.6pt;
-  width: 63pt;
-  height: 28pt;
+  width: 90px !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  flex-shrink: 0 !important;
 }
 
 .qc-logo-img {
-  max-width: 63pt;
-  max-height: 28pt;
-  object-fit: contain;
+  max-width: 90px !important;
+  max-height: 30px !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+  display: block !important;
 }
 
 /* Tej Biocare Branding Fit (Tej branch only - CMHP untouched) */
 .qc-logo-wrap-tej {
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 100px !important;
+  overflow: hidden !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
 .qc-logo-img-tej {
-  width: 100%;
-  height: 100%;
-  max-width: 63pt;
-  max-height: 28pt;
-  object-fit: contain;
-  transform: scale(1.45);
-  transform-origin: center 43%;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 90px !important;
+  max-height: 30px !important;
+  object-fit: contain !important;
 }
 
 .qc-company-title {
+  flex: 1 !important;
+  text-align: center !important;
   font-family: 'Times New Roman', Times, serif !important;
-  font-size: 20pt !important;
-  font-weight: normal !important;
-  text-align: center;
+  font-size: 17pt !important;
+  font-weight: 700 !important;
   color: #000000 !important;
-  letter-spacing: 0.3px;
-  line-height: 1;
+  letter-spacing: 0.5px !important;
+  margin-right: 90px !important;
+  line-height: 1 !important;
 }
 
 .qc-header-blank-space {
-  flex: 1;
+  display: none !important;
 }
 
 /* =========================================================
@@ -952,6 +958,11 @@
   display: none;
 }
 
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
 @media print {
   @page {
     size: A4 portrait;
@@ -967,26 +978,82 @@
     print-color-adjust: exact !important;
   }
 
+  /* Neutralize app-shell layout wrappers */
+  #root,
+  .app,
+  .layout,
+  .layout-body,
+  .layout-main,
+  .layout-content,
+  .main-layout,
+  .main-content,
+  .qc-view-page-wrapper,
+  .qc-view-wrapper,
+  .qc-layout,
+  .qc-page-container,
+  .coa-interactive-workspace {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: static !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
   /* Hide app shell and on-screen interactive elements */
-  .no-print,
+  header,
+  nav,
+  aside,
+  footer,
+  .hero-banner,
+  .page-header-container,
+  .page-header,
   .app-sidebar,
   .app-header,
   .main-header,
-  nav,
-  aside,
-  header {
+  .main-sidebar,
+  .layout-sidebar,
+  .layout-header,
+  .demo-notice,
+  .menu-toggle,
+  .header-search,
+  .header-right,
+  .qc-topbar,
+  .qc-sidebar-nav,
+  .qc-bottom-nav,
+  .qc-filter-group,
+  .qc-multi-line-tabs,
+  .qc-interactive-screen-sheet,
+  .qc-layout,
+  button,
+  .btn,
+  .no-print {
     display: none !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    overflow: hidden !important;
+    visibility: hidden !important;
   }
 
   /* Show the dedicated print container */
   .qc-print-only-container {
     display: block !important;
     visibility: visible !important;
-    width: 596pt !important;
-    max-width: 596pt !important;
-    margin: 0 !important;
+    width: 210mm !important;
+    max-width: 210mm !important;
+    margin: 0 auto !important;
     padding: 0 !important;
     background: #ffffff !important;
+    position: static !important;
   }
 
   .qc-print-only-container * {
@@ -1002,29 +1069,51 @@
   }
 
   /* Exact A4 Sheet Page Container */
-  .qc-print-only-container .qc-sheet {
-    width: 596pt !important;
-    height: 842pt !important;
-    min-height: 842pt !important;
-    max-height: 842pt !important;
-    padding: 36.5pt 26.5pt 22pt 45pt !important;
-    margin: 0 !important;
+  .qc-print-only-container .qc-sheet,
+  .qc-print-only-container .qc-syrup-sheet,
+  .qc-print-only-container .qc-drops-sheet,
+  .qc-print-only-container .qc-mt-sheet {
+    width: 100% !important;
+    max-width: 210mm !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: 285mm !important;
+    padding: 10pt 20pt 8pt 32pt !important;
+    margin: 0 auto !important;
     border: none !important;
     box-shadow: none !important;
     border-radius: 0 !important;
-    page-break-after: always !important;
-    break-after: page !important;
+    page-break-after: avoid !important;
+    page-break-before: avoid !important;
+    break-after: avoid !important;
+    break-before: avoid !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
-    overflow: hidden !important;
+    overflow: visible !important;
     box-sizing: border-box !important;
     background: #ffffff !important;
     color: #000000 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
   }
 
+  /* Multi-page Sheets: Page 1 break to Page 2 */
+  .qc-print-only-container #qc-tablet-page-1,
+  .qc-print-only-container #qc-oil-page-1 {
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-before: avoid !important;
+    break-before: avoid !important;
+  }
+
+  .qc-print-only-container #qc-tablet-page-2,
+  .qc-print-only-container #qc-oil-page-2,
   .qc-print-only-container .qc-sheet:last-child {
-    page-break-after: auto !important;
-    break-after: auto !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    page-break-before: auto !important;
+    break-before: auto !important;
   }
 
   /* Inputs become pure text in print */

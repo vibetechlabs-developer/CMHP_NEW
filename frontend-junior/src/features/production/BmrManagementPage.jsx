@@ -497,7 +497,7 @@ export default function BmrManagementPage() {
                           {o.bmr_status === 'YES' ? '✓ Completed' : '⏳ Pending'}
                         </StatusPill>
                       </td>
-                      <td style={{ textAlign: 'right' }}>
+                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                         <Button
                           size="xs"
                           variant="primary"
@@ -508,6 +508,14 @@ export default function BmrManagementPage() {
                           })}
                         >
                           📋 Open BMR
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="secondary"
+                          onClick={() => navigate(`/qc/view/${o.id}`)}
+                          style={{ marginLeft: 6 }}
+                        >
+                          📜 View CoA
                         </Button>
                       </td>
                     </tr>
