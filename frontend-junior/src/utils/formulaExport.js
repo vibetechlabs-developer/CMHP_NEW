@@ -76,16 +76,16 @@ export function exportFormulaExcel({
     : ''
 
   const endorsementHtml = isApproved && approval?.decisionRemarks
-    ? `<tr><td colspan="7" style="border: 1px solid #000; background: #f0fdf4; padding: 6px; font-size: 10pt; color: #15803d;"><strong>QC / QA Release Endorsement:</strong> ${approval.decisionRemarks} (Certified by ${approval.decidedBy || 'QA Manager'} on ${approvedDateFormatted})</td></tr>`
+    ? `<tr><td colspan="7" style="border: 1px solid #000; background: #f0fdf4; padding: 6px; font-size: 10pt; color: #15803d;"><strong>QA Release Endorsement:</strong> ${approval.decisionRemarks} (Certified by ${approval.decidedBy || 'QA Manager'} on ${approvedDateFormatted})</td></tr>`
     : isDeclined && approval?.declineReason
-    ? `<tr><td colspan="7" style="border: 1px solid #000; background: #fef2f2; padding: 6px; font-size: 10pt; color: #b91c1c;"><strong>QC Formulation Decline Notice [${approval.declineCategory || 'General'}]:</strong> ${approval.declineReason} (Returned by ${approval.decidedBy || 'QC In-Charge'} on ${approvedDateFormatted})</td></tr>`
+    ? `<tr><td colspan="7" style="border: 1px solid #000; background: #fef2f2; padding: 6px; font-size: 10pt; color: #b91c1c;"><strong>QA Formulation Decline Notice [${approval.declineCategory || 'General'}]:</strong> ${approval.declineReason} (Returned by ${approval.decidedBy || 'QA In-Charge'} on ${approvedDateFormatted})</td></tr>`
     : ''
 
   const approverCell = isApproved
-    ? `Approved By:<br/><small>QA / QC Manager</small><br/>Name: ${approval?.decidedBy || 'Dr. R. K. Mehta'}<br/>Signature: /${(approval?.decidedBy || 'RKMehta').replace(/^(Dr\.|Mr\.|Mrs\.|Ms\.)\s*/i, '').trim().split(/\s+/)[0]}/<br/>Date: ${approvedDateFormatted}`
+    ? `Approved By:<br/><small>QA Manager</small><br/>Name: ${approval?.decidedBy || 'Dr. R. K. Mehta'}<br/>Signature: /${(approval?.decidedBy || 'RKMehta').replace(/^(Dr\.|Mr\.|Mrs\.|Ms\.)\s*/i, '').trim().split(/\s+/)[0]}/<br/>Date: ${approvedDateFormatted}`
     : isDeclined
-    ? `Audit Decision: DECLINED<br/><small>QC Review</small><br/>Declined By: ${approval?.decidedBy || 'QC In-Charge'}<br/>Date: ${approvedDateFormatted}<br/>Finding: ${approval?.declineReason || 'Stoichiometric Discrepancy'}`
-    : `Approved By:<br/><small>QA / QC Manager</small><br/>Name: ________________<br/>Signature: ________________<br/>Date: ________________`
+    ? `Audit Decision: DECLINED<br/><small>QA Review</small><br/>Declined By: ${approval?.decidedBy || 'QA In-Charge'}<br/>Date: ${approvedDateFormatted}<br/>Finding: ${approval?.declineReason || 'Stoichiometric Discrepancy'}`
+    : `Approved By:<br/><small>QA Manager</small><br/>Name: ________________<br/>Signature: ________________<br/>Date: ________________`
 
   const excelContent = `
     <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
@@ -256,3 +256,4 @@ export function exportFormulaCsv({
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
 }
+

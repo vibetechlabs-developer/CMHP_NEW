@@ -151,8 +151,14 @@ export default function SalesOrdersPanel() {
        'READY_TO_INVOICE', 'READY TO INVOICE', 'PACKED', 'DISPATCHED', 'COMPLETED',
        'IN_PROGRESS'].includes(s)
 
-    // Store done: packed and beyond
-    const storeDone = ['PACKED', 'DISPATCHED', 'COMPLETED'].includes(s)
+    // Store done: store preparation saved, or packed and beyond
+    const storeDone = Boolean(
+      order?.has_store_prep ||
+      order?.store_prep_completed ||
+      order?.packing_type ||
+      (order?.preparations && order.preparations.length > 0) ||
+      ['STORE_PREP', 'STORE PREP', 'PACKED', 'DISPATCHED', 'COMPLETED'].includes(s)
+    )
 
     return [
       { key: 'A (Admin):', state: adminDone ? '✓ Completed' : '• Pending', isDone: adminDone },
@@ -397,6 +403,7 @@ export default function SalesOrdersPanel() {
           <option value="Drops">Drops</option>
           <option value="Syrup">Syrup</option>
           <option value="Liquid">Liquid</option>
+          <option value="Mother Tincture">Mother Tincture</option>
         </select>
 
         <select

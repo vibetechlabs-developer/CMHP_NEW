@@ -120,9 +120,9 @@ export default function SuppliersPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1 }} />
-          <Button type="button" variant="secondary" onClick={() => setImportOpen(true)}>
-            <span aria-hidden="true">📥</span> Import CSV
-          </Button>
+          <button type="button" className="so-btn-import-csv" onClick={() => setImportOpen(true)}>
+            📥 Import CSV
+          </button>
           <Button type="button" variant="primary" onClick={() => setEditing({ mode: 'create' })}>+ Add Supplier</Button>
         </div>
       </div>

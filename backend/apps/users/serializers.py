@@ -60,6 +60,7 @@ class UserSerializer(serializers.ModelSerializer):
             "designation",
             "joining_date",
             "employment_status",
+            "shift",
             "memberships_url",
         ]
         read_only_fields = fields
@@ -86,6 +87,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
             "designation",
             "joining_date",
             "employment_status",
+            "shift",
         ]
         extra_kwargs = {
             "first_name": {"required": False, "allow_blank": True},
@@ -95,6 +97,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
             "common_inventory_access": {"required": False},
             "department": {"required": False, "allow_blank": True, "max_length": 100},
             "designation": {"required": False, "allow_blank": True, "max_length": 100},
+            "shift": {"required": False, "allow_blank": True, "max_length": 50},
             "joining_date": {"required": False, "allow_null": True},
             "employment_status": {"required": False},
         }
@@ -128,6 +131,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             "designation",
             "joining_date",
             "employment_status",
+            "shift",
             "common_inventory_access",
         ]
         extra_kwargs = {
@@ -140,6 +144,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             "common_inventory_access": {"required": False},
             "department": {"required": False, "allow_blank": True, "max_length": 100},
             "designation": {"required": False, "allow_blank": True, "max_length": 100},
+            "shift": {"required": False, "allow_blank": True, "max_length": 50},
             "joining_date": {"required": False, "allow_null": True},
             "employment_status": {"required": False},
         }

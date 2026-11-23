@@ -1256,6 +1256,115 @@ table td strong {
   margin-left: 5px;
 }
 
+/* =========================================================
+   15b. STYLED FILE INPUT BUTTON
+   ========================================================= */
+
+/* Wrapper for custom file picker */
+.file-input-btn-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 9px;
+  transition: all 0.15s ease;
+}
+.file-input-btn-wrap:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+/* The styled "Choose File" trigger button */
+.file-input-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 6px 16px !important;
+  border-radius: 7px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #0284c7 !important;
+  background: #f0f9ff !important;
+  border: 1px solid #bae6fd !important;
+  box-shadow: 0 1px 2px rgba(2, 132, 199, 0.08) !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  white-space: nowrap !important;
+  line-height: 1.4 !important;
+}
+.file-input-btn:hover:not(:disabled) {
+  background: #e0f2fe !important;
+  border-color: #7dd3fc !important;
+  color: #0369a1 !important;
+  transform: translateY(-1px);
+}
+.file-input-btn:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+/* Filename label next to the button */
+.file-input-name {
+  font-size: 13px;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+}
+.file-input-name.has-file {
+  color: #047857;
+  font-weight: 600;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  padding: 2px 8px;
+  border-radius: 5px;
+}
+
+/* Global styling for native file inputs anywhere in the app */
+input[type="file"] {
+  font-size: 13px !important;
+  color: #64748b !important;
+  cursor: pointer !important;
+}
+input[type="file"]::file-selector-button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 6px 14px !important;
+  margin-right: 12px !important;
+  border-radius: 6px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #0284c7 !important;
+  background: #f0f9ff !important;
+  border: 1px solid #bae6fd !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+input[type="file"]::file-selector-button:hover {
+  background: #e0f2fe !important;
+  border-color: #7dd3fc !important;
+  color: #0369a1 !important;
+}
+.field-input[type="file"] {
+  height: auto !important;
+  min-height: 42px !important;
+  padding: 6px 10px !important;
+  background: #f8fafc !important;
+  border: 1px dashed #cbd5e1 !important;
+  border-radius: 8px !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+/* =========================================================
+   16. BUTTON STYLES (Edit / Delete / company-link)
+   ========================================================= */
+
 /* Unified Edit Button UI */
 .so-btn-edit,
 .table-edit,
@@ -1349,6 +1458,50 @@ table td strong {
 /* =========================================================
    16. EMPTY STATES
    ========================================================= */
+
+/* company-link / company-link danger — used across tables as Activate/Deactivate/Archive.
+   Override the old plain-text-link style with proper button pills matching
+   table-edit (blue) and table-delete (red). */
+.company-link {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 5px 14px !important;
+  border-radius: 6px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #0284c7 !important;
+  background: #f0f9ff !important;
+  border: 1px solid #bae6fd !important;
+  box-shadow: none !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  line-height: 1.4 !important;
+  text-decoration: none !important;
+  white-space: nowrap !important;
+}
+.company-link:hover:not(:disabled) {
+  background: #e0f2fe !important;
+  border-color: #7dd3fc !important;
+  color: #0369a1 !important;
+  text-decoration: none !important;
+}
+.company-link.danger {
+  color: #e11d48 !important;
+  background: #fff1f2 !important;
+  border: 1px solid #fecdd3 !important;
+}
+.company-link.danger:hover:not(:disabled) {
+  background: #ffe4e6 !important;
+  border-color: #fda4af !important;
+  color: #be123c !important;
+  text-decoration: none !important;
+}
+.company-link:disabled,
+.company-link.danger:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
 
 .company-empty,
 .table-empty,
@@ -1987,35 +2140,7 @@ table td strong {
    31. LINKS
    ========================================================= */
 
-.company-link {
-  display: inline-flex;
-  align-items: center;
-
-  border: 0;
-
-  padding: 4px 7px;
-
-  color: var(--primary);
-
-  background: transparent;
-
-  font-size: 12px;
-  font-weight: 750;
-
-  text-align: left;
-}
-
-.company-link:hover {
-  color: var(--primary-dark);
-}
-
-.company-link.danger {
-  color: var(--danger);
-}
-
-.company-link.danger:hover {
-  color: #bd3545;
-}
+/* company-link button styling is unified in section 16 */
 
 /* =========================================================
    32. PAGINATION

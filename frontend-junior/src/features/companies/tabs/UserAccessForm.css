@@ -40,6 +40,56 @@
   cursor: pointer;
 }
 
+.uf-access-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.uf-check-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.uf-check-item:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.uf-checkbox {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  cursor: pointer;
+  accent-color: #2563eb;
+  flex-shrink: 0;
+}
+
+.uf-check-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.uf-check-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.uf-check-desc {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
 .uf-check-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

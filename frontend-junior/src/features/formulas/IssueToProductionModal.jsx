@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import './IssueToProductionModal.css'
 
 export default function IssueToProductionModal({
@@ -15,6 +15,11 @@ export default function IssueToProductionModal({
   isIssuing = false,
   progress = { current: 0, total: 0, currentItem: '' },
   results = null,
+  // Batch plan / sales order binding (required by backend GMP rules)
+  batchPlans = [],
+  selectedBatchPlanId = '',
+  onBatchPlanChange = null,
+  salesOrderId = null,
 }) {
   useEffect(() => {
     if (!isOpen) return
@@ -103,7 +108,76 @@ export default function IssueToProductionModal({
             </div>
           </div>
 
-          {/* 2. Warning Callout (only before / during issuing) */}
+          {/* 2. Batch Plan / Sales Order Binding (GMP requirement) */}
+          {!isCompleted && (
+            <div style={{
+              background: '#f0f9ff',
+              border: '1.5px solid #bae6fd',
+              borderRadius: 8,
+              padding: '12px 16px',
+              marginBottom: 12,
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#0369a1', marginBottom: 6 }}>
+                🏷️ Batch Plan / Sales Order Link (Required for GMP Compliance)
+              </div>
+              {batchPlans.length > 0 ? (
+                <div>
+                  <select
+                    value={selectedBatchPlanId}
+                    onChange={(e) => onBatchPlanChange && onBatchPlanChange(e.target.value)}
+                    disabled={isIssuing}
+                    style={{
+                      width: '100%',
+                      height: 36,
+                      borderRadius: 6,
+                      border: `1.5px solid ${selectedBatchPlanId ? '#22c55e' : '#f59e0b'}`,
+                      padding: '0 10px',
+                      fontSize: 13,
+                      background: selectedBatchPlanId ? '#f0fdf4' : '#fffbeb',
+                      color: '#1e293b',
+                      outline: 'none',
+                    }}
+                  >
+                    <option value="">-- Select Batch Plan to link this issue --</option>
+                    {batchPlans.map((bp) => {
+                      const label = bp.official_batch_number || `Plan #${bp.id}`
+                      const prod = bp.product_name || bp.product_code || ''
+                      return (
+                        <option key={bp.id} value={String(bp.id)}>
+                          {label}{prod ? ` — ${prod}` : ''}
+                        </option>
+                      )
+                    })}
+                  </select>
+                  {!selectedBatchPlanId && (
+                    <div style={{ fontSize: 11, color: '#d97706', marginTop: 4 }}>
+                      ⚠️ Select a batch plan before confirming. Required by GMP/pharma compliance rules.
+                    </div>
+                  )}
+                  {selectedBatchPlanId && (
+                    <div style={{ fontSize: 11, color: '#16a34a', marginTop: 4 }}>
+                      ✅ Materials will be linked to the selected batch plan in the inventory ledger.
+                    </div>
+                  )}
+                </div>
+              ) : salesOrderId ? (
+                <div style={{ fontSize: 12, color: '#16a34a' }}>
+                  ✅ Linked to Sales Order #{salesOrderId}
+                </div>
+              ) : (
+                <div>
+                  <div style={{ fontSize: 12, color: '#dc2626', marginBottom: 6 }}>
+                    ⚠️ No batch plans found for this company. Create a Batch Plan first, or enter a batch reference manually.
+                  </div>
+                  <div style={{ fontSize: 11, color: '#64748b' }}>
+                    Go to <strong>Batch Planning</strong> in the inventory module to create one for this product, then come back and try again.
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 3. Warning Callout (only before / during issuing) */}
           {!isCompleted && (
             <div className="itp-warning-banner">
               <span className="itp-wb-icon">⚠️</span>
@@ -279,7 +353,8 @@ export default function IssueToProductionModal({
                 type="button"
                 className="itp-btn itp-btn--confirm"
                 onClick={onConfirm}
-                disabled={isIssuing}
+                disabled={isIssuing || (batchPlans.length > 0 && !selectedBatchPlanId && !salesOrderId)}
+                title={batchPlans.length > 0 && !selectedBatchPlanId && !salesOrderId ? 'Select a batch plan before issuing' : undefined}
               >
                 {isIssuing ? (
                   <>

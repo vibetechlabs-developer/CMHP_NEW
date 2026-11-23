@@ -3,11 +3,15 @@ import { Link, useNavigate } from 'react-router-dom'
 import Button from '../../components/Button'
 import Alert from '../../components/Alert'
 import useSelectedCompany from '../../hooks/useSelectedCompany'
+import useWorkspace from '../../hooks/useWorkspace'
+import { WORKSPACES } from '../../utils/workspace'
 import PurchaseOrderModal from '../inventory/components/PurchaseOrderModal'
 import IssueToProductionModal from './IssueToProductionModal'
 import { updateRevision, buildRevisionLinesPayload, searchMaterials } from './formulasService'
 import { getMyStores } from '../store/storeService'
 import { getAvailableToIssue, createMaterialIssue, postMaterialIssue } from '../store/materialIssueService'
+import { listPurchaseOrders } from '../inventory/purchasingService'
+import { listBatchPlans } from '../manufacturing/batchPlansService'
 import { controlSamplesService } from '../inventory/controlSamplesService'
 import { finishedGoodsService } from '../inventory/finishedGoodsService'
 import { getErrorMessage } from '../../utils/errors'
@@ -105,7 +109,7 @@ export default function ProductionRawMaterialCalculator({
   const [companyCode, setCompanyCode] = useState('SVL')
   const [productCode, setProductCode] = useState(product?.code || formula?.product_code || '')
   const [productName, setProductName] = useState(product?.name || formula?.product_name || 'Formula Product')
-  const [batchNo, setBatchNo] = useState('AH2602')
+  const [batchNo, setBatchNo] = useState('')
   const [issueDate, setIssueDate] = useState(() => new Date().toISOString().split('T')[0])
   const [specialNotes, setSpecialNotes] = useState(
     '* Preservative as usual'
@@ -121,7 +125,19 @@ export default function ProductionRawMaterialCalculator({
   const [issueResults, setIssueResults] = useState(null) // { success: [], failed: [] }
 
   const navigate = useNavigate()
+  const { setActiveWorkspace } = useWorkspace()
   const { companies } = useSelectedCompany()
+
+  const handleGoToPurchasingHub = useCallback(
+    (e) => {
+      if (e) e.preventDefault()
+      if (setActiveWorkspace) {
+        setActiveWorkspace(WORKSPACES.COMMON)
+      }
+      navigate('/inventory/orders')
+    },
+    [setActiveWorkspace, navigate]
+  )
 
   // Inventory & Store Stock Verification
   const [stores, setStores] = useState([])
@@ -130,12 +146,15 @@ export default function ProductionRawMaterialCalculator({
   const [stockLoading, setStockLoading] = useState(false)
   const [stockRefreshCount, setStockRefreshCount] = useState(0)
 
-  // Direct Purchase Order Modal from Shortages
+  // Direct Purchase Order Modal from Shortages & Ordered Status Tracker
   const [createPoModalOpen, setCreatePoModalOpen] = useState(false)
   const [prefillPoOrder, setPrefillPoOrder] = useState(null)
+  const [openPoItems, setOpenPoItems] = useState({}) // { [materialId]: { poNumber, qty, status } }
 
   // Themed Issue to Production Confirmation Modal
   const [confirmIssueModalOpen, setConfirmIssueModalOpen] = useState(false)
+  const [issueBatchPlanId, setIssueBatchPlanId] = useState('') // batch plan selected in issue modal
+  const [availableBatchPlans, setAvailableBatchPlans] = useState([]) // batch plans for this company
 
   // Helper to extract active raw materials from revision lines
   const extractRawLines = useCallback((lines) => {
@@ -223,7 +242,13 @@ export default function ProductionRawMaterialCalculator({
   useEffect(() => {
     if (product?.name) setProductName(product.name)
     if (product?.code) setProductCode(product.code)
-  }, [product?.name, product?.code])
+    if (product?.pack_size) {
+      const match = String(product.pack_size).match(/(\d+(?:\.\d+)?)/)
+      if (match && match[1]) {
+        setPackSizeMl(match[1])
+      }
+    }
+  }, [product?.name, product?.code, product?.pack_size])
 
   // Synchronize formula lines and batch size whenever revision changes
   useEffect(() => {
@@ -291,10 +316,10 @@ export default function ProductionRawMaterialCalculator({
     }
   }
 
-  // Multiplier / Scale Factor
-  const baseVol = parseFloat(baseBatchLtr) || 30
-  const targetVol = parseFloat(targetVolumeLtr) || 90
-  const scaleMultiplier = baseVol > 0 ? targetVol / baseVol : 1
+  // Multiplier / Scale Factor (Safe against 0, NaN, and nulls)
+  const baseVol = Number(baseBatchLtr) > 0 ? Number(baseBatchLtr) : 30
+  const targetVol = Number(targetVolumeLtr) > 0 ? Number(targetVolumeLtr) : 90
+  const scaleMultiplier = (baseVol > 0 ? targetVol / baseVol : 1) || 1
 
   // Alcohol & Water Vehicle Calculation
   const alcPct = parseFloat(targetAlcoholPct) || 10.0
@@ -448,6 +473,19 @@ export default function ProductionRawMaterialCalculator({
     }
   }, [])
 
+  // Load batch plans for the active company (needed to link material issues to a batch plan)
+  useEffect(() => {
+    if (!companyId) return
+    let cancelled = false
+    listBatchPlans(Number(companyId), { page_size: 100 })
+      .then((data) => {
+        if (cancelled) return
+        setAvailableBatchPlans(data.results || [])
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [companyId])
+
   // Load active catalog materials for fuzzy name matching and autocompletion
   const [catalogMaterials, setCatalogMaterials] = useState([])
   const [catalogPkgMaterials, setCatalogPkgMaterials] = useState([])
@@ -505,6 +543,8 @@ export default function ProductionRawMaterialCalculator({
       if (n.includes('water')) return 41 // PURIFIED WATER
       if (n.includes('potassium') || n.includes('sorbat')) return 56 // Potassium sorbat (PS)
       if (n.includes('bronopol')) return 57 // Bronopol (BP)
+      if (n.includes('sulphur') || n.includes('sulfur')) return 60
+      if (n.includes('graphite')) return 61
     }
     return null
   }
@@ -532,6 +572,8 @@ export default function ProductionRawMaterialCalculator({
       else if (n.includes('water')) code = 'PW'
       else if (n.includes('potassium') || n.includes('sorbat')) code = 'PS'
       else if (n.includes('bronopol')) code = 'BP'
+      else if (n.includes('sulphur') || n.includes('sulfur')) code = 'SUL'
+      else if (n.includes('graphite')) code = 'GRP'
     }
     return { matId, code }
   }
@@ -542,7 +584,7 @@ export default function ProductionRawMaterialCalculator({
     const storeUnit = (stockBalances[row.id]?.storeUnit || row.unit || 'lit').toUpperCase()
     const orderQty = Math.ceil(convertQuantity(diffQty, row.unit, storeUnit) * 100) / 100
     setPrefillPoOrder({
-      notes: `Purchase requisition for ${row.name} - Formula: ${productName} (Batch ${batchNo})`,
+      notes: `Purchase requisition for ${row.name} - Formula: ${productName}${batchNo ? ` (Batch ${batchNo})` : ''}`,
       lines: [
         {
           material_id: meta.matId || '',
@@ -558,24 +600,27 @@ export default function ProductionRawMaterialCalculator({
     setCreatePoModalOpen(true)
   }
 
-  // Open Direct Purchase Order Modal prefilled with ALL shortage materials
+  // Open Direct Purchase Order Modal prefilled with ALL shortage materials that need ordering
   const handleOpenPoForShortages = () => {
-    if (!stockSummary.shortages.length) return
-    const lines = stockSummary.shortages.map((s) => {
+    const targetShortages = stockSummary.unOrderedShortages?.length
+      ? stockSummary.unOrderedShortages
+      : stockSummary.shortages
+    if (!targetShortages.length) return
+    const lines = targetShortages.map((s) => {
       const storeUnit = (s.storeUnit || s.unit || 'lit').toUpperCase()
       const orderQty = Math.ceil(convertQuantity(s.diff, s.unit, storeUnit) * 100) / 100
       return {
         material_id: s.materialId || '',
         material_name: s.name,
         material_code: s.materialCode || '',
-        material_kind: 'RAW',
+        material_kind: s.isPackaging ? 'PACKAGING' : 'RAW',
         unit_code: storeUnit,
         quantity: orderQty > 0 ? orderQty : 1,
         unit_price: 0,
       }
     })
     setPrefillPoOrder({
-      notes: `Bulk shortage purchase requisition for ${productName} (Batch ${batchNo}) - ${stockSummary.shortages.length} shortage items`,
+      notes: `Bulk shortage purchase requisition for ${productName}${batchNo ? ` (Batch ${batchNo})` : ''} - ${targetShortages.length} shortage items`,
       lines,
     })
     setCreatePoModalOpen(true)
@@ -659,6 +704,136 @@ export default function ProductionRawMaterialCalculator({
       cancelled = true
     }
   }, [selectedStoreId, companyId, compositions, preservatives, packagingLines, catalogMaterials, catalogPkgMaterials, stockRefreshCount])
+
+  // Track open / pending purchase orders to display "Ordered" or "In QC Check" status on shortages
+  useEffect(() => {
+    let active = true
+    async function loadOpenPurchaseOrders() {
+      try {
+        const cIds = [companyId, 2].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)
+        const map = {}
+
+        const registerItem = (mId, mName, mCode, qty, status, poRef, receivedQty = 0) => {
+          const info = {
+            poNumber: poRef,
+            qty: qty,
+            receivedQty: receivedQty,
+            status: status, // 'ORDERED' | 'RECEIVED_IN_QC'
+            name: mName || '',
+            code: mCode || '',
+          }
+          if (mId) map[String(mId)] = info
+          if (mName) {
+            const cleanN = String(mName).toLowerCase().trim()
+            map[cleanN] = info
+            map[`name_${cleanN}`] = info
+          }
+          if (mCode) {
+            const cleanC = String(mCode).toLowerCase().trim()
+            map[cleanC] = info
+            map[`code_${cleanC}`] = info
+          }
+        }
+
+        for (const cId of cIds) {
+          try {
+            const res = await listPurchaseOrders(cId, { pageSize: 100 })
+            if (!active || !res?.results) continue
+            res.results.forEach((po) => {
+              const poStatus = (po.status || '').toUpperCase()
+              if (poStatus === 'CANCELLED') return
+              const poRef = po.reference || po.po_number || `PO #${po.id}`
+
+              // 1. Process delivery_progress (receipt progress per line)
+              const prog = Array.isArray(po.delivery_progress) ? po.delivery_progress : []
+              if (prog.length > 0) {
+                prog.forEach((dp) => {
+                  const recQty = Number(dp.received_quantity || 0)
+                  const ordQty = Number(dp.ordered_quantity || 0)
+                  const isReceived = dp.delivery_status === 'COMPLETED' || recQty > 0
+                  const itemStatus = isReceived ? 'RECEIVED_IN_QC' : 'ORDERED'
+                  registerItem(
+                    null,
+                    dp.material_name,
+                    dp.material_code,
+                    ordQty,
+                    itemStatus,
+                    poRef,
+                    recQty
+                  )
+                })
+              }
+
+              // 2. Also process po.lines
+              ;(po.lines || []).forEach((l) => {
+                const mId = l.material_id || l.material?.id || l.material
+                const mName = l.material_name || l.material?.name || l.name
+                const mCode = l.material_code || l.material?.code || l.code
+                const ordQty = Number(l.ordered_quantity || l.quantity || 0)
+
+                const cleanN = (mName || '').toLowerCase().trim()
+                const cleanC = (mCode || '').toLowerCase().trim()
+                const existing = (cleanN && map[cleanN]) || (cleanC && map[cleanC]) || (mId && map[String(mId)])
+                const itemStatus = existing?.status || 'ORDERED'
+                const recQty = existing?.receivedQty || 0
+
+                registerItem(mId, mName, mCode, ordQty, itemStatus, poRef, recQty)
+              })
+            })
+          } catch (_) {}
+        }
+
+        if (active) {
+          setOpenPoItems((prev) => ({ ...map, ...prev }))
+        }
+      } catch (_) {}
+    }
+    loadOpenPurchaseOrders()
+    return () => {
+      active = false
+    }
+  }, [companyId, stockRefreshCount])
+
+  // Helper to retrieve PO / Receipt / QC information for a material item
+  const getPoInfoForMaterial = useCallback(
+    (item) => {
+      if (!item) return null
+      // 1. Try direct or resolved numeric material ID
+      const matId = item.materialId || item.material_id || resolveMaterialId(item)
+      if (matId && openPoItems[String(matId)]) return openPoItems[String(matId)]
+
+      // 2. Try exact lowercase trimmed name
+      const n = (item.name || '').toLowerCase().trim()
+      if (n) {
+        if (openPoItems[n]) return openPoItems[n]
+        if (openPoItems[`name_${n}`]) return openPoItems[`name_${n}`]
+      }
+
+      // 3. Try material code
+      const metaCode = item.materialCode || item.code || resolveMaterialMeta(item)?.code || ''
+      const c = metaCode.toLowerCase().trim()
+      if (c) {
+        if (openPoItems[c]) return openPoItems[c]
+        if (openPoItems[`code_${c}`]) return openPoItems[`code_${c}`]
+      }
+
+      // 4. Substring name match against registered open PO items
+      if (n && n.length >= 3) {
+        for (const key of Object.keys(openPoItems)) {
+          const entry = openPoItems[key]
+          if (entry?.name) {
+            const entryName = entry.name.toLowerCase().trim()
+            if (entryName && (entryName === n || entryName.includes(n) || n.includes(entryName))) {
+              return entry
+            }
+          }
+        }
+      }
+
+      return null
+    },
+    [openPoItems, resolveMaterialId, resolveMaterialMeta]
+  )
 
   // Comprehensive stock summary comparing required quantities against store balances
   const stockSummary = useMemo(() => {
@@ -763,23 +938,42 @@ export default function ProductionRawMaterialCalculator({
     })
 
     const shortages = list.filter((l) => l.isShort)
+    const unOrderedShortages = shortages.filter((s) => !getPoInfoForMaterial(s))
+    const orderedShortages = shortages.filter((s) => Boolean(getPoInfoForMaterial(s)))
+
     return {
       allInStock: shortages.length === 0,
       shortageCount: shortages.length,
       shortages,
+      unOrderedShortages,
+      unOrderedCount: unOrderedShortages.length,
+      orderedShortages,
+      orderedCount: orderedShortages.length,
       list,
     }
-  }, [compositions, preservatives, packagingLines, scaleMultiplier, stockBalances, alcoholRequiredLtr, netAlcoholRequiredLtr, catalogMaterials, catalogPkgMaterials])
+  }, [
+    compositions,
+    preservatives,
+    packagingLines,
+    scaleMultiplier,
+    stockBalances,
+    alcoholRequiredLtr,
+    netAlcoholRequiredLtr,
+    catalogMaterials,
+    catalogPkgMaterials,
+    getPoInfoForMaterial,
+  ])
 
   // Reset to Excel Master Template (3 Liters each for 30L base)
   const handleApplyExcelTemplate = () => {
+    setCalcMode('BOTTLES')
     setBaseBatchLtr('30')
     setBottleCount('3024')
     setPackSizeMl('30')
-    // targetVolumeLtr will auto-update via useEffect: 3024 × 30 / 1000 = 90.72
+    setTargetVolumeLtr('90.72')
     setCompositions(EXCEL_MASTER_COMPOSITION.map((c) => ({ ...c })))
     setPreservatives(EXCEL_MASTER_PRESERVATIVES.map((p) => ({ ...p })))
-    setActionSuccess('Excel Master Formula (3 Liters / 30L → ~9 Liters / 90.72L) applied!')
+    setActionSuccess('Excel Master Formula (3 Liters / 30L base → ~9.07 Liters / 90.72L target) applied successfully.')
     setTimeout(() => setActionSuccess(''), 5000)
   }
 
@@ -1164,9 +1358,13 @@ export default function ProductionRawMaterialCalculator({
   // ── ISSUE TO PRODUCTION ──────────────────────────────────────────────
   // Validates preconditions and opens the themed confirmation modal
   const handleOpenIssueConfirm = () => {
-    if (!selectedStoreId) {
-      setRevisionError('Please select a store / warehouse first.')
+    const storeIdToUse = selectedStoreId || (stores.length > 0 ? String(stores[0].id) : '')
+    if (!storeIdToUse) {
+      setRevisionError('Warehouse store is loading or no accessible store was found.')
       return
+    }
+    if (!selectedStoreId && storeIdToUse) {
+      setSelectedStoreId(storeIdToUse)
     }
     if (!companyId) {
       setRevisionError('No company selected. Cannot issue materials.')
@@ -1185,6 +1383,7 @@ export default function ProductionRawMaterialCalculator({
 
     setIssueResults(null)
     setRevisionError('')
+    setIssueBatchPlanId('') // reset batch plan selection each time modal opens
     setConfirmIssueModalOpen(true)
   }
 
@@ -1229,6 +1428,10 @@ export default function ProductionRawMaterialCalculator({
           product_reference: `${productName || ''} (${productCode || ''})`,
           remarks: `Auto-issued from Formula Calculator for batch ${batchNo}`,
           idempotency_key: idempotencyKey,
+        }
+        // GMP compliance: link to batch plan (required by backend)
+        if (issueBatchPlanId) {
+          payload.batch_plan_id = Number(issueBatchPlanId)
         }
         if (storeUnitId) {
           payload.unit_id = storeUnitId
@@ -1278,6 +1481,71 @@ export default function ProductionRawMaterialCalculator({
     }
   }
 
+  // Render helper for stock status cell with PO tracking and QC verification badge
+  const renderStockStatusCell = (item, isShort, diff, onRaisePo) => {
+    if (!item?.name || !item.name.trim()) {
+      return <span style={{ color: '#94a3b8', fontSize: 11, fontStyle: 'italic' }}>Select material</span>
+    }
+    if (!isShort) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+          <span className="prc-stock-ok">✓ In Stock</span>
+          <span style={{ fontSize: 10, color: '#16a34a' }}>Ready for batch</span>
+        </div>
+      )
+    }
+
+    const poItem = getPoInfoForMaterial(item)
+    if (poItem) {
+      const isQc = poItem.status === 'RECEIVED_IN_QC'
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+          <Link
+            to="/inventory/orders"
+            onClick={handleGoToPurchasingHub}
+            style={{
+              background: isQc ? '#fef3c7' : '#eff6ff',
+              color: isQc ? '#92400e' : '#1d4ed8',
+              border: isQc ? '1px solid #fde68a' : '1px solid #bfdbfe',
+              borderRadius: 4,
+              padding: '2px 8px',
+              fontSize: 11,
+              fontWeight: 700,
+              whiteSpace: 'nowrap',
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+            title="Click to view purchase order in Purchasing Hub"
+          >
+            <span>{isQc ? '🔬' : '📦'}</span> {isQc ? 'In QC Check' : 'Ordered'} ({poItem.poNumber})
+          </Link>
+          <span style={{ fontSize: 10, color: isQc ? '#b45309' : '#2563eb', fontWeight: 500 }}>
+            {isQc
+              ? (Number(poItem.receivedQty) > 0 ? `Received ${Number(poItem.receivedQty)} — In QC` : 'Awaiting QA Clearance')
+              : 'Awaiting Store Receipt'}
+          </span>
+        </div>
+      )
+    }
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+        <span className="prc-stock-short">
+          ⚠ Short: {(diff || 0).toFixed(2)} {item.unit || ''}
+        </span>
+        <button
+          type="button"
+          className="prc-btn-mini-po"
+          onClick={onRaisePo}
+          title={`Create Purchase Order for ${(diff || 0).toFixed(2)} ${item.unit || ''} of ${item.name}`}
+        >
+          + Raise PO
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="prc-container">
@@ -1394,15 +1662,6 @@ export default function ProductionRawMaterialCalculator({
                 className="prc-input"
                 value={issueDate}
                 onChange={(e) => setIssueDate(e.target.value)}
-              />
-            </div>
-            <div className="prc-meta-cell prc-meta-cell-batch">
-              <label>Batch No.</label>
-              <input
-                className="prc-input prc-batch-input-field"
-                value={batchNo}
-                onChange={(e) => setBatchNo(e.target.value)}
-                placeholder="e.g. AH2602"
               />
             </div>
             <div className="prc-batch-hero-card">
@@ -1753,20 +2012,6 @@ export default function ProductionRawMaterialCalculator({
             </div>
           </div>
           <div className="prc-table-actions-cluster">
-            <div className="prc-store-selector-pill">
-              <span className="prc-ssp-icon">🏢</span>
-              <span className="prc-ssp-lbl">Store:</span>
-              <select
-                className="prc-ssp-select"
-                value={selectedStoreId}
-                onChange={(e) => setSelectedStoreId(e.target.value)}
-                disabled={!stores.length}
-              >
-                {stores.map((s) => (
-                  <option key={s.id} value={s.id}>{s.code} · {s.name}</option>
-                ))}
-              </select>
-            </div>
             <button
               type="button"
               className="prc-btn-pill prc-btn-pill-amber"
@@ -1792,93 +2037,173 @@ export default function ProductionRawMaterialCalculator({
         {/* INVENTORY VERIFICATION BANNER (WITH DIRECT PO & INVENTORY LINKS) */}
         <div style={{ padding: '0 20px 14px' }}>
           {!stockSummary.allInStock ? (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 16,
-              background: 'linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)',
-              border: '1px solid #fecdd3',
-              borderLeft: '4px solid #e11d48',
-              padding: '14px 18px',
-              borderRadius: 10,
-              color: '#9f1239',
-              fontSize: 13,
-              flexWrap: 'wrap',
-              boxShadow: '0 2px 6px rgba(225, 29, 72, 0.06)'
-            }}>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center', flex: 1, minWidth: 280 }}>
-                <span style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: 32,
-                  height: 32,
-                  borderRadius: '50%',
-                  background: '#fee2e2',
-                  color: '#e11d48',
-                  fontSize: 16,
-                  fontWeight: 900,
-                  flexShrink: 0
-                }}>
-                  ⚠
-                </span>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 13.5, color: '#881337' }}>
-                    Cannot proceed: {stockSummary.shortageCount} raw material{stockSummary.shortageCount > 1 ? 's are' : ' is'} not available in inventory
-                  </div>
-                  <div style={{ marginTop: 2, color: '#9f1239', fontSize: 12 }}>
-                    <strong>{stockSummary.list.length - stockSummary.shortageCount} of {stockSummary.list.length}</strong> in stock. Missing: {stockSummary.shortages.map(s => `${s.name} (${s.diff.toFixed(2)} ${s.unit})`).join(', ')}.
+            stockSummary.unOrderedCount === 0 && stockSummary.orderedCount > 0 ? (
+              /* All shortage items already have purchase orders placed / in QC pipeline */
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 16,
+                background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+                border: '1px solid #bfdbfe',
+                borderLeft: '4px solid #2563eb',
+                padding: '14px 18px',
+                borderRadius: 10,
+                color: '#1e40af',
+                fontSize: 13,
+                flexWrap: 'wrap',
+                boxShadow: '0 2px 6px rgba(37, 99, 235, 0.08)'
+              }}>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center', flex: 1, minWidth: 280 }}>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%',
+                    background: '#dbeafe',
+                    color: '#1d4ed8',
+                    fontSize: 16,
+                    fontWeight: 900,
+                    flexShrink: 0
+                  }}>
+                    📦
+                  </span>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 13.5, color: '#1e3a8a' }}>
+                      Purchase Orders Active: {stockSummary.orderedCount} shortage item{stockSummary.orderedCount > 1 ? 's' : ''} in pipeline
+                    </div>
+                    <div style={{ marginTop: 2, color: '#1d4ed8', fontSize: 12 }}>
+                      Orders created. Awaiting delivery receipt &amp; QA/QC verification before batch dispensing:{' '}
+                      <strong>
+                        {stockSummary.orderedShortages.map((s) => {
+                          const po = getPoInfoForMaterial(s)
+                          const statusLabel = po?.status === 'RECEIVED_IN_QC' ? 'In QC Check' : 'Ordered'
+                          return `${s.name} (${statusLabel}${po?.poNumber ? ` - ${po.poNumber}` : ''})`
+                        }).join(', ')}
+                      </strong>.
+                    </div>
                   </div>
                 </div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
+                  <Link
+                    to="/inventory/orders"
+                    onClick={handleGoToPurchasingHub}
+                    style={{
+                      background: '#ffffff',
+                      color: '#1d4ed8',
+                      border: '1.5px solid #bfdbfe',
+                      borderRadius: 8,
+                      padding: '7px 14px',
+                      fontWeight: 700,
+                      fontSize: 12.5,
+                      textDecoration: 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                    }}
+                    title="View Purchase Orders in Purchasing Hub"
+                  >
+                    📋 Purchasing Hub →
+                  </Link>
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
-                <button
-                  type="button"
-                  onClick={handleOpenPoForShortages}
-                  style={{
-                    background: 'linear-gradient(135deg, #e11d48, #be123c)',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: 8,
-                    padding: '8px 16px',
-                    fontWeight: 700,
-                    fontSize: 12.5,
-                    cursor: 'pointer',
+            ) : (
+              /* There are un-ordered shortages needing purchase orders */
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 16,
+                background: 'linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)',
+                border: '1px solid #fecdd3',
+                borderLeft: '4px solid #e11d48',
+                padding: '14px 18px',
+                borderRadius: 10,
+                color: '#9f1239',
+                fontSize: 13,
+                flexWrap: 'wrap',
+                boxShadow: '0 2px 6px rgba(225, 29, 72, 0.06)'
+              }}>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center', flex: 1, minWidth: 280 }}>
+                  <span style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 6,
-                    boxShadow: '0 3px 10px rgba(225, 29, 72, 0.35)',
-                    transition: 'all 0.15s ease'
-                  }}
-                  title="Generate Purchase Order pre-filled with all shortage items"
-                >
-                  <span>🛒</span> + Create Purchase Order ({stockSummary.shortageCount} items)
-                </button>
-                <Link
-                  to="/inventory/orders"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    background: '#ffffff',
-                    color: '#be123c',
-                    border: '1.5px solid #fecdd3',
-                    borderRadius: 8,
-                    padding: '7px 14px',
-                    fontWeight: 700,
-                    fontSize: 12.5,
-                    textDecoration: 'none',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
-                  }}
-                  title="Open Purchasing & Purchase Orders page in new tab"
-                >
-                  📋 Purchasing Hub ↗
-                </Link>
+                    justifyContent: 'center',
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%',
+                    background: '#fee2e2',
+                    color: '#e11d48',
+                    fontSize: 16,
+                    fontWeight: 900,
+                    flexShrink: 0
+                  }}>
+                    ⚠
+                  </span>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 13.5, color: '#881337' }}>
+                      Cannot proceed: {stockSummary.unOrderedCount} raw material{stockSummary.unOrderedCount > 1 ? 's are' : ' is'} not available in inventory
+                    </div>
+                    <div style={{ marginTop: 2, color: '#9f1239', fontSize: 12 }}>
+                      <strong>{stockSummary.list.length - stockSummary.shortageCount} of {stockSummary.list.length}</strong> in stock. Missing: {stockSummary.unOrderedShortages.map(s => `${s.name} (${s.diff.toFixed(2)} ${s.unit})`).join(', ')}.
+                      {stockSummary.orderedCount > 0 && (
+                        <span style={{ color: '#0369a1', marginLeft: 6 }}>
+                          ({stockSummary.orderedCount} already ordered &amp; in pipeline)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    onClick={handleOpenPoForShortages}
+                    style={{
+                      background: 'linear-gradient(135deg, #e11d48, #be123c)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '8px 16px',
+                      fontWeight: 700,
+                      fontSize: 12.5,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      boxShadow: '0 3px 10px rgba(225, 29, 72, 0.35)',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Generate Purchase Order pre-filled with all un-ordered shortage items"
+                  >
+                    <span>🛒</span> + Create Purchase Order ({stockSummary.unOrderedCount} {stockSummary.unOrderedCount === 1 ? 'item' : 'items'})
+                  </button>
+                  <Link
+                    to="/inventory/orders"
+                    onClick={handleGoToPurchasingHub}
+                    style={{
+                      background: '#ffffff',
+                      color: '#be123c',
+                      border: '1.5px solid #fecdd3',
+                      borderRadius: 8,
+                      padding: '7px 14px',
+                      fontWeight: 700,
+                      fontSize: 12.5,
+                      textDecoration: 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                    }}
+                    title="Open Purchasing & Purchase Orders page"
+                  >
+                    📋 Purchasing Hub →
+                  </Link>
+                </div>
               </div>
-            </div>
+            )
           ) : (
             <div style={{
               display: 'flex',
@@ -2138,32 +2463,7 @@ export default function ProductionRawMaterialCalculator({
                       )}
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      {!row.name || !row.name.trim() ? (
-                        <span style={{ color: '#94a3b8', fontSize: 11, fontStyle: 'italic' }}>Select material</span>
-                      ) : isShort ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                          <span className="prc-stock-short">
-                            ⚠ Short: {diff.toFixed(2)} {row.unit}
-                          </span>
-                          <button
-                            type="button"
-                            className="prc-btn-mini-po"
-                            onClick={() => handleOpenPoForRow(row, diff)}
-                            title={`Create Purchase Order for ${diff.toFixed(2)} ${row.unit} of ${row.name}`}
-                          >
-                            + Raise PO
-                          </button>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                          <span className="prc-stock-in">
-                            ✓ In Stock
-                          </span>
-                          <span style={{ fontSize: 10, color: '#16a34a', fontWeight: 600 }}>
-                            Ready for batch
-                          </span>
-                        </div>
-                      )}
+                      {renderStockStatusCell(row, isShort, diff, () => handleOpenPoForRow(row, diff))}
                     </td>
                     <td>
                       <input
@@ -2341,32 +2641,7 @@ export default function ProductionRawMaterialCalculator({
                       )}
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      {!row.name || !row.name.trim() ? (
-                        <span style={{ color: '#94a3b8', fontSize: 11, fontStyle: 'italic' }}>Select material</span>
-                      ) : isShort ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                          <span className="prc-stock-short">
-                            ⚠ Short: {diff.toFixed(2)} {row.unit}
-                          </span>
-                          <button
-                            type="button"
-                            className="prc-btn-mini-po"
-                            onClick={() => handleOpenPoForRow(row, diff)}
-                            title={`Create Purchase Order for ${diff.toFixed(2)} ${row.unit} of ${row.name}`}
-                          >
-                            + Raise PO
-                          </button>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                          <span className="prc-stock-in">
-                            ✓ In Stock
-                          </span>
-                          <span style={{ fontSize: 10, color: '#16a34a', fontWeight: 600 }}>
-                            Ready for batch
-                          </span>
-                        </div>
-                      )}
+                      {renderStockStatusCell(row, isShort, diff, () => handleOpenPoForRow(row, diff))}
                     </td>
                     <td>
                       <input
@@ -2456,21 +2731,14 @@ export default function ProductionRawMaterialCalculator({
                         )}
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        {(totalRawMaterialAlcoholLtr > 0 ? netAlcShort : alcShort) ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                            <span className="prc-stock-short">
-                              ⚠ Short: {(totalRawMaterialAlcoholLtr > 0 ? netAlcDiff : alcDiff).toFixed(2)} LTR
-                            </span>
-                          </div>
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                            <span className="prc-stock-in">
-                              ✓ In Stock
-                            </span>
-                            <span style={{ fontSize: 10, color: '#16a34a', fontWeight: 600 }}>
-                              Ready for batch
-                            </span>
-                          </div>
+                        {renderStockStatusCell(
+                          { name: 'Dispensing Alcohol (ENA / RS)', unit: 'LTR', materialCode: 'AC', materialId: 32 },
+                          totalRawMaterialAlcoholLtr > 0 ? netAlcShort : alcShort,
+                          totalRawMaterialAlcoholLtr > 0 ? netAlcDiff : alcDiff,
+                          () => handleOpenPoForRow(
+                            { name: 'Dispensing Alcohol (ENA / RS)', unit: 'LTR', materialCode: 'AC', materialId: 32 },
+                            totalRawMaterialAlcoholLtr > 0 ? netAlcDiff : alcDiff
+                          )
                         )}
                       </td>
                       <td>—</td>
@@ -2567,33 +2835,11 @@ export default function ProductionRawMaterialCalculator({
                       )}
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      {!hasRecord ? (
-                        <span style={{ fontSize: 11, color: '#b91c1c', fontWeight: 600 }}>
-                          ⚠ Not in store
-                        </span>
-                      ) : isShort ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                          <span className="prc-stock-short" style={{ fontSize: 11, padding: '2px 6px' }}>
-                            ⚠ Short: {diff.toLocaleString()} {pkg.unit}
-                          </span>
-                          <button
-                            type="button"
-                            className="prc-btn-mini-po"
-                            onClick={() => handleOpenPoForRow({ ...pkg, targetQty: pkg.qty, isPackaging: true }, diff)}
-                            title={`Create Purchase Order for ${diff} ${pkg.unit} of ${pkg.name}`}
-                          >
-                            + Raise PO
-                          </button>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                          <span className="prc-stock-in" style={{ fontSize: 11, padding: '2px 6px' }}>
-                            ✓ In Stock
-                          </span>
-                          <span style={{ fontSize: 10, color: '#16a34a', fontWeight: 600 }}>
-                            Ready for batch
-                          </span>
-                        </div>
+                      {renderStockStatusCell(
+                        pkg,
+                        !hasRecord || isShort,
+                        diff || pkg.qty,
+                        () => handleOpenPoForRow({ ...pkg, targetQty: pkg.qty, isPackaging: true }, diff || pkg.qty)
                       )}
                     </td>
                     <td style={{ color: '#94a3b8' }}>{pkg.ar_no || '—'}</td>
@@ -2999,8 +3245,52 @@ export default function ProductionRawMaterialCalculator({
             setCreatePoModalOpen(false)
             setPrefillPoOrder(null)
             setStockRefreshCount((c) => c + 1)
+            const poNum = savedPo?.reference || savedPo?.po_number || savedPo?.number || 'PO-CREATED'
+            setOpenPoItems((prev) => {
+              const next = { ...prev }
+              const registerItem = (mId, mName, mCode, qty, status = 'ORDERED') => {
+                const info = {
+                  poNumber: poNum,
+                  qty: qty,
+                  status: status,
+                  name: mName || '',
+                  code: mCode || '',
+                }
+                if (mId) next[String(mId)] = info
+                if (mName) {
+                  const cleanN = String(mName).toLowerCase().trim()
+                  next[cleanN] = info
+                  next[`name_${cleanN}`] = info
+                }
+                if (mCode) {
+                  const cleanC = String(mCode).toLowerCase().trim()
+                  next[cleanC] = info
+                  next[`code_${cleanC}`] = info
+                }
+              }
+
+              // Register from savedPo lines
+              ;(savedPo?.lines || []).forEach((l) => {
+                const mId = l.material_id || l.material?.id || l.material
+                const mName = l.material_name || l.material?.name || l.name
+                const mCode = l.material_code || l.material?.code || l.code
+                registerItem(mId, mName, mCode, l.ordered_quantity || l.quantity)
+              })
+
+              // ALSO register from prefillPoOrder lines
+              ;(prefillPoOrder?.lines || []).forEach((l) => {
+                registerItem(
+                  l.material_id,
+                  l.material_name || l.name,
+                  l.material_code || l.code,
+                  l.ordered_quantity || l.quantity
+                )
+              })
+
+              return next
+            })
             setActionSuccess(
-              `Purchase Order ${savedPo?.po_number || ''} created successfully! Live stock balance will update upon receipt.`
+              `Purchase Order ${poNum} created successfully! Marked as 'Ordered' until received in store.`
             )
             setTimeout(() => setActionSuccess(''), 7000)
           }}
@@ -3027,6 +3317,9 @@ export default function ProductionRawMaterialCalculator({
         isIssuing={issuingToProduction}
         progress={issueProgress}
         results={issueResults}
+        batchPlans={availableBatchPlans}
+        selectedBatchPlanId={issueBatchPlanId}
+        onBatchPlanChange={(id) => setIssueBatchPlanId(id)}
       />
 
       {/* CATALOG MATERIALS DATALIST FOR EASY AUTO-BINDING */}

@@ -34,6 +34,7 @@ import {
   exportFormulaExcel,
   exportFormulaCsv,
 } from '../../utils/formulaExport'
+import { listBatchPlans } from '../manufacturing/batchPlansService'
 import './Products.css'
 
 const DOSAGE_FORMS = [
@@ -50,6 +51,7 @@ const DOSAGE_FORMS = [
   'Solution',
   'Powder',
   'Emulsion',
+  'Mother Tincture',
 ]
 
 const COMMON_RAW_MATERIALS = []
@@ -130,6 +132,31 @@ export default function Products() {
   // Calculation Engine State
   const [requiredBatchQty, setRequiredBatchQty] = useState('1')
   const [requiredBatchUnit, setRequiredBatchUnit] = useState('kg')
+
+  // Product Production & Batch History State
+  const [batchHistoryProduct, setBatchHistoryProduct] = useState(null)
+  const [batchHistoryList, setBatchHistoryList] = useState([])
+  const [batchHistoryLoading, setBatchHistoryLoading] = useState(false)
+
+  const handleOpenBatchHistory = async (prod) => {
+    setBatchHistoryProduct(prod)
+    setBatchHistoryLoading(true)
+    try {
+      const res = await listBatchPlans(activeCompanyId, { search: prod.code })
+      const plans = res?.results || (Array.isArray(res) ? res : [])
+      const productPlans = plans.filter(
+        (p) =>
+          String(p.product_id_snapshot) === String(prod.id) ||
+          p.product_code_snapshot?.toLowerCase() === prod.code?.toLowerCase() ||
+          p.product_name_snapshot?.toLowerCase() === prod.name?.toLowerCase()
+      )
+      setBatchHistoryList(productPlans)
+    } catch (_) {
+      setBatchHistoryList([])
+    } finally {
+      setBatchHistoryLoading(false)
+    }
+  }
 
   // Auto-clear notification after 4s
   useEffect(() => {
@@ -324,7 +351,7 @@ export default function Products() {
 
   const calculationInvalidReason = useMemo(() => {
     if (!requiredBatchQty || Number(requiredBatchQty) <= 0) {
-      return 'Enter a valid Required Batch Quantity (> 0) to submit for QC approval.'
+      return 'Enter a valid Required Batch Quantity (> 0) to submit for QA approval.'
     }
     if (!requiredBatchUnit) {
       return 'Select a valid batch unit (kg, g, L, ml).'
@@ -391,7 +418,7 @@ export default function Products() {
     setApprovalRemarks('')
     setNotification({
       type: 'success',
-      message: `Formulation for ${activeProduct.name} successfully submitted to QC for analytical approval!`,
+      message: `Formulation for ${activeProduct.name} successfully submitted to QA for analytical approval!`,
     })
   }
 
@@ -409,7 +436,7 @@ export default function Products() {
     setWithdrawReason('')
     setNotification({
       type: 'info',
-      message: 'QC approval request has been retracted back to draft.',
+      message: 'QA approval request has been retracted back to draft.',
     })
   }
 
@@ -847,7 +874,7 @@ export default function Products() {
                     <th>Pack Size</th>
                     <th>Description</th>
                     <th>Formula Records</th>
-                    <th>QC Approval</th>
+                    <th>QA Approval</th>
                     <th style={{ textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
@@ -914,19 +941,19 @@ export default function Products() {
                           </td>
                           <td>
                             {pStatus === 'APPROVED' ? (
-                              <span className="approval-pill pill-approved" title={`Approved by QC (${prodApproval?.decidedBy || 'QA/QC'})`}>
+                              <span className="approval-pill pill-approved" title={`Approved by QA (${prodApproval?.decidedBy || 'QA/QC'})`}>
                                 ✓ Approved
                               </span>
                             ) : pStatus === 'PENDING' ? (
-                              <span className="approval-pill pill-pending" title={`Pending QC review (Submitted by ${prodApproval?.submittedBy || 'Production'})`}>
-                                ⏳ Pending QC
+                              <span className="approval-pill pill-pending" title={`Pending QA review (Submitted by ${prodApproval?.submittedBy || 'Production'})`}>
+                                ⏳ Pending QA
                               </span>
                             ) : pStatus === 'DECLINED' ? (
-                              <span className="approval-pill pill-declined" title={`Declined by QC: ${prodApproval?.declineReason || 'Non-compliant'}`}>
+                              <span className="approval-pill pill-declined" title={`Declined by QA: ${prodApproval?.declineReason || 'Non-compliant'}`}>
                                 ✕ Declined
                               </span>
                             ) : (
-                              <span className="approval-pill pill-neutral" title="Formula calculation has not been submitted to QC">
+                              <span className="approval-pill pill-neutral" title="Formula calculation has not been submitted to QA">
                                 Not Submitted
                               </span>
                             )}
@@ -951,6 +978,15 @@ export default function Products() {
                                 title="Delete Product"
                               >
                                 Delete
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-action-edit"
+                                style={{ background: '#f0fdf4', color: '#15803d', borderColor: '#bbf7d0' }}
+                                onClick={() => handleOpenBatchHistory(prod)}
+                                title="View Production Batch History"
+                              >
+                                <span>📋</span> Batches
                               </button>
                               <button
                                 type="button"
@@ -1551,13 +1587,13 @@ export default function Products() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                         <h3 style={{ margin: 0 }}>Step 3: Live Batch Formulation Calculation Engine</h3>
                         {isPendingApproval ? (
-                          <span className="qc-status-badge badge-pending">⏳ Pending QC Approval</span>
+                          <span className="qc-status-badge badge-pending">⏳ Pending QA Approval</span>
                         ) : isApproved ? (
-                          <span className="qc-status-badge badge-approved">✓ Approved by QC</span>
+                          <span className="qc-status-badge badge-approved">✓ Approved by QA</span>
                         ) : isDeclined ? (
-                          <span className="qc-status-badge badge-declined">✕ Declined by QC</span>
+                          <span className="qc-status-badge badge-declined">✕ Declined by QA</span>
                         ) : (
-                          <span className="qc-status-badge badge-neutral">⚪ Not Submitted to QC</span>
+                          <span className="qc-status-badge badge-neutral">⚪ Not Submitted to QA</span>
                         )}
                       </div>
                       <p style={{ marginTop: '4px' }}>
@@ -1593,11 +1629,11 @@ export default function Products() {
                 <div className="approval-banner banner-pending">
                   <div className="banner-icon">⏳</div>
                   <div className="banner-content">
-                    <div className="banner-title">Under Review by Quality Control (QC)</div>
+                    <div className="banner-title">Under Review by Quality Assurance (QA)</div>
                     <div className="banner-desc">
                       Submitted on <strong>{new Date(activeApproval.submittedAt).toLocaleString()}</strong> by{' '}
                       <strong>{activeApproval.submittedBy}</strong> ({activeApproval.submittedByRole || 'Production Chemist'}).
-                      Calculation parameters are locked while awaiting QC analytical clearance.
+                      Calculation parameters are locked while awaiting QA analytical clearance.
                     </div>
                   </div>
                   <Button variant="secondary" onClick={() => setShowWithdrawModal(true)}>
@@ -1610,12 +1646,12 @@ export default function Products() {
                 <div className="approval-banner banner-approved">
                   <div className="banner-icon">✓</div>
                   <div className="banner-content">
-                    <div className="banner-title">Certified & Approved by Quality Control</div>
+                    <div className="banner-title">Certified & Approved by Quality Assurance</div>
                     <div className="banner-desc">
                       Approved on <strong>{new Date(activeApproval.decidedAt).toLocaleString()}</strong> by{' '}
                       <strong>{activeApproval.decidedBy}</strong> ({activeApproval.decidedByRole || 'QA Manager'}).
                       {activeApproval.decisionRemarks && (
-                        <span> QC Remarks: "<em>{activeApproval.decisionRemarks}</em>"</span>
+                        <span> QA Remarks: "<em>{activeApproval.decisionRemarks}</em>"</span>
                       )}
                       — This formulation is locked as the master standard for batch manufacturing.
                     </div>
@@ -1631,14 +1667,14 @@ export default function Products() {
                   <div className="banner-icon">✕</div>
                   <div className="banner-content">
                     <div className="banner-title">
-                      Formulation Calculation Declined by QC
+                      Formulation Calculation Declined by QA
                       {activeApproval.declineCategory ? ` — [${activeApproval.declineCategory}]` : ''}
                     </div>
                     <div className="banner-desc">
                       Declined on <strong>{new Date(activeApproval.decidedAt).toLocaleString()}</strong> by{' '}
-                      <strong>{activeApproval.decidedBy}</strong> ({activeApproval.decidedByRole || 'QC In-Charge'}).
+                      <strong>{activeApproval.decidedBy}</strong> ({activeApproval.decidedByRole || 'QA Manager'}).
                       <div className="decline-finding-card">
-                        <strong>QC Finding:</strong> {activeApproval.declineReason || activeApproval.decisionRemarks}
+                        <strong>QA Finding:</strong> {activeApproval.declineReason || activeApproval.decisionRemarks}
                       </div>
                       Inputs have been unlocked. You may modify the batch quantity or update revision materials in Step 2, then resubmit for approval.
                     </div>
@@ -1861,7 +1897,7 @@ export default function Products() {
                     )}
                   </div>
 
-                  {/* Primary QC Approval Action Button */}
+                  {/* Primary QA Approval Action Button */}
                   {isPendingApproval ? (
                     <Button
                       variant="danger"
@@ -1885,7 +1921,7 @@ export default function Products() {
                         }}
                         disabled={!isCalculationValid}
                       >
-                        🔄 Resubmit to QC
+                        🔄 Resubmit to QA
                       </Button>
                       {!isCalculationValid && (
                         <div className="tooltip-bubble">{calculationInvalidReason}</div>
@@ -1901,7 +1937,7 @@ export default function Products() {
                         }}
                         disabled={!isCalculationValid}
                       >
-                        🚀 Get Approval from QC
+                        🚀 Get Approval from QA
                       </Button>
                       {!isCalculationValid && (
                         <div className="tooltip-bubble">{calculationInvalidReason}</div>
@@ -2049,231 +2085,152 @@ export default function Products() {
         </Modal>
       )}
 
-      {/* Delete Material Confirmation Modal */}
-      {deleteMaterialTarget && (
+      {/* Product Batch & Production History Modal */}
+      {batchHistoryProduct && (
         <Modal
-          title="Remove Raw Material"
-          onClose={() => setDeleteMaterialTarget(null)}
-          footer={
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <Button variant="secondary" onClick={() => setDeleteMaterialTarget(null)}>
-                Cancel
-              </Button>
-              <Button variant="danger" onClick={handleConfirmDeleteMaterial}>
-                Remove
-              </Button>
-            </div>
-          }
-        >
-          <p>
-            Are you sure you want to remove <strong>{deleteMaterialTarget.name}</strong> ({deleteMaterialTarget.base_quantity}{' '}
-            {deleteMaterialTarget.unit}) from <strong>{activeRevision?.name}</strong>?
-          </p>
-        </Modal>
-      )}
-
-      {/* Send to QC for Approval Confirmation Modal */}
-      {showApprovalModal && (
-        <Modal
-          title={isDeclined ? 'Resubmit Formulation Calculation to QC' : 'Get Quality Control (QC) Approval'}
-          onClose={() => setShowApprovalModal(false)}
-          footer={
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <Button variant="secondary" onClick={() => setShowApprovalModal(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleConfirmSubmitToQc}>
-                🚀 {isDeclined ? 'Confirm & Resubmit to QC' : 'Confirm & Submit to QC'}
-              </Button>
-            </div>
-          }
-        >
-          <div className="qc-submit-modal-content">
-            <p style={{ margin: '0 0 14px 0', fontSize: '13.5px', color: '#475569' }}>
-              Review the stoichiometric batch calculation snapshot before forwarding to Quality Control for review:
-            </p>
-
-            <div className="qc-summary-read-only-card">
-              <div className="qc-summary-row">
-                <span className="lbl">Product:</span>
-                <span className="val bold-val">{activeProduct?.name} ({activeProduct?.code})</span>
-              </div>
-              <div className="qc-summary-row">
-                <span className="lbl">Formula:</span>
-                <span className="val">{activeFormula?.name}</span>
-              </div>
-              <div className="qc-summary-row">
-                <span className="lbl">Revision:</span>
-                <span className="val">{activeRevision?.name}</span>
-              </div>
-              <div className="qc-summary-row">
-                <span className="lbl">Formula Base:</span>
-                <span className="val">{activeFormula?.base_quantity} {activeFormula?.base_unit}</span>
-              </div>
-              <div className="qc-summary-row">
-                <span className="lbl">Target Batch Qty:</span>
-                <span className="val bold-val" style={{ color: '#0f766e' }}>
-                  {requiredBatchQty} {requiredBatchUnit} ({formatPharmaNumber(currentScaleFactor, 3)}× scale)
-                </span>
-              </div>
-              <div className="qc-summary-row">
-                <span className="lbl">Material Count:</span>
-                <span className="val">{calculatedMaterials.length} Ingredients</span>
-              </div>
-            </div>
-
-            <div style={{ marginTop: '14px' }}>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
-                Remarks for QC (Optional)
-              </label>
-              <textarea
-                className="pharma-textarea"
-                rows="3"
-                placeholder="e.g. Standard production batch calculation for scheduled Q4 commercial run. All excipients stoichiometry verified."
-                value={approvalRemarks}
-                onChange={(e) => setApprovalRemarks(e.target.value)}
-              />
-            </div>
-
-            <div style={{ marginTop: '12px' }}>
-              <Alert type="info">
-                Submitting creates an immutable snapshot of this calculation. Formula edits in draft mode will not alter the submitted record until re-submitted.
-              </Alert>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* Withdraw Request Modal */}
-      {showWithdrawModal && (
-        <Modal
-          title="Withdraw QC Approval Request"
-          onClose={() => setShowWithdrawModal(false)}
-          footer={
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <Button variant="secondary" onClick={() => setShowWithdrawModal(false)}>
-                Cancel
-              </Button>
-              <Button variant="danger" onClick={handleConfirmWithdrawRequest}>
-                Confirm Withdrawal
-              </Button>
-            </div>
-          }
-        >
-          <div className="withdraw-modal-content">
-            <p style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#334155' }}>
-              Are you sure you want to withdraw the pending QC approval request for{' '}
-              <strong>{activeProduct?.name}</strong>?
-            </p>
-            <div style={{ marginBottom: '14px' }}>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
-                Withdrawal Reason (Optional)
-              </label>
-              <textarea
-                className="pharma-textarea"
-                rows="2"
-                placeholder="e.g. Need to adjust excipient binder ratio before final sign-off."
-                value={withdrawReason}
-                onChange={(e) => setWithdrawReason(e.target.value)}
-              />
-            </div>
-            <Alert type="warning">
-              Withdrawing will return this formulation calculation to draft state, allowing unrestricted edits and unlocking all inputs.
-            </Alert>
-          </div>
-        </Modal>
-      )}
-
-      {/* BMR Requisition Document Modal */}
-      {showBmrDocModal && (
-        <Modal
-          title="Batch Manufacturing Record (BMR) - Raw Material Requisition Slip"
-          onClose={() => setShowBmrDocModal(false)}
-          footer={
-            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <Button
-                  variant="secondary"
-                  onClick={() =>
-                    exportFormulaExcel({
-                      product: activeProduct,
-                      formula: activeFormula,
-                      revision: activeRevision,
-                      materials: calculatedMaterials,
-                      batchQty: requiredBatchQty,
-                      batchUnit: requiredBatchUnit,
-                      scaleFactor: currentScaleFactor,
-                      approval: activeApproval,
-                      companyName: activeCompanyId === 2 ? 'TEJ BIOCARE HEALTHCARE PVT. LTD.' : 'CMHP PHARMACEUTICALS PVT. LTD.',
-                    })
-                  }
-                >
-                  📊 Export Excel (.xls)
-                </Button>
-                <Button variant="secondary" onClick={() => exportFormulaPrint()}>
-                  🖨️ Print / Save PDF
-                </Button>
-              </div>
-              <Button onClick={() => setShowBmrDocModal(false)}>
-                Close Preview
-              </Button>
-            </div>
-          }
-        >
-          <div style={{ maxHeight: '72vh', overflowY: 'auto', padding: '10px 4px' }}>
-            <BmrRequisitionDocument
-              product={activeProduct}
-              formula={activeFormula}
-              revision={activeRevision}
-              materials={calculatedMaterials}
-              batchQty={requiredBatchQty}
-              batchUnit={requiredBatchUnit}
-              scaleFactor={currentScaleFactor}
-              approval={activeApproval}
-              company={activeCompanyId === 3 ? { id: 3, name: 'Tej Biocare' } : { id: 2, name: 'CMHP' }}
-              companyName={activeCompanyId === 3 ? 'TEJ BIOCARE HEALTHCARE PVT. LTD.' : 'CMHP PHARMACEUTICALS PVT. LTD.'}
-              companyCode={activeCompanyId === 3 ? 'TEJ' : 'CMHP'}
-              department={activeProduct?.dosage_form === 'Syrups' || activeProduct?.dosage_form === 'Suspension' ? 'PRODUCTION ( ORAL LIQUID DEPARTMENT )' : 'PRODUCTION ( ORAL SOLID DOSAGE DEPARTMENT )'}
-            />
-          </div>
-        </Modal>
-      )}
-
-      {/* Audit History Timeline Modal */}
-      {showHistoryModal && activeApproval?.history && (
-        <Modal
-          title="QC Approval & Review Audit Trail"
-          onClose={() => setShowHistoryModal(false)}
+          title={`Production & Batch History — ${batchHistoryProduct.name} (${batchHistoryProduct.code})`}
+          onClose={() => setBatchHistoryProduct(null)}
           footer={
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <Button onClick={() => setShowHistoryModal(false)}>Close</Button>
+              <Button onClick={() => setBatchHistoryProduct(null)}>Close</Button>
             </div>
           }
         >
-          <div className="qc-audit-timeline">
-            {activeApproval.history.map((h, i) => (
-              <div key={i} className={`timeline-entry timeline-${h.action.toLowerCase()}`}>
-                <div className="timeline-dot" />
-                <div className="timeline-body">
-                  <div className="timeline-header">
-                    <span className={`timeline-badge badge-${h.action.toLowerCase()}`}>{h.action}</span>
-                    <span className="timeline-time">{new Date(h.at).toLocaleString()}</span>
-                  </div>
-                  <div className="timeline-author">
-                    By <strong>{h.by}</strong> {h.role ? `(${h.role})` : ''}
-                  </div>
-                  {h.remarks && <div className="timeline-notes">"{h.remarks}"</div>}
-                  {h.reason && (
-                    <div className="timeline-reason">
-                      <strong>Decline Finding {h.category ? `[${h.category}]` : ''}:</strong> {h.reason}
-                    </div>
-                  )}
+          <div style={{ minWidth: '600px', maxWidth: '850px' }}>
+            {/* Product Meta Header Card */}
+            <div style={{
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: '8px',
+              padding: '12px 16px',
+              marginBottom: '16px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '12px'
+            }}>
+              <div>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a' }}>
+                  {batchHistoryProduct.name}
+                </div>
+                <div style={{ fontSize: '12.5px', color: '#64748b', marginTop: '2px' }}>
+                  Code: <strong>{batchHistoryProduct.code}</strong> • Dosage: <strong>{batchHistoryProduct.dosage_form || '—'}</strong> • Pack Size: <strong>{batchHistoryProduct.pack_size || '—'}</strong>
                 </div>
               </div>
-            ))}
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <span style={{
+                  background: '#e0f2fe',
+                  color: '#0369a1',
+                  padding: '4px 10px',
+                  borderRadius: '12px',
+                  fontSize: '12px',
+                  fontWeight: 600
+                }}>
+                  {batchHistoryList.length} Batch Record{batchHistoryList.length === 1 ? '' : 's'}
+                </span>
+              </div>
+            </div>
+
+            {batchHistoryLoading ? (
+              <div style={{ textAlign: 'center', padding: '40px 0', color: '#64748b' }}>
+                <div style={{ fontSize: '24px', marginBottom: '8px' }}>⏳</div>
+                <div>Loading production batch records...</div>
+              </div>
+            ) : batchHistoryList.length === 0 ? (
+              <div style={{
+                textAlign: 'center',
+                padding: '36px 16px',
+                background: '#fcfcfc',
+                border: '1px dashed #cbd5e1',
+                borderRadius: '8px',
+                color: '#64748b'
+              }}>
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>📋</div>
+                <div style={{ fontWeight: 600, color: '#334155', fontSize: '14px' }}>
+                  No Production Batches Found
+                </div>
+                <div style={{ fontSize: '12.5px', marginTop: '4px', maxWidth: '420px', margin: '4px auto 0' }}>
+                  No manufacturing batch plans or allocated batch numbers exist yet for <strong>{batchHistoryProduct.name}</strong>. Batches are allocated through Sales Orders or the Batch Planning module.
+                </div>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1', color: '#475569' }}>
+                      <th style={{ padding: '10px 12px', fontWeight: 600 }}>Batch No.</th>
+                      <th style={{ padding: '10px 12px', fontWeight: 600 }}>Plan Ref</th>
+                      <th style={{ padding: '10px 12px', fontWeight: 600 }}>Mfg Date</th>
+                      <th style={{ padding: '10px 12px', fontWeight: 600, textAlign: 'right' }}>Target Output</th>
+                      <th style={{ padding: '10px 12px', fontWeight: 600 }}>Sales Order</th>
+                      <th style={{ padding: '10px 12px', fontWeight: 600 }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {batchHistoryList.map((bp) => {
+                      const batchNum = bp.allocated_batch_number?.batch_number || bp.batch_number || 'Pending Allocation'
+                      const isAllocated = batchNum && batchNum !== 'Pending Allocation'
+                      return (
+                        <tr key={bp.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '10px 12px', fontWeight: 700 }}>
+                            {isAllocated ? (
+                              <span style={{
+                                background: '#f0fdf4',
+                                color: '#166534',
+                                border: '1px solid #bbf7d0',
+                                padding: '3px 8px',
+                                borderRadius: '4px',
+                                fontSize: '12px'
+                              }}>
+                                {batchNum}
+                              </span>
+                            ) : (
+                              <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '12px' }}>
+                                Not Allocated
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: '10px 12px', color: '#0369a1', fontWeight: 600 }}>
+                            #BP-{bp.id}
+                          </td>
+                          <td style={{ padding: '10px 12px', color: '#64748b' }}>
+                            {bp.planned_manufacturing_date || bp.created_at?.slice(0, 10) || '—'}
+                          </td>
+                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600 }}>
+                            {bp.target_output_quantity} {bp.packing_content_uom_name || bp.output_uom_code || ''}
+                          </td>
+                          <td style={{ padding: '10px 12px', color: '#64748b' }}>
+                            {bp.sales_order_number || (bp.sales_order_id ? `#SO-${bp.sales_order_id}` : 'Direct')}
+                          </td>
+                          <td style={{ padding: '10px 12px' }}>
+                            <span style={{
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              background: bp.status === 'COMPLETED' ? '#ecfdf5' : bp.status === 'ALLOCATED' ? '#eff6ff' : '#fefce8',
+                              color: bp.status === 'COMPLETED' ? '#065f46' : bp.status === 'ALLOCATED' ? '#1e40af' : '#854d0e',
+                              border: `1px solid ${bp.status === 'COMPLETED' ? '#a7f3d0' : bp.status === 'ALLOCATED' ? '#bfdbfe' : '#fde047'}`
+                            }}>
+                              {bp.status || 'PLANNED'}
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </Modal>
       )}
     </div>
   )
 }
+
+
+
+
+

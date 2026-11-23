@@ -850,10 +850,9 @@ export default function Shifts() {
                           <button
                             type="button"
                             className={
-                              shift.is_active ? 'company-link danger' : 'company-link'
+                              shift.is_active ? 'table-delete' : 'table-edit'
                             }
                             onClick={() => changeStatus(shift)}
-                            style={{ padding: '4px 8px', fontSize: 12 }}
                           >
                             {shift.is_active ? 'Deactivate' : 'Reactivate'}
                           </button>

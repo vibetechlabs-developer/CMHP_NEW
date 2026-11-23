@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 import Alert from '../../../components/Alert'
 import Button from '../../../components/Button'
+import FileInputButton from '../../../components/FileInputButton'
 import Modal from '../../inventory/components/Modal'
 import { getErrorMessage } from '../../../utils/errors'
 import {
@@ -27,7 +28,9 @@ function serverErrorText(error) {
 // no all-or-nothing transaction: a row that fails is reported and the rest
 // still run. Company and role on each row are optional, but must be given
 // together.
-export default function UserImportModal({ onClose, onImported }) {
+// defaultCompanyId: if the row has no company_code, the user is still
+// assigned to this company so they appear in the company's member list.
+export default function UserImportModal({ onClose, onImported, defaultCompanyId = null }) {
   const [fileName, setFileName] = useState('')
   const [parsed, setParsed] = useState(null)
   const [readError, setReadError] = useState('')
@@ -114,6 +117,11 @@ export default function UserImportModal({ onClose, onImported }) {
             await assignUserRole(user.id, membership.id, role.id)
             access = ` Assigned to ${company.code} as ${role.code}.`
           }
+        } else if (defaultCompanyId) {
+          // Auto-assign to the current workspace company so the user appears
+          // in this company's member list even without a company_code column.
+          await assignUserMembership(user.id, defaultCompanyId)
+          access = ' Assigned to current company.'
         }
         outcomes.push({ lineNumber: row.lineNumber, username: d.username, ok: true, message: `Created.${access}` })
       } catch (error) {
@@ -125,7 +133,14 @@ export default function UserImportModal({ onClose, onImported }) {
 
     setResults(outcomes)
     setImporting(false)
-    if (outcomes.some((o) => o.ok)) onImported()
+    const successCount = outcomes.filter((o) => o.ok).length
+    const failCount = outcomes.filter((o) => !o.ok).length
+    if (successCount > 0) onImported()
+    if (failCount === 0 && successCount > 0) {
+      setTimeout(() => {
+        onClose()
+      }, 600)
+    }
   }
 
   const footer = (
@@ -150,15 +165,21 @@ export default function UserImportModal({ onClose, onImported }) {
             last_name, employee_id, department, designation, joining_date (YYYY-MM-DD), employment_status (active,
             probation, notice, resigned, terminated), company_code and role_code (both must be given together).
           </p>
-          <div>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             <Button variant="secondary" onClick={downloadTemplate} disabled={importing}>
-              Download template
+              📥 Download template
             </Button>
           </div>
-          <div className="field">
+          <div className="field" style={{ marginTop: 8 }}>
             <label className="field-label" htmlFor="user-import-file">CSV file</label>
-            <input id="user-import-file" className="field-input" type="file" accept=".csv,text/csv" onChange={handleFile} disabled={importing} />
-            {fileName && <span className="uf-help">{fileName}</span>}
+            <FileInputButton
+              id="user-import-file"
+              accept=".csv,text/csv"
+              onChange={handleFile}
+              disabled={importing}
+              fileName={fileName}
+              label="📂 Choose CSV File"
+            />
           </div>
         </section>
 

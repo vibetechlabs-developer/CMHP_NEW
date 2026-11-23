@@ -75,6 +75,9 @@ import Invoice
 import SupplyChain
   from '../features/supplyChain/SupplyChain'
 
+import DispatchPage
+  from '../features/dispatch/DispatchPage'
+
 import WorkspaceSelection
   from '../features/workspace/WorkspaceSelection'
 
@@ -470,6 +473,13 @@ export default function AppRoutes() {
             path="/supply-chain"
             element={
               <SupplyChain />
+            }
+          />
+
+          <Route
+            path="/dispatch"
+            element={
+              <DispatchPage />
             }
           />
 

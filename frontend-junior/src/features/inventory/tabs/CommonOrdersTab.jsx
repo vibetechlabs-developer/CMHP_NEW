@@ -2,7 +2,7 @@
 // 1. Supplier Purchase Orders (shared store procurement)
 // 2. Inward Goods Receipts (goods delivery into common warehouse)
 // 3. Material Requests (production demand linked to batches)
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Button from '../../../components/Button'
 import Alert from '../../../components/Alert'
 import { LoadingState } from '../../../components/Spinner'
@@ -90,6 +90,50 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
   const [receiptSearch, setReceiptSearch] = useState('')
   const [receiptStatus, setReceiptStatus] = useState('')
   const [receiptPage, setReceiptPage] = useState(1)
+  const [receiptSortField, setReceiptSortField] = useState('arrived_at')
+  const [receiptSortDir, setReceiptSortDir] = useState('desc') // default descending: latest first
+
+  // Memoized sorted inward receipts
+  const sortedReceipts = useMemo(() => {
+    const list = [...(receipts.results || [])]
+    return list.sort((a, b) => {
+      let valA = ''
+      let valB = ''
+
+      if (receiptSortField === 'arrived_at') {
+        valA = a.arrived_at || a.created_at || ''
+        valB = b.arrived_at || b.created_at || ''
+      } else if (receiptSortField === 'reference') {
+        valA = a.reference || ''
+        valB = b.reference || ''
+      } else if (receiptSortField === 'source_po') {
+        valA = a.source_purchase_order_reference || String(a.source_purchase_order_id || '')
+        valB = b.source_purchase_order_reference || String(b.source_purchase_order_id || '')
+      } else if (receiptSortField === 'supplier') {
+        valA = a.supplier_name || a.company_code || ''
+        valB = b.supplier_name || b.company_code || ''
+      } else if (receiptSortField === 'status') {
+        valA = a.status || ''
+        valB = b.status || ''
+      } else {
+        valA = a.id || 0
+        valB = b.id || 0
+      }
+
+      if (valA < valB) return receiptSortDir === 'asc' ? -1 : 1
+      if (valA > valB) return receiptSortDir === 'asc' ? 1 : -1
+      return 0
+    })
+  }, [receipts.results, receiptSortField, receiptSortDir])
+
+  const handleReceiptSort = (field) => {
+    if (receiptSortField === field) {
+      setReceiptSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setReceiptSortField(field)
+      setReceiptSortDir(field === 'arrived_at' ? 'desc' : 'asc')
+    }
+  }
 
   // 3. Production Material Requests state
   const [reqs, setReqs] = useState({ loading: true, results: [], count: 0, error: '' })
@@ -1228,19 +1272,50 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
                 <table className="ci-table">
                   <thead>
                     <tr>
-                      <th style={{ minWidth: 140 }}>Receipt Ref</th>
-                      <th style={{ minWidth: 130 }}>Source PO</th>
-                      <th style={{ minWidth: 140 }}>Supplier / Buyer</th>
+                      <th
+                        style={{ minWidth: 140, cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleReceiptSort('reference')}
+                        title="Click to sort"
+                      >
+                        Receipt Ref {receiptSortField === 'reference' ? (receiptSortDir === 'asc' ? '▲' : '▼') : '↕'}
+                      </th>
+                      <th
+                        style={{ minWidth: 130, cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleReceiptSort('source_po')}
+                        title="Click to sort"
+                      >
+                        Source PO {receiptSortField === 'source_po' ? (receiptSortDir === 'asc' ? '▲' : '▼') : '↕'}
+                      </th>
+                      <th
+                        style={{ minWidth: 140, cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleReceiptSort('supplier')}
+                        title="Click to sort"
+                      >
+                        Supplier / Buyer {receiptSortField === 'supplier' ? (receiptSortDir === 'asc' ? '▲' : '▼') : '↕'}
+                      </th>
+                      <th style={{ minWidth: 220 }}>📦 Materials / Products</th>
                       <th style={{ minWidth: 110 }}>Store</th>
-                      <th style={{ minWidth: 95 }}>Arrived At</th>
+                      <th
+                        style={{ minWidth: 115, cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleReceiptSort('arrived_at')}
+                        title="Click to sort"
+                      >
+                        Arrived At {receiptSortField === 'arrived_at' ? (receiptSortDir === 'asc' ? '▲' : '▼') : '↕'}
+                      </th>
                       <th style={{ minWidth: 140 }}>Invoice / Delivery Ref</th>
-                      <th style={{ minWidth: 90 }}>Status</th>
+                      <th
+                        style={{ minWidth: 90, cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleReceiptSort('status')}
+                        title="Click to sort"
+                      >
+                        Status {receiptSortField === 'status' ? (receiptSortDir === 'asc' ? '▲' : '▼') : '↕'}
+                      </th>
                       <th style={{ minWidth: 60 }}>Lines</th>
                       <th className="ci-actions-col">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {receipts.results.map((r) => {
+                    {sortedReceipts.map((r) => {
                       const st = String(r.status || '').toUpperCase()
                       const stStyle = STATUS_COLORS[st] || { bg: '#f1f5f9', color: '#475569' }
                       const poRef = r.source_purchase_order_reference || (r.source_purchase_order_id ? `PO #${r.source_purchase_order_id}` : 'Direct Entry')
@@ -1257,8 +1332,30 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
                             <strong>{poRef}</strong>
                           </td>
                           <td>{supplier}</td>
+                          <td style={{ minWidth: 200, maxWidth: 300, fontSize: 12.5 }}>
+                            {(r.lines && r.lines.length > 0) ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {r.lines.map((l, lIdx) => {
+                                  const matName = l.material_name_snapshot || l.material_name || l.material_code || 'Material'
+                                  const qty = l.received_quantity ? `${l.received_quantity} ${l.unit_code_snapshot || l.unit_code || ''}`.trim() : ''
+                                  return (
+                                    <div key={l.id || lIdx} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                      <span style={{ fontWeight: 700, color: '#0f172a' }}>{matName}</span>
+                                      {qty && (
+                                        <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '1px 6px', borderRadius: 4, fontSize: 11, fontWeight: 700 }}>
+                                          {qty}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            ) : (
+                              <span style={{ color: '#94a3b8' }}>— No lines —</span>
+                            )}
+                          </td>
                           <td>{r.store_code || storeDisplayName}</td>
-                          <td>{dateStr}</td>
+                          <td><strong>{dateStr}</strong></td>
                           <td>{invoiceRef}</td>
                           <td>
                             <span

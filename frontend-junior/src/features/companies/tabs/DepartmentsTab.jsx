@@ -308,8 +308,8 @@ export default function DepartmentsTab() {
                       type="button"
                       className={
                         department.is_active
-                          ? 'company-link danger'
-                          : 'company-link'
+                          ? 'table-delete'
+                          : 'table-edit'
                       }
                       onClick={() =>
                         changeStatus(

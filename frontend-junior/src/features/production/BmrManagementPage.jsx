@@ -20,6 +20,7 @@ import { productionService } from './productionService'
 import { listProducts } from '../products/productsService'
 import { BMR_TEMPLATES, getBmrTemplate } from './bmrTemplates'
 import { DOSAGE_FORMS } from '../../constants/dosageForms'
+import { getAllSavedBmrRecords } from './bmrDbService'
 import useSelectedCompany from '../../hooks/useSelectedCompany'
 import './BmrManagementPage.css'
 import '../inventory/tabs/CommonInventory.css'
@@ -40,10 +41,21 @@ export default function BmrManagementPage() {
   // State
   const [products, setProducts] = useState([])
   const [orders, setOrders] = useState([])
+  const [filledBmrs, setFilledBmrs] = useState([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('products') // 'products' | 'orders' | 'templates'
+  const [activeTab, setActiveTab] = useState('products') // 'products' | 'orders' | 'filled' | 'templates'
   const [dosageFilter, setDosageFilter] = useState('ALL')
   const [search, setSearch] = useState('')
+
+  // Load filled BMRs from IndexedDB & localStorage
+  const loadFilledBmrs = async () => {
+    try {
+      const records = await getAllSavedBmrRecords()
+      setFilledBmrs(records || [])
+    } catch (err) {
+      console.warn('Error loading filled BMRs:', err)
+    }
+  }
 
   // Quick Launchpad state
   const [selectedProductId, setSelectedProductId] = useState('')
@@ -67,6 +79,7 @@ export default function BmrManagementPage() {
     async function loadAll() {
       setLoading(true)
       try {
+        loadFilledBmrs()
         // 1. Fetch products from API (race with 3s timeout — fallback to Redux)
         let prods = []
         if (companyId) {
@@ -147,14 +160,35 @@ export default function BmrManagementPage() {
     })
   }
 
+  // Helper: Match dosage form accurately across product_type, dosage_form, name, and category
+  const matchesDosage = (item, target) => {
+    if (!target || target === 'ALL') return true
+    const t = target.toLowerCase()
+    const text = [
+      item.dosage_form,
+      item.dosageForm,
+      item.product_type,
+      item.type,
+      item.category,
+      item.name,
+      item.title,
+      item.product_name,
+    ].filter(Boolean).join(' ').toLowerCase()
+
+    if (t === 'drops') return text.includes('drop')
+    if (t === 'syrup') return text.includes('syrup')
+    if (t === 'mother tincture') return text.includes('mother') || text.includes('tincture') || text.includes('mt')
+    if (t === 'tablet') return text.includes('tablet') || text.includes('tab')
+    if (t === 'oil') return text.includes('oil')
+    if (t === 'liquid') return text.includes('liquid')
+    if (t === 'capsule') return text.includes('capsule') || text.includes('cap')
+    return text.includes(t)
+  }
+
   // Filter products by dosage form & search
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
-      const form = (p.dosage_form || p.dosageForm || p.type || p.category || '').toLowerCase()
-      if (dosageFilter !== 'ALL') {
-        const target = dosageFilter.toLowerCase()
-        if (!form.includes(target) && target !== form) return false
-      }
+      if (!matchesDosage(p, dosageFilter)) return false
       if (search.trim()) {
         const q = search.toLowerCase()
         const name = (p.name || p.title || '').toLowerCase()
@@ -168,11 +202,7 @@ export default function BmrManagementPage() {
   // Filter orders by dosage form & search
   const filteredOrders = useMemo(() => {
     return orders.filter((o) => {
-      const form = (o.dosage_form || o.dosageForm || o.product_type || '').toLowerCase()
-      if (dosageFilter !== 'ALL') {
-        const target = dosageFilter.toLowerCase()
-        if (!form.includes(target) && target !== form) return false
-      }
+      if (!matchesDosage(o, dosageFilter)) return false
       if (search.trim()) {
         const q = search.toLowerCase()
         const prod = (o.product_name || o.name || '').toLowerCase()
@@ -183,6 +213,20 @@ export default function BmrManagementPage() {
       return true
     })
   }, [orders, dosageFilter, search])
+
+  // Filter filled BMRs
+  const filteredFilledBmrs = useMemo(() => {
+    return filledBmrs.filter((b) => {
+      if (!matchesDosage(b, dosageFilter)) return false
+      if (search.trim()) {
+        const q = search.toLowerCase()
+        const batch = (b.batchNo || b.batch || '').toLowerCase()
+        const prod = (b.productName || b.product || '').toLowerCase()
+        return batch.includes(q) || prod.includes(q)
+      }
+      return true
+    })
+  }, [filledBmrs, dosageFilter, search])
 
   return (
     <div className="bmr-mgmt-container">
@@ -329,6 +373,18 @@ export default function BmrManagementPage() {
 
         <button
           type="button"
+          className={`bmr-tab-btn ${activeTab === 'filled' ? 'active' : ''}`}
+          onClick={() => {
+            setActiveTab('filled')
+            loadFilledBmrs()
+          }}
+        >
+          <span>📋 Filled BMR Records</span>
+          <span className="bmr-tab-badge" style={{ background: '#dcfce7', color: '#166534' }}>{filteredFilledBmrs.length}</span>
+        </button>
+
+        <button
+          type="button"
           className={`bmr-tab-btn ${activeTab === 'templates' ? 'active' : ''}`}
           onClick={() => setActiveTab('templates')}
         >
@@ -341,7 +397,7 @@ export default function BmrManagementPage() {
         <div className="bmr-filter-bar">
           <div className="bmr-pills-wrap">
             <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginRight: 4 }}>Filter Dosage Form:</span>
-            {['ALL', 'Drops', 'Syrup', 'Mother Tincture', 'Oil', 'Tablet', 'Liquid'].map((d) => (
+            {['ALL', 'Drops', 'Syrup', 'Mother Tincture', 'Oil', 'Tablet', 'Liquid', 'Capsule'].map((d) => (
               <button
                 key={d}
                 type="button"
@@ -396,6 +452,7 @@ export default function BmrManagementPage() {
               ) : (
                 filteredProducts.map((p) => {
                   const dForm = p.dosage_form || p.dosageForm || p.type || p.category || 'Syrup'
+                  const isCapsule = (p.dosage_form || p.dosageForm || p.product_type || p.name || '').toLowerCase().includes('capsule')
                   const tmpl = getBmrTemplate(dForm)
                   return (
                     <tr key={p.id}>
@@ -409,34 +466,48 @@ export default function BmrManagementPage() {
                         )}
                       </td>
                       <td>
-                        <StatusPill tone="info">{dForm}</StatusPill>
+                        <StatusPill tone={isCapsule ? 'warning' : 'info'}>{dForm}</StatusPill>
                       </td>
                       <td style={{ color: '#475569', fontSize: 12.5 }}>
                         {p.pack_size || p.packing || p.unit || '—'}
                       </td>
                       <td>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: '#0f172a' }}>
-                          {tmpl?.title || `${dForm} BMR`}
-                        </div>
-                        <div style={{ fontSize: 11, color: '#64748b' }}>
-                          {tmpl?.department || 'Production Department'} • {tmpl?.formNo || 'SOP/QA/04'}
-                        </div>
+                        {isCapsule ? (
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#b91c1c' }}>
+                            Capsule Template (Not Available)
+                          </div>
+                        ) : (
+                          <>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: '#0f172a' }}>
+                              {tmpl?.title || `${dForm} BMR`}
+                            </div>
+                            <div style={{ fontSize: 11, color: '#64748b' }}>
+                              {tmpl?.department || 'Production Department'} • {tmpl?.formNo || 'SOP/QA/04'}
+                            </div>
+                          </>
+                        )}
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        <Button
-                          size="xs"
-                          variant="primary"
-                          onClick={() => launchBmr({
-                            productId: p.id,
-                            productCode: p.code || p.sku,
-                            productName: p.name || p.title,
-                            dosageForm: dForm,
-                            bmrNo: `${(p.code || 'BMR').replace(/[^a-zA-Z0-9]/g, '')}-01`,
-                            packSize: p.pack_size,
-                          })}
-                        >
-                          📝 Fill BMR
-                        </Button>
+                        {isCapsule ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: 6, fontSize: 12, fontWeight: 700 }}>
+                            🚫 NO BMR
+                          </span>
+                        ) : (
+                          <Button
+                            size="xs"
+                            variant="primary"
+                            onClick={() => launchBmr({
+                              productId: p.id,
+                              productCode: p.code || p.sku,
+                              productName: p.name || p.title,
+                              dosageForm: dForm,
+                              bmrNo: `${(p.code || 'BMR').replace(/[^a-zA-Z0-9]/g, '')}-01`,
+                              packSize: p.pack_size,
+                            })}
+                          >
+                            📝 Fill BMR
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   )
@@ -498,16 +569,109 @@ export default function BmrManagementPage() {
                         </StatusPill>
                       </td>
                       <td style={{ textAlign: 'right' }}>
+                        {(dForm.toLowerCase().includes('capsule') || (o.product_name || '').toLowerCase().includes('capsule')) ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: 6, fontSize: 12, fontWeight: 700 }}>
+                            🚫 NO BMR
+                          </span>
+                        ) : (
+                          <Button
+                            size="xs"
+                            variant="primary"
+                            onClick={() => launchBmr({
+                              orderId: o.id,
+                              dosageForm: dForm,
+                              bmrNo: o.batch_no,
+                            })}
+                          >
+                            📋 Open BMR
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      ) : activeTab === 'filled' ? (
+        /* ── FILLED BMR RECORDS TAB ── */
+        <div className="ci-table-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+            <div>
+              <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
+                📋 Executed &amp; Saved Batch Manufacturing Records (BMR)
+              </h4>
+              <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>
+                Locally saved and executed BMR records from IndexedDB and local storage. Click View to reopen, print, or review any batch.
+              </p>
+            </div>
+            <Button size="xs" variant="secondary" onClick={loadFilledBmrs}>
+              🔄 Refresh List
+            </Button>
+          </div>
+
+          <table className="ci-table">
+            <thead>
+              <tr>
+                <th style={{ width: 140 }}>Batch No.</th>
+                <th>Product Name</th>
+                <th style={{ width: 140 }}>Dosage Form</th>
+                <th style={{ width: 170 }}>Last Saved / Updated</th>
+                <th style={{ width: 120 }}>Storage</th>
+                <th style={{ width: 160, textAlign: 'right' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredFilledBmrs.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>📭</div>
+                    <strong>No filled BMR records found.</strong>
+                    <div style={{ fontSize: 12, marginTop: 4 }}>
+                      When you fill and save a BMR in the editor, it will automatically appear here with full history and print capability.
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filteredFilledBmrs.map((rec, idx) => {
+                  const bNo = rec.batchNo || rec.batch || 'BATCH-01'
+                  const pName = rec.productName || rec.product || 'Pharmaceutical Product'
+                  const dForm = rec.dosageForm || rec.dosage_form || 'Syrup'
+                  const dateStr = rec.lastModified ? new Date(rec.lastModified).toLocaleString('en-IN') : 'Saved'
+
+                  return (
+                    <tr key={rec.batchNo || idx}>
+                      <td>
+                        <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: 4, fontSize: 12, fontWeight: 700 }}>
+                          {bNo}
+                        </span>
+                      </td>
+                      <td>
+                        <strong style={{ color: '#0f172a' }}>{pName}</strong>
+                      </td>
+                      <td>
+                        <StatusPill tone="info">{dForm}</StatusPill>
+                      </td>
+                      <td style={{ fontSize: 12, color: '#64748b' }}>
+                        {dateStr}
+                      </td>
+                      <td>
+                        <StatusPill tone="success">
+                          ✓ IndexedDB
+                        </StatusPill>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
                         <Button
                           size="xs"
                           variant="primary"
                           onClick={() => launchBmr({
-                            orderId: o.id,
+                            productName: pName,
                             dosageForm: dForm,
-                            bmrNo: o.batch_no,
+                            bmrNo: bNo,
                           })}
                         >
-                          📋 Open BMR
+                          👁️ View / Print BMR
                         </Button>
                       </td>
                     </tr>

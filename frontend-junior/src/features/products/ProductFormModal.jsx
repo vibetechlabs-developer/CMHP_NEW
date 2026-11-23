@@ -65,6 +65,7 @@ export default function ProductFormModal({ companyId, productId, canEdit, canAct
     'Oil',
     'Kit',
     'Pills',
+    'Mother Tincture',
   ]
 
   const typeChoices = (current) => {

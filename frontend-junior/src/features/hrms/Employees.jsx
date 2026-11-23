@@ -900,14 +900,14 @@ export default function Employees() {
                           </button>
                           <button
                             type="button"
-                            className={employee.is_active ? 'company-link danger' : 'company-link'}
+                            className={employee.is_active ? 'table-delete' : 'table-edit'}
                             onClick={() => changeStatus(employee)}
                           >
                             {employee.is_active ? 'Deactivate' : 'Reactivate'}
                           </button>
                           <button
                             type="button"
-                            className="company-link danger"
+                            className="table-delete"
                             onClick={() => removeEmployee(employee)}
                           >
                             Archive
@@ -1035,7 +1035,7 @@ export default function Employees() {
                         </button>
                         <button
                           type="button"
-                          className={employee.is_active ? 'company-link danger' : 'company-link'}
+                          className={employee.is_active ? 'table-delete' : 'table-edit'}
                           onClick={() => changeStatus(employee)}
                         >
                           {employee.is_active ? 'Deactivate' : 'Reactivate'}

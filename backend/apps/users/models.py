@@ -27,6 +27,7 @@ class User(AbstractUser):
         choices=EmploymentStatus.choices,
         default=EmploymentStatus.ACTIVE,
     )
+    shift = models.CharField(max_length=50, blank=True, default="")
     common_inventory_access = models.BooleanField(default=False)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -225,6 +225,42 @@ export const bmrDbService = {
   },
 
   /**
+   * Return all saved / executed BMR records from IndexedDB and LocalStorage
+   */
+  getAllSavedBmrRecords: async () => {
+    const list = []
+    try {
+      const raw = localStorage.getItem(LS_FALLBACK_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        Object.values(parsed).forEach((r) => {
+          if (r && r.data) list.push(r)
+        })
+      }
+    } catch {}
+
+    try {
+      const db = await openIndexedDb()
+      if (db) {
+        const idbRows = await new Promise((resolve) => {
+          const tx = db.transaction([STORE_NAME], 'readonly')
+          const store = tx.objectStore(STORE_NAME)
+          const req = store.getAll()
+          req.onsuccess = () => resolve(req.result || [])
+          req.onerror = () => resolve([])
+        })
+        idbRows.forEach((r) => {
+          if (r && r.data && !list.some((existing) => existing.key === r.key)) {
+            list.push(r)
+          }
+        })
+      }
+    } catch {}
+
+    return list
+  },
+
+  /**
    * Helper to write to IndexedDB and LocalStorage directly
    */
   saveToLocalDb: async (key, record) => {
@@ -240,3 +276,5 @@ export const bmrDbService = {
     }
   },
 }
+
+export const getAllSavedBmrRecords = bmrDbService.getAllSavedBmrRecords

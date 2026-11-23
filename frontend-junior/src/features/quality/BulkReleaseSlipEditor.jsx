@@ -9,6 +9,52 @@ import Button from '../../components/Button'
 import './BulkReleaseSlip.css'
 
 const STORAGE_KEY = 'cmhp_bulk_release_slips_saved_v1'
+export const HISTORY_KEY = 'cmhp_bulk_release_slips_history_v1'
+
+export function getBulkReleaseHistory() {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return []
+}
+
+export function saveBulkReleaseToHistory(slipData) {
+  try {
+    const history = getBulkReleaseHistory()
+    const batchKey = slipData.batch_no || `SLIP-${Date.now()}`
+    const existingIdx = history.findIndex((h) => h.batch_no === slipData.batch_no || h.id === batchKey)
+    const entry = {
+      id: batchKey,
+      batch_no: slipData.batch_no || 'BATCH-01',
+      product: slipData.product || slipData.product_name || 'Pharmaceutical Product',
+      tr_no: slipData.tr_no || 'TR-01',
+      mfg_date: slipData.mfg_date || '',
+      saved_at: new Date().toISOString(),
+      data: { ...slipData },
+    }
+    if (existingIdx >= 0) {
+      history[existingIdx] = entry
+    } else {
+      history.unshift(entry)
+    }
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 50)))
+    return history
+  } catch (err) {
+    console.warn('Could not save to history:', err)
+    return []
+  }
+}
+
+export function deleteBulkReleaseFromHistory(id) {
+  try {
+    const history = getBulkReleaseHistory().filter((h) => h.id !== id && h.batch_no !== id)
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history))
+    return history
+  } catch {
+    return []
+  }
+}
 
 export const INITIAL_SLIP_DATA = {
   to_department: '',
@@ -84,6 +130,8 @@ export default function BulkReleaseSlipEditor({ initialData = null, onSaved = nu
     setData((prev) => ({ ...prev, [field]: val }))
   }
 
+  const [historyList, setHistoryList] = useState(() => getBulkReleaseHistory())
+
   const handleSave = () => {
     setSaving(true)
     try {
@@ -91,13 +139,23 @@ export default function BulkReleaseSlipEditor({ initialData = null, onSaved = nu
       if (data.batch_no) {
         localStorage.setItem(`${STORAGE_KEY}_${data.batch_no}`, JSON.stringify(data))
       }
-      setFeedback('✅ Slip saved successfully!')
+      const updatedHistory = saveBulkReleaseToHistory(data)
+      setHistoryList(updatedHistory || getBulkReleaseHistory())
+      setFeedback('✅ Slip saved to History!')
       if (onSaved) onSaved(data)
     } catch (e) {
       setFeedback('⚠️ Could not save slip locally.')
     } finally {
       setTimeout(() => setSaving(false), 300)
       setTimeout(() => setFeedback(''), 4000)
+    }
+  }
+
+  const handleLoadFromHistory = (entry) => {
+    if (entry?.data) {
+      setData({ ...INITIAL_SLIP_DATA, ...entry.data })
+      setFeedback(`Loaded slip for batch: ${entry.batch_no}`)
+      setTimeout(() => setFeedback(''), 3000)
     }
   }
 
@@ -221,6 +279,41 @@ export default function BulkReleaseSlipEditor({ initialData = null, onSaved = nu
           </Button>
         </div>
       </div>
+
+      {/* ── SAVED SLIPS HISTORY (Screen Only) ── */}
+      {historyList.length > 0 && (
+        <div className="no-print" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 12px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
+            📋 Saved Slips History ({historyList.length}):
+          </span>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            {historyList.slice(0, 8).map((h) => (
+              <button
+                key={h.id || h.batch_no}
+                type="button"
+                onClick={() => handleLoadFromHistory(h)}
+                style={{
+                  background: data.batch_no === h.batch_no ? '#0284c7' : '#ffffff',
+                  color: data.batch_no === h.batch_no ? '#ffffff' : '#0369a1',
+                  border: '1px solid #bae6fd',
+                  padding: '3px 9px',
+                  borderRadius: 6,
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+                title={`Saved at ${h.saved_at ? new Date(h.saved_at).toLocaleString('en-IN') : ''} - Click to load`}
+              >
+                <span>📦 {h.batch_no}</span>
+                <span style={{ opacity: 0.8, fontSize: 10 }}>({h.product})</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── EXACT REPLICA DOCUMENT SHEET ── */}
       <div className="att3-sheet" ref={sheetRef}>

@@ -29,6 +29,11 @@ def _normalise_row(raw):
     row = {field: ("" if raw.get(field) is None else str(raw.get(field)).strip()) for field in FIELDS}
     if not row["gst_number"] and raw.get("gst_no"):
         row["gst_number"] = str(raw.get("gst_no")).strip()
+    raw_status = str(raw.get("status") or raw.get("is_active") or "").strip().lower()
+    if raw_status in ("inactive", "false", "0", "no", "disabled"):
+        row["is_active"] = False
+    elif raw_status in ("active", "true", "1", "yes", "enabled"):
+        row["is_active"] = True
     return row
 
 
@@ -46,7 +51,8 @@ def preview_customer_rows(company, rows):
     for index, raw in enumerate(rows, start=1):
         data = _normalise_row(raw)
         errors = []
-        serializer = CustomerCreateSerializer(data=data)
+        validation_data = {k: v for k, v in data.items() if k != "is_active"}
+        serializer = CustomerCreateSerializer(data=validation_data)
         if not serializer.is_valid():
             for field, messages in serializer.errors.items():
                 for message in messages if isinstance(messages, list) else [messages]:
@@ -88,5 +94,8 @@ def commit_customer_rows(*, actor, company, rows):
     created = []
     for raw in rows:
         data = _normalise_row(raw)
-        created.append(create_customer(actor=actor, company=company, **{k: v for k, v in data.items() if k != "code"}, code=data["code"]))
+        is_active = data.pop("is_active", True)
+        code = data.pop("code")
+        name = data.pop("name")
+        created.append(create_customer(actor=actor, company=company, code=code, name=name, is_active=is_active, **{k: v for k, v in data.items() if v != ""}))
     return created

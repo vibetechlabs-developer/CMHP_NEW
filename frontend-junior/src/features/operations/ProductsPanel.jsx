@@ -161,9 +161,9 @@ export default function ProductsPanel() {
         </div>
         <div className="inv-toolbar-actions">
           {canImport && (
-            <Button variant="secondary" onClick={() => setImporting(true)}>
-              Import CSV
-            </Button>
+            <button type="button" className="so-btn-import-csv" onClick={() => setImporting(true)}>
+              📥 Import CSV
+            </button>
           )}
           {canCreate && <Button onClick={() => setFormState({ mode: 'create' })}>+ Add product</Button>}
         </div>

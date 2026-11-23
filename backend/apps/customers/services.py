@@ -58,7 +58,7 @@ def create_customer(*, actor, company, code, name, **optional_fields):
         target_type="customer",
         target_id=customer.id,
         company=company,
-        after={"code": customer.code, "is_active": True, **_customer_snapshot(customer)},
+        after={"code": customer.code, "is_active": customer.is_active, **_customer_snapshot(customer)},
     )
     return customer
 

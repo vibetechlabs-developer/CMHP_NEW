@@ -453,9 +453,11 @@ export function printBulkReleaseNote(data = {}, logoSrc) {
 }
 
 export async function downloadBulkReleaseNotePdf(data = {}) {
-  let logoSrc = cmhpLogoUrl
+  const branding = getCompanyBranding(data)
+  const targetLogo = branding.isTej ? branding.logoSrc : cmhpLogoUrl
+  let logoSrc = targetLogo
   try {
-    const res = await fetch(cmhpLogoUrl)
+    const res = await fetch(targetLogo)
     const blob = await res.blob()
     logoSrc = await new Promise((resolve, reject) => {
       const reader = new FileReader()

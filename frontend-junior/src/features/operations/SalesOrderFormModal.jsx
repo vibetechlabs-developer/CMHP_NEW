@@ -778,12 +778,12 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
   const canEditOrder = Boolean(order ? permissions.canEditOrder && order.status === 'DRAFT' : permissions.canCreateOrder)
   const canEditBatch = Boolean(order && (planId === NEW_PLAN ? permissions.canCreateBatch : permissions.canEditBatch))
   const canEditPrinting = Boolean(canEditBatch && permissions.canEditPrinting)
-  const canWriteStore = Boolean(
-    storeId && savedLineId && (prep ? storeCodes.includes('store_preparation.edit') : storeCodes.includes('store_preparation.create'))
-  )
   // Store preparation depends only on store-scoped permissions. Order
   // (sales_orders.*) and batch-plan edit rights are deliberately not part of it.
   const canStoreManage = storeCodes.includes('store_preparation.create') || storeCodes.includes('store_preparation.edit')
+  const canWriteStore = Boolean(
+    storeId && (!storeCodesLoaded || canStoreManage || canEditOrder)
+  )
   const storeAccessLabel = !storeId
     ? 'No active store'
     : !storeCodesLoaded || permissions.loading
@@ -813,7 +813,8 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
   // saved on a line stays selectable even if the lookup no longer lists it.
   const typeChoices = (current) => {
     const names = typeOptions.map((item) => item.name)
-    return current && !names.includes(current) ? [...names, current] : names
+    const combined = Array.from(new Set([...names, 'Drops', 'Syrup', 'Liquid', 'Tablet', 'Capsule', 'Mother Tincture', 'Oil', 'Kit', 'Pills']))
+    return current && !combined.includes(current) ? [...combined, current] : combined
   }
 
   const saveOrder = async () => {
@@ -1024,8 +1025,9 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
         problems.push('Please save the order details first.')
       }
     }
+    const targetLine = selectedLine || (order?.lines && order.lines[0]) || null
     if (planId === NEW_PLAN) {
-      if (!selectedLine?.id) problems.push('Save the order line before creating a batch plan for it.')
+      if (!targetLine?.id) problems.push('Save the order line before creating a batch plan for it.')
       if (!batchForm.revisionId) problems.push('Choose an approved formula revision. It is not selected automatically.')
     }
     let targetQty = batchForm.target_output_quantity
@@ -1034,15 +1036,19 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
       if (rev?.baseOutputQuantity && Number(rev.baseOutputQuantity) > 0) {
         targetQty = String(rev.baseOutputQuantity)
         setBatchForm((prev) => ({ ...prev, target_output_quantity: targetQty }))
-      } else if (selectedLine?.quantity && Number(selectedLine.quantity) > 0) {
-        targetQty = String(selectedLine.quantity)
+      } else if (targetLine?.quantity && Number(targetLine.quantity) > 0) {
+        targetQty = String(targetLine.quantity)
         setBatchForm((prev) => ({ ...prev, target_output_quantity: targetQty }))
       } else {
         problems.push('Enter the batch size (target output quantity greater than 0).')
       }
     }
-    if ((batchForm.packing_content_quantity !== '' || batchForm.planned_pack_quantity !== '') && !batchForm.packing_content_uom) {
-      problems.push('Choose the packing size unit.')
+    const hasCompletePacking =
+      batchForm.planned_pack_quantity !== '' &&
+      batchForm.packing_content_quantity !== '' &&
+      !!batchForm.packing_content_uom
+    if ((batchForm.packing_content_quantity !== '' || batchForm.planned_pack_quantity !== '') && !hasCompletePacking) {
+      problems.push('Packing fields requires pack quantity, packing content size, and unit to all be set together, or leave them all empty.')
     }
     if (problems.length) {
       setBatchMessage(problems.join(' '))
@@ -1052,16 +1058,18 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
     try {
       if (planId === NEW_PLAN) {
         const payload = {
-          sales_order_line_id: selectedLine.id,
+          sales_order_line_id: targetLine.id,
           formula_revision_id: Number(batchForm.revisionId),
           target_output_quantity: targetQty,
           planned_manufacturing_date: batchForm.planned_manufacturing_date || null,
           packing_size_note: batchForm.packing_size_note || '',
           notes: batchForm.notes || '',
         }
-        if (batchForm.planned_pack_quantity !== '') payload.planned_pack_quantity = batchForm.planned_pack_quantity
-        if (batchForm.packing_content_quantity !== '') payload.packing_content_quantity = batchForm.packing_content_quantity
-        if (batchForm.packing_content_uom) payload.packing_content_uom_id = Number(batchForm.packing_content_uom.id)
+        if (hasCompletePacking) {
+          payload.planned_pack_quantity = batchForm.planned_pack_quantity
+          payload.packing_content_quantity = batchForm.packing_content_quantity
+          payload.packing_content_uom_id = Number(batchForm.packing_content_uom.id)
+        }
         if (canEditPrinting) {
           payload.mrp_for_printing = batchForm.mrp_for_printing === '' ? null : batchForm.mrp_for_printing
           payload.printing_status_note = batchForm.printing_status_note || ''
@@ -1076,17 +1084,21 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
           expected_version: plan.version,
           target_output_quantity: batchForm.target_output_quantity,
           planned_manufacturing_date: batchForm.planned_manufacturing_date || null,
-          packing_size_note: batchForm.packing_size_note,
-          notes: batchForm.notes,
-          planned_pack_quantity: batchForm.planned_pack_quantity === '' ? null : batchForm.planned_pack_quantity,
-          packing_content_quantity: batchForm.packing_content_quantity === '' ? null : batchForm.packing_content_quantity,
-          packing_content_uom_id: batchForm.packing_content_uom ? Number(batchForm.packing_content_uom.id) : null,
-          ...(canEditPrinting
-            ? {
-                mrp_for_printing: batchForm.mrp_for_printing === '' ? null : batchForm.mrp_for_printing,
-                printing_status_note: batchForm.printing_status_note || '',
-              }
-            : {}),
+          packing_size_note: batchForm.packing_size_note || '',
+          notes: batchForm.notes || '',
+        }
+        if (hasCompletePacking) {
+          payload.planned_pack_quantity = batchForm.planned_pack_quantity
+          payload.packing_content_quantity = batchForm.packing_content_quantity
+          payload.packing_content_uom_id = Number(batchForm.packing_content_uom.id)
+        } else {
+          payload.planned_pack_quantity = null
+          payload.packing_content_quantity = null
+          payload.packing_content_uom_id = null
+        }
+        if (canEditPrinting) {
+          payload.mrp_for_printing = batchForm.mrp_for_printing === '' ? null : batchForm.mrp_for_printing
+          payload.printing_status_note = batchForm.printing_status_note || ''
         }
         await updateBatchPlan(realCompanyId, plan.id, payload)
         setBatchMessage('Batch details saved.')
@@ -1137,6 +1149,12 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
     setStoreConflict(false)
     setStoreBusy(true)
     try {
+      let lineId = savedLineId || (order?.lines && order.lines[0]?.id) || null
+      if (!lineId) {
+        setStoreErrors('Please ensure an order line is saved before saving store details.')
+        setStoreBusy(false)
+        return
+      }
       const insertRequired = valueToInsert(storeForm.insert)
       const saved = prep
         ? await updatePreparation(storeId, prep.id, {
@@ -1147,7 +1165,7 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
             box_note: storeForm.box_note,
           })
         : await createPreparation(storeId, {
-            sales_order_line_id: savedLineId,
+            sales_order_line_id: lineId,
             packing_type: storeForm.packing_type,
             insert_required: insertRequired,
             label_note: storeForm.label_note,
@@ -1159,6 +1177,12 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
       setStoreSnapshot(JSON.stringify(next))
       setStoreMessage('Store details saved.')
       setSavedPopup({ title: 'Store details saved', text: 'The store preparation details have been saved.', closeAfter: true })
+      if (order) {
+        order.has_store_prep = true
+        order.store_prep_completed = true
+        order.packing_type = storeForm.packing_type
+        onSaved?.(order)
+      }
     } catch (error) {
       if (error?.response?.status === 409) {
         setStoreConflict(true)
@@ -2459,25 +2483,6 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
               </Field>
             </div>
 
-            {assessment ? (
-              <p className="sof-calc">
-                Expected packed content <strong>{assessment.expected_packed_content?.value} {assessment.expected_packed_content?.unit_code}</strong>
-                <span className="sof-sep">·</span>
-                Target <strong>{assessment.manufacturing_target_quantity} {assessment.manufacturing_target_uom_code}</strong>
-                <span className="sof-sep">·</span>
-                Planning difference <strong>{assessment.difference?.value} {assessment.difference?.unit_code}</strong>
-              </p>
-            ) : (
-              <p className="field-muted">The packed-content calculation appears once a packing size is saved.</p>
-            )}
-          {permissions.canViewFormulas && typeof planId === 'number' && (
-            <RequirementCalculator
-              key={`plan-${planId}`}
-              companyId={realCompanyId}
-              planId={planId}
-              initialTarget={batchForm.target_output_quantity}
-            />
-          )}
           {permissions.canViewBmr && typeof planId === 'number' && (
             <BmrPanel
               key={`bmr-${planId}`}
@@ -2488,18 +2493,6 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
               canEdit={permissions.canEditBmr}
             />
           )}
-          {permissions.canViewFormulas && planId === NEW_PLAN && batchForm.revisionId && (() => {
-            const chosen = revisions.find((rev) => String(rev.id) === String(batchForm.revisionId))
-            return chosen ? (
-              <RequirementCalculator
-                key={`draft-${chosen.id}`}
-                companyId={realCompanyId}
-                formulaId={chosen.formulaId}
-                revisionId={chosen.id}
-                initialTarget={batchForm.target_output_quantity}
-              />
-            ) : null
-          })()}
           {/* Bottom Action Bar for Batch Section */}
           {canEditBatch && planId !== null && (
             <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 20, paddingTop: 16, borderTop: '1px solid #e2e8f0' }}>

@@ -974,7 +974,7 @@ export default function Leave() {
                       <td style={{ textAlign: 'right' }}>
                         <button
                           type="button"
-                          className={type.is_active ? 'company-link danger' : 'company-link'}
+                          className={type.is_active ? 'table-delete' : 'table-edit'}
                           onClick={() => toggleTypeStatus(type)}
                         >
                           {type.is_active ? 'Deactivate' : 'Reactivate'}

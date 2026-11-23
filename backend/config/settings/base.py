@@ -200,6 +200,7 @@ USE_TZ = True
 BUSINESS_TIME_ZONE = env("BUSINESS_TIME_ZONE", default="Asia/Kolkata")
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MEDIA_URL = env("MEDIA_URL", default="/media/")
 MEDIA_ROOT = env("MEDIA_ROOT", default=str(BASE_DIR / "media"))

@@ -13,6 +13,7 @@ import { listPlanningUnits } from '../manufacturing/batchPlansService'
 import RequirementCalculator from './RequirementCalculator'
 import ProductionRawMaterialCalculator from './ProductionRawMaterialCalculator'
 import BmrRequisitionSlipModal from './BmrRequisitionSlipModal'
+import ProductBatchHistoryTab from './ProductBatchHistoryTab'
 import {
   approvalActionState,
   approveRevision,
@@ -72,7 +73,7 @@ export default function FormulasPage({ companyId, productId, product, backTo = '
   const [searchParams, setSearchParams] = useSearchParams()
   const initialTab = searchParams.get('tab')
   const [activeTab, setActiveTabState] = useState(
-    initialTab && ['bom', 'calculator', 'revisions'].includes(initialTab) ? initialTab : 'bom'
+    initialTab && ['bom', 'calculator', 'revisions', 'batches'].includes(initialTab) ? initialTab : 'bom'
   )
 
   const setActiveTab = (tab) => {
@@ -86,7 +87,7 @@ export default function FormulasPage({ companyId, productId, product, backTo = '
 
   useEffect(() => {
     const tabParam = searchParams.get('tab')
-    if (tabParam && ['bom', 'calculator', 'revisions'].includes(tabParam) && tabParam !== activeTab) {
+    if (tabParam && ['bom', 'calculator', 'revisions', 'batches'].includes(tabParam) && tabParam !== activeTab) {
       setActiveTabState(tabParam)
     }
   }, [searchParams, activeTab])
@@ -381,6 +382,15 @@ export default function FormulasPage({ companyId, productId, product, backTo = '
           >
             <span>Revisions</span>
             <span className="fm-tab-pill">{revisions.length}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'batches'}
+            className={`fm-tab-item ${activeTab === 'batches' ? 'active' : ''}`}
+            onClick={() => setActiveTab('batches')}
+          >
+            <span>📦 Batch History</span>
           </button>
         </div>
       </div>
@@ -747,6 +757,18 @@ export default function FormulasPage({ companyId, productId, product, backTo = '
             </table>
           </div>
         </div>
+      )}
+
+      {/* --------------------------------------------------
+          TAB 4: BATCHWISE MANUFACTURING HISTORY
+          -------------------------------------------------- */}
+      {activeTab === 'batches' && (
+        <ProductBatchHistoryTab
+          companyId={companyId}
+          productId={productId}
+          product={product}
+          revisions={revisions}
+        />
       )}
     </div>
   )
@@ -2063,7 +2085,7 @@ function GuidedAddMaterialModal({ kind, exclude, claimUnits, defaultPart = 1, on
             )}
 
             <div>
-              <label className="fm-field-label">AR. No. (QC Report Ref)</label>
+              <label className="fm-field-label">AR. No. (QA Report Ref)</label>
               <input
                 className="fm-cell-input"
                 value={arNo}
@@ -2226,10 +2248,10 @@ function ApprovalPanel({ companyId, formulaId, revision, product, formula, canSu
         )}
         {error && <span style={{ color: '#b91c1c', fontSize: 12 }}>{error}</span>}
 
-        {/* Send to QC for Approval Confirmation Modal (Enhanced to match Screenshot 1) */}
+        {/* Send to QA for Approval Confirmation Modal (Enhanced to match Screenshot 1) */}
         {showSubmitModal && (
           <Modal
-            title="Get Quality Control (QC) Approval"
+            title="Get Quality Assurance (QA) Approval"
             onClose={() => { if (!loading) setShowSubmitModal(false) }}
             maxWidth="560px"
             footer={
@@ -2245,7 +2267,7 @@ function ApprovalPanel({ companyId, formulaId, revision, product, formula, canSu
           >
             <div className="qc-submit-modal-content">
               <p style={{ margin: '0 0 14px 0', fontSize: '13.5px', color: '#475569', lineHeight: 1.5 }}>
-                Review the stoichiometric batch calculation snapshot before forwarding to Quality Control for review:
+                Review the stoichiometric batch calculation snapshot before forwarding to Quality Assurance (QA) for review:
               </p>
 
               <div className="qc-summary-read-only-card">
@@ -2279,7 +2301,7 @@ function ApprovalPanel({ companyId, formulaId, revision, product, formula, canSu
 
               <div style={{ marginTop: '14px' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
-                  Remarks for QC (Optional)
+                  Remarks for QA (Optional)
                 </label>
                 <textarea
                   className="fm-cell-input"
@@ -2405,7 +2427,7 @@ function ApprovalPanel({ companyId, formulaId, revision, product, formula, canSu
 
               <div style={{ marginBottom: 14 }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
-                  QC Approval Remarks / BMR Release Endorsement (Optional)
+                  QA Approval Remarks / BMR Release Endorsement (Optional)
                 </label>
                 <textarea
                   className="fm-cell-input"

@@ -41,8 +41,10 @@ const EMPTY_FORM = {
   employment_status: 'active',
   department: '',
   designation: '',
+  shift: '',
   company_id: '',
   common_inventory_access: false,
+  both_companies_access: false,
 }
 
 const EMPLOYMENT_STATUS_OPTIONS = [
@@ -261,12 +263,13 @@ function CompanyAccessPanel({ userId, onError }) {
 
 // Users are real backend accounts (apps.users). The API is superuser-only, so
 // a non-superuser sees the server's refusal rather than an empty list.
-export default function UserAccessTab() {
+export default function UserAccessTab({ companyId: propCompanyId = null }) {
   // Scopes the list to the active company workspace's own members, so this
   // screen shows that company's employees, not every account on the whole
   // platform. (Creating or assigning a user to a DIFFERENT company is still
   // possible from the create/edit form below - this only scopes the list.)
   const { loading: permissionsLoading, realCompanyId } = usePermissions()
+  const companyId = propCompanyId || realCompanyId || ''
   const { user } = useAuth()
   const activeCompanyName = user?.profile?.real_companies?.find((c) => c.id === realCompanyId)?.display_name
     || user?.profile?.real_companies?.find((c) => c.id === realCompanyId)?.legal_name
@@ -318,22 +321,26 @@ export default function UserAccessTab() {
   }, [search, realCompanyId, permissionsLoading])
 
   useEffect(() => {
-    if (modal?.mode !== 'create') return
+    if (!modal) return
     listCompanies().then(setCreateCompanies).catch(() => setCreateCompanies([]))
   }, [modal]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!form.company_id) {
+    const targetComp = form.company_id || companyId
+    if (!targetComp) {
       setCreateRoles([])
       return
     }
-    listCompanyRoles(form.company_id)
+    listCompanyRoles(targetComp)
       .then((roles) => setCreateRoles(roles.filter((r) => r.is_active)))
       .catch(() => setCreateRoles([]))
-  }, [form.company_id])
+  }, [form.company_id, companyId])
 
   const openCreate = () => {
-    setForm(EMPTY_FORM)
+    setForm({
+      ...EMPTY_FORM,
+      company_id: companyId ? String(companyId) : '',
+    })
     setFieldErrors({})
     setError('')
     setNotice('')
@@ -353,7 +360,9 @@ export default function UserAccessTab() {
       employment_status: user.employment_status || 'active',
       department: user.department || '',
       designation: user.designation || '',
+      shift: user.shift || '',
       common_inventory_access: Boolean(user.common_inventory_access),
+      both_companies_access: false,
     })
     setFieldErrors({})
     setError('')
@@ -371,6 +380,7 @@ export default function UserAccessTab() {
     employee_id: form.employee_id.trim(),
     department: form.department.trim(),
     designation: form.designation.trim(),
+    shift: form.shift ? form.shift.trim() : '',
     joining_date: form.joining_date || null,
     employment_status: form.employment_status,
     common_inventory_access: form.common_inventory_access,
@@ -382,6 +392,7 @@ export default function UserAccessTab() {
     setFieldErrors({})
     setError('')
     try {
+      const activeCompId = Number(form.company_id || companyId)
       if (modal.mode === 'create') {
         const created = await createUser({
           username: form.username.trim(),
@@ -392,12 +403,23 @@ export default function UserAccessTab() {
           ...profilePayload(),
         })
         let access = ''
-        if (form.company_id) {
-          const membership = await assignUserMembership(created.id, Number(form.company_id))
-          access = ' Company assigned.'
+        if (activeCompId) {
+          const membership = await assignUserMembership(created.id, activeCompId)
+          access = ' Active company assigned.'
           if (form.role_id) {
             await assignUserRole(created.id, membership.id, Number(form.role_id))
-            access = ' Company and role assigned.'
+            access = ' Active company and role assigned.'
+          }
+          if (form.both_companies_access) {
+            const others = createCompanies.filter((c) => c.id !== activeCompId)
+            for (const other of others) {
+              try {
+                await assignUserMembership(created.id, other.id)
+                access = ' Both companies access assigned.'
+              } catch {
+                // Ignore if duplicate
+              }
+            }
           }
         }
         setNotice(`User ${form.username.trim()} created.${access}`)
@@ -410,6 +432,15 @@ export default function UserAccessTab() {
           last_name: form.last_name.trim(),
           ...profilePayload(),
         })
+        if (form.both_companies_access) {
+          for (const c of createCompanies) {
+            try {
+              await assignUserMembership(modal.user.id, c.id)
+            } catch {
+              // Ignore if already member
+            }
+          }
+        }
         setNotice(`User ${form.username.trim()} saved.`)
         closeModal()
       }
@@ -454,9 +485,9 @@ export default function UserAccessTab() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Button variant="secondary" onClick={() => setImporting(true)}>
-            Import CSV
-          </Button>
+          <button type="button" className="so-btn-import-csv" onClick={() => setImporting(true)}>
+            📥 Import CSV
+          </button>
           <Button type="button" onClick={openCreate}>
             + Add user
           </Button>
@@ -486,6 +517,7 @@ export default function UserAccessTab() {
               <th>Employee ID</th>
               <th>Department</th>
               <th>Designation</th>
+              <th>Shift</th>
               <th>Employment</th>
               <th>Status</th>
               <th className="company-actions">Actions</th>
@@ -494,7 +526,7 @@ export default function UserAccessTab() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan="10" className="company-empty" style={{ textAlign: 'center', padding: '30px' }}>
+                <td colSpan="11" className="company-empty" style={{ textAlign: 'center', padding: '30px' }}>
                   <Spinner tone="brand" label="Loading users..." />
                 </td>
               </tr>
@@ -516,6 +548,7 @@ export default function UserAccessTab() {
                   <td>{user.employee_id || '—'}</td>
                   <td>{user.department || '—'}</td>
                   <td>{user.designation || '—'}</td>
+                  <td>{user.shift || '—'}</td>
                   <td>{statusLabel(user.employment_status)}</td>
                   <td>
                     <span
@@ -537,7 +570,7 @@ export default function UserAccessTab() {
                     </button>
                     <button
                       type="button"
-                      className={user.is_active ? 'company-link danger' : 'company-link'}
+                      className={user.is_active ? 'table-delete' : 'table-edit'}
                       onClick={() => toggleActive(user)}
                     >
                       {user.is_active ? 'Deactivate' : 'Activate'}
@@ -624,24 +657,13 @@ export default function UserAccessTab() {
             </section>
 
             <section className="uf-group">
-              <span className="uf-title">Access</span>
+              <span className="uf-title">Access & Work Profile</span>
               <div className="inv-form-grid">
-                {modal.mode === 'create' && (
-                  <div className="field">
-                    <label className="field-label" htmlFor="uf-company">Company</label>
-                    <select id="uf-company" className="field-input" value={form.company_id} onChange={(e) => setForm({ ...form, company_id: e.target.value, role_id: '' })}>
-                      <option value="">No company yet</option>
-                      {createCompanies.map((c) => (
-                        <option key={c.id} value={c.id}>{c.code} · {c.display_name || c.legal_name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
                 <div className="field">
                   <label className="field-label" htmlFor="uf-role">Role</label>
                   {modal.mode === 'create' ? (
-                    <select id="uf-role" className="field-input" value={form.role_id} onChange={(e) => setForm({ ...form, role_id: e.target.value })} disabled={!form.company_id}>
-                      <option value="">{form.company_id ? 'No role yet' : 'Pick a company first'}</option>
+                    <select id="uf-role" className="field-input" value={form.role_id} onChange={(e) => setForm({ ...form, role_id: e.target.value })}>
+                      <option value="">Select a role</option>
                       {createRoles.map((r) => (
                         <option key={r.id} value={r.id}>{r.name}</option>
                       ))}
@@ -649,6 +671,18 @@ export default function UserAccessTab() {
                   ) : (
                     <span className="uf-help">Set per company below under Company access and roles.</span>
                   )}
+                </div>
+                <div className="field">
+                  <label className="field-label" htmlFor="uf-shift">Shift</label>
+                  <input
+                    id="uf-shift"
+                    className="field-input"
+                    value={form.shift}
+                    onChange={(e) => setForm({ ...form, shift: e.target.value })}
+                    maxLength={50}
+                    placeholder="e.g. Morning, General, Night"
+                  />
+                  {fieldError('shift')}
                 </div>
                 <div className="field">
                   <label className="field-label" htmlFor="uf-status">Employment Status</label>
@@ -678,15 +712,33 @@ export default function UserAccessTab() {
             </section>
 
             <section className="uf-group">
-              <span className="uf-title">Common Inventory</span>
-              <label className="uf-check">
-                <input
-                  type="checkbox"
-                  checked={form.common_inventory_access}
-                  onChange={(e) => setForm({ ...form, common_inventory_access: e.target.checked })}
-                />
-                <span>Allow access to Common Inventory</span>
-              </label>
+              <span className="uf-title">Cross-Workspace & Inventory Access</span>
+              <div className="uf-access-box">
+                <label className="uf-check-item">
+                  <input
+                    type="checkbox"
+                    className="uf-checkbox"
+                    checked={form.common_inventory_access}
+                    onChange={(e) => setForm({ ...form, common_inventory_access: e.target.checked })}
+                  />
+                  <div className="uf-check-text">
+                    <span className="uf-check-label">Allow access to Common Inventory</span>
+                    <span className="uf-check-desc">Grants user permission to view and transact within the shared pharmaceutical store.</span>
+                  </div>
+                </label>
+                <label className="uf-check-item">
+                  <input
+                    type="checkbox"
+                    className="uf-checkbox"
+                    checked={form.both_companies_access}
+                    onChange={(e) => setForm({ ...form, both_companies_access: e.target.checked })}
+                  />
+                  <div className="uf-check-text">
+                    <span className="uf-check-label">Allow access to Both Companies</span>
+                    <span className="uf-check-desc">Grants user membership in both CMHP Pharma and Tej Biocare.</span>
+                  </div>
+                </label>
+              </div>
             </section>
           </form>
 
@@ -697,6 +749,7 @@ export default function UserAccessTab() {
       {importing && (
         <UserImportModal
           onClose={() => setImporting(false)}
+          defaultCompanyId={realCompanyId || null}
           onImported={() => {
             setNotice('User import finished. See the results in the import window.')
             load(search)

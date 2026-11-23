@@ -4,7 +4,7 @@ import Button from '../../components/Button'
 import Alert from '../../components/Alert'
 import Spinner, { LoadingState } from '../../components/Spinner'
 import usePermissions from '../../hooks/usePermissions'
-import { deleteCustomer, listCustomers } from './customersService'
+import { activateCustomer, deactivateCustomer, deleteCustomer, listCustomers } from './customersService'
 import { confirmAction } from '../../components/ConfirmProvider'
 import { getErrorMessage } from '../../utils/errors'
 import CustomerFormModal from './CustomerFormModal'
@@ -85,6 +85,19 @@ export default function CustomersPanel() {
     }
   }
 
+  const handleToggleActive = async (customer) => {
+    try {
+      if (customer.is_active) {
+        await deactivateCustomer(realCompanyId, customer.id, customer.version)
+      } else {
+        await activateCustomer(realCompanyId, customer.id, customer.version)
+      }
+      refreshList()
+    } catch (error) {
+      setListError(getErrorMessage(error))
+    }
+  }
+
   const refreshList = () => {
     if (!realCompanyId) return
     fetchList(undefined)
@@ -138,9 +151,9 @@ export default function CustomersPanel() {
         </div>
         {canCreate && (
           <div className="inv-toolbar-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <Button variant="secondary" onClick={() => setImporting(true)}>
-              Import CSV
-            </Button>
+            <button type="button" className="so-btn-import-csv" onClick={() => setImporting(true)}>
+              📥 Import CSV
+            </button>
             <Button onClick={() => setFormState({ mode: 'create' })}>+ Add customer</Button>
           </div>
         )}
@@ -203,7 +216,21 @@ export default function CustomersPanel() {
                   <td>{customer.phone || '—'}</td>
                   <td>{customer.city || '—'}</td>
                   <td>{customer.gst_number || customer.gst_no || '—'}</td>
-                  <td>{customer.is_active ? 'Active' : 'Inactive'}</td>
+                  <td>
+                    <span
+                      style={{
+                        padding: '3px 8px',
+                        borderRadius: 12,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        background: customer.is_active ? '#dcfce7' : '#fee2e2',
+                        color: customer.is_active ? '#15803d' : '#b91c1c',
+                        display: 'inline-block',
+                      }}
+                    >
+                      {customer.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
                       <button
@@ -213,6 +240,15 @@ export default function CustomersPanel() {
                       >
                         {canEdit || canActivate || canDeactivate ? 'Edit' : 'View'}
                       </button>
+                      {(canActivate || canDeactivate) && (
+                        <button
+                          type="button"
+                          className={customer.is_active ? 'table-delete' : 'table-edit'}
+                          onClick={() => handleToggleActive(customer)}
+                        >
+                          {customer.is_active ? 'Deactivate' : 'Activate'}
+                        </button>
+                      )}
                       {canDelete && (
                         <button
                           type="button"

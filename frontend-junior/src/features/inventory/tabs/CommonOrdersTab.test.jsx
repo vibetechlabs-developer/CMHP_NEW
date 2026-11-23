@@ -227,7 +227,7 @@ describe('CommonOrdersTab', () => {
     expect(screen.getByText('PO-2026-0201')).toBeTruthy()
     expect(screen.getByText('INV-9901')).toBeTruthy()
     expect(screen.getByRole('button', { name: /Print RM GRN/i })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Download RM GRN/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Download RM GRN/i })).toBeNull()
   })
 
   it('opens details modal for a purchase order showing ordered, received, and remaining quantities', async () => {

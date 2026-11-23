@@ -25,14 +25,11 @@ export default function MaterialModal({ mode = 'create', material = null, onClos
   const [name, setName] = useState(material?.name || '')
   const [kind, setKind] = useState(material?.kind || 'RAW_MATERIAL')
   const [unitId, setUnitId] = useState(material?.base_unit_id || '')
-  const [defaultContainerTypeId, setDefaultContainerTypeId] = useState(material?.default_container_type_id || '')
   const [location, setLocation] = useState(material?.location || '')
   const [description, setDescription] = useState(material?.description || '')
 
   const [units, setUnits] = useState([])
   const [unitsError, setUnitsError] = useState('')
-  const [containerTypes, setContainerTypes] = useState([])
-  const [containerTypesError, setContainerTypesError] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
@@ -52,10 +49,6 @@ export default function MaterialModal({ mode = 'create', material = null, onClos
         }
       })
       .catch((err) => setUnitsError(getErrorMessage(err)))
-
-    listContainerTypes()
-      .then(setContainerTypes)
-      .catch((err) => setContainerTypesError(getErrorMessage(err)))
   }, [material])
 
   const submit = async () => {
@@ -79,10 +72,6 @@ export default function MaterialModal({ mode = 'create', material = null, onClos
           base_unit_id: Number(unitId),
           location: location.trim(),
         }
-        const originalContainerId = material.default_container_type_id ?? ''
-        if (String(defaultContainerTypeId) !== String(originalContainerId)) {
-          payload.default_container_type_id = defaultContainerTypeId === '' ? null : Number(defaultContainerTypeId)
-        }
         await updateMaterial(material.id, payload)
         onSaved(`${code.trim()} saved.`)
       } else {
@@ -94,7 +83,6 @@ export default function MaterialModal({ mode = 'create', material = null, onClos
           base_unit_id: Number(unitId),
           location: location.trim(),
         }
-        if (defaultContainerTypeId !== '') payload.default_container_type_id = Number(defaultContainerTypeId)
         await createMaterial(payload)
         onSaved(`Material ${code.trim()} created.`)
       }
@@ -180,18 +168,6 @@ export default function MaterialModal({ mode = 'create', material = null, onClos
               onChange={(e) => setLocation(e.target.value)}
             />
           </div>
-        </div>
-
-        {/* Row 3b: Default container type (full width) */}
-        <div className="company-field">
-          <label className="inv-modal-field-label">Default container type <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>(optional)</span></label>
-          <select className="company-input" value={defaultContainerTypeId} onChange={(e) => setDefaultContainerTypeId(e.target.value)}>
-            <option value="">None</option>
-            {containerTypes.map((ct) => (
-              <option key={ct.id} value={ct.id}>{ct.name} ({ct.code})</option>
-            ))}
-          </select>
-          {containerTypesError && <p className="field-error">{containerTypesError}</p>}
         </div>
 
         {/* Row 4: Description (full width) */}

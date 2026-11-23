@@ -134,6 +134,14 @@ const NAV_SECTIONS = [
       },
 
       {
+        label: 'Dispatch',
+        path: '/dispatch',
+        icon: TruckIcon,
+        accent: '#0284c7',
+        companyOnly: true,
+      },
+
+      {
         label: 'Customer Management',
         path: '/customer-management',
         icon: UsersIcon,

@@ -178,9 +178,9 @@ export default function ProductsPage() {
         </div>
         <div className="ci-header-actions">
           {canImport && (
-            <Button type="button" variant="secondary" onClick={() => setImporting(true)}>
-              <span aria-hidden="true">📥</span> Import CSV
-            </Button>
+            <button type="button" className="so-btn-import-csv" onClick={() => setImporting(true)}>
+              📥 Import CSV
+            </button>
           )}
           {canCreate && (
             <Button type="button" variant="primary" onClick={() => setEditing({ mode: 'create' })}>+ Add Product</Button>

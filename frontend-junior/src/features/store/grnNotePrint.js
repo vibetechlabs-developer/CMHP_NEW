@@ -126,20 +126,20 @@ function buildRowsHtml(lines, supplier) {
   return rows.join('')
 }
 
-async function resolveLogoDataUrl() {
-  if (cachedLogoDataUrl) return cachedLogoDataUrl
+async function resolveLogoDataUrl(receipt) {
+  const branding = getCompanyBranding(receipt)
+  const targetLogo = branding.isTej ? branding.logoSrc : cmhpLogoUrl
   try {
-    const res = await fetch(cmhpLogoUrl)
+    const res = await fetch(targetLogo)
     const blob = await res.blob()
-    cachedLogoDataUrl = await new Promise((resolve, reject) => {
+    return await new Promise((resolve, reject) => {
       const reader = new FileReader()
       reader.onload = () => resolve(reader.result)
       reader.onerror = reject
       reader.readAsDataURL(blob)
     })
-    return cachedLogoDataUrl
   } catch {
-    return cmhpLogoUrl
+    return targetLogo
   }
 }
 
@@ -400,8 +400,8 @@ export function buildGoodsReceiptNoteHtml(receipt, kind, { logoSrc } = {}) {
     <!-- ── Signature Row ── -->
     <table class="grn-sign">
       <tr>
-        <td style="width:50%; text-align:left;">Prepared By/ Date: &nbsp;&nbsp;( RM / PM Store )</td>
-        <td style="width:50%; text-align:right;">Approved / Rejected by/ Date: &nbsp;&nbsp;( QC )</td>
+        <td style="width:50%; text-align:left;">Prepared By/ Date: ( RM / PM Store )</td>
+        <td style="width:50%; text-align:right;">Approved / Rejected by/ Date: ( QC )</td>
       </tr>
     </table>
 
@@ -478,7 +478,7 @@ export async function printGoodsReceiptNote(receipt, kind) {
  * Black/white form (no blue fills) — matches the warehouse Word master.
  */
 export async function downloadGoodsReceiptNotePdf(receipt, kind) {
-  const logoSrc = await resolveLogoDataUrl()
+  const logoSrc = await resolveLogoDataUrl(receipt)
   const html = buildGoodsReceiptNoteHtml(receipt, kind, { logoSrc })
   const filename = grnDownloadFilename(receipt, kind)
 

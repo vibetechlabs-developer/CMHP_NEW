@@ -67,24 +67,14 @@ export default function GrnPrintButtons({
   return (
     <span className={className} style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
       {showRaw && (
-        <>
-          <Button size={size} variant="secondary" disabled={disabled} onClick={() => runAction(GRN_KIND_RAW, 'print')}>
-            {busy === `print-${GRN_KIND_RAW}` ? 'Printing…' : '🖨 Print RM GRN'}
-          </Button>
-          <Button size={size} variant="secondary" disabled={disabled} onClick={() => runAction(GRN_KIND_RAW, 'download')}>
-            {busy === `download-${GRN_KIND_RAW}` ? 'Downloading…' : '⬇️ Download RM GRN'}
-          </Button>
-        </>
+        <Button size={size} variant="secondary" disabled={disabled} onClick={() => runAction(GRN_KIND_RAW, 'print')}>
+          {busy === `print-${GRN_KIND_RAW}` ? 'Printing…' : '🖨 Print RM GRN'}
+        </Button>
       )}
       {showPacking && (
-        <>
-          <Button size={size} variant="secondary" disabled={disabled} onClick={() => runAction(GRN_KIND_PACKING, 'print')}>
-            {busy === `print-${GRN_KIND_PACKING}` ? 'Printing…' : '🖨 Print PM GRN'}
-          </Button>
-          <Button size={size} variant="secondary" disabled={disabled} onClick={() => runAction(GRN_KIND_PACKING, 'download')}>
-            {busy === `download-${GRN_KIND_PACKING}` ? 'Downloading…' : '⬇️ Download PM GRN'}
-          </Button>
-        </>
+        <Button size={size} variant="secondary" disabled={disabled} onClick={() => runAction(GRN_KIND_PACKING, 'print')}>
+          {busy === `print-${GRN_KIND_PACKING}` ? 'Printing…' : '🖨 Print PM GRN'}
+        </Button>
       )}
       {error && <span style={{ color: '#b91c1c', fontSize: 11 }}>{error}</span>}
     </span>

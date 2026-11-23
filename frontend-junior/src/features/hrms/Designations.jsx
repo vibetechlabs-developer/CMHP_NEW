@@ -895,11 +895,10 @@ export default function Designations() {
                               type="button"
                               className={
                                 designation.is_active
-                                  ? 'company-link danger'
-                                  : 'company-link'
+                                  ? 'table-delete'
+                                  : 'table-edit'
                               }
                               onClick={() => changeStatus(designation)}
-                              style={{ padding: '4px 8px', fontSize: 12 }}
                             >
                               {designation.is_active ? 'Deactivate' : 'Reactivate'}
                             </button>

@@ -2,13 +2,14 @@ import { useState } from 'react'
 
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
+import FileInputButton from '../../components/FileInputButton'
 import Modal from '../inventory/components/Modal'
 import { parseCsv } from '../../utils/csv'
 import { getErrorMessage } from '../../utils/errors'
 import { commitCustomerImport, previewCustomerImport } from './customersService'
 
 const REQUIRED = ['code', 'name']
-const TEMPLATE = 'code,name,contact_person,email,phone,city,gst_number,billing_address,shipping_address,notes\nEXAMPLE1,Example Customer,Contact Name,contact@example.test,9000000000,Mumbai,24AAAAA0000A1Z5,,,\n'
+const TEMPLATE = 'code,name,contact_person,email,phone,city,gst_number,billing_address,shipping_address,notes,status\nEXAMPLE1,Example Customer,Contact Name,contact@example.test,9000000000,Mumbai,24AAAAA0000A1Z5,,,,Active\n'
 
 // Import customers from a CSV file. Nothing is saved until the file has been
 // checked and every row is valid; the import itself is all-or-nothing.
@@ -104,18 +105,18 @@ export default function CustomerImportModal({ realCompanyId, onClose, onImported
         Columns: code and name are required. Also accepted: contact_person, email, phone, billing_address, shipping_address, notes.
         Nothing is saved until every row is valid.
       </p>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', margin: '12px 0' }}>
-        <input
-          type="file"
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', margin: '14px 0' }}>
+        <FileInputButton
           accept=".csv,text/csv"
-          aria-label="Choose CSV file"
+          ariaLabel="Choose CSV file"
           onChange={(event) => readFile(event.target.files?.[0] || null)}
           disabled={busy}
+          fileName={fileName}
+          label="📂 Choose CSV File"
         />
         <Button variant="secondary" onClick={downloadTemplate} type="button">
-          Download template
+          📥 Download template
         </Button>
-        {fileName && <span className="field-muted">{fileName}</span>}
       </div>
 
       {error && <Alert type="error">{error}</Alert>}

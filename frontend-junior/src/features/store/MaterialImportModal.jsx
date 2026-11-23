@@ -7,6 +7,7 @@ import { useRef, useState } from 'react'
 
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
+import FileInputButton from '../../components/FileInputButton'
 import Modal from '../inventory/components/Modal'
 import { getErrorMessage } from '../../utils/errors'
 import { commitMaterialImport, getMaterialImportPreview, previewMaterialImport } from './storeService'
@@ -61,6 +62,9 @@ export default function MaterialImportModal({ onClose, onImported }) {
     try {
       const result = await commitMaterialImport(batch.id, batch.version)
       onImported((result.created_material_ids || []).length)
+      setTimeout(() => {
+        onClose?.()
+      }, 600)
     } catch (err) {
       setError(`${getErrorMessage(err)} The file was not imported. Choose the file again to check it.`)
       setBatch(null)
@@ -104,7 +108,18 @@ export default function MaterialImportModal({ onClose, onImported }) {
         Columns: code, name, material_type (RAW or PACKAGING), base_unit_code (an existing active unit), and optional description.
         Units are not created by the import.
       </p>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', margin: '14px 0' }}>
+        <FileInputButton
+          accept=".csv,text/csv"
+          disabled={busy}
+          fileName={file ? file.name : ''}
+          label="📂 Choose CSV File"
+          onChange={(event) => {
+            setFile(event.target.files?.[0] || null)
+            setBatch(null)
+            setError('')
+          }}
+        />
         <Button
           variant="secondary"
           type="button"
@@ -117,19 +132,8 @@ export default function MaterialImportModal({ onClose, onImported }) {
             URL.revokeObjectURL(url)
           }}
         >
-          Download template
+          📥 Download template
         </Button>
-        <input
-          type="file"
-          accept=".csv,text/csv"
-          aria-label="Choose material CSV file"
-          disabled={busy}
-          onChange={(event) => {
-            setFile(event.target.files?.[0] || null)
-            setBatch(null)
-            setError('')
-          }}
-        />
       </div>
 
       {error && <Alert type="error">{error}</Alert>}

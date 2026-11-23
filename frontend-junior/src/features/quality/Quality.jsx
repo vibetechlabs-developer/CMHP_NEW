@@ -172,6 +172,9 @@ export default function Quality() {
   const [reviewFormulaModal, setReviewFormulaModal] = useState(null)
   const [approveDialogModal, setApproveDialogModal] = useState(null)
   const [qcApprovalRemarks, setQcApprovalRemarks] = useState('')
+  const [esignConfirmed, setEsignConfirmed] = useState(false)
+  const [esignSignerName, setEsignSignerName] = useState('')
+  const [esignDesignation, setEsignDesignation] = useState('Head - Quality Assurance (QA)')
   const [declineDialogModal, setDeclineDialogModal] = useState(null)
   const [declineReason, setDeclineReason] = useState('')
   const [declineCategory, setDeclineCategory] = useState('Stoichiometric Discrepancy')
@@ -523,12 +526,16 @@ export default function Quality() {
   const handleOpenApproveModal = (req) => {
     setQcApprovalRemarks('')
     setApproveDialogError('')
+    setEsignConfirmed(false)
+    setEsignSignerName(user?.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : 'Dr. R. K. Mehta')
+    setEsignDesignation('Head - Quality Assurance (QA)')
     setApproveDialogModal(req)
   }
 
   const handleConfirmApprove = async () => {
     if (!approveDialogModal) return
-    const approverName = user?.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : 'Dr. R. K. Mehta'
+    const approverName = esignSignerName.trim() || (user?.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : 'Dr. R. K. Mehta')
+    const approverRole = esignDesignation.trim() || 'QA Manager'
     const remarks = qcApprovalRemarks.trim() || 'Calculations verified against pharmacopeia stoichiometric specifications. Formulation approved for BMR issuance.'
 
     setApproving(true)
@@ -562,9 +569,9 @@ export default function Quality() {
         decideFormulaApproval({
           id: approveDialogModal.id,
           decision: 'APPROVED',
-          remarks: remarks,
+          remarks: `${remarks} [Digitally Signed by ${approverName}, ${approverRole}]`,
           decidedBy: approverName,
-          decidedByRole: 'QA Manager',
+          decidedByRole: approverRole,
         })
       )
 
@@ -1963,7 +1970,7 @@ export default function Quality() {
                       <p style={{ margin: '4px 0 0 0', fontSize: '13px' }}>
                         {formulaSearch || formulaStatusFilter !== 'ALL'
                           ? 'No requests match your current search and filter criteria.'
-                          : 'No formula calculations have been submitted for QC approval yet.'}
+                          : 'No formula calculations have been submitted for QA approval yet.'}
                       </p>
                     </td>
                   </tr>
@@ -2618,15 +2625,15 @@ export default function Quality() {
           ======================================================== */}
       {approveDialogModal && (
         <Modal
-          title={`Approve Master Formulation — ${approveDialogModal.id}`}
+          title={`Formula QA Review & Approval (e-Sign) — ${approveDialogModal.id}`}
           onClose={() => setApproveDialogModal(null)}
           footer={
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
               <Button variant="secondary" onClick={() => setApproveDialogModal(null)} disabled={approving}>
                 Cancel
               </Button>
-              <Button onClick={handleConfirmApprove} disabled={approving}>
-                {approving ? 'Approving…' : '? Confirm & Certify Formula'}
+              <Button onClick={handleConfirmApprove} disabled={approving || !esignConfirmed}>
+                {approving ? 'Digitally Signing…' : '✍️ Digitally Sign & Approve Formula'}
               </Button>
             </div>
           }
@@ -2659,9 +2666,9 @@ export default function Quality() {
               </div>
             </div>
 
-            <div style={{ marginBottom: 12 }}>
+            <div style={{ marginBottom: 14 }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
-                QC Approval Remarks / BMR Release Endorsement (Optional)
+                QA Approval Remarks / BMR Release Endorsement (Optional)
               </label>
               <textarea
                 className="field-input"
@@ -2670,6 +2677,62 @@ export default function Quality() {
                 value={qcApprovalRemarks}
                 onChange={(e) => setQcApprovalRemarks(e.target.value)}
               />
+            </div>
+
+            {/* Electronic Signature Certification Box */}
+            <div style={{
+              background: '#f0fdf4',
+              border: '1px solid #86efac',
+              borderRadius: 8,
+              padding: '12px 14px',
+              marginBottom: 14,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, color: '#166534', fontWeight: 700, fontSize: '13px' }}>
+                <span>🔐</span>
+                <span>Electronic Signature Verification (21 CFR Part 11 / GAMP-5)</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11.5px', color: '#166534', fontWeight: 600, marginBottom: 3 }}>
+                    Signatory Name
+                  </label>
+                  <input
+                    type="text"
+                    className="field-input"
+                    style={{ fontSize: '12.5px', padding: '6px 8px' }}
+                    value={esignSignerName}
+                    onChange={(e) => setEsignSignerName(e.target.value)}
+                    placeholder="Approver Full Name"
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11.5px', color: '#166534', fontWeight: 600, marginBottom: 3 }}>
+                    Designation / Role
+                  </label>
+                  <input
+                    type="text"
+                    className="field-input"
+                    style={{ fontSize: '12.5px', padding: '6px 8px' }}
+                    value={esignDesignation}
+                    onChange={(e) => setEsignDesignation(e.target.value)}
+                    placeholder="Designation"
+                  />
+                </div>
+              </div>
+              <div style={{ fontSize: '11px', color: '#15803d', marginBottom: 8 }}>
+                Signing Timestamp: <strong>{new Date().toLocaleString()}</strong>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontSize: '12px', color: '#14532d', fontWeight: 600 }}>
+                <input
+                  type="checkbox"
+                  checked={esignConfirmed}
+                  onChange={(e) => setEsignConfirmed(e.target.checked)}
+                  style={{ marginTop: '2px' }}
+                />
+                <span>
+                  I confirm that I have reviewed the stoichiometry and authorize this master formula for commercial BMR issuance with my digital signature.
+                </span>
+              </label>
             </div>
 
             <Alert type="info">

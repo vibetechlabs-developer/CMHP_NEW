@@ -29,24 +29,52 @@ export default function QcList({ onSelectOrder, companyId }) {
   // State
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('ALL')
+  const [qaStatusFilter, setQaStatusFilter] = useState('ALL')
+  const [qaStatusOverrides, setQaStatusOverrides] = useState({})
   const [highlightedId, setHighlightedId] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 10
+
+  const handleQaStatusChange = (orderId, newStatus) => {
+    let remark = ''
+    if (newStatus === 'Rejected' || newStatus === 'Under Review') {
+      remark = window.prompt(`Enter QA remark for order #${orderId} (${newStatus}):`, '') || ''
+    }
+    setQaStatusOverrides((prev) => ({ ...prev, [orderId]: newStatus }))
+    try {
+      localStorage.setItem(`cmhp_order_qa_status_${orderId}`, JSON.stringify({ status: newStatus, remark, updatedAt: new Date().toISOString() }))
+    } catch {}
+  }
 
   // Filter only orders whose BMR is complete ("BMR complete" condition: bmr_status === 'YES')
   const bmrCompleteOrders = useMemo(() => {
     return reduxOrders
       .map((order) => {
         const dosage_form = resolveOrderDosageForm(order)
+        let qa_status = order.qa_status || 'Pending'
+        let qa_remark = order.qa_remark || ''
+        try {
+          const saved = localStorage.getItem(`cmhp_order_qa_status_${order.id}`)
+          if (saved) {
+            const parsed = JSON.parse(saved)
+            if (parsed.status) qa_status = parsed.status
+            if (parsed.remark) qa_remark = parsed.remark
+          }
+        } catch {}
+        if (qaStatusOverrides[order.id]) {
+          qa_status = qaStatusOverrides[order.id]
+        }
         return {
           ...order,
           dosage_form,
           dosageForm: dosage_form,
           bmr_status: order.bmr_status || 'NO',
+          qa_status,
+          qa_remark,
         }
       })
       .filter((order) => (order.bmr_status || '').toUpperCase() === 'YES')
-  }, [reduxOrders])
+  }, [reduxOrders, qaStatusOverrides])
 
   // Handle highlight on redirect from Production's QC button (2-second clean highlight)
   useEffect(() => {
@@ -75,7 +103,7 @@ export default function QcList({ onSelectOrder, companyId }) {
     }
   }, [location.state])
 
-  // Filters (search + Type)
+  // Filters (search + Type + QA Status)
   const filteredOrders = useMemo(() => {
     const q = search.trim().toLowerCase()
     return bmrCompleteOrders.filter((order) => {
@@ -83,6 +111,13 @@ export default function QcList({ onSelectOrder, companyId }) {
       if (typeFilter !== 'ALL') {
         const orderType = (order.dosage_form || order.dosageForm || order.product_type || order.type || '').toLowerCase()
         if (orderType !== typeFilter.toLowerCase()) return false
+      }
+
+      // QA Status filter
+      if (qaStatusFilter !== 'ALL') {
+        if ((order.qa_status || 'Pending').toLowerCase() !== qaStatusFilter.toLowerCase()) {
+          return false
+        }
       }
 
       // Search query
@@ -104,7 +139,7 @@ export default function QcList({ onSelectOrder, companyId }) {
 
       return true
     })
-  }, [bmrCompleteOrders, search, typeFilter])
+  }, [bmrCompleteOrders, search, typeFilter, qaStatusFilter])
 
   // Pagination
   const totalPages = Math.ceil(filteredOrders.length / pageSize) || 1
@@ -119,11 +154,12 @@ export default function QcList({ onSelectOrder, companyId }) {
   }, [bmrCompleteOrders])
 
   const otherCount = bmrCompleteOrders.length - oilCount
-  const isFiltered = Boolean(search || typeFilter !== 'ALL')
+  const isFiltered = Boolean(search || typeFilter !== 'ALL' || qaStatusFilter !== 'ALL')
 
   const resetFilters = () => {
     setSearch('')
     setTypeFilter('ALL')
+    setQaStatusFilter('ALL')
     setCurrentPage(1)
   }
 
@@ -240,6 +276,22 @@ export default function QcList({ onSelectOrder, companyId }) {
               ))}
             </select>
 
+            <select
+              className="qc-type-filter"
+              value={qaStatusFilter}
+              onChange={(e) => {
+                setQaStatusFilter(e.target.value)
+                setCurrentPage(1)
+              }}
+              style={{ minWidth: 150 }}
+            >
+              <option value="ALL">All QA Statuses</option>
+              <option value="Pending">⏳ Pending QA</option>
+              <option value="Under Review">🔍 Under Review</option>
+              <option value="Approved">✅ Approved (CoA Ready)</option>
+              <option value="Rejected">❌ Rejected</option>
+            </select>
+
             {isFiltered && (
               <button
                 type="button"
@@ -273,6 +325,7 @@ export default function QcList({ onSelectOrder, companyId }) {
                   <th>Type</th>
                   <th>Batch No.</th>
                   <th>BMR Status</th>
+                  <th>QA Review Status</th>
                   <th style={{ textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
@@ -328,6 +381,35 @@ export default function QcList({ onSelectOrder, companyId }) {
                         </StatusPill>
                       </td>
 
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <select
+                          className="qc-status-select"
+                          value={order.qa_status || 'Pending'}
+                          onChange={(e) => handleQaStatusChange(order.id, e.target.value)}
+                          style={{
+                            padding: '4px 8px',
+                            borderRadius: 6,
+                            fontWeight: 700,
+                            fontSize: 12,
+                            border: '1px solid',
+                            color: (order.qa_status === 'Approved' ? '#15803d' : order.qa_status === 'Rejected' ? '#b91c1c' : '#b45309'),
+                            background: (order.qa_status === 'Approved' ? '#dcfce7' : order.qa_status === 'Rejected' ? '#fee2e2' : '#fef3c7'),
+                            borderColor: (order.qa_status === 'Approved' ? '#86efac' : order.qa_status === 'Rejected' ? '#fca5a5' : '#fde68a'),
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="Under Review">Under Review</option>
+                          <option value="Approved">Approved</option>
+                          <option value="Rejected">Rejected</option>
+                        </select>
+                        {order.qa_remark && (
+                          <div style={{ fontSize: 10.5, color: '#b91c1c', marginTop: 2 }} title={order.qa_remark}>
+                            ⚠️ {order.qa_remark}
+                          </div>
+                        )}
+                      </td>
+
                       <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
@@ -335,7 +417,7 @@ export default function QcList({ onSelectOrder, companyId }) {
                           onClick={() => handleOpenView(order.id)}
                           title="Open Certificate of Analysis (CoA)"
                         >
-                          👁️ View
+                          👁️ View CoA
                         </button>
                       </td>
                     </tr>

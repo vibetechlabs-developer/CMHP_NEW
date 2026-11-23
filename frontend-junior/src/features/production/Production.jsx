@@ -546,6 +546,7 @@ export default function Production() {
                   <th>Production Status</th>
                   <th>Remark</th>
                   <th>QA STATUS</th>
+                  <th>QC Check</th>
                   <th>Packaging Status</th>
                   <th>Dispatch</th>
                   <th>Invoice</th>
@@ -657,13 +658,27 @@ export default function Production() {
                         />
                       </td>
 
-                      {/* QA STATUS (Read-only in Production, reflects Quality module) */}
+                      {/* QA STATUS (Interactive selector for QA status) */}
                       <td>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
-                          <span className={`prod-qa-badge prod-qa-${(order.qa_status || 'Pending').toLowerCase()}`}>
-                            {order.qa_status || 'Pending'}
-                          </span>
-                          {order.qa_status === 'Issue' && order.qa_remark && (
+                          <select
+                            className="prod-table-select"
+                            value={order.qa_status || 'Pending'}
+                            onChange={(e) => handleUpdate(order.id, { qa_status: e.target.value })}
+                            style={{
+                              fontWeight: 700,
+                              fontSize: 12,
+                              color: order.qa_status === 'Approved' ? '#15803d' : order.qa_status === 'Rejected' ? '#b91c1c' : '#b45309',
+                              background: order.qa_status === 'Approved' ? '#dcfce7' : order.qa_status === 'Rejected' ? '#fee2e2' : '#fef3c7',
+                              borderColor: order.qa_status === 'Approved' ? '#86efac' : order.qa_status === 'Rejected' ? '#fca5a5' : '#fde68a',
+                            }}
+                          >
+                            <option value="Pending">Pending</option>
+                            <option value="Under Review">Under Review</option>
+                            <option value="Approved">Approved</option>
+                            <option value="Rejected">Rejected</option>
+                          </select>
+                          {order.qa_status === 'Rejected' && order.qa_remark && (
                             <div
                               className="prod-qa-issue-cell"
                               title={order.qa_remark}
@@ -672,6 +687,28 @@ export default function Production() {
                             </div>
                           )}
                         </div>
+                      </td>
+
+                      {/* QC Check Column */}
+                      <td>
+                        <button
+                          type="button"
+                          onClick={() => navigate('/material-qc')}
+                          style={{
+                            background: '#eff6ff',
+                            border: '1px solid #bfdbfe',
+                            color: '#1d4ed8',
+                            fontSize: '11.5px',
+                            fontWeight: 700,
+                            padding: '5px 10px',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                          }}
+                          title="Navigate to Quality Control & Release"
+                        >
+                          🔬 QC Check
+                        </button>
                       </td>
 
                       {/* 11. Packaging Status (Pending / In Process / Completed) */}
@@ -741,15 +778,34 @@ export default function Production() {
                         })()}
                       </td>
 
-                      {/* 14. BMR Action Button */}
+                      {/* 14. BMR Action Button (Shows NO BMR for Capsule) */}
                       <td>
-                        <button
-                          type="button"
-                          className="prod-action-btn-bmr"
-                          onClick={() => navigate(`/production/bmr/${order.id}`)}
-                        >
-                          📄 BMR
-                        </button>
+                        {dosageForm.toLowerCase().includes('capsule') || (order.product_name && order.product_name.toLowerCase().includes('capsule')) ? (
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              padding: '5px 10px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              color: '#64748b',
+                              background: '#f1f5f9',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e1',
+                              whiteSpace: 'nowrap',
+                            }}
+                            title="BMR template is not available for Capsule dosage form"
+                          >
+                            🚫 NO BMR
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            className="prod-action-btn-bmr"
+                            onClick={() => navigate(`/production/bmr/${order.id}`)}
+                          >
+                            📄 BMR
+                          </button>
+                        )}
                       </td>
                     </tr>
                   )

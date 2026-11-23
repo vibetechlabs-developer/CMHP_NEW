@@ -55,6 +55,7 @@ const PRODUCT_TYPE_OPTIONS = [
   'Oil',
   'Kit',
   'Pills',
+  'Mother Tincture',
 ]
 
 

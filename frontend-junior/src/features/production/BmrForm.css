@@ -996,15 +996,15 @@
    ========================================================= */
 @media print {
   @page {
-    size: A4;
+    size: A4 portrait;
     margin: 0;
   }
 
   html,
   body {
-    width: 596pt !important;
-    min-width: 596pt !important;
-    max-width: 596pt !important;
+    width: 210mm !important;
+    min-width: 210mm !important;
+    max-width: 210mm !important;
     margin: 0 auto !important;
     padding: 0 !important;
     background: #ffffff !important;
@@ -1022,9 +1022,9 @@
   .main-content,
   .bmr-wrapper {
     display: block !important;
-    width: 596pt !important;
-    min-width: 596pt !important;
-    max-width: 596pt !important;
+    width: 210mm !important;
+    min-width: 210mm !important;
+    max-width: 210mm !important;
     margin: 0 !important;
     padding: 0 !important;
     background: #ffffff !important;
@@ -1056,19 +1056,19 @@
 
   .bmr-print-only-container {
     display: block !important;
-    width: 596pt !important;
-    max-width: 596pt !important;
+    width: 210mm !important;
+    max-width: 210mm !important;
     margin: 0 !important;
     padding: 0 !important;
     background: #ffffff !important;
   }
 
   .bmr-print-only-container .bmr-sheet {
-    width: 596pt !important;
-    height: 842pt !important;
-    max-height: 842pt !important;
-    min-height: 842pt !important;
-    padding: 44.5pt 34pt 38pt 45.33pt !important;
+    width: 210mm !important;
+    height: 296mm !important;
+    max-height: 296mm !important;
+    min-height: 296mm !important;
+    padding: 22pt 26pt 16pt 28pt !important;
     margin: 0 !important;
     box-sizing: border-box !important;
     display: flex !important;
@@ -1094,9 +1094,9 @@
 
   .bmr-print-only-container .bmr-header-box {
     width: 100% !important;
-    height: 249pt !important;
-    min-height: 249pt !important;
-    max-height: 249pt !important;
+    height: 232pt !important;
+    min-height: 232pt !important;
+    max-height: 232pt !important;
     border: 1.5px solid #000 !important;
     box-sizing: border-box !important;
     flex-shrink: 0 !important;
@@ -1134,7 +1134,7 @@
 
   .bmr-print-only-container .bmr-signoff-table {
     width: 100% !important;
-    height: 99pt !important;
+    height: 88pt !important;
     border-collapse: collapse !important;
     border: 1.5px solid #000 !important;
     box-sizing: border-box !important;
@@ -1146,7 +1146,7 @@
     border: 1px solid #000 !important;
     padding: 1pt 3pt !important;
     box-sizing: border-box !important;
-    font-size: 9.5pt !important;
+    font-size: 8.5pt !important;
   }
 
   .bmr-print-only-container .bmr-footer-meta {
@@ -2668,40 +2668,12 @@
     display: none !important;
   }
 
-  .bmr-print-only-container .bmr-tablet-sheet {
-
-    width: 596pt !important;
-
-    height: 842pt !important;
-
-    min-height: 842pt !important;
-
-    max-height: 842pt !important;
-
-    padding: 34pt 32pt 24pt 38pt !important;
-
-    box-sizing: border-box !important;
-
-    page-break-after: always !important;
-
-    break-after: page !important;
-
-    page-break-inside: avoid !important;
-
-    break-inside: avoid !important;
-
-    overflow: hidden !important;
-
-  }
-
-
-
   .bmr-print-only-container .bmr-mother-tincture-sheet {
-    width: 596pt !important;
-    height: 842pt !important;
-    min-height: 842pt !important;
-    max-height: 842pt !important;
-    padding: 24pt 34pt 20pt 38pt !important;
+    width: 210mm !important;
+    height: 296mm !important;
+    min-height: 296mm !important;
+    max-height: 296mm !important;
+    padding: 22pt 28pt 16pt 30pt !important;
     margin: 0 !important;
     box-sizing: border-box !important;
     display: flex !important;
@@ -2722,29 +2694,45 @@
   }
 
   .bmr-print-only-container .bmr-tablet-sheet {
-
-    width: 596pt !important;
-
-    height: 842pt !important;
-
-    min-height: 842pt !important;
-
-    max-height: 842pt !important;
-
-    padding: 34pt 32pt 24pt 38pt !important;
-
+    width: 210mm !important;
+    height: 296mm !important;
+    min-height: 296mm !important;
+    max-height: 296mm !important;
+    padding: 24pt 28pt 18pt 30pt !important;
     box-sizing: border-box !important;
-
     page-break-after: always !important;
-
     break-after: page !important;
-
     page-break-inside: avoid !important;
-
     break-inside: avoid !important;
-
     overflow: hidden !important;
+  }
 
+  .bmr-print-only-container .bmr-syrup-sheet {
+    width: 210mm !important;
+    height: 296mm !important;
+    min-height: 296mm !important;
+    max-height: 296mm !important;
+    padding: 22pt 26pt 16pt 28pt !important;
+    box-sizing: border-box !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    overflow: hidden !important;
+  }
+
+  .bmr-print-only-container .bmr-oil-sheet {
+    width: 210mm !important;
+    height: 296mm !important;
+    min-height: 296mm !important;
+    max-height: 296mm !important;
+    padding: 22pt 26pt 16pt 28pt !important;
+    box-sizing: border-box !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    overflow: hidden !important;
   }
 
 

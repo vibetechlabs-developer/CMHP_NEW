@@ -275,9 +275,9 @@ export default function CommonMaterialsTab() {
           </Button>
           {canManage && (
             <>
-              <Button type="button" variant="secondary" onClick={() => setImporting(true)}>
-                <span aria-hidden="true">📥</span> Import CSV
-              </Button>
+              <button type="button" className="so-btn-import-csv" onClick={() => setImporting(true)}>
+                📥 Import CSV
+              </button>
               <Button type="button" variant="primary" onClick={() => setEditing({ mode: 'create' })}>
                 + Add Material
               </Button>
@@ -630,9 +630,6 @@ function MaterialFormModal({ material, onClose, onSaved }) {
   const [unitId, setUnitId] = useState(material?.base_unit_id ? String(material.base_unit_id) : '')
   const [units, setUnits] = useState([])
   const [unitsError, setUnitsError] = useState('')
-  const [defaultContainerTypeId, setDefaultContainerTypeId] = useState(material?.default_container_type_id ?? '')
-  const [containerTypes, setContainerTypes] = useState([])
-  const [containerTypesError, setContainerTypesError] = useState('')
   const [categoryId, setCategoryId] = useState(material?.category_id ? String(material.category_id) : '')
   const [categories, setCategories] = useState([])
   const [categoriesError, setCategoriesError] = useState('')
@@ -666,10 +663,6 @@ function MaterialFormModal({ material, onClose, onSaved }) {
         }
       })
       .catch((err) => setUnitsError(getErrorMessage(err)))
-
-    listContainerTypes()
-      .then(setContainerTypes)
-      .catch((err) => setContainerTypesError(getErrorMessage(err)))
 
     listMaterialCategories()
       .then(setCategories)
@@ -716,10 +709,6 @@ function MaterialFormModal({ material, onClose, onSaved }) {
           base_unit_id: Number(unitId),
           alcohol_percentage: alcVal,
         }
-        const originalContainerId = material.default_container_type_id ?? ''
-        if (String(defaultContainerTypeId) !== String(originalContainerId)) {
-          payload.default_container_type_id = defaultContainerTypeId === '' ? null : Number(defaultContainerTypeId)
-        }
         const originalCategoryId = material.category_id ?? ''
         if (String(categoryId) !== String(originalCategoryId)) {
           payload.category_id = categoryId === '' ? null : Number(categoryId)
@@ -736,7 +725,6 @@ function MaterialFormModal({ material, onClose, onSaved }) {
           base_unit_id: Number(unitId),
           alcohol_percentage: alcVal,
         }
-        if (defaultContainerTypeId !== '') payload.default_container_type_id = Number(defaultContainerTypeId)
         if (categoryId !== '') payload.category_id = Number(categoryId)
         const createdMat = await createMaterial(payload)
         if (createReorderLevel !== '' && createStoreId) {
@@ -862,21 +850,6 @@ function MaterialFormModal({ material, onClose, onSaved }) {
               onChange={(e) => setLocation(e.target.value)}
             />
           </div>
-        </div>
-
-        {/* Default container type (below) */}
-        <div className="company-field">
-          <label className="inv-modal-field-label">
-            Default container type <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 11, color: '#7a96aa' }}>(optional)</span>
-          </label>
-          <select className="company-input" value={defaultContainerTypeId} onChange={(e) => setDefaultContainerTypeId(e.target.value)}>
-            <option value="">None</option>
-            {containerTypes.map((ct) => (
-              <option key={ct.id} value={ct.id}>{ct.name} ({ct.code})</option>
-            ))}
-          </select>
-          {containerTypesError && <p className="field-error">{containerTypesError}</p>}
-          <p className="inv-modal-hint">Packaging suggestion only — not a unit conversion.</p>
         </div>
 
         {/* Row: Alcohol Content % (Only for Raw Materials and Mother Tinctures) */}

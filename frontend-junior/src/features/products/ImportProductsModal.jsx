@@ -10,6 +10,7 @@ import { useState } from 'react'
 
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
+import FileInputButton from '../../components/FileInputButton'
 import Modal from '../inventory/components/Modal'
 import { getErrorMessage } from '../../utils/errors'
 import { commitProductImport, previewProductImport } from './productsService'
@@ -74,6 +75,9 @@ export default function ImportProductsModal({ companyId, onClose, onImported }) 
       const committed = await commitProductImport(companyId, batch.id, batch.version)
       setResult(committed)
       onImported?.(committed)
+      setTimeout(() => {
+        onClose?.()
+      }, 600)
     } catch (err) {
       if (err?.response?.status === 409) {
         setError('This import changed since it was checked. Choose the file again and check it before importing.')
@@ -118,18 +122,18 @@ export default function ImportProductsModal({ companyId, onClose, onImported }) 
         <>
           <div className="field" style={{ marginBottom: 12 }}>
             <label className="field-label" htmlFor="imp-file">CSV file</label>
-            <input
+            <FileInputButton
               id="imp-file"
-              className="field-input"
-              type="file"
               accept=".csv,text/csv"
+              fileName={file ? file.name : ''}
+              label="📂 Choose CSV File"
               onChange={(e) => {
                 setFile(e.target.files?.[0] || null)
                 setBatch(null)
                 setError('')
               }}
             />
-            <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 0' }}>
+            <p style={{ fontSize: 12, color: '#64748b', margin: '8px 0 0' }}>
               Required columns: <strong>code</strong>, <strong>name</strong>.
               Optional: <strong>type</strong> (or product_type), <strong>pack_size</strong>, <strong>bmr_no</strong>, <strong>sales_uom_code</strong>, <strong>description</strong>. UTF-8 only.
             </p>

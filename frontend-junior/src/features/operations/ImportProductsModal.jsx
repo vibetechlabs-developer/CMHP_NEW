@@ -3,6 +3,7 @@ import { useState } from 'react'
 import Modal from '../inventory/components/Modal'
 import Button from '../../components/Button'
 import Alert from '../../components/Alert'
+import FileInputButton from '../../components/FileInputButton'
 import { commitProductImport, previewProductImport } from './productImportService'
 import { getErrorMessage } from '../../utils/errors'
 
@@ -36,6 +37,9 @@ export default function ImportProductsModal({ realCompanyId, onClose, onImported
       const committed = await commitProductImport(realCompanyId, batch.id, batch.version)
       setResult(committed)
       onImported?.(committed)
+      setTimeout(() => {
+        onClose?.()
+      }, 600)
     } catch (err) {
       if (err?.response?.status === 409) {
         setError('This import changed since it was checked. Choose the file again and check it before importing.')
@@ -80,18 +84,18 @@ export default function ImportProductsModal({ realCompanyId, onClose, onImported
         <>
           <div className="imp-step">
             <label className="field-label" htmlFor="imp-file">CSV file</label>
-            <input
+            <FileInputButton
               id="imp-file"
-              className="field-input"
-              type="file"
               accept=".csv,text/csv"
+              fileName={file ? file.name : ''}
+              label="📂 Choose CSV File"
               onChange={(event) => {
                 setFile(event.target.files?.[0] || null)
                 setBatch(null)
                 setError('')
               }}
             />
-            <p className="imp-muted">
+            <p className="imp-muted" style={{ marginTop: 8 }}>
               Required columns: <strong>code</strong>, <strong>name</strong>, <strong>sales_uom_code</strong>.
               Optional: <strong>product_type</strong>, <strong>description</strong>. Use UTF-8.
             </p>
@@ -130,7 +134,7 @@ export default function ImportProductsModal({ realCompanyId, onClose, onImported
                     </tr>
                   </thead>
                   <tbody>
-                    {(batch.rows || []).map((row) => (
+                    {(batch.rows?.results || batch.rows || []).map((row) => (
                       <tr key={row.id} className={row.is_valid ? '' : 'is-invalid'}>
                         <td>{row.row_number}</td>
                         <td>{row.code}</td>

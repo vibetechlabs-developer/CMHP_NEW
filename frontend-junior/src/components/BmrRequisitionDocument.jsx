@@ -69,9 +69,9 @@ export default function BmrRequisitionDocument({
       {showWatermark && !isApproved && (
         <div className={`bmr-watermark ${isPending ? 'watermark-pending' : isDeclined ? 'watermark-declined' : 'watermark-draft'}`}>
           {isPending
-            ? 'PENDING QC APPROVAL'
+            ? 'PENDING QA APPROVAL'
             : isDeclined
-            ? 'DECLINED BY QC'
+            ? 'DECLINED BY QA'
             : 'DRAFT - NOT APPROVED'}
         </div>
       )}
@@ -272,9 +272,9 @@ export default function BmrRequisitionDocument({
           <div className="bmr-approval-endorsement">
             <div className="endorsement-icon">✓</div>
             <div>
-              <strong>QC / QA Release Endorsement:</strong> {approval.decisionRemarks}
+              <strong>QA Release Endorsement:</strong> {approval.decisionRemarks}
               <div style={{ fontSize: '11px', marginTop: '2px', color: '#15803d' }}>
-                Certified by <strong>{approverName}</strong> ({approval?.decidedByRole || 'QA / QC Manager'}) on {decidedDate}.
+                Certified by <strong>{approverName}</strong> ({approval?.decidedByRole || 'QA Manager'}) on {decidedDate}.
               </div>
             </div>
           </div>
@@ -284,10 +284,10 @@ export default function BmrRequisitionDocument({
           <div className="bmr-decline-endorsement">
             <div className="endorsement-icon">✕</div>
             <div>
-              <strong>QC Formulation Decline Notice [{approval.declineCategory || 'General'}]:</strong>{' '}
+              <strong>QA Formulation Decline Notice [{approval.declineCategory || 'General'}]:</strong>{' '}
               {approval.declineReason}
               <div style={{ fontSize: '11px', marginTop: '2px', color: '#b91c1c' }}>
-                Returned by <strong>{approval?.decidedBy || 'QC In-Charge'}</strong> ({approval?.decidedByRole || 'QC Reviewer'}) on {decidedDate}. Formula adjustment required before re-submission.
+                Returned by <strong>{approval?.decidedBy || 'QA In-Charge'}</strong> ({approval?.decidedByRole || 'QA Reviewer'}) on {decidedDate}. Formula adjustment required before re-submission.
               </div>
             </div>
           </div>
@@ -346,16 +346,16 @@ export default function BmrRequisitionDocument({
             <div className="signoff-col signoff-declined">
               <div className="signoff-title">
                 <strong>Audit Outcome</strong>
-                <div className="signoff-designation" style={{ color: '#dc2626', fontWeight: 700 }}>DECLINED BY QC</div>
+                <div className="signoff-designation" style={{ color: '#dc2626', fontWeight: 700 }}>DECLINED BY QA</div>
               </div>
               <div className="signoff-fields">
                 <div className="signoff-line">
                   <span className="sign-lbl">Name:</span>
-                  <span className="sign-val">{approval?.decidedBy || 'QC In-Charge'}</span>
+                  <span className="sign-val">{approval?.decidedBy || 'QA In-Charge'}</span>
                 </div>
                 <div className="signoff-line">
                   <span className="sign-lbl">Role:</span>
-                  <span className="sign-val">{approval?.decidedByRole || 'QC Reviewer'}</span>
+                  <span className="sign-val">{approval?.decidedByRole || 'QA Reviewer'}</span>
                 </div>
                 <div className="signoff-line">
                   <span className="sign-lbl">Date:</span>
@@ -367,7 +367,7 @@ export default function BmrRequisitionDocument({
             <div className={`signoff-col ${isApproved ? 'signoff-approved' : ''}`}>
               <div className="signoff-title">
                 <strong>Approved By</strong>
-                <div className="signoff-designation">QA / QC Manager</div>
+                <div className="signoff-designation">QA Manager</div>
               </div>
               <div className="signoff-fields">
                 <div className="signoff-line">
@@ -403,3 +403,4 @@ export default function BmrRequisitionDocument({
     </div>
   )
 }
+

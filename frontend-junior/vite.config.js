@@ -4,8 +4,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig(({ command }) => ({
   plugins: [react()],
   esbuild: { jsx: 'automatic' },
-  // build vakhte Django /static/ thi assets serve kare
-  base: command === 'build' ? '/static/' : '/',
+  base: '/',
   server: {
     // Explicit, not auto-picked - ports 5173 (frontend/) and 5174 (an
     // unrelated sibling project) are both already in use on this

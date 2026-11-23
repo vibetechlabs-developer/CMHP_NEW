@@ -20,10 +20,11 @@ CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=[])
 
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-SECURE_SSL_REDIRECT = env.bool("DJANGO_SECURE_SSL_REDIRECT", default=True)
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_SSL_REDIRECT = env.bool("DJANGO_SECURE_SSL_REDIRECT", default=False)
+SESSION_COOKIE_SECURE = env.bool("DJANGO_SESSION_COOKIE_SECURE", default=False)
+CSRF_COOKIE_SECURE = env.bool("DJANGO_CSRF_COOKIE_SECURE", default=False)
 SECURE_HSTS_SECONDS = env.int("DJANGO_SECURE_HSTS_SECONDS", default=0)
 
-# The refresh-token cookie must never travel over plain HTTP in production.
-AUTH_REFRESH_COOKIE_SECURE = True
+# The refresh-token cookie must never travel over plain HTTP in production when SSL is active.
+AUTH_REFRESH_COOKIE_SECURE = env.bool("DJANGO_AUTH_REFRESH_COOKIE_SECURE", default=False)
