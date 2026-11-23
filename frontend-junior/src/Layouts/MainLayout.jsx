@@ -864,17 +864,10 @@ export default function MainLayout() {
 
 
   const sidebarClass = [
-
     'layout-sidebar',
-
-    menuOpen
-      ? 'open'
-      : '',
-
-    collapsed
-      ? 'collapsed'
-      : '',
-
+    'no-print',
+    menuOpen ? 'open' : '',
+    collapsed ? 'collapsed' : '',
   ]
     .filter(Boolean)
     .join(' ')
@@ -1043,7 +1036,7 @@ export default function MainLayout() {
 
       <div className="layout-main">
 
-        <header className="layout-header">
+        <header className="layout-header no-print">
 
           <button
             type="button"
@@ -1170,7 +1163,7 @@ export default function MainLayout() {
         <main className="layout-content">
 
           {pageDemoNotice && (
-            <p className="demo-notice" role="note">
+            <p className="demo-notice no-print" role="note">
               {pageDemoNotice}
             </p>
           )}

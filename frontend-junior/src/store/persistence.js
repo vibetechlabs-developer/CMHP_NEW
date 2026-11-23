@@ -101,8 +101,15 @@ export function loadPersistedERPState() {
       if (!Array.isArray(data.commonRawMaterials)) data.commonRawMaterials = []
       if (!Array.isArray(data.stockLedgerEntries)) data.stockLedgerEntries = []
 
-      if (!data.orderQc || Object.keys(data.orderQc).length === 0) {
-        data.orderQc = { ...SEED_ORDER_QC }
+      if (!data.orderQc || typeof data.orderQc !== 'object') {
+        data.orderQc = {}
+      } else {
+        // Clean out legacy seeded sample test rows from localStorage so orders open blank
+        ['1793266000004', '1793266000005', '1793266000104', '1793266000105'].forEach((id) => {
+          if (data.orderQc[id]?.test_rows?.some((r) => r.result === 'Brown viscous liquid' || r.result === 'Clear liquid')) {
+            delete data.orderQc[id]
+          }
+        })
       }
       if (!Array.isArray(data.orders) || data.orders.length === 0) {
         data.orders = [...SEED_ORDERS]

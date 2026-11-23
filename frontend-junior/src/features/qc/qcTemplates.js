@@ -15,11 +15,11 @@ export const QC_TEMPLATES = {
   },
   Liquid: {
     dosageForm: 'Liquid',
-    qcType: 'oil',
+    qcType: null,
     title: 'CERTIFICATE OF ANALYSIS (FINISHED PRODUCT – LIQUID)',
     formNo: 'SOP/QC/11/F-05/00',
-    pagesCount: 2,
-    isAvailable: true,
+    pagesCount: 0,
+    isAvailable: false,
   },
   Tablet: {
     dosageForm: 'Tablet',
@@ -55,32 +55,32 @@ export const QC_TEMPLATES = {
   },
   Capsule: {
     dosageForm: 'Capsule',
-    qcType: 'tablet',
+    qcType: null,
     title: 'CERTIFICATE OF ANALYSIS (FINISHED PRODUCT – CAPSULE)',
     formNo: 'SOP/QC/11/F-05/00',
-    pagesCount: 2,
-    isAvailable: true,
+    pagesCount: 0,
+    isAvailable: false,
   },
   Pills: {
     dosageForm: 'Pills',
-    qcType: 'tablet',
+    qcType: null,
     title: 'CERTIFICATE OF ANALYSIS (BIOCHEMIC PILLS)',
     formNo: 'SOP/QC/11/F-05/00',
-    pagesCount: 2,
-    isAvailable: true,
+    pagesCount: 0,
+    isAvailable: false,
   },
   Kits: {
     dosageForm: 'Kits',
-    qcType: 'oil',
+    qcType: null,
     title: 'CERTIFICATE OF ANALYSIS (FIRST AID / REHYDRATION KIT)',
     formNo: 'SOP/QC/11/F-05/00',
-    pagesCount: 1,
-    isAvailable: true,
+    pagesCount: 0,
+    isAvailable: false,
   },
 }
 
 export function getQcTemplate(dosageForm) {
-  if (!dosageForm) return QC_TEMPLATES.Tablet
+  if (!dosageForm) return null
   const normalized = String(dosageForm).trim().toLowerCase()
 
   if (normalized.startsWith('tablet') || normalized === 'tab' || normalized === 'tabs') {
@@ -98,10 +98,10 @@ export function getQcTemplate(dosageForm) {
   if (normalized.startsWith('oil')) {
     return QC_TEMPLATES.Oil
   }
-  if (normalized.startsWith('liquid') || normalized.includes('solution')) {
+  if (normalized.startsWith('liquid') || normalized.includes('solution') || normalized.includes('suspension')) {
     return QC_TEMPLATES.Liquid
   }
-  if (normalized.startsWith('capsule')) {
+  if (normalized.startsWith('capsule') || normalized === 'cap') {
     return QC_TEMPLATES.Capsule
   }
   if (normalized.startsWith('pill')) {
@@ -114,7 +114,7 @@ export function getQcTemplate(dosageForm) {
   const matchKey = Object.keys(QC_TEMPLATES).find(
     (key) => key.toLowerCase() === normalized
   )
-  return matchKey ? QC_TEMPLATES[matchKey] : QC_TEMPLATES.Tablet
+  return matchKey ? QC_TEMPLATES[matchKey] : null
 }
 
 /**

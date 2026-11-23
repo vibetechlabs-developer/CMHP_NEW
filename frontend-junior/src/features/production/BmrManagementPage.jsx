@@ -568,110 +568,25 @@ export default function BmrManagementPage() {
                           {o.bmr_status === 'YES' ? '✓ Completed' : '⏳ Pending'}
                         </StatusPill>
                       </td>
-                      <td style={{ textAlign: 'right' }}>
-                        {(dForm.toLowerCase().includes('capsule') || (o.product_name || '').toLowerCase().includes('capsule')) ? (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: 6, fontSize: 12, fontWeight: 700 }}>
-                            🚫 NO BMR
-                          </span>
-                        ) : (
-                          <Button
-                            size="xs"
-                            variant="primary"
-                            onClick={() => launchBmr({
-                              orderId: o.id,
-                              dosageForm: dForm,
-                              bmrNo: o.batch_no,
-                            })}
-                          >
-                            📋 Open BMR
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      ) : activeTab === 'filled' ? (
-        /* ── FILLED BMR RECORDS TAB ── */
-        <div className="ci-table-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
-            <div>
-              <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
-                📋 Executed &amp; Saved Batch Manufacturing Records (BMR)
-              </h4>
-              <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>
-                Locally saved and executed BMR records from IndexedDB and local storage. Click View to reopen, print, or review any batch.
-              </p>
-            </div>
-            <Button size="xs" variant="secondary" onClick={loadFilledBmrs}>
-              🔄 Refresh List
-            </Button>
-          </div>
-
-          <table className="ci-table">
-            <thead>
-              <tr>
-                <th style={{ width: 140 }}>Batch No.</th>
-                <th>Product Name</th>
-                <th style={{ width: 140 }}>Dosage Form</th>
-                <th style={{ width: 170 }}>Last Saved / Updated</th>
-                <th style={{ width: 120 }}>Storage</th>
-                <th style={{ width: 160, textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredFilledBmrs.length === 0 ? (
-                <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
-                    <div style={{ fontSize: 28, marginBottom: 8 }}>📭</div>
-                    <strong>No filled BMR records found.</strong>
-                    <div style={{ fontSize: 12, marginTop: 4 }}>
-                      When you fill and save a BMR in the editor, it will automatically appear here with full history and print capability.
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                filteredFilledBmrs.map((rec, idx) => {
-                  const bNo = rec.batchNo || rec.batch || 'BATCH-01'
-                  const pName = rec.productName || rec.product || 'Pharmaceutical Product'
-                  const dForm = rec.dosageForm || rec.dosage_form || 'Syrup'
-                  const dateStr = rec.lastModified ? new Date(rec.lastModified).toLocaleString('en-IN') : 'Saved'
-
-                  return (
-                    <tr key={rec.batchNo || idx}>
-                      <td>
-                        <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: 4, fontSize: 12, fontWeight: 700 }}>
-                          {bNo}
-                        </span>
-                      </td>
-                      <td>
-                        <strong style={{ color: '#0f172a' }}>{pName}</strong>
-                      </td>
-                      <td>
-                        <StatusPill tone="info">{dForm}</StatusPill>
-                      </td>
-                      <td style={{ fontSize: 12, color: '#64748b' }}>
-                        {dateStr}
-                      </td>
-                      <td>
-                        <StatusPill tone="success">
-                          ✓ IndexedDB
-                        </StatusPill>
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
+                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                         <Button
                           size="xs"
                           variant="primary"
                           onClick={() => launchBmr({
-                            productName: pName,
+                            orderId: o.id,
                             dosageForm: dForm,
-                            bmrNo: bNo,
+                            bmrNo: o.batch_no,
                           })}
                         >
-                          👁️ View / Print BMR
+                          📋 Open BMR
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="secondary"
+                          onClick={() => navigate(`/qc/view/${o.id}`)}
+                          style={{ marginLeft: 6 }}
+                        >
+                          📜 View CoA
                         </Button>
                       </td>
                     </tr>

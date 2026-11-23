@@ -67,72 +67,99 @@
 }
 
 /* =========================================================
-   HEADER BLOCK (6 columns: 12.23% / 11.82% / 18.11% / 18.94% / 21.31% / 17.60%)
+   HEADER BLOCK
    ========================================================= */
-.qc-syrup-header-table {
-  border: 1px solid #000000 !important;
-  width: 648px !important;
-  flex-shrink: 0;
+.qc-syrup-header-box {
+  width: 100% !important;
+  border: 1.5pt solid #000000 !important;
+  border-bottom: none !important;
+  box-sizing: border-box !important;
+  background: #ffffff !important;
+  position: relative !important;
+  flex-shrink: 0 !important;
 }
 
-.qc-syrup-header-row-1 {
-  height: 38px;
-  min-height: 38px;
-  max-height: 38px;
-}
-
-.qc-syrup-header-row-1-cell {
-  height: 38px !important;
-  min-height: 38px !important;
-  max-height: 38px !important;
-  padding: 0 4px !important;
-  vertical-align: middle !important;
-}
-
-.qc-syrup-header-row-1-content {
-  display: flex;
-  align-items: center;
-  height: 100%;
-  position: relative;
-  justify-content: center;
+.qc-syrup-header-content {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  position: relative !important;
+  width: 100% !important;
+  height: 38pt !important;
+  min-height: 38pt !important;
+  max-height: 38pt !important;
+  padding: 0 8pt !important;
+  box-sizing: border-box !important;
 }
 
 .qc-syrup-logo-wrap {
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 84px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
+  width: 90px !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  flex-shrink: 0 !important;
+  position: static !important;
+  transform: none !important;
 }
 
 .qc-syrup-logo-wrap-tej {
-  width: 90px;
+  width: 100px !important;
 }
 
 .qc-syrup-logo-img {
-  max-width: 84px;
-  max-height: 36px;
-  object-fit: contain;
+  max-width: 90px !important;
+  max-height: 30px !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+  display: block !important;
 }
 
 .qc-syrup-logo-img-tej {
-  max-width: 90px;
-  max-height: 36px;
-  object-fit: contain;
+  max-width: 100px !important;
+  max-height: 30px !important;
+  object-fit: contain !important;
+  display: block !important;
 }
 
 .qc-syrup-company-title {
+  flex: 1 1 auto !important;
   font-family: 'Times New Roman', Times, serif !important;
-  font-size: 18pt !important;
-  font-weight: normal !important; /* 18 pt regular */
+  font-size: 19pt !important;
+  font-weight: normal !important;
   line-height: 1 !important;
   color: #000000 !important;
-  text-align: center;
-  white-space: nowrap;
+  text-align: center !important;
+  margin-right: 90px !important;
+  margin-left: 0 !important;
+  white-space: nowrap !important;
+}
+
+.qc-syrup-title-section {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  flex-shrink: 0 !important;
+}
+
+.qc-syrup-title-bar {
+  width: 100% !important;
+  border: 1.5pt solid #000000 !important;
+  border-bottom: none !important;
+  background: #ffffff !important;
+  text-align: center !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  font-weight: bold !important;
+  font-size: 11pt !important;
+  padding: 2.5pt 4pt !important;
+  line-height: 1.2 !important;
+  box-sizing: border-box !important;
+}
+
+.qc-syrup-header-table {
+  border: 1.5pt solid #000000 !important;
+  width: 100% !important;
+  flex-shrink: 0 !important;
 }
 
 .qc-syrup-title-cell {
@@ -385,6 +412,11 @@
   text-align: left !important;
 }
 
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
 /* =========================================================
    PRINT / PDF MEDIA STYLES
    ========================================================= */
@@ -398,30 +430,100 @@
     margin: 0 !important;
     padding: 0 !important;
     background: #ffffff !important;
+    color: #000000 !important;
+    width: 210mm !important;
+    height: auto !important;
+    overflow: visible !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
+  /* Neutralize app-shell layout wrappers */
+  #root,
+  .app,
+  .layout,
+  .layout-body,
+  .layout-main,
+  .layout-content,
+  .main-layout,
+  .main-content,
+  .inv,
+  .coa-interactive-workspace,
+  .qc-view-page-wrapper,
+  .qc-view-wrapper {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: static !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+
+  /* Suppress all app chrome */
+  header,
+  nav,
+  aside,
+  footer,
+  .hero-banner,
+  .page-header-container,
+  .page-header,
   .qc-topbar,
-  .qc-layout aside,
-  .qc-bottom-nav,
+  .qc-layout,
+  .qc-interactive-screen-sheet,
+  .app-sidebar,
+  .app-header,
+  .main-sidebar,
+  .main-header,
+  .layout-sidebar,
+  .layout-header,
+  .demo-notice,
+  .qc-filter-group,
+  .qc-multi-line-tabs,
+  button,
+  .btn,
   .no-print {
     display: none !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    overflow: hidden !important;
+    visibility: hidden !important;
   }
 
   .qc-print-only-container {
     display: block !important;
-    margin: 0 !important;
+    visibility: visible !important;
+    width: 210mm !important;
+    max-width: 210mm !important;
+    margin: 0 auto !important;
     padding: 0 !important;
+    position: static !important;
+    background: #ffffff !important;
+  }
+
+  .qc-print-only-container * {
+    visibility: visible !important;
   }
 
   .qc-print-only-container .qc-syrup-sheet {
-    width: 595.3pt !important;
-    height: 841.9pt !important;
-    min-height: 841.9pt !important;
-    max-height: 841.9pt !important;
-    padding: 36pt 23pt 36pt 86.4pt !important;
-    margin: 0 !important;
+    width: 100% !important;
+    max-width: 210mm !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: 285mm !important;
+    padding: 10pt 20pt 8pt 32pt !important;
+    margin: 0 auto !important;
     border: none !important;
     box-shadow: none !important;
     border-radius: 0 !important;
@@ -431,21 +533,69 @@
     break-before: avoid !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
-    overflow: hidden !important;
+    overflow: visible !important;
     box-sizing: border-box !important;
     background: #ffffff !important;
     color: #000000 !important;
     position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
   }
 
+  .qc-print-only-container .qc-syrup-header-box,
+  .qc-print-only-container .qc-syrup-title-section,
   .qc-print-only-container .qc-syrup-header-table,
   .qc-print-only-container .qc-syrup-test-table,
   .qc-print-only-container .qc-syrup-lc-table,
   .qc-print-only-container .qc-syrup-footer-section,
   .qc-print-only-container .qc-syrup-signoff-table,
   .qc-print-only-container .qc-syrup-page-footer {
-    width: 486pt !important;
-    max-width: 486pt !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Compact print spacing to guarantee full sign-off and footer visibility without clipping */
+  .qc-print-only-container .qc-syrup-gap-6 {
+    height: 3px !important;
+  }
+
+  .qc-print-only-container .qc-syrup-gap-4 {
+    height: 2px !important;
+  }
+
+  .qc-print-only-container .qc-syrup-lc-caption {
+    margin-top: 4px !important;
+    margin-bottom: 2px !important;
+  }
+
+  .qc-print-only-container .qc-syrup-footnote {
+    margin-top: 2px !important;
+    margin-bottom: 3px !important;
+    font-size: 9.5pt !important;
+    line-height: 1.15 !important;
+  }
+
+  .qc-print-only-container .qc-syrup-text-block {
+    margin-bottom: 3px !important;
+    font-size: 9.5pt !important;
+    line-height: 1.15 !important;
+  }
+
+  .qc-print-only-container .qc-syrup-remarks-block {
+    margin-bottom: 4px !important;
+    font-size: 10pt !important;
+    line-height: 1.15 !important;
+  }
+
+  .qc-print-only-container .qc-syrup-signoff-sig-cell {
+    height: 24px !important;
+    min-height: 24px !important;
+  }
+
+  .qc-print-only-container .qc-syrup-page-footer {
+    margin-top: 3px !important;
+    font-size: 9.5pt !important;
   }
 
   .qc-print-only-container .qc-syrup-signoff-grey-cell {
@@ -454,7 +604,8 @@
     print-color-adjust: exact !important;
   }
 
-  .qc-print-only-container input.qc-cell-input {
+  .qc-print-only-container input.qc-cell-input,
+  .qc-print-only-container textarea.qc-cell-input {
     border: none !important;
     background: transparent !important;
     box-shadow: none !important;

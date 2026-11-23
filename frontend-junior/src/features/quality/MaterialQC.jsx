@@ -433,19 +433,21 @@ export default function MaterialQC() {
 
   return (
     <div className="inv">
-      <HeroBanner
-        eyebrow="Material Incoming QC"
-        title="Quality Control — Material Check"
-        subtitle="Posted GRNs stay in QC quarantine. Approve here to make them issue-eligible in store."
-      />
+      <div className="no-print">
+        <HeroBanner
+          eyebrow="Material Incoming QC"
+          title="Quality Control — Material Check"
+          subtitle="Posted GRNs stay in QC quarantine. Approve here to make them issue-eligible in store."
+        />
 
-      <PageHeader
-        breadcrumbs={['Workspace', companyName, 'Quality Control']}
-        title="Material Quality Control"
-        subtitle="Purchase → GRN posted (quarantine) → QC Check → Approved → Store issue-eligible"
-        pill="Incoming QC Gate"
-        primaryAction={{ label: '🔄 Refresh', onClick: () => { loadIncomingLots(); setError('') } }}
-      />
+        <PageHeader
+          breadcrumbs={['Workspace', companyName, 'Quality Control']}
+          title="Material Quality Control"
+          subtitle="Purchase → GRN posted (quarantine) → QC Check → Approved → Store issue-eligible"
+          pill="Incoming QC Gate"
+          primaryAction={{ label: '🔄 Refresh', onClick: () => { loadIncomingLots(); setError('') } }}
+        />
+      </div>
 
       {/* ── View Switcher Tabs ── */}
       <div className="qc-filter-group no-print" style={{ marginBottom: 18, borderBottom: '1px solid #e2e8f0', paddingBottom: 10 }}>

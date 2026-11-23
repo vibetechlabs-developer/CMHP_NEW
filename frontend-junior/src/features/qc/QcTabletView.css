@@ -4,42 +4,85 @@
    Exact 1-to-1 Vector Geometry Replica of Master Tablet PDF
    ========================================================= */
 
-/* Tablet Header Box */
-.qc-tablet-header-box {
-  width: 100%;
-  height: 111.0pt;
-  min-height: 111.0pt;
-  max-height: 111.0pt;
-  border: 1px solid #000000 !important;
-  box-sizing: border-box;
-  flex-shrink: 0;
-  position: relative;
-  display: flex;
-  flex-direction: column;
+/* Tablet & Oil Header Box */
+.qc-tablet-header-box,
+.qc-header-box {
+  width: 100% !important;
+  border: 1.5pt solid #000000 !important;
+  border-bottom: none !important;
+  box-sizing: border-box !important;
+  background: #ffffff !important;
+  position: relative !important;
+  flex-shrink: 0 !important;
 }
 
-.qc-tablet-header-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 4pt 8pt 0 6.75pt;
-  position: relative;
-  height: 32pt;
+.qc-tablet-header-top,
+.qc-tablet-header-content,
+.qc-header-content {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  padding: 0 8pt !important;
+  position: relative !important;
+  width: 100% !important;
+  height: 38pt !important;
+  min-height: 38pt !important;
+  max-height: 38pt !important;
+  box-sizing: border-box !important;
 }
 
-.qc-tablet-company-title {
+.qc-tablet-logo-wrap,
+.qc-logo-wrap {
+  width: 90px !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  flex-shrink: 0 !important;
+}
+
+.qc-tablet-logo-wrap-tej,
+.qc-logo-wrap-tej {
+  width: 100px !important;
+}
+
+.qc-tablet-logo-img,
+.qc-logo-img {
+  max-width: 90px !important;
+  max-height: 30px !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+  display: block !important;
+}
+
+.qc-tablet-logo-img-tej,
+.qc-logo-img-tej {
+  max-width: 100px !important;
+  max-height: 30px !important;
+  object-fit: contain !important;
+  display: block !important;
+}
+
+.qc-tablet-company-title,
+.qc-company-title {
+  flex: 1 1 auto !important;
   font-family: 'Times New Roman', Times, serif !important;
-  font-size: 20pt !important;
+  font-size: 19pt !important;
   font-weight: normal !important;
-  text-align: right !important;
+  text-align: center !important;
   color: #000000 !important;
-  letter-spacing: 0.3px;
-  line-height: 1.1;
-  margin-left: auto;
+  letter-spacing: 0.3px !important;
+  line-height: 1 !important;
+  margin-right: 90px !important;
+  margin-left: 0 !important;
+  white-space: nowrap !important;
 }
 
-.qc-tablet-header-blank {
-  flex: 1;
+.qc-tablet-header-blank,
+.qc-tablet-blank-space,
+.qc-header-blank-space {
+  display: none !important;
 }
 
 /* Tablet Title Section */
@@ -77,11 +120,13 @@
 }
 
 /* Tablet Info Grid Table (6-column layout: approx 12% / 12% / 18% / 19% / 21% / 18%) */
+.qc-tablet-info-wrap,
 .qc-tablet-info-grid-wrap {
   width: 100%;
   flex-shrink: 0;
 }
 
+.qc-tablet-info-table,
 .qc-tablet-info-grid-table {
   border: 1px solid #000000 !important;
   border-top: none !important;
@@ -90,6 +135,7 @@
   table-layout: fixed !important;
 }
 
+.qc-tablet-info-table td,
 .qc-tablet-info-grid-table td {
   border: none !important;
   border-right: 1px solid #000000 !important;
@@ -101,6 +147,7 @@
   color: #000000 !important;
 }
 
+.qc-tablet-info-table td:last-child,
 .qc-tablet-info-grid-table td:last-child {
   border-right: none !important;
 }
@@ -388,4 +435,221 @@
   min-height: 60pt;
   display: flex;
   flex-direction: column;
+}
+
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
+/* =========================================================
+   PRINT / PDF MEDIA STYLES (TABLET & OIL - 2 SHEETS)
+   ========================================================= */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  body, html {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    width: 210mm !important;
+    height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Neutralize app-shell layout wrappers */
+  #root,
+  .app,
+  .layout,
+  .layout-body,
+  .layout-main,
+  .layout-content,
+  .main-layout,
+  .main-content,
+  .inv,
+  .coa-interactive-workspace,
+  .qc-view-page-wrapper,
+  .qc-view-wrapper {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: static !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+
+  /* Suppress all app chrome */
+  header,
+  nav,
+  aside,
+  footer,
+  .hero-banner,
+  .page-header-container,
+  .page-header,
+  .qc-topbar,
+  .qc-layout,
+  .qc-interactive-screen-sheet,
+  .app-sidebar,
+  .app-header,
+  .main-sidebar,
+  .main-header,
+  .layout-sidebar,
+  .layout-header,
+  .demo-notice,
+  .qc-filter-group,
+  .qc-multi-line-tabs,
+  button,
+  .btn,
+  .no-print {
+    display: none !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    overflow: hidden !important;
+    visibility: hidden !important;
+  }
+
+  .qc-print-only-container {
+    display: block !important;
+    visibility: visible !important;
+    width: 210mm !important;
+    max-width: 210mm !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    position: static !important;
+    background: #ffffff !important;
+  }
+
+  .qc-print-only-container * {
+    visibility: visible !important;
+  }
+
+  /* Page 1 (Tablet & Oil) */
+  .qc-print-only-container .qc-sheet:first-child,
+  .qc-print-only-container #qc-tablet-page-1,
+  .qc-print-only-container #qc-oil-page-1 {
+    width: 100% !important;
+    max-width: 210mm !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: 285mm !important;
+    padding: 10pt 20pt 8pt 32pt !important;
+    margin: 0 auto !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    page-break-before: avoid !important;
+    break-before: avoid !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    overflow: visible !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+  }
+
+  /* Page 2 (Tablet & Oil) */
+  .qc-print-only-container .qc-sheet:last-child,
+  .qc-print-only-container #qc-tablet-page-2,
+  .qc-print-only-container #qc-oil-page-2 {
+    width: 100% !important;
+    max-width: 210mm !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: 285mm !important;
+    padding: 10pt 20pt 8pt 32pt !important;
+    margin: 0 auto !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    page-break-before: auto !important;
+    break-before: auto !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    overflow: visible !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+  }
+
+  .qc-print-only-container .qc-tablet-gap-header-body {
+    height: 3px !important;
+  }
+
+  .qc-print-only-container .qc-tablet-gap-page2 {
+    height: 4px !important;
+  }
+
+  .qc-print-only-container .qc-tablet-page2-blank-area,
+  .qc-print-only-container .qc-page2-blank-area {
+    min-height: 100pt !important;
+  }
+
+  .qc-print-only-container .qc-page-footer {
+    margin-top: 3px !important;
+    font-size: 9.5pt !important;
+  }
+
+  .qc-print-only-container .qc-tablet-header-box,
+  .qc-print-only-container .qc-header-box,
+  .qc-print-only-container .qc-tablet-title-section,
+  .qc-print-only-container .qc-title-section,
+  .qc-print-only-container .qc-tablet-info-grid,
+  .qc-print-only-container .qc-info-grid,
+  .qc-print-only-container .qc-tablet-test-table,
+  .qc-print-only-container .qc-test-table,
+  .qc-print-only-container .qc-tablet-lc-table,
+  .qc-print-only-container .qc-lc-table,
+  .qc-print-only-container .qc-tablet-signoff-table,
+  .qc-print-only-container .qc-signoff-table,
+  .qc-print-only-container .qc-page-footer {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .qc-print-only-container input.qc-cell-input,
+  .qc-print-only-container textarea.qc-cell-input {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: #000000 !important;
+    padding: 0 !important;
+  }
+
+  .qc-date-picker-icon {
+    display: none !important;
+  }
+
+  .qc-date-print-value {
+    display: inline !important;
+  }
 }

@@ -89,49 +89,61 @@
   vertical-align: middle !important;
 }
 
-.qc-mt-header-row-1-content {
-  display: flex;
-  align-items: center;
-  height: 100%;
-  position: relative;
+.qc-mt-header-box {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  position: relative !important;
+  width: 100% !important;
+  height: 38pt !important;
+  min-height: 38pt !important;
+  max-height: 38pt !important;
+  padding: 0 8pt !important;
+  box-sizing: border-box !important;
 }
 
 .qc-mt-logo-wrap {
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 84px;
-  height: 37px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
+  width: 90px !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  flex-shrink: 0 !important;
+  position: static !important;
+  transform: none !important;
 }
 
 .qc-mt-logo-wrap-tej {
-  width: 90px;
+  width: 100px !important;
 }
 
 .qc-mt-logo-img {
-  max-width: 84px;
-  max-height: 37px;
-  object-fit: contain;
+  max-width: 90px !important;
+  max-height: 30px !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+  display: block !important;
 }
 
 .qc-mt-logo-img-tej {
-  max-width: 90px;
-  max-height: 37px;
-  object-fit: contain;
+  max-width: 100px !important;
+  max-height: 30px !important;
+  object-fit: contain !important;
+  display: block !important;
 }
 
 .qc-mt-company-title {
-  margin-left: 182px; /* starting ~1.9 in / ~182 px from left edge */
+  flex: 1 1 auto !important;
   font-family: 'Times New Roman', Times, serif !important;
-  font-size: 18pt !important;
-  font-weight: normal !important; /* regular weight, NOT bold */
+  font-size: 19pt !important;
+  font-weight: normal !important;
   line-height: 1 !important;
   color: #000000 !important;
-  white-space: nowrap;
+  text-align: center !important;
+  margin-right: 90px !important;
+  margin-left: 0 !important;
+  white-space: nowrap !important;
 }
 
 /* Row 2: "Quality Control" (about 29 px tall, 12pt bold centered) */
@@ -432,19 +444,120 @@
   font-weight: bold !important;
 }
 
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
 /* =========================================================
    PRINT STYLES FOR MOTHER TINCTURE COA
    Guarantees EXACTLY 1 A4 page output
    Zero overflow, zero extra pages, zero clipped rows
    ========================================================= */
 @media print {
-  .qc-print-only-container .qc-mt-sheet {
-    width: 595.3pt !important;
-    height: 841.9pt !important;
-    min-height: 841.9pt !important;
-    max-height: 841.9pt !important;
-    padding: 22.5pt 28.5pt 0 81pt !important;
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  body, html {
     margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    width: 210mm !important;
+    height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Neutralize app-shell layout wrappers */
+  #root,
+  .app,
+  .layout,
+  .layout-body,
+  .layout-main,
+  .layout-content,
+  .main-layout,
+  .main-content,
+  .inv,
+  .coa-interactive-workspace,
+  .qc-view-page-wrapper,
+  .qc-view-wrapper {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: static !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+
+  /* Suppress all app chrome */
+  header,
+  nav,
+  aside,
+  footer,
+  .hero-banner,
+  .page-header-container,
+  .page-header,
+  .qc-topbar,
+  .qc-layout,
+  .qc-interactive-screen-sheet,
+  .app-sidebar,
+  .app-header,
+  .main-sidebar,
+  .main-header,
+  .layout-sidebar,
+  .layout-header,
+  .demo-notice,
+  .qc-filter-group,
+  .qc-multi-line-tabs,
+  button,
+  .btn,
+  .no-print {
+    display: none !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    overflow: hidden !important;
+    visibility: hidden !important;
+  }
+
+  .qc-print-only-container {
+    display: block !important;
+    visibility: visible !important;
+    width: 210mm !important;
+    max-width: 210mm !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    position: static !important;
+    background: #ffffff !important;
+  }
+
+  .qc-print-only-container * {
+    visibility: visible !important;
+  }
+
+  .qc-print-only-container .qc-mt-sheet {
+    width: 100% !important;
+    max-width: 210mm !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: 285mm !important;
+    padding: 10pt 20pt 8pt 32pt !important;
+    margin: 0 auto !important;
     border: none !important;
     box-shadow: none !important;
     border-radius: 0 !important;
@@ -454,11 +567,14 @@
     break-before: avoid !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
-    overflow: hidden !important;
+    overflow: visible !important;
     box-sizing: border-box !important;
     background: #ffffff !important;
     color: #000000 !important;
     position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
   }
 
   .qc-print-only-container .qc-mt-header-table,
@@ -466,25 +582,30 @@
   .qc-print-only-container .qc-mt-signoff-table,
   .qc-print-only-container .qc-mt-remarks-wrap,
   .qc-print-only-container .qc-mt-page-footer {
-    width: 486pt !important;
-    max-width: 486pt !important;
-  }
-
-  .qc-print-only-container .qc-mt-company-title {
-    margin-left: 136.5pt !important; /* ~1.9 in / ~182 px at 96 dpi */
-    font-size: 18pt !important;
-  }
-
-  .qc-print-only-container .qc-mt-signoff-section {
-    position: absolute !important;
-    top: 655.5pt !important; /* 874px * 72 / 96 = 655.5pt */
-    left: 81pt !important; /* 108px * 72 / 96 = 81pt */
-    width: 486pt !important; /* 648px * 72 / 96 = 486pt */
+    width: 100% !important;
+    max-width: 100% !important;
   }
 
   .qc-print-only-container .qc-mt-signoff-grey-cell {
     background-color: #d9d9d9 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+
+  .qc-print-only-container input.qc-cell-input,
+  .qc-print-only-container textarea.qc-cell-input {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: #000000 !important;
+    padding: 0 !important;
+  }
+
+  .qc-date-picker-icon {
+    display: none !important;
+  }
+
+  .qc-date-print-value {
+    display: inline !important;
   }
 }

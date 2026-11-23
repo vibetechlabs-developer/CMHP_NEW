@@ -986,3 +986,46 @@
   background: rgba(239, 68, 68, 0.15);
   color: #ef4444;
 }
+
+/* =========================================================
+   APP SHELL PRINT STYLES
+   ========================================================= */
+@media print {
+  .layout-sidebar,
+  .layout-header,
+  .demo-notice,
+  .menu-toggle,
+  .header-search,
+  .header-right,
+  .no-print {
+    display: none !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    overflow: hidden !important;
+    visibility: hidden !important;
+  }
+
+  .layout,
+  .layout-main,
+  .layout-content {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    background: transparent !important;
+  }
+}
+
