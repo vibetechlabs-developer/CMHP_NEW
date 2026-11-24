@@ -1,0 +1,319 @@
+/* =========================================================
+   CMHP PHARMA - MOTHER TINCTURE SLIPS STYLESHEET
+   Attachment-1: RM Request for Mother Tincture
+   Attachment-3: Bulk Release Slip (MT)
+   Font: Times New Roman / Serif
+   ========================================================= */
+
+.mt-rm-page,
+.mt-br-page,
+.mt-tr-page {
+  width: 794px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin: 0 auto;
+  box-sizing: border-box;
+  font-family: 'Times New Roman', Times, Georgia, serif;
+}
+
+.mt-rm-sheet,
+.mt-br-sheet,
+.mt-tr-sheet {
+  width: 100%;
+  background: #ffffff;
+  color: #000000;
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  box-sizing: border-box;
+  font-size: 11pt;
+  line-height: 1.35;
+}
+
+.mt-rm-table,
+.mt-br-table,
+.mt-tr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 11pt;
+  color: #000000;
+  table-layout: fixed;
+  border: 1.5px solid #000000;
+}
+
+.mt-rm-table td,
+.mt-br-table td,
+.mt-tr-table td {
+  border: 1px solid #000000;
+  padding: 4px 6px;
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+
+.mt-rm-logo-wrap,
+.mt-br-logo-wrap,
+.mt-tr-logo-wrap {
+  width: 110px;
+  display: flex;
+  align-items: center;
+}
+
+.mt-rm-logo-img,
+.mt-br-logo-img,
+.mt-tr-logo-img {
+  max-height: 38px;
+  width: auto;
+  object-fit: contain;
+}
+
+.mt-rm-header-inner,
+.mt-br-header-inner,
+.mt-tr-header-inner {
+  display: flex;
+  align-items: center;
+  position: relative;
+  min-height: 42px;
+}
+
+.mt-rm-company-title,
+.mt-br-company-title,
+.mt-tr-company-title {
+  flex: 1;
+  text-align: center;
+}
+
+.mt-rm-table2-wrap {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.mt-rm-table2 {
+  width: 426pt;
+  max-width: 100%;
+  border-collapse: collapse;
+  border: 1.5px solid #000000;
+  table-layout: fixed;
+}
+
+.mt-rm-table2 td {
+  border: 1px solid #000000;
+  padding: 4px 8px;
+  box-sizing: border-box;
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 11pt;
+  vertical-align: middle;
+}
+
+.mt-rm-table2-lbl {
+  width: 105pt;
+  text-align: center;
+  font-weight: 700;
+  border-right: 1px solid #000000;
+}
+
+.mt-rm-table2-val {
+  width: 321pt;
+}
+
+.mt-br-caption {
+  font-size: 10.5pt;
+  font-weight: 700;
+  padding: 4px 6px;
+  margin-top: 2px;
+  color: #000000;
+  font-family: 'Times New Roman', Times, Georgia, serif;
+}
+
+/* On screen: hide stacked second copies */
+.mt-rm-copy-gap.print-only-copy,
+.mt-rm-sheet.print-only-copy,
+.mt-br-copy-gap.print-only-copy,
+.mt-br-sheet.print-only-copy,
+.mt-tr-copy-gap.print-only-copy,
+.mt-tr-sheet.print-only-copy {
+  display: none;
+}
+
+.mt-rm-copy-gap,
+.mt-br-copy-gap,
+.mt-tr-copy-gap {
+  height: 14px;
+}
+
+/* =========================================================
+   TASK 1: Mother Tincture Test Request Slips
+   Slip A: Before Filter (Attachment-2)
+   Slip B: After Filter (Attachment-4)
+   ========================================================= */
+
+/* Slip A: Before Filter Page */
+.mt-tr-before-page {
+  width: 210mm;
+  max-width: 100%;
+  padding: 20.3mm 12.7mm 12.7mm 12.7mm;
+  box-sizing: border-box;
+  font-family: 'Times New Roman', 'Liberation Serif', serif;
+  background: #ffffff;
+  margin: 0 auto;
+}
+
+.mt-tr-before-table {
+  width: 184.5mm;
+  border-collapse: collapse;
+  font-family: 'Times New Roman', 'Liberation Serif', serif;
+  table-layout: fixed;
+  border: 0.5pt solid #000000;
+  margin: 0 auto;
+}
+
+.mt-tr-before-table td {
+  border: 0.5pt solid #000000;
+  padding: 0.8mm 1.5mm;
+  box-sizing: border-box;
+  vertical-align: top;
+  font-family: 'Times New Roman', 'Liberation Serif', serif;
+  font-size: 12pt;
+  line-height: 1.15;
+}
+
+.mt-tr-before-r1 { height: 10.1mm; }
+.mt-tr-before-r2 { height: 9.9mm; }
+.mt-tr-before-r3 { height: 7.7mm; }
+.mt-tr-before-r4 { height: 7.2mm; }
+.mt-tr-before-r5 { height: 9.9mm; }
+.mt-tr-before-r6 { height: 9.1mm; }
+.mt-tr-before-r7 { height: 9.1mm; }
+.mt-tr-before-r8 { height: 9.8mm; }
+.mt-tr-before-r9 { height: 11.0mm; }
+.mt-tr-before-r10 { height: 9.1mm; }
+.mt-tr-before-gap { height: 18.9mm; }
+
+/* Slip B: After Filter Page */
+.mt-tr-after-page {
+  width: 210mm;
+  max-width: 100%;
+  padding: 25.4mm 25.4mm 25.4mm 25.4mm;
+  box-sizing: border-box;
+  font-family: 'Times New Roman', 'Liberation Serif', serif;
+  background: #ffffff;
+  margin: 0 auto;
+}
+
+.mt-tr-after-table {
+  width: 159.0mm;
+  border-collapse: collapse;
+  font-family: 'Times New Roman', 'Liberation Serif', serif;
+  table-layout: fixed;
+  border: 0.5pt solid #000000;
+  margin: 0 auto;
+}
+
+.mt-tr-after-table td {
+  border: 0.5pt solid #000000;
+  padding: 0.8mm 1.5mm;
+  box-sizing: border-box;
+  vertical-align: top;
+  font-family: 'Times New Roman', 'Liberation Serif', serif;
+  font-size: 12pt;
+  line-height: 1.15;
+}
+
+.mt-tr-after-r1 { height: 12.6mm; }
+.mt-tr-after-r2 { height: 5.8mm; }
+.mt-tr-after-r3 { height: 9.1mm; }
+.mt-tr-after-r4 { height: 7.3mm; }
+.mt-tr-after-r5 { height: 9.5mm; }
+.mt-tr-after-r6 { height: 9.4mm; }
+.mt-tr-after-r7 { height: 9.1mm; }
+.mt-tr-after-r8 { height: 14.7mm; }
+.mt-tr-after-r9 { height: 9.4mm; }
+.mt-tr-after-r10 { height: 9.4mm; }
+.mt-tr-after-gap { height: 18.0mm; }
+
+.mt-tr-label {
+  font-size: 12pt;
+  font-weight: 700;
+  color: #000000;
+  font-family: 'Times New Roman', 'Liberation Serif', serif;
+}
+
+.mt-tr-header-title {
+  font-size: 18pt !important;
+  font-weight: 400 !important;
+  text-align: center;
+  font-family: 'Times New Roman', 'Liberation Serif', serif;
+}
+
+/* Print styling */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .mt-rm-page,
+  .mt-rm-page *,
+  .mt-br-page,
+  .mt-br-page *,
+  .mt-tr-page,
+  .mt-tr-page * {
+    visibility: visible;
+  }
+
+  .mt-rm-page,
+  .mt-br-page,
+  .mt-tr-page {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 210mm !important;
+    max-width: 210mm !important;
+    height: 297mm !important;
+    max-height: 297mm !important;
+    overflow: hidden !important;
+    page-break-before: avoid !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-before: avoid !important;
+    break-after: avoid !important;
+    break-inside: avoid !important;
+    box-sizing: border-box !important;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .mt-rm-sheet,
+  .mt-br-sheet,
+  .mt-tr-sheet {
+    box-shadow: none !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .mt-rm-copy-gap.print-only-copy,
+  .mt-rm-sheet.print-only-copy,
+  .mt-br-copy-gap.print-only-copy,
+  .mt-br-sheet.print-only-copy,
+  .mt-tr-copy-gap.print-only-copy,
+  .mt-tr-sheet.print-only-copy {
+    display: block !important;
+  }
+
+  .qc-slip-input,
+  .qc-slip-text-field {
+    border: none !important;
+    border-bottom: none !important;
+    background: transparent !important;
+  }
+
+  .no-print,
+  .bmr-modal-toolbar,
+  .bulk-slip-toolbar,
+  .test-req-toolbar,
+  header,
+  nav,
+  .sidebar {
+    display: none !important;
+  }
+}

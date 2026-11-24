@@ -545,26 +545,6 @@ export default function InwardStockModal({
         </>
       }
     >
-          {draft && draft.status === 'DRAFT' && (
-            <Button
-              type="button"
-              onClick={() => doPost(draft)}
-              disabled={saving_or_posting || !canPost || exceedsRemaining}
-              loading={posting}
-              title={
-                !canPost
-                  ? 'You need receiving.post permission — ask your administrator.'
-                  : exceedsRemaining
-                    ? `Quantity exceeds remaining ${remainingQty} ${unitCode} on this order line.`
-                    : 'Post this receipt to record stock permanently'
-              }
-            >
-              Post Receipt
-            </Button>
-          )}
-        </>
-      }
-    >
       {error && <Alert type="error">{error}</Alert>}
       {draft && draft.status === 'DRAFT' && (
         <Alert type="success">
@@ -922,226 +902,517 @@ export default function InwardStockModal({
 
               {selectedPo && (
                 <>
-                  <div className="stock-form-grid" style={{ marginBottom: 0 }}>
-                    <div>
-                      <label className="field-label" style={{ marginBottom: 5, fontSize: 11.5, color: '#64748b' }}>
-                        Supplier (derived from order)
-                      </label>
-                      <input
-                        className="company-input"
-                        value={selectedPo.supplier_code || '—'}
-                        disabled
-                        style={{ width: '100%', height: 38, background: '#f8fafc', color: '#334155', fontWeight: 600 }}
-                      />
-                    </div>
-                    <div>
-                      <label className="field-label" style={{ marginBottom: 5, fontSize: 11.5, color: '#64748b' }}>
-                        Source Company (derived from order)
-                      </label>
-                      <input
-                        className="company-input"
-                        value={selectedPo.company_code || '—'}
-                        disabled
-                        style={{ width: '100%', height: 38, background: '#f8fafc', color: '#334155', fontWeight: 600 }}
-                      />
-                    </div>
-                  </div>
+                  {isMultiLine ? (
+                    <>
+                      {/* Header Grid: Supplier, Company, Receipt Date, Invoice Reference */}
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+                        gap: 10,
+                        background: '#f8fafc',
+                        padding: '12px 14px',
+                        borderRadius: 8,
+                        border: '1px solid #e2e8f0',
+                      }}>
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 3 }}>
+                            Supplier
+                          </div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
+                            {selectedPo.supplier_code || '—'}
+                          </div>
+                        </div>
 
-                  {selectedPo.delivery_progress && selectedPo.delivery_progress.length > 1 && (
-                    <div>
-                      <label className="field-label" htmlFor="recv-line" style={{ marginBottom: 5, fontSize: 12 }}>
-                        Order Line *
-                      </label>
-                      <select
-                        id="recv-line"
-                        className="company-input"
-                        style={{ width: '100%', height: 38 }}
-                        value={activeLine?.source_po_line_id || ''}
-                        onChange={(e) => {
-                          setSelectedLineId(Number(e.target.value))
-                          markDirty()
-                        }}
-                        disabled={draft != null}
-                      >
-                        {selectedPo.delivery_progress.map((line) => (
-                          <option key={line.source_po_line_id} value={line.source_po_line_id}>
-                            {line.material_code_snapshot} — {line.material_name_snapshot} ({line.remaining_quantity} {line.unit_code_snapshot} remaining)
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 3 }}>
+                            Source Company
+                          </div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
+                            {selectedPo.company_code || '—'}
+                          </div>
+                        </div>
 
-                  <div className="stock-form-grid" style={{ marginBottom: 0 }}>
-                    <div>
-                      <label className="field-label" htmlFor="recv-arrived-po" style={{ marginBottom: 5, fontSize: 12 }}>
-                        Receipt date *
-                      </label>
-                      <input
-                        id="recv-arrived-po"
-                        className="company-input"
-                        type="datetime-local"
-                        value={arrivedAt}
-                        onChange={(e) => { setArrivedAt(e.target.value); markDirty() }}
-                        disabled={draft?.status === 'POSTED'}
-                        style={{ width: '100%', height: 38 }}
-                        required
-                      />
-                    </div>
+                        <div>
+                          <label htmlFor="recv-arrived-po" style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 3 }}>
+                            Receipt Date *
+                          </label>
+                          <input
+                            id="recv-arrived-po"
+                            type="datetime-local"
+                            className="company-input"
+                            style={{ height: 32, fontSize: 12, width: '100%' }}
+                            value={arrivedAt}
+                            onChange={(e) => { setArrivedAt(e.target.value); markDirty(); }}
+                            disabled={draft?.status === 'POSTED'}
+                            required
+                          />
+                        </div>
 
-                    <div>
-                      <label className="field-label" htmlFor="recv-qty" style={{ marginBottom: 5, fontSize: 12 }}>
-                        Received quantity{unitCode ? ` (${unitCode})` : ''} *
-                      </label>
-                      <input
-                        id="recv-qty"
-                        className="company-input"
-                        type="number"
-                        step="any"
-                        min="0"
-                        placeholder={activeLine?.delivery_status === 'FULLY_RECEIVED' ? 'Fully received' : 'e.g. 25'}
-                        value={receivedQuantity}
-                        onChange={(e) => { setReceivedQuantity(e.target.value); markDirty() }}
-                        disabled={draft?.status === 'POSTED' || activeLine?.delivery_status === 'FULLY_RECEIVED'}
-                        style={{ width: '100%', height: 38 }}
-                        required
-                      />
-                      {activeLine && (
-                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>
-                          Remaining on order: <strong>{activeLine.remaining_quantity} {unitCode}</strong>
+                        <div>
+                          <label htmlFor="recv-invoice" style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 3 }}>
+                            Invoice / Challan Ref
+                          </label>
+                          <input
+                            id="recv-invoice"
+                            type="text"
+                            className="company-input"
+                            style={{ height: 32, fontSize: 12, width: '100%' }}
+                            placeholder="e.g. GST/2026/01"
+                            value={supplierInvoiceReference}
+                            onChange={(e) => { setSupplierInvoiceReference(e.target.value); markDirty(); }}
+                            disabled={draft?.status === 'POSTED'}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Multi-line Inward Table */}
+                      <div style={{ border: '1px solid #cbd5e1', borderRadius: 8, overflow: 'hidden', background: '#ffffff' }}>
+                        {/* Toolbar */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '10px 14px',
+                          background: '#f1f5f9',
+                          borderBottom: '1px solid #e2e8f0',
+                          flexWrap: 'wrap',
+                          gap: 8,
+                        }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 700, fontSize: 13, color: '#0f172a', margin: 0 }}>
+                            <input
+                              type="checkbox"
+                              style={{ width: 17, height: 17, cursor: 'pointer', accentColor: '#2563eb' }}
+                              checked={isAllSelected}
+                              ref={(el) => { if (el) el.indeterminate = isPartiallySelected }}
+                              onChange={(e) => handleToggleSelectAll(e.target.checked)}
+                              disabled={draft?.status === 'POSTED' || eligibleLines.length === 0}
+                            />
+                            <span>Select All Lines ({selectedLinesCount} of {selectedPo.delivery_progress.length} selected)</span>
+                          </label>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ padding: '4px 10px', fontSize: 11.5, height: 28, background: '#eff6ff', color: '#1d4ed8', borderColor: '#bfdbfe', fontWeight: 700 }}
+                              onClick={handleSelectAllRemaining}
+                              disabled={draft?.status === 'POSTED' || eligibleLines.length === 0}
+                            >
+                              ⚡ Select All Remaining
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ padding: '4px 8px', fontSize: 11.5, height: 28, background: '#ffffff', color: '#64748b' }}
+                              onClick={handleClearAll}
+                              disabled={draft?.status === 'POSTED' || selectedLinesCount === 0}
+                            >
+                              Clear All
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Table */}
+                        <div style={{ maxHeight: '380px', overflowY: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, textAlign: 'left' }}>
+                            <thead>
+                              <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', fontSize: 11.5 }}>
+                                <th style={{ width: 44, padding: '8px 10px', textAlign: 'center' }}>✓</th>
+                                <th style={{ padding: '8px 10px' }}>Item / Raw Material</th>
+                                <th style={{ width: 130, padding: '8px 10px', textAlign: 'right' }}>Remaining Qty</th>
+                                <th style={{ width: 160, padding: '8px 10px' }}>Receive Qty *</th>
+                                <th style={{ width: 200, padding: '8px 10px' }}>Supplier Lot / Batch</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {selectedPo.delivery_progress.map((line, idx) => {
+                                const lineId = line.source_po_line_id
+                                const lineState = poLines[lineId] || {}
+                                const isSelected = Boolean(lineState.selected)
+                                const rem = Number(line.remaining_quantity) || 0
+                                const isFullyReceived = rem <= 0
+                                const recQty = lineState.received_quantity ?? ''
+                                const isOver = isSelected && Number(recQty) > rem
+
+                                return (
+                                  <tr
+                                    key={lineId || idx}
+                                    style={{
+                                      borderBottom: '1px solid #f1f5f9',
+                                      background: isSelected ? '#f0fdf4' : isFullyReceived ? '#f8fafc' : '#ffffff',
+                                      opacity: isFullyReceived ? 0.6 : 1,
+                                      transition: 'background 0.15s ease',
+                                    }}
+                                  >
+                                    <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                      <input
+                                        type="checkbox"
+                                        style={{ width: 16, height: 16, cursor: isFullyReceived ? 'not-allowed' : 'pointer', accentColor: '#16a34a' }}
+                                        checked={isSelected}
+                                        disabled={isFullyReceived || draft?.status === 'POSTED'}
+                                        onChange={(e) => {
+                                          const checked = e.target.checked
+                                          handleUpdateLine(lineId, 'selected', checked)
+                                          if (checked && (!lineState.received_quantity || Number(lineState.received_quantity) <= 0)) {
+                                            handleUpdateLine(lineId, 'received_quantity', String(rem))
+                                          }
+                                        }}
+                                      />
+                                    </td>
+                                    <td style={{ padding: '8px 10px' }}>
+                                      <div style={{ fontWeight: 700, color: '#0f172a' }}>
+                                        {line.material_code_snapshot}
+                                      </div>
+                                      <div style={{ fontSize: 11.5, color: '#475569' }}>
+                                        {line.material_name_snapshot}
+                                      </div>
+                                    </td>
+                                    <td style={{ padding: '8px 10px', textAlign: 'right' }}>
+                                      {isFullyReceived ? (
+                                        <span style={{ fontSize: 11, fontWeight: 700, color: '#16a34a', background: '#dcfce7', padding: '2px 6px', borderRadius: 4 }}>
+                                          Received
+                                        </span>
+                                      ) : (
+                                        <span style={{ fontWeight: 700, color: '#0f172a' }}>
+                                          {rem} <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>{line.unit_code_snapshot}</span>
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td style={{ padding: '8px 10px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <input
+                                          type="number"
+                                          step="any"
+                                          min="0"
+                                          className="company-input"
+                                          style={{
+                                            width: '100%',
+                                            height: 32,
+                                            fontSize: 12.5,
+                                            fontWeight: 600,
+                                            borderColor: isOver ? '#ef4444' : isSelected ? '#16a34a' : '#cbd5e1',
+                                            background: isSelected ? '#ffffff' : '#f8fafc',
+                                          }}
+                                          value={recQty}
+                                          placeholder="0"
+                                          disabled={!isSelected || isFullyReceived || draft?.status === 'POSTED'}
+                                          onChange={(e) => handleUpdateLine(lineId, 'received_quantity', e.target.value)}
+                                        />
+                                        <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600, minWidth: 20 }}>
+                                          {line.unit_code_snapshot}
+                                        </span>
+                                      </div>
+                                      {isOver && (
+                                        <div style={{ fontSize: 10.5, color: '#ef4444', fontWeight: 600, marginTop: 2 }}>
+                                          Max: {rem} {line.unit_code_snapshot}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td style={{ padding: '8px 10px' }}>
+                                      <input
+                                        type="text"
+                                        className="company-input"
+                                        style={{
+                                          width: '100%',
+                                          height: 32,
+                                          fontSize: 12,
+                                          background: isSelected ? '#ffffff' : '#f8fafc',
+                                        }}
+                                        placeholder="e.g. LOT-2026/01"
+                                        value={lineState.lot_reference || ''}
+                                        disabled={!isSelected || isFullyReceived || draft?.status === 'POSTED'}
+                                        onChange={(e) => handleUpdateLine(lineId, 'lot_reference', e.target.value)}
+                                      />
+                                    </td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Delivery note & Remarks */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div>
+                          <label htmlFor="recv-delivery-note" style={{ display: 'block', fontSize: 11.5, fontWeight: 600, color: '#64748b', marginBottom: 4 }}>
+                            Delivery Note Ref (optional)
+                          </label>
+                          <input
+                            id="recv-delivery-note"
+                            className="company-input"
+                            style={{ height: 34, fontSize: 12, width: '100%' }}
+                            placeholder="Challan / LR number"
+                            maxLength={100}
+                            value={deliveryNoteReference}
+                            onChange={(e) => { setDeliveryNoteReference(e.target.value); markDirty(); }}
+                            disabled={draft?.status === 'POSTED'}
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="recv-notes" style={{ display: 'block', fontSize: 11.5, fontWeight: 600, color: '#64748b', marginBottom: 4 }}>
+                            Remarks / Notes (optional)
+                          </label>
+                          <input
+                            id="recv-notes"
+                            className="company-input"
+                            style={{ height: 34, fontSize: 12, width: '100%' }}
+                            placeholder="e.g. Received in sound condition"
+                            maxLength={2000}
+                            value={notes}
+                            onChange={(e) => { setNotes(e.target.value); markDirty(); }}
+                            disabled={draft?.status === 'POSTED'}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Selected count info & Over-receipt alert */}
+                      {selectedLinesCount > 0 && !hasOverReceipt && (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '8px 12px',
+                          background: '#f0fdf4',
+                          border: '1px solid #bbf7d0',
+                          borderRadius: 6,
+                          color: '#166534',
+                          fontSize: 12.5,
+                          fontWeight: 600,
+                        }}>
+                          <span>✓ {selectedLinesCount} line(s) selected and ready for inwarding.</span>
+                          <span>Click <strong>Save Draft</strong> or <strong>Save & Post to Stock</strong> below.</span>
                         </div>
                       )}
-                    </div>
 
-                    <div>
-                      <label className="field-label" htmlFor="recv-invoice" style={{ marginBottom: 5, fontSize: 12 }}>
-                        Invoice number
-                      </label>
-                      <input
-                        id="recv-invoice"
-                        className="company-input"
-                        placeholder="If invoice is available"
-                        maxLength={100}
-                        value={supplierInvoiceReference}
-                        onChange={(e) => { setSupplierInvoiceReference(e.target.value); markDirty() }}
-                        disabled={draft?.status === 'POSTED'}
-                        style={{ width: '100%', height: 38 }}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="field-label" htmlFor="recv-delivery-note" style={{ marginBottom: 5, fontSize: 12 }}>
-                        Delivery note reference
-                      </label>
-                      <input
-                        id="recv-delivery-note"
-                        className="company-input"
-                        placeholder="If no invoice yet"
-                        maxLength={100}
-                        value={deliveryNoteReference}
-                        onChange={(e) => { setDeliveryNoteReference(e.target.value); markDirty() }}
-                        disabled={draft?.status === 'POSTED'}
-                        style={{ width: '100%', height: 38 }}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="field-label" htmlFor="recv-lot" style={{ marginBottom: 5, fontSize: 12 }}>
-                        Supplier lot reference (optional)
-                      </label>
-                      <input
-                        id="recv-lot"
-                        className="company-input"
-                        placeholder="e.g. BATCH-7721"
-                        maxLength={100}
-                        value={lotReference}
-                        onChange={(e) => { setLotReference(e.target.value); markDirty() }}
-                        disabled={draft?.status === 'POSTED'}
-                        style={{ width: '100%', height: 38 }}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="field-label" htmlFor="recv-container" style={{ marginBottom: 5, fontSize: 12 }}>
-                        Container (optional)
-                      </label>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <select
-                          id="recv-container"
-                          className="company-input"
-                          style={{ flex: 1, height: 38 }}
-                          value={containerTypeId}
-                          onChange={(e) => { setContainerTypeId(e.target.value); markDirty() }}
-                          disabled={draft?.status === 'POSTED'}
-                        >
-                          <option value="">— Container type —</option>
-                          {containerTypes.map((ct) => (
-                            <option key={ct.id} value={ct.id}>{ct.name || ct.code}</option>
-                          ))}
-                        </select>
-                        <input
-                          id="recv-container-qty"
-                          className="company-input"
-                          type="number"
-                          step="1"
-                          min="1"
-                          style={{ width: 85, height: 38 }}
-                          placeholder="Count"
-                          value={containerQuantity}
-                          onChange={(e) => { setContainerQuantity(e.target.value); markDirty() }}
-                          disabled={draft?.status === 'POSTED'}
-                        />
+                      {hasOverReceipt && (
+                        <div style={{
+                          padding: '8px 12px',
+                          background: '#fef2f2',
+                          border: '1px solid #fecaca',
+                          borderRadius: 6,
+                          color: '#991b1b',
+                          fontSize: 12.5,
+                          fontWeight: 600,
+                        }}>
+                          ⚠️ One or more items exceed their remaining order quantity. Over-receipt is rejected by server policy.
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="stock-form-grid" style={{ marginBottom: 0 }}>
+                        <div>
+                          <label className="field-label" style={{ marginBottom: 5, fontSize: 11.5, color: '#64748b' }}>
+                            Supplier (derived from order)
+                          </label>
+                          <input
+                            className="company-input"
+                            value={selectedPo.supplier_code || '—'}
+                            disabled
+                            style={{ width: '100%', height: 38, background: '#f8fafc', color: '#334155', fontWeight: 600 }}
+                          />
+                        </div>
+                        <div>
+                          <label className="field-label" style={{ marginBottom: 5, fontSize: 11.5, color: '#64748b' }}>
+                            Source Company (derived from order)
+                          </label>
+                          <input
+                            className="company-input"
+                            value={selectedPo.company_code || '—'}
+                            disabled
+                            style={{ width: '100%', height: 38, background: '#f8fafc', color: '#334155', fontWeight: 600 }}
+                          />
+                        </div>
                       </div>
-                    </div>
 
-                    <div>
-                      <label className="field-label" style={{ marginBottom: 5, fontSize: 12 }}>
-                        Authorized price (from order)
-                      </label>
-                      <input
-                        className="company-input"
-                        value={
-                          activeLine?.unit_price != null
-                            ? `${activeLine.currency_code || ''} ${activeLine.unit_price} / ${activeLine.pricing_unit_code || unitCode}`
-                            : 'Not set on this order line'
-                        }
-                        disabled
-                        style={{ width: '100%', height: 38, background: '#f8fafc', color: '#334155' }}
-                      />
-                    </div>
+                      <div className="stock-form-grid" style={{ marginBottom: 0 }}>
+                        <div>
+                          <label className="field-label" htmlFor="recv-arrived-po" style={{ marginBottom: 5, fontSize: 12 }}>
+                            Receipt date *
+                          </label>
+                          <input
+                            id="recv-arrived-po"
+                            className="company-input"
+                            type="datetime-local"
+                            value={arrivedAt}
+                            onChange={(e) => { setArrivedAt(e.target.value); markDirty(); }}
+                            disabled={draft?.status === 'POSTED'}
+                            style={{ width: '100%', height: 38 }}
+                            required
+                          />
+                        </div>
 
-                    <div>
-                      <label className="field-label" htmlFor="recv-notes" style={{ marginBottom: 5, fontSize: 12 }}>
-                        Remarks (optional)
-                      </label>
-                      <input
-                        id="recv-notes"
-                        className="company-input"
-                        placeholder="Optional remarks"
-                        maxLength={2000}
-                        value={notes}
-                        onChange={(e) => { setNotes(e.target.value); markDirty() }}
-                        disabled={draft?.status === 'POSTED'}
-                        style={{ width: '100%', height: 38 }}
-                      />
-                    </div>
-                  </div>
+                        <div>
+                          <label className="field-label" htmlFor="recv-qty" style={{ marginBottom: 5, fontSize: 12 }}>
+                            Received quantity{unitCode ? ` (${unitCode})` : ''} *
+                          </label>
+                          <input
+                            id="recv-qty"
+                            aria-label="Received quantity"
+                            className="company-input"
+                            type="number"
+                            step="any"
+                            min="0"
+                            placeholder={activeLine?.delivery_status === 'FULLY_RECEIVED' ? 'Fully received' : 'e.g. 25'}
+                            value={receivedQuantity}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              setReceivedQuantity(val)
+                              if (activeLine?.source_po_line_id) {
+                                handleUpdateLine(activeLine.source_po_line_id, 'received_quantity', val)
+                              }
+                              markDirty()
+                            }}
+                            disabled={draft?.status === 'POSTED' || activeLine?.delivery_status === 'FULLY_RECEIVED'}
+                            style={{ width: '100%', height: 38 }}
+                            required
+                          />
+                          {activeLine && (
+                            <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>
+                              Remaining on order: <strong>{activeLine.remaining_quantity} {unitCode}</strong>
+                            </div>
+                          )}
+                        </div>
 
-                  {receivedQuantity && Number(receivedQuantity) > 0 && (
-                    <div className="stock-computed-box" style={{ margin: '8px 0 0' }}>
-                      <span>Recorded as:</span>
-                      <strong>
-                        {receivedQuantity} {unitCode}
-                        {containerQuantity ? ` (${containerQuantity} container${containerQuantity > 1 ? 's' : ''})` : ''}
-                      </strong>
-                    </div>
-                  )}
+                        <div>
+                          <label className="field-label" htmlFor="recv-invoice" style={{ marginBottom: 5, fontSize: 12 }}>
+                            Invoice number
+                          </label>
+                          <input
+                            id="recv-invoice"
+                            className="company-input"
+                            placeholder="If invoice is available"
+                            maxLength={100}
+                            value={supplierInvoiceReference}
+                            onChange={(e) => { setSupplierInvoiceReference(e.target.value); markDirty(); }}
+                            disabled={draft?.status === 'POSTED'}
+                            style={{ width: '100%', height: 38 }}
+                          />
+                        </div>
 
-                  {exceedsRemaining && (
-                    <div className="stock-alert-insufficient" style={{ margin: '8px 0 0' }}>
-                      <span>⚠️</span>
-                      <span>Exceeds remaining quantity on this order line ({remainingQty} {unitCode}). Over-receipt is rejected by server policy.</span>
-                    </div>
+                        <div>
+                          <label className="field-label" htmlFor="recv-delivery-note" style={{ marginBottom: 5, fontSize: 12 }}>
+                            Delivery note reference
+                          </label>
+                          <input
+                            id="recv-delivery-note"
+                            className="company-input"
+                            placeholder="If no invoice yet"
+                            maxLength={100}
+                            value={deliveryNoteReference}
+                            onChange={(e) => { setDeliveryNoteReference(e.target.value); markDirty(); }}
+                            disabled={draft?.status === 'POSTED'}
+                            style={{ width: '100%', height: 38 }}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="field-label" htmlFor="recv-lot" style={{ marginBottom: 5, fontSize: 12 }}>
+                            Supplier lot reference (optional)
+                          </label>
+                          <input
+                            id="recv-lot"
+                            className="company-input"
+                            placeholder="e.g. BATCH-7721"
+                            maxLength={100}
+                            value={lotReference}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              setLotReference(val)
+                              if (activeLine?.source_po_line_id) {
+                                handleUpdateLine(activeLine.source_po_line_id, 'lot_reference', val)
+                              }
+                              markDirty()
+                            }}
+                            disabled={draft?.status === 'POSTED'}
+                            style={{ width: '100%', height: 38 }}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="field-label" htmlFor="recv-container" style={{ marginBottom: 5, fontSize: 12 }}>
+                            Container (optional)
+                          </label>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <select
+                              id="recv-container"
+                              className="company-input"
+                              style={{ flex: 1, height: 38 }}
+                              value={containerTypeId}
+                              onChange={(e) => { setContainerTypeId(e.target.value); markDirty(); }}
+                              disabled={draft?.status === 'POSTED'}
+                            >
+                              <option value="">— Container type —</option>
+                              {containerTypes.map((ct) => (
+                                <option key={ct.id} value={ct.id}>{ct.name || ct.code}</option>
+                              ))}
+                            </select>
+                            <input
+                              id="recv-container-qty"
+                              className="company-input"
+                              type="number"
+                              step="1"
+                              min="1"
+                              style={{ width: 85, height: 38 }}
+                              placeholder="Count"
+                              value={containerQuantity}
+                              onChange={(e) => { setContainerQuantity(e.target.value); markDirty(); }}
+                              disabled={draft?.status === 'POSTED'}
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="field-label" style={{ marginBottom: 5, fontSize: 12 }}>
+                            Authorized price (from order)
+                          </label>
+                          <input
+                            className="company-input"
+                            value={
+                              activeLine?.unit_price != null
+                                ? `${activeLine.currency_code || ''} ${activeLine.unit_price} / ${activeLine.pricing_unit_code || unitCode}`
+                                : 'Not set on this order line'
+                            }
+                            disabled
+                            style={{ width: '100%', height: 38, background: '#f8fafc', color: '#334155' }}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="field-label" htmlFor="recv-notes" style={{ marginBottom: 5, fontSize: 12 }}>
+                            Remarks (optional)
+                          </label>
+                          <input
+                            id="recv-notes"
+                            className="company-input"
+                            placeholder="Optional remarks"
+                            maxLength={2000}
+                            value={notes}
+                            onChange={(e) => { setNotes(e.target.value); markDirty(); }}
+                            disabled={draft?.status === 'POSTED'}
+                            style={{ width: '100%', height: 38 }}
+                          />
+                        </div>
+                      </div>
+
+                      {receivedQuantity && Number(receivedQuantity) > 0 && (
+                        <div className="stock-computed-box" style={{ margin: '8px 0 0' }}>
+                          <span>Recorded as:</span>
+                          <strong>
+                            {receivedQuantity} {unitCode}
+                            {containerQuantity ? ` (${containerQuantity} container${containerQuantity > 1 ? 's' : ''})` : ''}
+                          </strong>
+                        </div>
+                      )}
+
+                      {exceedsRemaining && (
+                        <div className="stock-alert-insufficient" style={{ margin: '8px 0 0' }}>
+                          <span>⚠️</span>
+                          <span>Exceeds remaining quantity on this order line ({remainingQty} {unitCode}). Over-receipt is rejected by server policy.</span>
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
               )}

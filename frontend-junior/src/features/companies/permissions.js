@@ -18,7 +18,6 @@ const MODULE_PERMISSIONS = {
     orders: ['view', 'create', 'edit', 'approve', 'delete', 'export'],
     quality: ['view', 'create', 'edit', 'approve', 'delete', 'export'],
     invoices: ['view', 'create', 'edit', 'approve', 'delete', 'export'],
-    supply_chain: ['view', 'create', 'edit', 'approve', 'delete', 'export'],
     hrms: ['view', 'create', 'edit', 'approve', 'delete', 'export'],
     payroll: ['view', 'create', 'edit', 'approve', 'delete', 'export'],
     reports: ['view', 'create', 'edit', 'approve', 'delete', 'export'],
@@ -35,7 +34,6 @@ const MODULE_PERMISSIONS = {
     orders: ['view', 'approve', 'export'],
     quality: ['view', 'approve', 'export'],
     invoices: ['view', 'approve', 'export'],
-    supply_chain: ['view', 'approve', 'export'],
     hrms: ['view', 'approve', 'export'],
     payroll: ['view', 'approve', 'export'],
     reports: ['view', 'export'],
@@ -73,13 +71,11 @@ const MODULE_PERMISSIONS = {
 
   STORES_MANAGER: {
     inventory: ['view', 'create', 'edit', 'approve', 'export'],
-    supply_chain: ['view', 'create', 'edit', 'approve', 'export'],
     reports: ['view', 'export'],
   },
 
   STORES_USER: {
     inventory: ['view', 'create', 'edit'],
-    supply_chain: ['view', 'create'],
   },
 
   EMPLOYEE: {

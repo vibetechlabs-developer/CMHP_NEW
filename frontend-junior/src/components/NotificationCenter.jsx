@@ -62,11 +62,6 @@ const FILTERS = [
   },
 
   {
-    key: 'supply',
-    label: 'Supply',
-  },
-
-  {
     key: 'operations',
     label: 'Orders',
   },
@@ -176,7 +171,6 @@ const ROLE_ACCESS = {
   SUPER_ADMIN: [
     'leave',
     'inventory',
-    'supply',
     'operations',
     'invoice',
     'quality',
@@ -185,7 +179,6 @@ const ROLE_ACCESS = {
 
   MANAGEMENT: [
     'leave',
-    'supply',
     'operations',
     'invoice',
     'quality',
@@ -211,14 +204,12 @@ const ROLE_ACCESS = {
 
   STORES_MANAGER: [
     'inventory',
-    'supply',
     'operations',
     'quality',
   ],
 
   STORES_USER: [
     'inventory',
-    'supply',
     'quality',
   ],
 
@@ -931,153 +922,6 @@ function buildNotifications(
   }
 
 
-  /*
-   * ==========================================================
-   * SUPPLY CHAIN
-   * ==========================================================
-   */
-
-  if (
-    canSee('supply')
-  ) {
-
-    /*
-     * PURCHASE / STOCK COMING
-     */
-
-    ;(
-      Array.isArray(
-        state.purchaseOrders
-      )
-        ? state.purchaseOrders
-        : []
-    )
-      .filter(
-        (po) =>
-          belongsToCompany(
-            po,
-            companyId
-          )
-      )
-      .filter(
-        (po) =>
-          [
-            'APPROVED',
-            'CONFIRMED',
-            'ORDERED',
-            'PARTIAL',
-            'PARTIALLY_RECEIVED',
-          ].includes(
-            String(
-              po.status ||
-              ''
-            ).toUpperCase()
-          )
-      )
-      .slice(-10)
-      .forEach(
-        (po) => {
-
-          const number =
-            po.number ||
-            po.po_number ||
-            po.code ||
-            po.id
-
-
-          notifications.push({
-
-            id:
-              `po-${po.id}-${po.status}`,
-
-            type:
-              'supply',
-
-            title:
-              'Incoming stock',
-
-            message:
-              `Purchase order ${number} has stock coming from the supplier.`,
-
-            time:
-              getDateValue(
-                po
-              ),
-
-            path:
-              '/supply-chain',
-
-          })
-
-        }
-      )
-
-
-    /*
-     * DISPATCH
-     */
-
-    ;(
-      Array.isArray(
-        state.dispatches
-      )
-        ? state.dispatches
-        : []
-    )
-      .filter(
-        (dispatch) =>
-          belongsToCompany(
-            dispatch,
-            companyId
-          )
-      )
-      .filter(
-        (dispatch) =>
-          isRecent(
-            dispatch,
-            14
-          )
-      )
-      .slice(-10)
-      .forEach(
-        (dispatch) => {
-
-          const number =
-            dispatch.number ||
-            dispatch.dispatch_number ||
-            dispatch.code ||
-            dispatch.id
-
-
-          notifications.push({
-
-            id:
-              `dispatch-${dispatch.id}-${dispatch.status || ''}`,
-
-            type:
-              'supply',
-
-            title:
-              'Dispatch update',
-
-            message:
-              `Dispatch ${number} has a recent status update.`,
-
-            time:
-              getDateValue(
-                dispatch
-              ),
-
-            path:
-              '/supply-chain',
-
-          })
-
-        }
-      )
-
-  }
-
 
   /*
    * ==========================================================
@@ -1496,12 +1340,6 @@ function getIcon(
     return '!'
   }
 
-
-  if (
-    type === 'supply'
-  ) {
-    return '↗'
-  }
 
 
   if (

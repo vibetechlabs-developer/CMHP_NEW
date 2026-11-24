@@ -1,4 +1,5 @@
 import React from 'react'
+import SpecimenUpload from './SpecimenUpload'
 
 export function getOilPageRenderers({
   data,
@@ -3291,88 +3292,12 @@ export function getOilPageRenderers({
   const renderPage16 = () => (
     <div className="bmr-sheet bmr-oil-sheet" key="page-16">
       {renderHeader(16)}
-      <div className="bmr-body" style={{ display: 'flex', flexDirection: 'column' }}>
-        <p style={{ margin: '8pt 0 10pt', fontSize: '9pt', textAlign: 'center' }}>
-          Attach the approved specimen of each carton/ label in below given space
-        </p>
-
-        <div
-          className="bmr-specimen-box"
-          style={{
-            flex: 1,
-            minHeight: '260pt',
-            border: '1px solid #000',
-            borderRadius: 0,
-            background: '#ffffff',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 12,
-            boxSizing: 'border-box',
-          }}
-        >
-          {data.page16?.specimen_image ? (
-            <div style={{ position: 'relative', maxWidth: '100%', maxHeight: '100%' }}>
-              <img
-                src={data.page16.specimen_image}
-                alt="Specimen"
-                style={{ maxWidth: '100%', maxHeight: '250pt', objectFit: 'contain' }}
-              />
-              <button
-                type="button"
-                className="no-print"
-                style={{
-                  position: 'absolute',
-                  top: 4,
-                  right: 4,
-                  background: '#dc2626',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 4,
-                  padding: '2px 6px',
-                  cursor: 'pointer',
-                  fontSize: 10,
-                }}
-                onClick={() => updatePage('page16', 'specimen_image', '')}
-              >
-                Remove
-              </button>
-            </div>
-          ) : (
-            <div className="no-print" style={{ color: '#64748b', fontSize: 11, textAlign: 'center' }}>
-              <input
-                type="file"
-                accept="image/*"
-                style={{ display: 'none' }}
-                id="oil-specimen-upload"
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (file) {
-                    const reader = new FileReader()
-                    reader.onload = (ev) => {
-                      updatePage('page16', 'specimen_image', ev.target?.result)
-                    }
-                    reader.readAsDataURL(file)
-                  }
-                }}
-              />
-              <label
-                htmlFor="oil-specimen-upload"
-                style={{
-                  display: 'inline-block',
-                  padding: '6px 14px',
-                  border: '1px dashed #94a3b8',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  background: '#f8fafc',
-                }}
-              >
-                Click to attach Carton / Label specimen image (Optional)
-              </label>
-            </div>
-          )}
-        </div>
+      <div className="bmr-body">
+        <SpecimenUpload
+          images={data.page16?.specimens || data.page16?.specimen_images || (data.page16?.specimen_image ? [data.page16.specimen_image] : [])}
+          onChange={(imgs) => updatePage('page16', 'specimens', imgs)}
+          maxHeight={460}
+        />
       </div>
       {renderFooter(16)}
     </div>

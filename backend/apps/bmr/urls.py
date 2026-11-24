@@ -8,6 +8,13 @@ from apps.bmr.views import (
     ProductionOrderStatusListCreateView,
     ProductionOrderStatusDetailView,
     ProductionOrderQaReleaseView,
+    OrderDispatchActionView,
+    OrderReturnToProductionActionView,
+    OrderBackToCoaActionView,
+    RecordsOrderListView,
+    OrderDocumentDetailView,
+    OrderDocumentSaveView,
+    OrderDocumentUploadView,
 )
 
 urlpatterns = [
@@ -63,5 +70,83 @@ urlpatterns = [
         "production-statuses/<str:order_id>/",
         ProductionOrderStatusDetailView.as_view(),
         name="production-status-detail-general",
+    ),
+    # Order Dispatch & Records Actions
+    path(
+        "<int:company_id>/orders/<str:order_id>/dispatch/",
+        OrderDispatchActionView.as_view(),
+        name="order-dispatch",
+    ),
+    path(
+        "orders/<str:order_id>/dispatch/",
+        OrderDispatchActionView.as_view(),
+        name="order-dispatch-general",
+    ),
+    path(
+        "<int:company_id>/orders/<str:order_id>/return-to-production/",
+        OrderReturnToProductionActionView.as_view(),
+        name="order-return-to-production",
+    ),
+    path(
+        "orders/<str:order_id>/return-to-production/",
+        OrderReturnToProductionActionView.as_view(),
+        name="order-return-to-production-general",
+    ),
+    path(
+        "<int:company_id>/orders/<str:order_id>/back-to-coa/",
+        OrderBackToCoaActionView.as_view(),
+        name="order-back-to-coa",
+    ),
+    path(
+        "orders/<str:order_id>/back-to-coa/",
+        OrderBackToCoaActionView.as_view(),
+        name="order-back-to-coa-general",
+    ),
+    # Records & Dispatch List Endpoints
+    path(
+        "<int:company_id>/records/",
+        RecordsOrderListView.as_view(),
+        name="records-order-list",
+    ),
+    path(
+        "records/",
+        RecordsOrderListView.as_view(),
+        name="records-order-list-general",
+    ),
+    path(
+        "<int:company_id>/dispatch/",
+        RecordsOrderListView.as_view(),
+        name="dispatch-order-list",
+    ),
+    path(
+        "dispatch/",
+        RecordsOrderListView.as_view(),
+        name="dispatch-order-list-general",
+    ),
+    # Order Documents (Attachments 1-6, BMR, COA, Invoice)
+    path(
+        "<int:company_id>/orders/<str:order_id>/documents/<str:doc_type>/",
+        OrderDocumentDetailView.as_view(),
+        name="order-document-detail",
+    ),
+    path(
+        "orders/<str:order_id>/documents/<str:doc_type>/",
+        OrderDocumentDetailView.as_view(),
+        name="order-document-detail-general",
+    ),
+    path(
+        "<int:company_id>/orders/<str:order_id>/documents/",
+        OrderDocumentSaveView.as_view(),
+        name="order-document-save",
+    ),
+    path(
+        "orders/<str:order_id>/documents/",
+        OrderDocumentSaveView.as_view(),
+        name="order-document-save-general",
+    ),
+    path(
+        "<int:company_id>/orders/<str:order_id>/upload/",
+        OrderDocumentUploadView.as_view(),
+        name="order-document-upload",
     ),
 ]

@@ -1109,4 +1109,47 @@ class COADocumentAttachment(models.Model):
         return "ATTACHED"
 
 
+class QcSlipRecord(models.Model):
+    """Stores order-wise, type-wise QC slip records (Bulk Release, Test Request)
+    with persistence in PostgreSQL database. Keyed by company, order_id, product_type, slip_kind, sub_kind.
+    Completely additive, does not modify Orders, BMR, or any existing app.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        SAVED = "SAVED", "Saved"
+        COMPLETED = "COMPLETED", "Completed"
+
+    company = models.ForeignKey(
+        Company,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="qc_slip_records",
+    )
+    order_id = models.CharField(max_length=100, db_index=True)
+    batch_no = models.CharField(max_length=100, blank=True, default="", db_index=True)
+    product_type = models.CharField(max_length=50, blank=True, default="tablet", db_index=True)
+    slip_kind = models.CharField(max_length=50, db_index=True)  # "bulk_release" or "test_request"
+    sub_kind = models.CharField(max_length=50, blank=True, default="", db_index=True)  # "before_filter", "after_filter", "bulk", "fp"
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True)
+    data = models.JSONField(default=dict)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "order_id", "product_type", "slip_kind", "sub_kind"],
+                name="unique_qc_slip_per_order_and_kind",
+            ),
+        ]
+
+    def __str__(self):
+        return f"QcSlipRecord order={self.order_id} type={self.product_type} kind={self.slip_kind} sub={self.sub_kind} status={self.status}"
+
+
+
 

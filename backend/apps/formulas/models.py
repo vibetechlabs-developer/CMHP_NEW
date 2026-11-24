@@ -440,3 +440,45 @@ class FormulaLine(models.Model):
                 {"detail": f"The lines of a revision with status '{self.revision.status}' cannot be deleted."}
             )
         return super().delete(*args, **kwargs)
+
+
+class ProductFormulaSlip(models.Model):
+    """Stores permanent, product-specific RM and PM requisition slips for a formula revision.
+    Saved per product, formula revision, and slip type (RM or PM).
+    """
+
+    class SlipType(models.TextChoices):
+        RM = "RM", "Raw Material Slip"
+        PM = "PM", "Packing Material Slip"
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="formula_slips")
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="formula_slips")
+    formula_revision = models.ForeignKey(
+        FormulaRevision, on_delete=models.CASCADE, null=True, blank=True, related_name="formula_slips"
+    )
+    slip_type = models.CharField(max_length=10, choices=SlipType.choices, db_index=True)
+    data = models.JSONField(default=dict)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="formula_slips_updated"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["product", "formula_revision", "slip_type"],
+                condition=models.Q(formula_revision__isnull=False),
+                name="unique_product_revision_slip",
+            ),
+            models.UniqueConstraint(
+                fields=["product", "slip_type"],
+                condition=models.Q(formula_revision__isnull=True),
+                name="unique_product_no_revision_slip",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.slip_type} slip for Product #{self.product_id} (Rev #{self.formula_revision_id})"
+

@@ -24,11 +24,14 @@ import CoaUploadModal from './CoaUploadModal'
 import DocumentPreviewModal from './DocumentPreviewModal'
 import DocumentVersionsModal from './DocumentVersionsModal'
 import useSelectedCompany from '../../hooks/useSelectedCompany'
+import { normalizeProductTypeKey } from '../production/bmrTemplates/index.js'
 import './DocumentManagement.css'
 import { getMyStores, listStockMovements } from '../store/storeService'
 import { setLotQualityStatus } from '../store/materialIssueService'
 import '../inventory/tabs/CommonInventory.css'
 import './Quality.css'
+import { qcSlipService } from './qcSlipService'
+import QcOrderSlipList from './QcOrderSlipList'
 
 /* ─── QC Status helpers ─── */
 const QC_STATUSES = ['ALL', 'PENDING', 'APPROVED', 'REJECTED']
@@ -109,6 +112,7 @@ export default function MaterialQC() {
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState('inward_qc') // 'inward_qc' | 'coa_documents' | 'bulk_slip' | 'test_request'
+  const [productType, setProductType] = useState('tablet')
   const [slipInitialData, setSlipInitialData] = useState(null)
   const [testReqInitialData, setTestReqInitialData] = useState(null)
   const [selectedRecord, setSelectedRecord] = useState(null)  // for QC modal
@@ -120,6 +124,149 @@ export default function MaterialQC() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+
+  // Task 3: Order-wise, type-wise QC slip state
+  const [qcOrders, setQcOrders] = useState([])
+  const [qcOrdersLoading, setQcOrdersLoading] = useState(false)
+  const [activeOrder, setActiveOrder] = useState(null)
+  const [orderReadOnly, setOrderReadOnly] = useState(false)
+  const [slipFilters, setSlipFilters] = useState({
+    search: '',
+    productType: 'ALL',
+    dateFrom: '',
+    dateTo: '',
+    datePreset: '',
+  })
+
+  const loadQcOrders = useCallback(async (kind) => {
+    setQcOrdersLoading(true)
+    try {
+      const ords = await qcSlipService.getOrdersForQc(effectiveCompanyId, kind)
+      setQcOrders(ords)
+    } catch (err) {
+      console.warn('[MaterialQC] Error loading QC orders:', err)
+    } finally {
+      setQcOrdersLoading(false)
+    }
+  }, [effectiveCompanyId])
+
+  useEffect(() => {
+    if (activeTab === 'bulk_slip') {
+      loadQcOrders('bulk_release')
+    } else if (activeTab === 'test_request') {
+      loadQcOrders('test_request')
+    }
+  }, [activeTab, loadQcOrders])
+
+  const handleOpenOrderSlip = (order, isCompleted = false) => {
+    const rawType = order.dosage_form || order.dosageForm || order.product_type || order.productType || 'tablet'
+    const detected = normalizeProductTypeKey(rawType) || 'tablet'
+    setProductType(detected)
+
+    const baseData = {
+      id: order.id,
+      order_id: order.id,
+      order_number: order.orderNumber,
+      product: order.productName || order.product_name || order.product || '',
+      product_code: order.material_code || order.product_code || '',
+      batch_no: order.batchNo || order.batch_no || '',
+      batch_size: order.batchSize || order.batch_size || '',
+      mfg_date: order.mfg_date || '',
+      exp_years: order.expiry_date || '5',
+      exp_best_before: order.expiry_date || '5YEAR',
+      date: order.orderDate || new Date().toISOString().split('T')[0],
+      tr_no: order.tr_no || order.ar_no || '',
+    }
+
+    const savedData = order.qcRecord?.data || {}
+    const merged = { ...baseData, ...savedData }
+
+    if (activeTab === 'bulk_slip') {
+      setSlipInitialData({
+        to_department: 'PRODUCTION',
+        ...merged,
+      })
+    } else {
+      setTestReqInitialData({
+        to_department: 'QUALITY CONTROL',
+        department: detected === 'mother-tincture' ? 'MOTHER TINCTURE' : (detected === 'syrup' ? 'SYRUP' : 'TABLET'),
+        ...merged,
+      })
+    }
+
+    setActiveOrder(order)
+    setOrderReadOnly(Boolean(isCompleted || order.qcStatus === 'COMPLETED'))
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleSaveSlip = async (envelope) => {
+    if (!activeOrder) return
+    const kind = activeTab === 'bulk_slip' ? 'bulk_release' : 'test_request'
+    try {
+      await qcSlipService.saveQcSlip(effectiveCompanyId, {
+        order_id: String(activeOrder.id),
+        batch_no: activeOrder.batchNo || envelope?.batchNo || '',
+        product_type: productType,
+        slip_kind: kind,
+        sub_kind: envelope?.slipType || '',
+        status: orderReadOnly ? 'COMPLETED' : 'SAVED',
+        data: envelope?.data,
+      })
+      setSuccess(`✅ Slip saved successfully for Order #${activeOrder.orderNumber}!`)
+      setTimeout(() => setSuccess(''), 4000)
+      loadQcOrders(kind)
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to save QC slip to database.')
+    }
+  }
+
+  const handleMarkComplete = async (order) => {
+    const confirmMsg = `Are you sure you want to mark the QC slip for Order #${order.orderNumber} (${order.productName}, Batch ${order.batchNo}) as Complete?\n\nThis will move the slip to the Completed tab as read-only.`
+    if (!window.confirm(confirmMsg)) return
+
+    const kind = activeTab === 'bulk_slip' ? 'bulk_release' : 'test_request'
+    try {
+      setBusy(true)
+      await qcSlipService.updateSlipStatus(effectiveCompanyId, order.id, kind, 'COMPLETED', {
+        product_type: order.productType,
+        batch_no: order.batchNo,
+      })
+      setSuccess(`✓ Order #${order.orderNumber} marked as Complete!`)
+      setTimeout(() => setSuccess(''), 4000)
+      if (activeOrder && String(activeOrder.id) === String(order.id)) {
+        setOrderReadOnly(true)
+      }
+      await loadQcOrders(kind)
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to mark slip as complete.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleReturnToPending = async (order) => {
+    const confirmMsg = `Return Order #${order.orderNumber} (${order.productName}, Batch ${order.batchNo}) back to Pending status?\n\nThis will allow editing the slip again.`
+    if (!window.confirm(confirmMsg)) return
+
+    const kind = activeTab === 'bulk_slip' ? 'bulk_release' : 'test_request'
+    try {
+      setBusy(true)
+      await qcSlipService.updateSlipStatus(effectiveCompanyId, order.id, kind, 'PENDING', {
+        product_type: order.productType,
+        batch_no: order.batchNo,
+      })
+      setSuccess(`↩ Order #${order.orderNumber} returned to Pending list.`)
+      setTimeout(() => setSuccess(''), 4000)
+      if (activeOrder && String(activeOrder.id) === String(order.id)) {
+        setOrderReadOnly(false)
+      }
+      await loadQcOrders(kind)
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to return slip to pending.')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const loadIncomingLots = useCallback(async () => {
     setLoading(true)
@@ -149,7 +296,11 @@ export default function MaterialQC() {
   }, [loadIncomingLots])
 
   const openSlipEditorForRecord = (rec) => {
+    const rawType = rec.dosage_form || rec.product_type || rec.material_name || ''
+    const detected = normalizeProductTypeKey(rawType)
+    if (detected) setProductType(detected)
     setSlipInitialData({
+      id: rec.id,
       to_department: 'PRODUCTION',
       product: rec.material_name || '',
       tr_no: rec.ar_no || '',
@@ -171,12 +322,26 @@ export default function MaterialQC() {
       sign_qa: rec.qa_name || '',
       received_production: '',
     })
+    setActiveOrder({
+      id: rec.id,
+      orderNumber: rec.grn_no || `LOT-${rec.id}`,
+      productName: rec.material_name || 'Material',
+      batchNo: rec.batch_no || '—',
+      productType: detected || 'tablet',
+      productTypeDisplay: detected ? detected.toUpperCase() : 'TABLET',
+      fromInwardLot: true,
+    })
+    setOrderReadOnly(false)
     setActiveTab('bulk_slip')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const openTestReqForRecord = (rec) => {
+    const rawType = rec.dosage_form || rec.product_type || rec.material_name || ''
+    const detected = normalizeProductTypeKey(rawType)
+    if (detected) setProductType(detected)
     setTestReqInitialData({
+      id: rec.id,
       to_department: 'QUALITY CONTROL',
       product: rec.material_name || '',
       product_code: rec.material_code || '',
@@ -184,11 +349,15 @@ export default function MaterialQC() {
       batch_size: rec.batch_size ? `${rec.batch_size} ${rec.batch_unit || ''}`.trim() : '',
       sampled_qty: '',
       mfg_date: rec.mfg_date || '',
+      exp_best_before: rec.expiry_date || '5',
       exp_years: rec.expiry_date || '5',
       date: new Date().toISOString().split('T')[0],
       tr_no: rec.ar_no || '',
       sign_production: rec.chemist_name || '',
+      received_qa: rec.qc_head_name || '',
       received_qc: '',
+      sampled_qa: '',
+      department: detected === 'mother-tincture' ? 'MOTHER TINCTURE' : (detected === 'syrup' ? 'SYRUP' : 'TABLET'),
       test_appearance: true,
       test_odor: true,
       test_wt_ml: true,
@@ -198,6 +367,16 @@ export default function MaterialQC() {
       test_iodine_value: true,
       test_saponification: true,
     })
+    setActiveOrder({
+      id: rec.id,
+      orderNumber: rec.grn_no || `LOT-${rec.id}`,
+      productName: rec.material_name || 'Material',
+      batchNo: rec.batch_no || '—',
+      productType: detected || 'tablet',
+      productTypeDisplay: detected ? detected.toUpperCase() : 'TABLET',
+      fromInwardLot: true,
+    })
+    setOrderReadOnly(false)
     setActiveTab('test_request')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -449,52 +628,118 @@ export default function MaterialQC() {
         />
       </div>
 
-      {/* ── View Switcher Tabs ── */}
-      <div className="qc-filter-group no-print" style={{ marginBottom: 18, borderBottom: '1px solid #e2e8f0', paddingBottom: 10 }}>
+      {/* ── Top Navigation Cards Grid (Task 2) ── */}
+      <div className="qc-nav-grid no-print" role="tablist" aria-label="Quality Control Sections" style={{ marginBottom: 22 }}>
+        {/* Card 1: Inward Material QC */}
         <button
           type="button"
-          className={`qc-filter${activeTab === 'inward_qc' ? ' active' : ''}`}
-          onClick={() => setActiveTab('inward_qc')}
-          style={{ fontSize: 13, padding: '8px 16px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          role="tab"
+          id="qc-tab-inward"
+          aria-selected={activeTab === 'inward_qc'}
+          aria-controls="qc-panel-inward"
+          className={`qc-nav-card${activeTab === 'inward_qc' ? ' active' : ''}`}
+          onClick={() => { setActiveTab('inward_qc'); setActiveOrder(null); }}
         >
-          <span>📦 Inward Material QC</span>
-          <span style={{ background: activeTab === 'inward_qc' ? 'rgba(255,255,255,0.25)' : '#e2e8f0', padding: '1px 6px', borderRadius: 999, fontSize: 11 }}>
-            {kpi.total}
-          </span>
-        </button>
-        <button
-          type="button"
-          className={`qc-filter${activeTab === 'bulk_slip' ? ' active' : ''}`}
-          onClick={() => setActiveTab('bulk_slip')}
-          style={{ fontSize: 13, padding: '8px 16px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-        >
-          <span>📝 Bulk Release Slip (Attachment-3)</span>
-          <span style={{ background: '#dbeafe', color: '#1d4ed8', padding: '1px 6px', borderRadius: 999, fontSize: 11, fontWeight: 700 }}>
-            BMR Style Editor
-          </span>
-        </button>
-        <button
-          type="button"
-          className={`qc-filter${activeTab === 'test_request' ? ' active' : ''}`}
-          onClick={() => setActiveTab('test_request')}
-          style={{ fontSize: 13, padding: '8px 16px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-        >
-          <span>🧪 Test Request Slip (Attachment-2)</span>
-          <span style={{ background: '#fef9c3', color: '#854d0e', padding: '1px 6px', borderRadius: 999, fontSize: 11, fontWeight: 700 }}>
-            BMR Style Editor
-          </span>
+          <div className="qc-nav-card-header">
+            <div className="qc-nav-card-icon-wrap" aria-hidden="true">📦</div>
+            <span
+              className="qc-nav-card-badge"
+              style={{
+                background: activeTab === 'inward_qc' ? '#2563eb' : '#e2e8f0',
+                color: activeTab === 'inward_qc' ? '#ffffff' : '#334155',
+              }}
+            >
+              {kpi.total} {kpi.total === 1 ? 'Lot' : 'Lots'}
+            </span>
+          </div>
+          <div className="qc-nav-card-body">
+            <div className="qc-nav-card-title">Inward Material QC</div>
+            <div className="qc-nav-card-subtitle">Incoming material QC list &amp; store quarantine gate</div>
+          </div>
         </button>
 
+        {/* Card 2: Bulk Release Slip */}
         <button
           type="button"
-          className={`qc-filter${activeTab === 'coa_documents' ? ' active' : ''}`}
-          onClick={() => setActiveTab('coa_documents')}
-          style={{ fontSize: 13, padding: '8px 16px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          role="tab"
+          id="qc-tab-bulk"
+          aria-selected={activeTab === 'bulk_slip'}
+          aria-controls="qc-panel-bulk"
+          className={`qc-nav-card${activeTab === 'bulk_slip' ? ' active' : ''}`}
+          onClick={() => { setActiveTab('bulk_slip'); setActiveOrder(null); }}
         >
-          <span>📜 COA Documents</span>
-          <span style={{ background: activeTab === 'coa_documents' ? 'rgba(255,255,255,0.25)' : '#dcfce7', color: activeTab === 'coa_documents' ? '#fff' : '#166534', padding: '1px 6px', borderRadius: 999, fontSize: 11, fontWeight: 700 }}>
-            Official QC Gate
-          </span>
+          <div className="qc-nav-card-header">
+            <div className="qc-nav-card-icon-wrap" aria-hidden="true">📝</div>
+            <span
+              className="qc-nav-card-badge"
+              style={{
+                background: '#dbeafe',
+                color: '#1d4ed8',
+              }}
+            >
+              BMR Style Editor
+            </span>
+          </div>
+          <div className="qc-nav-card-body">
+            <div className="qc-nav-card-title">Bulk Release Slip (Attachment-3)</div>
+            <div className="qc-nav-card-subtitle">Order-wise bulk release slips &amp; release notes</div>
+          </div>
+        </button>
+
+        {/* Card 3: Test Request Slip */}
+        <button
+          type="button"
+          role="tab"
+          id="qc-tab-test"
+          aria-selected={activeTab === 'test_request'}
+          aria-controls="qc-panel-test"
+          className={`qc-nav-card${activeTab === 'test_request' ? ' active' : ''}`}
+          onClick={() => { setActiveTab('test_request'); setActiveOrder(null); }}
+        >
+          <div className="qc-nav-card-header">
+            <div className="qc-nav-card-icon-wrap" aria-hidden="true">🧪</div>
+            <span
+              className="qc-nav-card-badge"
+              style={{
+                background: '#fef9c3',
+                color: '#854d0e',
+              }}
+            >
+              BMR Style Editor
+            </span>
+          </div>
+          <div className="qc-nav-card-body">
+            <div className="qc-nav-card-title">Test Request Slip (Attachment-2)</div>
+            <div className="qc-nav-card-subtitle">Order-wise test request slips (Bulk &amp; FP)</div>
+          </div>
+        </button>
+
+        {/* Card 4: COA Documents */}
+        <button
+          type="button"
+          role="tab"
+          id="qc-tab-coa"
+          aria-selected={activeTab === 'coa_documents'}
+          aria-controls="qc-panel-coa"
+          className={`qc-nav-card${activeTab === 'coa_documents' ? ' active' : ''}`}
+          onClick={() => { setActiveTab('coa_documents'); setActiveOrder(null); }}
+        >
+          <div className="qc-nav-card-header">
+            <div className="qc-nav-card-icon-wrap" aria-hidden="true">📜</div>
+            <span
+              className="qc-nav-card-badge"
+              style={{
+                background: activeTab === 'coa_documents' ? '#16a34a' : '#dcfce7',
+                color: activeTab === 'coa_documents' ? '#ffffff' : '#166534',
+              }}
+            >
+              Official QC Gate
+            </span>
+          </div>
+          <div className="qc-nav-card-body">
+            <div className="qc-nav-card-title">COA Documents</div>
+            <div className="qc-nav-card-subtitle">Official QC gate documents &amp; test certificates</div>
+          </div>
         </button>
       </div>
 
@@ -506,73 +751,219 @@ export default function MaterialQC() {
         </div>
       ) : activeTab === 'bulk_slip' ? (
         <div style={{ marginTop: 10 }}>
-          {/* Quick Auto-fill Selector */}
-          <div className="no-print" style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 10, padding: '10px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#334155' }}>📋 Auto-fill from Inward Lot:</span>
-              <select
-                className="company-input"
-                style={{ minWidth: 260, fontSize: 12 }}
-                onChange={(e) => {
-                  const found = records.find((r) => String(r.id) === e.target.value);
-                  if (found) openSlipEditorForRecord(found);
+          {!activeOrder ? (
+            <QcOrderSlipList
+              slipKind="bulk_release"
+              orders={qcOrders}
+              loading={qcOrdersLoading}
+              filters={slipFilters}
+              onFilterChange={setSlipFilters}
+              onResetFilters={() => setSlipFilters({ search: '', productType: 'ALL', dateFrom: '', dateTo: '', datePreset: '' })}
+              onOpenSlip={(order, isComp) => handleOpenOrderSlip(order, isComp)}
+              onMarkComplete={handleMarkComplete}
+              onReturnToPending={handleReturnToPending}
+            />
+          ) : (
+            <div>
+              {/* Slip Top Toolbar */}
+              <div
+                className="no-print"
+                style={{
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 10,
+                  padding: '12px 18px',
+                  marginBottom: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  flexWrap: 'wrap',
                 }}
-                defaultValue=""
               >
-                <option value="" disabled>Choose material lot...</option>
-                {records.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.material_name} ({r.batch_no || r.grn_no})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              style={{ fontSize: 12, padding: '5px 12px' }}
-              onClick={() => setActiveTab('inward_qc')}
-            >
-              ← Back to Inward QC List
-            </button>
-          </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ fontSize: 13, padding: '6px 14px', fontWeight: 600 }}
+                    onClick={() => {
+                      if (activeOrder?.fromInwardLot) {
+                        setActiveTab('inward_qc')
+                      }
+                      setActiveOrder(null)
+                    }}
+                  >
+                    {activeOrder?.fromInwardLot ? '← Back to Inward QC List' : '← Back to Orders List'}
+                  </button>
 
-          <BulkReleaseSlipEditor initialData={slipInitialData} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
+                      Order #{activeOrder.orderNumber}
+                    </span>
+                    <span style={{ color: '#94a3b8' }}>•</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#334155' }}>
+                      {activeOrder.productName}
+                    </span>
+                    <span style={{ color: '#94a3b8' }}>•</span>
+                    <span style={{ fontSize: 12, background: '#e2e8f0', color: '#334155', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
+                      Batch: {activeOrder.batchNo}
+                    </span>
+                    <span style={{ color: '#94a3b8' }}>•</span>
+                    <StatusPill tone="info">{activeOrder.productTypeDisplay || productType}</StatusPill>
+                    {orderReadOnly ? (
+                      <StatusPill tone="success">✓ Completed (Read-only)</StatusPill>
+                    ) : (
+                      <StatusPill tone="warning">⏳ In Progress</StatusPill>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {!orderReadOnly ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => handleMarkComplete(activeOrder)}
+                      title="Mark this order's QC slip as completed"
+                    >
+                      ✓ Mark as Complete
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => handleReturnToPending(activeOrder)}
+                      title="Return back to Pending status to edit"
+                    >
+                      ↩ Return to Pending
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {orderReadOnly && (
+                <div className="no-print" style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: 13, color: '#166534', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>🔒</span>
+                  <span>This slip is <strong>Completed</strong> and locked in read-only mode. Printing and PDF download are fully available. To edit fields, click <em>"Return to Pending"</em> above.</span>
+                </div>
+              )}
+
+              <BulkReleaseSlipEditor
+                initialData={slipInitialData}
+                productType={productType}
+                readOnly={orderReadOnly}
+                onSaved={handleSaveSlip}
+              />
+            </div>
+          )}
         </div>
       ) : activeTab === 'test_request' ? (
         <div style={{ marginTop: 10 }}>
-          {/* Quick Auto-fill Selector for Test Request */}
-          <div className="no-print" style={{ background: '#fefce8', border: '1px solid #fde047', borderRadius: 10, padding: '10px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#713f12' }}>🧪 Auto-fill from Inward Lot:</span>
-              <select
-                className="company-input"
-                style={{ minWidth: 260, fontSize: 12 }}
-                onChange={(e) => {
-                  const found = records.find((r) => String(r.id) === e.target.value);
-                  if (found) openTestReqForRecord(found);
+          {!activeOrder ? (
+            <QcOrderSlipList
+              slipKind="test_request"
+              orders={qcOrders}
+              loading={qcOrdersLoading}
+              filters={slipFilters}
+              onFilterChange={setSlipFilters}
+              onResetFilters={() => setSlipFilters({ search: '', productType: 'ALL', dateFrom: '', dateTo: '', datePreset: '' })}
+              onOpenSlip={(order, isComp) => handleOpenOrderSlip(order, isComp)}
+              onMarkComplete={handleMarkComplete}
+              onReturnToPending={handleReturnToPending}
+            />
+          ) : (
+            <div>
+              {/* Slip Top Toolbar */}
+              <div
+                className="no-print"
+                style={{
+                  background: '#fefce8',
+                  border: '1px solid #fde047',
+                  borderRadius: 10,
+                  padding: '12px 18px',
+                  marginBottom: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  flexWrap: 'wrap',
                 }}
-                defaultValue=""
               >
-                <option value="" disabled>Choose material lot...</option>
-                {records.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.material_name} ({r.batch_no || r.grn_no})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              style={{ fontSize: 12, padding: '5px 12px' }}
-              onClick={() => setActiveTab('inward_qc')}
-            >
-              ← Back to Inward QC List
-            </button>
-          </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ fontSize: 13, padding: '6px 14px', fontWeight: 600 }}
+                    onClick={() => {
+                      if (activeOrder?.fromInwardLot) {
+                        setActiveTab('inward_qc')
+                      }
+                      setActiveOrder(null)
+                    }}
+                  >
+                    {activeOrder?.fromInwardLot ? '← Back to Inward QC List' : '← Back to Orders List'}
+                  </button>
 
-          <TestRequestSlipEditor initialData={testReqInitialData} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: '#713f12' }}>
+                      Order #{activeOrder.orderNumber}
+                    </span>
+                    <span style={{ color: '#ca8a04' }}>•</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#854d0e' }}>
+                      {activeOrder.productName}
+                    </span>
+                    <span style={{ color: '#ca8a04' }}>•</span>
+                    <span style={{ fontSize: 12, background: '#fef08a', color: '#713f12', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
+                      Batch: {activeOrder.batchNo}
+                    </span>
+                    <span style={{ color: '#ca8a04' }}>•</span>
+                    <StatusPill tone="info">{activeOrder.productTypeDisplay || productType}</StatusPill>
+                    {orderReadOnly ? (
+                      <StatusPill tone="success">✓ Completed (Read-only)</StatusPill>
+                    ) : (
+                      <StatusPill tone="warning">⏳ In Progress</StatusPill>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {!orderReadOnly ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => handleMarkComplete(activeOrder)}
+                      title="Mark this order's QC slip as completed"
+                    >
+                      ✓ Mark as Complete
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => handleReturnToPending(activeOrder)}
+                      title="Return back to Pending status to edit"
+                    >
+                      ↩ Return to Pending
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {orderReadOnly && (
+                <div className="no-print" style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: 13, color: '#166534', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>🔒</span>
+                  <span>This slip is <strong>Completed</strong> and locked in read-only mode. Printing and PDF download are fully available. To edit fields, click <em>"Return to Pending"</em> above.</span>
+                </div>
+              )}
+
+              <TestRequestSlipEditor
+                initialData={testReqInitialData}
+                productType={productType}
+                readOnly={orderReadOnly}
+                onSaved={handleSaveSlip}
+              />
+            </div>
+          )}
         </div>
       ) : (
         <>

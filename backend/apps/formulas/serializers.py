@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
-from apps.formulas.models import Formula, FormulaLine, FormulaRevision
+from apps.formulas.models import Formula, FormulaLine, FormulaRevision, ProductFormulaSlip
 
 # Allow-lists: every key outside the set is rejected with 400 (never
 # silently ignored). Create/update sets are independent. Notably absent
@@ -310,3 +310,29 @@ class ApprovalPolicyUpdateSerializer(serializers.Serializer):
     def validate(self, attrs):
         _reject_unknown_fields(self.initial_data, _POLICY_UPDATE)
         return attrs
+
+
+class ProductFormulaSlipSerializer(serializers.ModelSerializer):
+    updated_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProductFormulaSlip
+        fields = [
+            "id",
+            "company_id",
+            "product_id",
+            "formula_revision_id",
+            "slip_type",
+            "data",
+            "updated_by",
+            "updated_by_name",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "company_id", "created_at", "updated_at", "updated_by"]
+
+    def get_updated_by_name(self, obj):
+        if obj.updated_by:
+            return obj.updated_by.get_full_name() or obj.updated_by.username
+        return None
+

@@ -109,8 +109,8 @@ const NAV_SECTIONS = [
       },
 
       {
-        label: 'BMR Records',
-        path: '/bmr-records',
+        label: 'Records',
+        path: '/records',
         icon: ClipboardIcon,
         accent: '#8b5cf6',
         companyOnly: true,
@@ -126,11 +126,12 @@ const NAV_SECTIONS = [
       },
 
       {
-        label: 'Supply Chain',
-        path: '/supply-chain',
+        label: 'Dispatch',
+        path: '/dispatch',
         icon: TruckIcon,
-        accent: '#f5a623',
+        accent: '#854d0e',
         companyOnly: true,
+        roles: ['SUPER_ADMIN', 'MANAGEMENT', 'DEPARTMENT_MANAGER', 'STORES_MANAGER', 'HR_MANAGER', 'EMPLOYEE'],
       },
 
       {

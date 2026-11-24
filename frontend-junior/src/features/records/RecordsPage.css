@@ -1,0 +1,442 @@
+/* RecordsPage.css - Order-wise Records and Dispatch Styling */
+
+.records-container {
+  padding: 24px;
+  background-color: #f8fafc;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.records-header {
+  margin-bottom: 20px;
+}
+
+.records-header h1 {
+  font-size: 24px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.records-header p {
+  font-size: 13.5px;
+  color: #64748b;
+  margin: 0;
+}
+
+/* FILTER BAR */
+.records-filter-bar {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.records-search-input {
+  flex: 1;
+  min-width: 220px;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.records-search-input:focus {
+  border-color: #0284c7;
+}
+
+.records-select {
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  background-color: #ffffff;
+  color: #1e293b;
+  outline: none;
+  cursor: pointer;
+}
+
+.records-date-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: #475569;
+  font-weight: 600;
+}
+
+.records-date-input {
+  padding: 6px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: #1e293b;
+  outline: none;
+}
+
+/* QUICK FILTER PILLS */
+.records-pills-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.records-pill {
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  color: #475569;
+  transition: all 0.15s ease;
+}
+
+.records-pill:hover {
+  background-color: #f1f5f9;
+}
+
+.records-pill.active {
+  background-color: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+}
+
+/* TABLE WRAPPER WITH HORIZONTAL SCROLL AND STICKY COLUMNS */
+.records-table-card {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+
+.records-table-scroll {
+  overflow-x: auto;
+  position: relative;
+  max-width: 100%;
+}
+
+.records-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12.5px;
+  text-align: left;
+}
+
+.records-table th {
+  background-color: #f8fafc;
+  color: #334155;
+  padding: 10px 12px;
+  font-weight: 700;
+  border-bottom: 2px solid #e2e8f0;
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+.records-th-sub {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.records-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+  vertical-align: middle;
+  background-color: #ffffff;
+}
+
+.records-table tr:hover td {
+  background-color: #f8fafc;
+}
+
+/* STICKY FIRST 3 COLUMNS */
+.records-sticky-1 {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background-color: #ffffff !important;
+}
+
+.records-table th.records-sticky-1 {
+  background-color: #f8fafc !important;
+  z-index: 5;
+}
+
+.records-sticky-2 {
+  position: sticky;
+  left: 110px;
+  z-index: 3;
+  background-color: #ffffff !important;
+}
+
+.records-table th.records-sticky-2 {
+  background-color: #f8fafc !important;
+  z-index: 5;
+}
+
+.records-sticky-3 {
+  position: sticky;
+  left: 210px;
+  z-index: 3;
+  background-color: #ffffff !important;
+  border-right: 2px solid #e2e8f0 !important;
+  box-shadow: 4px 0 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.records-table th.records-sticky-3 {
+  background-color: #f8fafc !important;
+  border-right: 2px solid #e2e8f0 !important;
+  z-index: 5;
+  box-shadow: 4px 0 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* COMPACT VIEW BUTTONS */
+.records-view-btn {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justifyContent: center;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background-color: #f8fafc;
+  color: #0369a1;
+  font-weight: 700;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.records-view-btn:hover {
+  background-color: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+}
+
+.records-view-btn-sub {
+  font-size: 9.5px;
+  font-weight: 500;
+  color: #64748b;
+  margin-top: 1px;
+}
+
+.records-view-btn:hover .records-view-btn-sub {
+  color: #e0f2fe;
+}
+
+.records-cell-dash {
+  color: #94a3b8;
+  font-weight: 600;
+  text-align: center;
+  display: inline-block;
+  padding: 4px 8px;
+}
+
+/* BADGES */
+.records-badge-coa-returned {
+  display: inline-block;
+  font-size: 10px;
+  background-color: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-weight: 700;
+  margin-top: 3px;
+  white-space: nowrap;
+}
+
+/* ACTIONS CELL */
+.records-actions-cell {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.records-btn-return-prod {
+  padding: 5px 10px;
+  background-color: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fdba74;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.records-btn-return-prod:hover {
+  background-color: #ea580c;
+  color: #ffffff;
+  border-color: #ea580c;
+}
+
+.records-btn-back-coa {
+  padding: 5px 10px;
+  background-color: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #86efac;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.records-btn-back-coa:hover {
+  background-color: #16a34a;
+  color: #ffffff;
+  border-color: #16a34a;
+}
+
+/* PAGINATION */
+.records-pagination {
+  padding: 12px 18px;
+  background-color: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justifyContent: space-between;
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+.records-page-btn {
+  padding: 5px 12px;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+}
+
+.records-page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* =========================================================
+   DISPATCH MODE: STAGE & STATUS STYLING
+   ========================================================= */
+
+.dispatch-stage-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.dispatch-stage-shipped {
+  background-color: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.dispatch-stage-ready {
+  background-color: #dbeafe;
+  color: #1d4ed8;
+  border: 1px solid #93c5fd;
+}
+
+.dispatch-stage-returned {
+  background-color: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fdba74;
+}
+
+.dispatch-stage-qc {
+  background-color: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+
+.dispatch-stepper-track {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.dispatch-step {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.dispatch-step .step-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  background-color: #e2e8f0;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.dispatch-step.completed {
+  color: #166534;
+}
+
+.dispatch-step.completed .step-dot {
+  background-color: #22c55e;
+  color: #ffffff;
+}
+
+.dispatch-step.active {
+  color: #1d4ed8;
+}
+
+.dispatch-step.active .step-dot {
+  background-color: #3b82f6;
+  color: #ffffff;
+}
+
+.dispatch-step.alert {
+  color: #b91c1c;
+}
+
+.dispatch-step.alert .step-dot {
+  background-color: #ef4444;
+  color: #ffffff;
+}
+
+.step-arrow {
+  color: #cbd5e1;
+  font-size: 11px;
+}
+

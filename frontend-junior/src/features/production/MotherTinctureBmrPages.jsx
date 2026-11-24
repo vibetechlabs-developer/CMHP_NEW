@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react'
+import SpecimenUpload from './SpecimenUpload'
 
 export function getMotherTincturePageRenderers({
   data,
@@ -977,8 +978,17 @@ export function getMotherTincturePageRenderers({
           </div>
         </div>
 
-        {/* Clean blank white space fills the middle */}
-        <div style={{ flex: 1 }} />
+        {/* Clean blank white space fills the middle, with optional Carton/Label Specimen Upload */}
+        <div style={{ flex: 1, marginTop: '16pt', display: 'flex', flexDirection: 'column' }}>
+          {(data.enableSpecimenUpload !== false) && (
+            <SpecimenUpload
+              images={data.page6?.specimens || data.page6?.specimen_images || (data.page6?.specimen_image ? [data.page6.specimen_image] : [])}
+              onChange={(imgs) => updatePage('page6', 'specimens', imgs)}
+              instructionText="Carton / Label Specimen (Attachment):"
+              maxHeight={320}
+            />
+          )}
+        </div>
       </div>
       {renderFooter(6)}
     </div>

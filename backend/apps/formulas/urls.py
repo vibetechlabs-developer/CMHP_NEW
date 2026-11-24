@@ -4,6 +4,7 @@ from apps.formulas.views import (
     ApprovalPolicyView,
     FormulaDetailView,
     FormulaListCreateView,
+    ProductFormulaSlipView,
     RevisionApprovalPreviewView,
     RevisionApproveView,
     RevisionDetailView,
@@ -51,5 +52,10 @@ urlpatterns = [
         "<int:company_id>/formulas/<int:formula_id>/revisions/<int:revision_id>/requirement-preview/",
         RevisionRequirementPreviewView.as_view(),
         name="formula-revision-requirement-preview",
+    ),
+    path(
+        "<int:company_id>/formula-slips/",
+        ProductFormulaSlipView.as_view(),
+        name="product-formula-slips",
     ),
 ]

@@ -4,7 +4,7 @@
  * Provides scoped access to Redux ERP state for the currently active company.
  *
  * Rules:
- * - Products, Formulas, Invoices, Orders, QC/QA, Supply Chain, and HRMS records
+ * - Products, Formulas, Invoices, Orders, QC/QA, and HRMS records
  *   are strictly segregated between CMHP Pharma (cmhp / 1) and Tej Biocare (tej / 2).
  * - Customers and Common Inventory (items, lots, locations, transactions, uoms)
  *   are single shared datasets across both companies.

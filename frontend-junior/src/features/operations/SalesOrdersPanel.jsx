@@ -236,6 +236,13 @@ export default function SalesOrdersPanel() {
   const displayRows = useMemo(() => {
     let rows = data.results || []
 
+    // Exclude dispatched orders from active Sales Orders list (Task 3.2 e)
+    rows = rows.filter((order) => {
+      const s = String(order.status || '').toUpperCase()
+      const d = String(order.dispatch_status || '').toUpperCase()
+      return s !== 'DISPATCHED' && d !== 'YES' && !order.is_dispatched
+    })
+
     if (typeFilter !== 'ALL') {
       rows = rows.filter((order) => {
         const typeStr = (order.lines || [])

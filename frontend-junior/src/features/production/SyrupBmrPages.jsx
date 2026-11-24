@@ -1,3 +1,4 @@
+import SpecimenUpload from './SpecimenUpload'
 
 export function getSyrupPageRenderers({
   data,
@@ -2779,78 +2780,68 @@ export function getSyrupPageRenderers({
   )
 
   // Page 14: Packed Quantity, Reconciliation & QA Inspection
+  // Page 14: Analysis, Total packed, PM Reconciliation (all 6 rows) & QA Final Inspection (Outer box only)
   const renderPage14 = () => (
     <div className="bmr-sheet bmr-syrup-sheet" key="page-14">
       {renderHeader(14)}
       <div className="bmr-body">
-        <div style={{ fontSize: 10, lineHeight: '1.35', marginBottom: 4, marginTop: 2 }}>
+        <div style={{ fontSize: '9pt', lineHeight: '1.4', marginBottom: '8pt', marginTop: '4pt' }}>
           <div>
-            <strong>Retain </strong>
+            Analysis &nbsp;
             <input
               className="bmr-line-input"
-              style={{ width: 120 }}
-              value={data.page13?.retain_bottles || data.page14?.retain_bottles || ''}
+              style={{ width: 150, textAlign: 'center' }}
+              value={data.page13?.bonded_analysis_bottles || data.page14?.bonded_analysis_bottles || ''}
               onChange={(e) => {
-                updatePage('page13', 'retain_bottles', e.target.value)
-                updatePage('page14', 'retain_bottles', e.target.value)
+                updatePage('page13', 'bonded_analysis_bottles', e.target.value)
+                updatePage('page14', 'bonded_analysis_bottles', e.target.value)
               }}
             />{' '}
-            Bottles ={' '}
+            Bottles =&nbsp;
             <input
               className="bmr-line-input"
-              style={{ width: 120 }}
-              value={data.page13?.retain_litres || data.page14?.retain_litres || ''}
+              style={{ width: 150, textAlign: 'center' }}
+              value={data.page13?.bonded_analysis_litres || data.page14?.bonded_analysis_litres || ''}
               onChange={(e) => {
-                updatePage('page13', 'retain_litres', e.target.value)
-                updatePage('page14', 'retain_litres', e.target.value)
+                updatePage('page13', 'bonded_analysis_litres', e.target.value)
+                updatePage('page14', 'bonded_analysis_litres', e.target.value)
               }}
             />{' '}
             Litres
           </div>
-          <div style={{ marginTop: 1 }}>
-            <strong>Analysis </strong>
+          <div style={{ marginTop: 2 }}>
+            Total quantity packed &nbsp;
             <input
               className="bmr-line-input"
-              style={{ width: 120 }}
-              value={data.page14?.analysis_bottles || ''}
-              onChange={(e) => updatePage('page14', 'analysis_bottles', e.target.value)}
+              style={{ width: 140, textAlign: 'center' }}
+              value={data.page13?.bonded_total_bottles || data.page14?.bonded_total_bottles || ''}
+              onChange={(e) => {
+                updatePage('page13', 'bonded_total_bottles', e.target.value)
+                updatePage('page14', 'bonded_total_bottles', e.target.value)
+              }}
             />{' '}
-            Bottles ={' '}
+            Bottles&nbsp;&nbsp;
             <input
               className="bmr-line-input"
-              style={{ width: 120 }}
-              value={data.page14?.analysis_litres || ''}
-              onChange={(e) => updatePage('page14', 'analysis_litres', e.target.value)}
-            />{' '}
-            Litres
-          </div>
-          <div style={{ marginTop: 1 }}>
-            <strong>Total quantity packed </strong>
-            <input
-              className="bmr-line-input"
-              style={{ width: 120 }}
-              value={data.page14?.total_packed_bottles || ''}
-              onChange={(e) => updatePage('page14', 'total_packed_bottles', e.target.value)}
-            />{' '}
-            Bottles{' '}
-            <input
-              className="bmr-line-input"
-              style={{ width: 120 }}
-              value={data.page14?.total_packed_litres || ''}
-              onChange={(e) => updatePage('page14', 'total_packed_litres', e.target.value)}
+              style={{ width: 140, textAlign: 'center' }}
+              value={data.page13?.bonded_total_litres || data.page14?.bonded_total_litres || ''}
+              onChange={(e) => {
+                updatePage('page13', 'bonded_total_litres', e.target.value)
+                updatePage('page14', 'bonded_total_litres', e.target.value)
+              }}
             />{' '}
             Litres
           </div>
         </div>
 
-        <div className="bmr-section-title">
-          PACKING MATERIAL RECONCILIATION:
+        <div className="bmr-section-title" style={{ marginTop: '10pt', marginBottom: '2pt' }}>
+          PACKING MATERIAL RECONCILLATION:
         </div>
-        <div style={{ fontSize: 9.5, marginBottom: 4, color: '#1e293b' }}>
+        <p style={{ margin: '1pt 0 4pt', fontSize: '8.5pt' }}>
           After completion of the packing operation, check and record the details of the PM in below given table.
-        </div>
+        </p>
 
-        <table className="bmr-table">
+        <table className="bmr-table" style={{ fontSize: '7.5pt', marginBottom: '8pt' }}>
           <colgroup>
             <col style={{ width: 28 }} />
             <col style={{ width: 85 }} />
@@ -2867,34 +2858,42 @@ export function getSyrupPageRenderers({
           </colgroup>
           <thead>
             <tr>
-              <th rowSpan={2} style={{ textAlign: 'center', fontSize: 8 }}>Sr.<br />No.</th>
-              <th rowSpan={2} style={{ textAlign: 'center', fontSize: 8 }}>Packing<br />Material</th>
-              <th rowSpan={2} style={{ textAlign: 'center', fontSize: 8 }}>AR<br />No.</th>
-              <th rowSpan={2} style={{ textAlign: 'center', fontSize: 8 }}>Qty.<br />Issued<br />Nos.</th>
-              <th colSpan={4} style={{ textAlign: 'center', fontSize: 8 }}>Quantity Rejected</th>
-              <th rowSpan={2} style={{ textAlign: 'center', fontSize: 8 }}>Qty.<br />Used<br />No.</th>
-              <th rowSpan={2} style={{ textAlign: 'center', fontSize: 8 }}>Qty.<br />Returned<br />Nos.</th>
-              <th rowSpan={2} style={{ textAlign: 'center', fontSize: 8 }}>Checked<br />By (Pkg)</th>
-              <th rowSpan={2} style={{ textAlign: 'center', fontSize: 8 }}>Checked<br />By<br />(QA)</th>
+              <th rowSpan={2} style={{ textAlign: 'center' }}>Sr.<br />No.</th>
+              <th rowSpan={2} style={{ textAlign: 'center' }}>Packing<br />Material</th>
+              <th rowSpan={2} style={{ textAlign: 'center' }}>AR<br />No.</th>
+              <th rowSpan={2} style={{ textAlign: 'center' }}>Qty.<br />Issued<br />Nos.</th>
+              <th colSpan={4} style={{ textAlign: 'center' }}>Quantity Rejected</th>
+              <th rowSpan={2} style={{ textAlign: 'center' }}>Qty.<br />Used<br />No.</th>
+              <th rowSpan={2} style={{ textAlign: 'center' }}>Qty.<br />Returned<br />Nos.</th>
+              <th rowSpan={2} style={{ textAlign: 'center' }}>Checked<br />By (Pkg)</th>
+              <th rowSpan={2} style={{ textAlign: 'center' }}>Checked<br />By<br />(QA)</th>
             </tr>
             <tr>
-              <th style={{ textAlign: 'center', fontSize: 7.5 }}>Coding<br />Rej.</th>
-              <th style={{ textAlign: 'center', fontSize: 7.5 }}>Online</th>
-              <th style={{ textAlign: 'center', fontSize: 7.5 }}>Excess</th>
-              <th style={{ textAlign: 'center', fontSize: 7.5 }}>Total</th>
+              <th style={{ textAlign: 'center' }}>Coding<br />Rejection</th>
+              <th style={{ textAlign: 'center' }}>Online</th>
+              <th style={{ textAlign: 'center' }}>Excess</th>
+              <th style={{ textAlign: 'center' }}>Total</th>
             </tr>
           </thead>
           <tbody>
-            {(data.page14?.pm_reconciliation || []).slice(0, 3).map((row, idx) => (
-              <tr key={idx}>
-                <td style={{ textAlign: 'center' }}>{row.sr || idx + 1}</td>
-                <td>{row.material}</td>
+            {(data.page14?.pm_reconciliation || [
+              { sr: '1', material: 'Label', ar_no: '', issued: '', coding_rej: '', online_rej: '', excess: '', total_rej: '', used: '', returned: '', chk_pkg: '', chk_qa: '' },
+              { sr: '2', material: 'Box', ar_no: '', issued: '', coding_rej: '', online_rej: '', excess: '', total_rej: '', used: '', returned: '', chk_pkg: '', chk_qa: '' },
+              { sr: '3', material: 'Inserts', ar_no: '', issued: '', coding_rej: '', online_rej: '', excess: '', total_rej: '', used: '', returned: '', chk_pkg: '', chk_qa: '' },
+              { sr: '4', material: 'Measuring Cap', ar_no: '', issued: '', coding_rej: '', online_rej: '', excess: '', total_rej: '', used: '', returned: '', chk_pkg: '', chk_qa: '' },
+              { sr: '', material: '', ar_no: '', issued: '', coding_rej: '', online_rej: '', excess: '', total_rej: '', used: '', returned: '', chk_pkg: '', chk_qa: '' },
+              { sr: '', material: '', ar_no: '', issued: '', coding_rej: '', online_rej: '', excess: '', total_rej: '', used: '', returned: '', chk_pkg: '', chk_qa: '' },
+            ]).slice(0, 6).map((row, idx) => (
+              <tr key={idx} style={{ height: 20 }}>
+                <td style={{ textAlign: 'center' }}>{row.sr || ''}</td>
+                <td>{row.material || ''}</td>
                 <td>
                   <input
                     className="bmr-cell-input"
                     value={row.ar_no || ''}
                     onChange={(e) => {
                       const updated = [...(data.page14?.pm_reconciliation || [])]
+                      if (!updated[idx]) updated[idx] = {}
                       updated[idx].ar_no = e.target.value
                       updatePage('page14', 'pm_reconciliation', updated)
                     }}
@@ -2907,6 +2906,7 @@ export function getSyrupPageRenderers({
                     value={row.issued || ''}
                     onChange={(e) => {
                       const updated = [...(data.page14?.pm_reconciliation || [])]
+                      if (!updated[idx]) updated[idx] = {}
                       updated[idx].issued = e.target.value
                       updatePage('page14', 'pm_reconciliation', updated)
                     }}
@@ -2919,7 +2919,12 @@ export function getSyrupPageRenderers({
                     value={row.coding_rej || ''}
                     onChange={(e) => {
                       const updated = [...(data.page14?.pm_reconciliation || [])]
+                      if (!updated[idx]) updated[idx] = {}
                       updated[idx].coding_rej = e.target.value
+                      const c = parseFloat(e.target.value || 0)
+                      const o = parseFloat(updated[idx].online_rej || 0)
+                      const ex = parseFloat(updated[idx].excess || 0)
+                      updated[idx].total_rej = String(c + o + ex)
                       updatePage('page14', 'pm_reconciliation', updated)
                     }}
                   />
@@ -2931,7 +2936,12 @@ export function getSyrupPageRenderers({
                     value={row.online_rej || ''}
                     onChange={(e) => {
                       const updated = [...(data.page14?.pm_reconciliation || [])]
+                      if (!updated[idx]) updated[idx] = {}
                       updated[idx].online_rej = e.target.value
+                      const c = parseFloat(updated[idx].coding_rej || 0)
+                      const o = parseFloat(e.target.value || 0)
+                      const ex = parseFloat(updated[idx].excess || 0)
+                      updated[idx].total_rej = String(c + o + ex)
                       updatePage('page14', 'pm_reconciliation', updated)
                     }}
                   />
@@ -2943,7 +2953,12 @@ export function getSyrupPageRenderers({
                     value={row.excess || ''}
                     onChange={(e) => {
                       const updated = [...(data.page14?.pm_reconciliation || [])]
+                      if (!updated[idx]) updated[idx] = {}
                       updated[idx].excess = e.target.value
+                      const c = parseFloat(updated[idx].coding_rej || 0)
+                      const o = parseFloat(updated[idx].online_rej || 0)
+                      const ex = parseFloat(e.target.value || 0)
+                      updated[idx].total_rej = String(c + o + ex)
                       updatePage('page14', 'pm_reconciliation', updated)
                     }}
                   />
@@ -2955,6 +2970,7 @@ export function getSyrupPageRenderers({
                     value={row.total_rej || ''}
                     onChange={(e) => {
                       const updated = [...(data.page14?.pm_reconciliation || [])]
+                      if (!updated[idx]) updated[idx] = {}
                       updated[idx].total_rej = e.target.value
                       updatePage('page14', 'pm_reconciliation', updated)
                     }}
@@ -2967,6 +2983,7 @@ export function getSyrupPageRenderers({
                     value={row.used || ''}
                     onChange={(e) => {
                       const updated = [...(data.page14?.pm_reconciliation || [])]
+                      if (!updated[idx]) updated[idx] = {}
                       updated[idx].used = e.target.value
                       updatePage('page14', 'pm_reconciliation', updated)
                     }}
@@ -2979,6 +2996,7 @@ export function getSyrupPageRenderers({
                     value={row.returned || ''}
                     onChange={(e) => {
                       const updated = [...(data.page14?.pm_reconciliation || [])]
+                      if (!updated[idx]) updated[idx] = {}
                       updated[idx].returned = e.target.value
                       updatePage('page14', 'pm_reconciliation', updated)
                     }}
@@ -2987,10 +3005,11 @@ export function getSyrupPageRenderers({
                 <td>
                   <input
                     className="bmr-cell-input"
-                    value={row.checked_pkg || ''}
+                    value={row.chk_pkg || ''}
                     onChange={(e) => {
                       const updated = [...(data.page14?.pm_reconciliation || [])]
-                      updated[idx].checked_pkg = e.target.value
+                      if (!updated[idx]) updated[idx] = {}
+                      updated[idx].chk_pkg = e.target.value
                       updatePage('page14', 'pm_reconciliation', updated)
                     }}
                   />
@@ -2998,162 +3017,11 @@ export function getSyrupPageRenderers({
                 <td>
                   <input
                     className="bmr-cell-input"
-                    value={row.checked_qa || ''}
+                    value={row.chk_qa || ''}
                     onChange={(e) => {
                       const updated = [...(data.page14?.pm_reconciliation || [])]
-                      updated[idx].checked_qa = e.target.value
-                      updatePage('page14', 'pm_reconciliation', updated)
-                    }}
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {renderFooter(14)}
-    </div>
-  )
-
-  // Page 15: QA Inspection & Yield Accountability
-  const renderPage15 = () => (
-    <div className="bmr-sheet bmr-syrup-sheet" key="page-15">
-      {renderHeader(15)}
-      <div className="bmr-body">
-        {/* Continuation row 4 of PM Reconciliation table without header */}
-        <table className="bmr-table" style={{ marginTop: 2, marginBottom: 4 }}>
-          <colgroup>
-            <col style={{ width: 28 }} />
-            <col style={{ width: 85 }} />
-            <col style={{ width: 52 }} />
-            <col style={{ width: 48 }} />
-            <col style={{ width: 44 }} />
-            <col style={{ width: 44 }} />
-            <col style={{ width: 44 }} />
-            <col style={{ width: 44 }} />
-            <col style={{ width: 44 }} />
-            <col style={{ width: 50 }} />
-            <col style={{ width: 52 }} />
-            <col style={{ width: 52 }} />
-          </colgroup>
-          <tbody>
-            {[(data.page14?.pm_reconciliation?.[3] || { sr: '4', material: 'Measuring Cap' })].map((row, idx) => (
-              <tr key={idx}>
-                <td style={{ textAlign: 'center' }}>{row.sr || '4'}</td>
-                <td>{row.material || 'Measuring Cap'}</td>
-                <td>
-                  <input
-                    className="bmr-cell-input"
-                    value={row.ar_no || ''}
-                    onChange={(e) => {
-                      const updated = [...(data.page14?.pm_reconciliation || [])]
-                      if (updated[3]) updated[3].ar_no = e.target.value
-                      updatePage('page14', 'pm_reconciliation', updated)
-                    }}
-                  />
-                </td>
-                <td>
-                  <input
-                    className="bmr-cell-input"
-                    style={{ textAlign: 'center' }}
-                    value={row.issued || ''}
-                    onChange={(e) => {
-                      const updated = [...(data.page14?.pm_reconciliation || [])]
-                      if (updated[3]) updated[3].issued = e.target.value
-                      updatePage('page14', 'pm_reconciliation', updated)
-                    }}
-                  />
-                </td>
-                <td>
-                  <input
-                    className="bmr-cell-input"
-                    style={{ textAlign: 'center' }}
-                    value={row.coding_rej || ''}
-                    onChange={(e) => {
-                      const updated = [...(data.page14?.pm_reconciliation || [])]
-                      if (updated[3]) updated[3].coding_rej = e.target.value
-                      updatePage('page14', 'pm_reconciliation', updated)
-                    }}
-                  />
-                </td>
-                <td>
-                  <input
-                    className="bmr-cell-input"
-                    style={{ textAlign: 'center' }}
-                    value={row.online_rej || ''}
-                    onChange={(e) => {
-                      const updated = [...(data.page14?.pm_reconciliation || [])]
-                      if (updated[3]) updated[3].online_rej = e.target.value
-                      updatePage('page14', 'pm_reconciliation', updated)
-                    }}
-                  />
-                </td>
-                <td>
-                  <input
-                    className="bmr-cell-input"
-                    style={{ textAlign: 'center' }}
-                    value={row.excess || ''}
-                    onChange={(e) => {
-                      const updated = [...(data.page14?.pm_reconciliation || [])]
-                      if (updated[3]) updated[3].excess = e.target.value
-                      updatePage('page14', 'pm_reconciliation', updated)
-                    }}
-                  />
-                </td>
-                <td>
-                  <input
-                    className="bmr-cell-input"
-                    style={{ textAlign: 'center' }}
-                    value={row.total_rej || ''}
-                    onChange={(e) => {
-                      const updated = [...(data.page14?.pm_reconciliation || [])]
-                      if (updated[3]) updated[3].total_rej = e.target.value
-                      updatePage('page14', 'pm_reconciliation', updated)
-                    }}
-                  />
-                </td>
-                <td>
-                  <input
-                    className="bmr-cell-input"
-                    style={{ textAlign: 'center' }}
-                    value={row.used || ''}
-                    onChange={(e) => {
-                      const updated = [...(data.page14?.pm_reconciliation || [])]
-                      if (updated[3]) updated[3].used = e.target.value
-                      updatePage('page14', 'pm_reconciliation', updated)
-                    }}
-                  />
-                </td>
-                <td>
-                  <input
-                    className="bmr-cell-input"
-                    style={{ textAlign: 'center' }}
-                    value={row.returned || ''}
-                    onChange={(e) => {
-                      const updated = [...(data.page14?.pm_reconciliation || [])]
-                      if (updated[3]) updated[3].returned = e.target.value
-                      updatePage('page14', 'pm_reconciliation', updated)
-                    }}
-                  />
-                </td>
-                <td>
-                  <input
-                    className="bmr-cell-input"
-                    value={row.checked_pkg || ''}
-                    onChange={(e) => {
-                      const updated = [...(data.page14?.pm_reconciliation || [])]
-                      if (updated[3]) updated[3].checked_pkg = e.target.value
-                      updatePage('page14', 'pm_reconciliation', updated)
-                    }}
-                  />
-                </td>
-                <td>
-                  <input
-                    className="bmr-cell-input"
-                    value={row.checked_qa || ''}
-                    onChange={(e) => {
-                      const updated = [...(data.page14?.pm_reconciliation || [])]
-                      if (updated[3]) updated[3].checked_qa = e.target.value
+                      if (!updated[idx]) updated[idx] = {}
+                      updated[idx].chk_qa = e.target.value
                       updatePage('page14', 'pm_reconciliation', updated)
                     }}
                   />
@@ -3163,16 +3031,16 @@ export function getSyrupPageRenderers({
           </tbody>
         </table>
 
-        <div className="bmr-section-title">
+        <div className="bmr-section-title" style={{ marginTop: '8pt', marginBottom: '2pt' }}>
           QA FINAL INSPECTION REPORT:
         </div>
-        <table className="bmr-table" style={{ marginBottom: 4 }}>
+        <table className="bmr-table" style={{ fontSize: '8pt' }}>
           <colgroup>
-            <col style={{ width: 85 }} />
+            <col style={{ width: 110 }} />
             <col style={{ width: 140 }} />
-            <col style={{ width: 75 }} />
-            <col />
-            <col />
+            <col style={{ width: 90 }} />
+            <col style={{ width: 110 }} />
+            <col style={{ width: 110 }} />
           </colgroup>
           <thead>
             <tr>
@@ -3180,439 +3048,477 @@ export function getSyrupPageRenderers({
               <th style={{ textAlign: 'center' }}>Checking</th>
               <th style={{ textAlign: 'center' }}>No. of unit</th>
               <th style={{ textAlign: 'center' }}>Checked by/Date</th>
-              <th style={{ textAlign: 'center' }}>Checked by/Date (QA)</th>
+              <th style={{ textAlign: 'center' }}>Checked by/Date QA)</th>
             </tr>
           </thead>
           <tbody>
-            {[
-              ...(data.page14?.qa_final_inspection || [{ unit: 'Outer box', checking: 'Quality and Quantity' }]),
-              ...(data.page15?.qa_final_inspection_cont || [
-                { unit: 'Inner box', checking: 'Quality and Quantity' },
-                { unit: 'Carton', checking: 'Quality and Quantity' },
-                { unit: 'Bottle', checking: 'Quality and Quantity' },
-              ]),
-            ].map((row, idx) => (
-              <tr key={idx}>
-                <td>{row.unit}</td>
-                <td>{row.checking}</td>
+            <tr>
+              <td>Outer box</td>
+              <td>Quality and Quantity</td>
+              <td>
+                <input
+                  className="bmr-cell-input"
+                  style={{ textAlign: 'center' }}
+                  value={data.page14?.qa_inspection?.outer_box?.units || ''}
+                  onChange={(e) => {
+                    const qa = { ...(data.page14?.qa_inspection || {}) }
+                    qa.outer_box = { ...(qa.outer_box || {}), units: e.target.value }
+                    updatePage('page14', 'qa_inspection', qa)
+                  }}
+                />
+              </td>
+              <td>
+                <input
+                  className="bmr-cell-input"
+                  value={data.page14?.qa_inspection?.outer_box?.checked_by_date || ''}
+                  onChange={(e) => {
+                    const qa = { ...(data.page14?.qa_inspection || {}) }
+                    qa.outer_box = { ...(qa.outer_box || {}), checked_by_date: e.target.value }
+                    updatePage('page14', 'qa_inspection', qa)
+                  }}
+                />
+              </td>
+              <td>
+                <input
+                  className="bmr-cell-input"
+                  value={data.page14?.qa_inspection?.outer_box?.checked_qa_date || ''}
+                  onChange={(e) => {
+                    const qa = { ...(data.page14?.qa_inspection || {}) }
+                    qa.outer_box = { ...(qa.outer_box || {}), checked_qa_date: e.target.value }
+                    updatePage('page14', 'qa_inspection', qa)
+                  }}
+                />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      {renderFooter(14)}
+    </div>
+  )
+
+  // Page 15: QA Inspection continuation (Inner box, Carton, Bottle), Yield & accountability, FINAL YIELD & Accountability formulas
+  const renderPage15 = () => {
+    const batchSizeNum = parseFloat(String(data.page1?.batch_size || data.header?.batch_size || '').replace(/[^0-9.]/g, ''))
+    const aVal = data.page15?.yield?.qty_released_nos || data.page15?.yield_a || ''
+    const bVal = data.page15?.yield?.qc_sample_nos || data.page15?.yield_b || ''
+    const cVal = data.page15?.yield?.rec_rej_nos || data.page15?.yield_c || ''
+    const dVal = data.page15?.yield?.non_rec_rej_nos || data.page15?.yield_d || ''
+
+    const aNum = parseFloat(aVal)
+    const bNum = parseFloat(bVal)
+    const cNum = parseFloat(cVal)
+    const dNum = parseFloat(dVal)
+
+    let autoYieldCalc = data.page15?.final_yield_calc || ''
+    let autoYieldPct = data.page15?.final_yield_percent || ''
+    let yieldWarn = false
+
+    if (!isNaN(aNum) && !isNaN(bNum) && batchSizeNum > 0) {
+      const sum = aNum + bNum
+      const pct = (sum * 100) / batchSizeNum
+      autoYieldCalc = `${sum} x 100 / ${batchSizeNum}`
+      autoYieldPct = pct.toFixed(2)
+      if (pct < 97) yieldWarn = true
+    }
+
+    let autoAccCalc = data.page15?.accountability_calc || ''
+    let autoAccPct = data.page15?.accountability_percent || ''
+    let accWarn = false
+
+    if (!isNaN(aNum) && !isNaN(bNum) && !isNaN(cNum) && !isNaN(dNum) && batchSizeNum > 0) {
+      const sum = aNum + bNum + cNum + dNum
+      const pct = (sum * 100) / batchSizeNum
+      autoAccCalc = `${sum} x 100 / ${batchSizeNum}`
+      autoAccPct = pct.toFixed(2)
+      if (pct < 98) accWarn = true
+    }
+
+    return (
+      <div className="bmr-sheet bmr-syrup-sheet" key="page-15">
+        {renderHeader(15)}
+        <div className="bmr-body">
+          <table className="bmr-table" style={{ fontSize: '8pt', marginTop: '2pt', marginBottom: '8pt' }}>
+            <colgroup>
+              <col style={{ width: 110 }} />
+              <col style={{ width: 140 }} />
+              <col style={{ width: 90 }} />
+              <col style={{ width: 110 }} />
+              <col style={{ width: 110 }} />
+            </colgroup>
+            <tbody>
+              <tr>
+                <td>Inner box</td>
+                <td>Quality and Quantity</td>
                 <td>
                   <input
                     className="bmr-cell-input"
                     style={{ textAlign: 'center' }}
-                    value={row.no_of_unit || ''}
+                    value={data.page15?.qa_inspection?.inner_box?.units || ''}
                     onChange={(e) => {
-                      if (idx === 0) {
-                        const updated = [...(data.page14?.qa_final_inspection || [])]
-                        if (updated[0]) updated[0].no_of_unit = e.target.value
-                        updatePage('page14', 'qa_final_inspection', updated)
-                      } else {
-                        const updated = [...(data.page15?.qa_final_inspection_cont || [])]
-                        if (updated[idx - 1]) updated[idx - 1].no_of_unit = e.target.value
-                        updatePage('page15', 'qa_final_inspection_cont', updated)
-                      }
+                      const qa = { ...(data.page15?.qa_inspection || {}) }
+                      qa.inner_box = { ...(qa.inner_box || {}), units: e.target.value }
+                      updatePage('page15', 'qa_inspection', qa)
                     }}
                   />
                 </td>
                 <td>
                   <input
                     className="bmr-cell-input"
-                    value={row.checked_by || ''}
-                    placeholder="Sign / Date"
+                    value={data.page15?.qa_inspection?.inner_box?.checked_by_date || ''}
                     onChange={(e) => {
-                      if (idx === 0) {
-                        const updated = [...(data.page14?.qa_final_inspection || [])]
-                        if (updated[0]) updated[0].checked_by = e.target.value
-                        updatePage('page14', 'qa_final_inspection', updated)
-                      } else {
-                        const updated = [...(data.page15?.qa_final_inspection_cont || [])]
-                        if (updated[idx - 1]) updated[idx - 1].checked_by = e.target.value
-                        updatePage('page15', 'qa_final_inspection_cont', updated)
-                      }
+                      const qa = { ...(data.page15?.qa_inspection || {}) }
+                      qa.inner_box = { ...(qa.inner_box || {}), checked_by_date: e.target.value }
+                      updatePage('page15', 'qa_inspection', qa)
                     }}
                   />
                 </td>
                 <td>
                   <input
                     className="bmr-cell-input"
-                    value={row.checked_by_qa || ''}
-                    placeholder="Sign / Date"
+                    value={data.page15?.qa_inspection?.inner_box?.checked_qa_date || ''}
                     onChange={(e) => {
-                      if (idx === 0) {
-                        const updated = [...(data.page14?.qa_final_inspection || [])]
-                        if (updated[0]) updated[0].checked_by_qa = e.target.value
-                        updatePage('page14', 'qa_final_inspection', updated)
-                      } else {
-                        const updated = [...(data.page15?.qa_final_inspection_cont || [])]
-                        if (updated[idx - 1]) updated[idx - 1].checked_by_qa = e.target.value
-                        updatePage('page15', 'qa_final_inspection_cont', updated)
-                      }
+                      const qa = { ...(data.page15?.qa_inspection || {}) }
+                      qa.inner_box = { ...(qa.inner_box || {}), checked_qa_date: e.target.value }
+                      updatePage('page15', 'qa_inspection', qa)
                     }}
                   />
                 </td>
               </tr>
-            ))}
-          </tbody>
-        </table>
+              <tr>
+                <td>Carton</td>
+                <td>Quality and Quantity</td>
+                <td>
+                  <input
+                    className="bmr-cell-input"
+                    style={{ textAlign: 'center' }}
+                    value={data.page15?.qa_inspection?.carton?.units || ''}
+                    onChange={(e) => {
+                      const qa = { ...(data.page15?.qa_inspection || {}) }
+                      qa.carton = { ...(qa.carton || {}), units: e.target.value }
+                      updatePage('page15', 'qa_inspection', qa)
+                    }}
+                  />
+                </td>
+                <td>
+                  <input
+                    className="bmr-cell-input"
+                    value={data.page15?.qa_inspection?.carton?.checked_by_date || ''}
+                    onChange={(e) => {
+                      const qa = { ...(data.page15?.qa_inspection || {}) }
+                      qa.carton = { ...(qa.carton || {}), checked_by_date: e.target.value }
+                      updatePage('page15', 'qa_inspection', qa)
+                    }}
+                  />
+                </td>
+                <td>
+                  <input
+                    className="bmr-cell-input"
+                    value={data.page15?.qa_inspection?.carton?.checked_qa_date || ''}
+                    onChange={(e) => {
+                      const qa = { ...(data.page15?.qa_inspection || {}) }
+                      qa.carton = { ...(qa.carton || {}), checked_qa_date: e.target.value }
+                      updatePage('page15', 'qa_inspection', qa)
+                    }}
+                  />
+                </td>
+              </tr>
+              <tr>
+                <td>Bottle</td>
+                <td>Quality and Quantity</td>
+                <td>
+                  <input
+                    className="bmr-cell-input"
+                    style={{ textAlign: 'center' }}
+                    value={data.page15?.qa_inspection?.bottle?.units || ''}
+                    onChange={(e) => {
+                      const qa = { ...(data.page15?.qa_inspection || {}) }
+                      qa.bottle = { ...(qa.bottle || {}), units: e.target.value }
+                      updatePage('page15', 'qa_inspection', qa)
+                    }}
+                  />
+                </td>
+                <td>
+                  <input
+                    className="bmr-cell-input"
+                    value={data.page15?.qa_inspection?.bottle?.checked_by_date || ''}
+                    onChange={(e) => {
+                      const qa = { ...(data.page15?.qa_inspection || {}) }
+                      qa.bottle = { ...(qa.bottle || {}), checked_by_date: e.target.value }
+                      updatePage('page15', 'qa_inspection', qa)
+                    }}
+                  />
+                </td>
+                <td>
+                  <input
+                    className="bmr-cell-input"
+                    value={data.page15?.qa_inspection?.bottle?.checked_qa_date || ''}
+                    onChange={(e) => {
+                      const qa = { ...(data.page15?.qa_inspection || {}) }
+                      qa.bottle = { ...(qa.bottle || {}), checked_qa_date: e.target.value }
+                      updatePage('page15', 'qa_inspection', qa)
+                    }}
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
 
-        <div style={{ fontSize: 9.5, lineHeight: '1.4' }}>
-          <div style={{ fontWeight: 'bold', marginBottom: 2 }}>Yield and accountability</div>
-          <div style={{ paddingLeft: 6 }}>
-            a)&nbsp; Quantity released/transferred to BSR by QA &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{' '}
-            <input
-              className="bmr-line-input"
-              style={{ width: 80 }}
-              value={data.page15?.yield?.qty_bsr_nos || ''}
-              onChange={(e) => {
-                const updated = { ...(data.page15?.yield || {}), qty_bsr_nos: e.target.value }
-                updatePage('page15', 'yield', updated)
-              }}
-            />{' '}
-            nos &nbsp;&nbsp;&nbsp;&nbsp;{' '}
-            <input
-              className="bmr-line-input"
-              style={{ width: 80 }}
-              value={data.page15?.yield?.qty_bsr_ltr || ''}
-              onChange={(e) => {
-                const updated = { ...(data.page15?.yield || {}), qty_bsr_ltr: e.target.value }
-                updatePage('page15', 'yield', updated)
-              }}
-            />{' '}
-            Ltr
+          <div style={{ fontSize: '9pt', lineHeight: '1.7', marginTop: '10pt', marginBottom: '14pt' }}>
+            <div style={{ fontWeight: 'normal', marginBottom: 2 }}>Yield and accountability</div>
+            <div>
+              a)&nbsp; Quantity released/transferred to BSR by QA &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{' '}
+              <input
+                className="bmr-line-input"
+                style={{ width: 70, textAlign: 'center' }}
+                value={aVal}
+                onChange={(e) => {
+                  const updated = { ...(data.page15?.yield || {}), qty_released_nos: e.target.value }
+                  updatePage('page15', 'yield', updated)
+                  updatePage('page15', 'yield_a', e.target.value)
+                }}
+              />{' '}
+              nos
+              <input
+                className="bmr-line-input"
+                style={{ width: 70, textAlign: 'center', marginLeft: 16 }}
+                value={data.page15?.yield?.qty_released_ltr || ''}
+                onChange={(e) => {
+                  const updated = { ...(data.page15?.yield || {}), qty_released_ltr: e.target.value }
+                  updatePage('page15', 'yield', updated)
+                }}
+              />{' '}
+              Ltr
+            </div>
+            <div>
+              b)&nbsp; QC sample/retained sample &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{' '}
+              <input
+                className="bmr-line-input"
+                style={{ width: 70, textAlign: 'center' }}
+                value={bVal}
+                onChange={(e) => {
+                  const updated = { ...(data.page15?.yield || {}), qc_sample_nos: e.target.value }
+                  updatePage('page15', 'yield', updated)
+                  updatePage('page15', 'yield_b', e.target.value)
+                }}
+              />{' '}
+              nos
+              <input
+                className="bmr-line-input"
+                style={{ width: 70, textAlign: 'center', marginLeft: 16 }}
+                value={data.page15?.yield?.qc_sample_ltr || ''}
+                onChange={(e) => {
+                  const updated = { ...(data.page15?.yield || {}), qc_sample_ltr: e.target.value }
+                  updatePage('page15', 'yield', updated)
+                }}
+              />{' '}
+              Ltr
+            </div>
+            <div>
+              c)&nbsp; Recoverable rejection &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{' '}
+              <input
+                className="bmr-line-input"
+                style={{ width: 140, textAlign: 'center' }}
+                value={cVal}
+                onChange={(e) => {
+                  const updated = { ...(data.page15?.yield || {}), rec_rej_nos: e.target.value }
+                  updatePage('page15', 'yield', updated)
+                  updatePage('page15', 'yield_c', e.target.value)
+                }}
+              />{' '}
+              nos/Ltr
+            </div>
+            <div>
+              d)&nbsp; Non recoverable rejection &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{' '}
+              <input
+                className="bmr-line-input"
+                style={{ width: 140, textAlign: 'center' }}
+                value={dVal}
+                onChange={(e) => {
+                  const updated = { ...(data.page15?.yield || {}), non_rec_rej_nos: e.target.value }
+                  updatePage('page15', 'yield', updated)
+                  updatePage('page15', 'yield_d', e.target.value)
+                }}
+              />{' '}
+              nos/Ltr
+            </div>
           </div>
-          <div style={{ paddingLeft: 6, marginTop: 1 }}>
-            b)&nbsp; QC sample/retained sample &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{' '}
-            <input
-              className="bmr-line-input"
-              style={{ width: 80 }}
-              value={data.page15?.yield?.qc_sample_nos || ''}
-              onChange={(e) => {
-                const updated = { ...(data.page15?.yield || {}), qc_sample_nos: e.target.value }
-                updatePage('page15', 'yield', updated)
-              }}
-            />{' '}
-            nos &nbsp;&nbsp;&nbsp;&nbsp;{' '}
-            <input
-              className="bmr-line-input"
-              style={{ width: 80 }}
-              value={data.page15?.yield?.qc_sample_ltr || ''}
-              onChange={(e) => {
-                const updated = { ...(data.page15?.yield || {}), qc_sample_ltr: e.target.value }
-                updatePage('page15', 'yield', updated)
-              }}
-            />{' '}
-            Ltr
+
+          <div className="bmr-section-title" style={{ marginTop: '16pt', marginBottom: '4pt' }}>
+            FINAL YIELD:
           </div>
-          <div style={{ paddingLeft: 6, marginTop: 1 }}>
-            c)&nbsp; Recoverable rejection &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{' '}
+          <div style={{ fontSize: '9pt', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, margin: '4pt 0 14pt' }}>
+            <span>Formula</span>
+            <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', margin: '0 4px', verticalAlign: 'middle' }}>
+              <span style={{ borderBottom: '1px solid #000', padding: '0 4px' }}>a +b+ x 100</span>
+              <span>Batch size</span>
+            </span>
+            <span>=&nbsp;&nbsp;</span>
             <input
               className="bmr-line-input"
-              style={{ width: 140 }}
-              value={data.page15?.yield?.rec_rej_nos || data.page15?.yield?.rec_rej_nos_ltr || ''}
-              onChange={(e) => {
-                const updated = {
-                  ...(data.page15?.yield || {}),
-                  rec_rej_nos: e.target.value,
-                  rec_rej_nos_ltr: e.target.value,
-                }
-                updatePage('page15', 'yield', updated)
-              }}
-            />{' '}
-            nos
+              style={{ width: 220, textAlign: 'center' }}
+              value={autoYieldCalc}
+              onChange={(e) => updatePage('page15', 'final_yield_calc', e.target.value)}
+            />
+            <span>=&nbsp;&nbsp;</span>
+            <input
+              className="bmr-line-input"
+              style={{ width: 50, textAlign: 'center' }}
+              value={autoYieldPct}
+              onChange={(e) => updatePage('page15', 'final_yield_percent', e.target.value)}
+            />
+            <span>% ( Limit NLT 97%)</span>
+            {yieldWarn && (
+              <span className="no-print" style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '8pt', marginLeft: 8 }}>
+                ⚠️ Yield below 97% limit!
+              </span>
+            )}
           </div>
-          <div style={{ paddingLeft: 6, marginTop: 1 }}>
-            d)&nbsp; Recoverable rejection &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{' '}
-            <input
-              className="bmr-line-input"
-              style={{ width: 140 }}
-              value={data.page15?.yield?.rec_rej_ltr || ''}
-              onChange={(e) => {
-                const updated = { ...(data.page15?.yield || {}), rec_rej_ltr: e.target.value }
-                updatePage('page15', 'yield', updated)
-              }}
-            />{' '}
-            Liters
+
+          <div className="bmr-section-title" style={{ marginTop: '12pt', marginBottom: '4pt' }}>
+            Accountability
           </div>
-          <div style={{ paddingLeft: 6, marginTop: 1 }}>
-            e)&nbsp; Non recoverable rejection &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{' '}
+          <div style={{ fontSize: '9pt', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, margin: '4pt 0 10pt' }}>
+            <span>Formula</span>
+            <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', margin: '0 4px', verticalAlign: 'middle' }}>
+              <span style={{ borderBottom: '1px solid #000', padding: '0 4px' }}>a +b+c+d x 100</span>
+              <span>Batch size</span>
+            </span>
+            <span>=&nbsp;&nbsp;</span>
             <input
               className="bmr-line-input"
-              style={{ width: 140 }}
-              value={data.page15?.yield?.non_rec_rej_nos || data.page15?.yield?.non_rec_rej_nos_ltr || ''}
-              onChange={(e) => {
-                const updated = {
-                  ...(data.page15?.yield || {}),
-                  non_rec_rej_nos: e.target.value,
-                  non_rec_rej_nos_ltr: e.target.value,
-                }
-                updatePage('page15', 'yield', updated)
-              }}
-            />{' '}
-            nos
-          </div>
-          <div style={{ paddingLeft: 6, marginTop: 1 }}>
-            f)&nbsp; Non recoverable rejection &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{' '}
+              style={{ width: 220, textAlign: 'center' }}
+              value={autoAccCalc}
+              onChange={(e) => updatePage('page15', 'accountability_calc', e.target.value)}
+            />
+            <span>=&nbsp;&nbsp;</span>
             <input
               className="bmr-line-input"
-              style={{ width: 140 }}
-              value={data.page15?.yield?.non_rec_rej_ltr || ''}
-              onChange={(e) => {
-                const updated = { ...(data.page15?.yield || {}), non_rec_rej_ltr: e.target.value }
-                updatePage('page15', 'yield', updated)
-              }}
-            />{' '}
-            Liters
+              style={{ width: 50, textAlign: 'center' }}
+              value={autoAccPct}
+              onChange={(e) => updatePage('page15', 'accountability_percent', e.target.value)}
+            />
+            <span>%( Limit NLT 98%)</span>
+            {accWarn && (
+              <span className="no-print" style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '8pt', marginLeft: 8 }}>
+                ⚠️ Accountability below 98% limit!
+              </span>
+            )}
           </div>
         </div>
+        {renderFooter(15)}
       </div>
-      {renderFooter(15)}
-    </div>
-  )
+    )
+  }
 
-  // Page 16: Final Yield & Accountability Formulas
+  // Page 16: Stray continuation line "Batch size"
   const renderPage16 = () => (
     <div className="bmr-sheet bmr-syrup-sheet" key="page-16">
       {renderHeader(16)}
       <div className="bmr-body">
-        <div className="bmr-section-title" style={{ marginTop: 8 }}>
-          FINAL YIELD:
-        </div>
-        <div className="bmr-syrup-formula-row">
-          <span>Formula</span>
-          <div className="bmr-syrup-fraction">
-            <span className="bmr-syrup-fraction-num">a + b x 100</span>
-            <span className="bmr-syrup-fraction-den">Batch size</span>
-          </div>
-          <span>=</span>
-          <input
-            className="bmr-line-input"
-            style={{ width: 180, textAlign: 'center' }}
-            value={data.page16?.final_yield_calc || data.page15?.final_yield_calc || ''}
-            onChange={(e) => {
-              updatePage('page16', 'final_yield_calc', e.target.value)
-              updatePage('page15', 'final_yield_calc', e.target.value)
-            }}
-          />
-          <span>=</span>
-          <input
-            className="bmr-line-input"
-            style={{ width: 65, textAlign: 'center' }}
-            value={data.page16?.final_yield_percent || data.page15?.final_yield_percent || ''}
-            onChange={(e) => {
-              updatePage('page16', 'final_yield_percent', e.target.value)
-              updatePage('page15', 'final_yield_percent', e.target.value)
-            }}
-          />
-          <strong>% &nbsp;&nbsp;( Limit NLT 97%)</strong>
-        </div>
-
-        <div className="bmr-section-title" style={{ marginTop: 24 }}>
-          Accountability
-        </div>
-        <div className="bmr-syrup-formula-row">
-          <span>Formula</span>
-          <div className="bmr-syrup-fraction">
-            <span className="bmr-syrup-fraction-num">a + b + c + d x 100</span>
-            <span className="bmr-syrup-fraction-den">Batch size</span>
-          </div>
-          <span>=</span>
-          <input
-            className="bmr-line-input"
-            style={{ width: 180, textAlign: 'center' }}
-            value={data.page16?.accountability_calc || data.page15?.accountability_calc || ''}
-            onChange={(e) => {
-              updatePage('page16', 'accountability_calc', e.target.value)
-              updatePage('page15', 'accountability_calc', e.target.value)
-            }}
-          />
-          <span>=</span>
-          <input
-            className="bmr-line-input"
-            style={{ width: 65, textAlign: 'center' }}
-            value={data.page16?.accountability_percent || data.page15?.accountability_percent || ''}
-            onChange={(e) => {
-              updatePage('page16', 'accountability_percent', e.target.value)
-              updatePage('page15', 'accountability_percent', e.target.value)
-            }}
-          />
-          <strong>% &nbsp;&nbsp;( Limit NLT 98%)</strong>
+        <div style={{ fontSize: '9pt', fontFamily: "'Times New Roman', Times, serif", paddingLeft: '80pt', marginTop: '4pt' }}>
+          Batch size
         </div>
       </div>
       {renderFooter(16)}
     </div>
   )
 
-  // Page 17: Carton and Label Specimen Attachment
+  // Page 17: Specimen page
   const renderPage17 = () => (
     <div className="bmr-sheet bmr-syrup-sheet" key="page-17">
       {renderHeader(17)}
       <div className="bmr-body">
-        <p style={{ margin: '12px 0 8px', fontSize: 11, fontWeight: 'bold' }}>
-          Attach the approved specimen of each carton/ label in below given space
-        </p>
-
-        <div
-          className="bmr-specimen-upload-zone"
-          style={{
-            border: '2px dashed #94a3b8',
-            borderRadius: 8,
-            minHeight: 330,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: '#fafafa',
-            padding: 16,
-            marginTop: 6,
+        <SpecimenUpload
+          images={data.page17?.specimens || (data.page17?.specimen_image ? [data.page17.specimen_image] : [])}
+          onChange={(newImages) => {
+            updatePage('page17', 'specimens', newImages)
+            if (newImages.length > 0) {
+              updatePage('page17', 'specimen_image', newImages[0]?.dataUrl || newImages[0])
+            } else {
+              updatePage('page17', 'specimen_image', '')
+            }
           }}
-        >
-          {data.page17?.specimen_image ? (
-            <div style={{ textAlign: 'center', width: '100%' }}>
-              <img
-                src={data.page17.specimen_image}
-                alt="Approved Specimen"
-                style={{ maxHeight: 280, maxWidth: '90%', objectFit: 'contain', border: '1px solid #cbd5e1', borderRadius: 4 }}
-              />
-              <div className="no-print" style={{ marginTop: 8 }}>
-                <button
-                  type="button"
-                  className="bmr-back-btn"
-                  onClick={() => updatePage('page17', 'specimen_image', null)}
-                >
-                  Remove Specimen
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 36, marginBottom: 8 }}>📎</div>
-              <label
-                style={{
-                  display: 'inline-block',
-                  background: '#0284c7',
-                  color: '#fff',
-                  padding: '7px 18px',
-                  borderRadius: 6,
-                  fontWeight: 600,
-                  fontSize: 12,
-                  cursor: 'pointer',
-                }}
-              >
-                Upload Approved Specimen
-                <input
-                  type="file"
-                  accept="image/*"
-                  style={{ display: 'none' }}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (file) {
-                      const reader = new FileReader()
-                      reader.onload = (ev) => {
-                        updatePage('page17', 'specimen_image', ev.target.result)
-                      }
-                      reader.readAsDataURL(file)
-                    }
-                  }}
-                />
-              </label>
-              <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>
-                PNG, JPG or PDF scan of approved mono carton &amp; label
-              </div>
-            </div>
-          )}
-        </div>
+          maxHeight={450}
+        />
       </div>
       {renderFooter(17)}
     </div>
   )
 
-  // Page 18: A) Yield Deviation Justification
+  // Page 18: Deviation A + B heading
   const renderPage18 = () => (
     <div className="bmr-sheet bmr-syrup-sheet" key="page-18">
       {renderHeader(18)}
       <div className="bmr-body">
-        <div className="bmr-section-title" style={{ textDecoration: 'underline', margin: '4pt 0' }}>
+        <div className="bmr-section-title" style={{ margin: '8pt 0 4pt' }}>
           DEVIATION :
         </div>
-        <div style={{ fontWeight: 'bold', fontSize: 10.5, margin: '6pt 0 10pt' }}>
-          A)&nbsp; YIELD DEVIATION: If yield is out of limit to justify the reason as below:
+        <div style={{ fontWeight: 'bold', fontSize: '9pt', margin: '4pt 0 8pt' }}>
+          A) YIELD DEVIATION: If yield is out of limit to justify the reason as below:
+        </div>
+        <div style={{ margin: '4pt 0 8pt', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {[0, 1, 2, 3].map((idx) => (
+            <input
+              key={idx}
+              className="bmr-line-input"
+              style={{ width: '100%', borderBottom: '1px dotted #000', fontSize: '9pt' }}
+              value={data.page18?.yield_deviation_lines?.[idx] || ''}
+              placeholder="…………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………"
+              onChange={(e) => {
+                const updated = [...(data.page18?.yield_deviation_lines || ['', '', '', ''])]
+                updated[idx] = e.target.value
+                updatePage('page18', 'yield_deviation_lines', updated)
+              }}
+            />
+          ))}
         </div>
 
-        <div style={{ margin: '8pt 0 16pt', display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {[0, 1].map((idx) => (
-            <div key={idx} style={{ width: '100%' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', margin: '14pt 0 16pt', fontSize: '9pt' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <strong>Prepared by/ Date</strong>
               <input
-                className="bmr-syrup-dotted-input"
-                value={data.page18?.yield_deviation_lines?.[idx] || ''}
-                placeholder="…………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………"
-                onChange={(e) => {
-                  const updated = [...(data.page18?.yield_deviation_lines || ['', '', '', ''])]
-                  updated[idx] = e.target.value
-                  updatePage('page18', 'yield_deviation_lines', updated)
-                }}
+                className="bmr-line-input"
+                style={{ width: 140 }}
+                value={data.page18?.yield_dev_prod_sign || ''}
+                placeholder="Sign / Date"
+                onChange={(e) => updatePage('page18', 'yield_dev_prod_sign', e.target.value)}
               />
             </div>
-          ))}
+            <div style={{ fontSize: '8.5pt', color: '#334155', marginTop: 2 }}>Production</div>
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <strong>Approved by/ Date</strong>
+              <input
+                className="bmr-line-input"
+                style={{ width: 140 }}
+                value={data.page18?.yield_dev_qa_sign || ''}
+                placeholder="Sign / Date"
+                onChange={(e) => updatePage('page18', 'yield_dev_qa_sign', e.target.value)}
+              />
+            </div>
+            <div style={{ fontSize: '8.5pt', color: '#334155', marginTop: 2, textAlign: 'right' }}>QA</div>
+          </div>
+        </div>
+
+        <div className="bmr-section-title" style={{ margin: '8pt 0 2pt' }}>
+          B) PROCEDURAL DEVIATION:
         </div>
       </div>
       {renderFooter(18)}
     </div>
   )
 
-  // Page 19: B) Procedural Deviation & Final Approvals
+  // Page 19: Procedural Deviation table (6 rows) & signatures
   const renderPage19 = () => (
     <div className="bmr-sheet bmr-syrup-sheet" key="page-19">
       {renderHeader(19)}
       <div className="bmr-body">
-        {/* Remaining 2 dotted lines from section A */}
-        <div style={{ margin: '2pt 0 10pt', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {[2, 3].map((idx) => (
-            <div key={idx} style={{ width: '100%' }}>
-              <input
-                className="bmr-syrup-dotted-input"
-                value={data.page18?.yield_deviation_lines?.[idx] || ''}
-                placeholder="…………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………………"
-                onChange={(e) => {
-                  const updated = [...(data.page18?.yield_deviation_lines || ['', '', '', ''])]
-                  updated[idx] = e.target.value
-                  updatePage('page18', 'yield_deviation_lines', updated)
-                }}
-              />
-            </div>
-          ))}
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', margin: '4pt 0 10pt', fontSize: 10.5 }}>
-          <div>
-            <strong>Prepared by/ Date </strong>
-            <input
-              className="bmr-line-input"
-              style={{ width: 130 }}
-              value={data.page18?.yield_dev_prod_sign || ''}
-              placeholder="Sign / Date"
-              onChange={(e) => updatePage('page18', 'yield_dev_prod_sign', e.target.value)}
-            />
-            <div style={{ fontSize: 9.5, color: '#334155' }}>Production</div>
-          </div>
-          <div>
-            <strong>Approved by/ Date </strong>
-            <input
-              className="bmr-line-input"
-              style={{ width: 130 }}
-              value={data.page18?.yield_dev_qa_sign || ''}
-              placeholder="Sign / Date"
-              onChange={(e) => updatePage('page18', 'yield_dev_qa_sign', e.target.value)}
-            />
-            <div style={{ fontSize: 9.5, color: '#334155', textAlign: 'right' }}>QA</div>
-          </div>
-        </div>
-
-        <div className="bmr-section-title" style={{ margin: '2pt 0' }}>
-          B)&nbsp; PROCEDURAL DEVIATION:
-        </div>
-
-        <table className="bmr-table" style={{ marginTop: 2, marginBottom: 8 }}>
+        <table className="bmr-table" style={{ marginTop: 2 }}>
           <colgroup>
-            <col style={{ width: 40 }} />
+            <col style={{ width: 45 }} />
             <col style={{ width: 165 }} />
             <col style={{ width: 165 }} />
             <col style={{ width: 85 }} />
@@ -3628,15 +3534,35 @@ export function getSyrupPageRenderers({
             </tr>
           </thead>
           <tbody>
-            {(data.page19?.procedural_deviations || []).map((row, idx) => (
+            {(data.page19?.procedural_deviations || [
+              { sr: '', details: '', action: '', raise_by: '', approved_qa: '' },
+              { sr: '', details: '', action: '', raise_by: '', approved_qa: '' },
+              { sr: '', details: '', action: '', raise_by: '', approved_qa: '' },
+              { sr: '', details: '', action: '', raise_by: '', approved_qa: '' },
+              { sr: '', details: '', action: '', raise_by: '', approved_qa: '' },
+              { sr: '', details: '', action: '', raise_by: '', approved_qa: '' },
+            ]).map((row, idx) => (
               <tr key={idx} style={{ height: 26 }}>
-                <td style={{ textAlign: 'center' }}>{row.sr || idx + 1}</td>
+                <td style={{ textAlign: 'center' }}>
+                  <input
+                    className="bmr-cell-input"
+                    style={{ textAlign: 'center' }}
+                    value={row.sr || ''}
+                    onChange={(e) => {
+                      const updated = [...(data.page19?.procedural_deviations || [])]
+                      if (!updated[idx]) updated[idx] = {}
+                      updated[idx].sr = e.target.value
+                      updatePage('page19', 'procedural_deviations', updated)
+                    }}
+                  />
+                </td>
                 <td>
                   <input
                     className="bmr-cell-input"
                     value={row.details || ''}
                     onChange={(e) => {
                       const updated = [...(data.page19?.procedural_deviations || [])]
+                      if (!updated[idx]) updated[idx] = {}
                       updated[idx].details = e.target.value
                       updatePage('page19', 'procedural_deviations', updated)
                     }}
@@ -3648,6 +3574,7 @@ export function getSyrupPageRenderers({
                     value={row.action || ''}
                     onChange={(e) => {
                       const updated = [...(data.page19?.procedural_deviations || [])]
+                      if (!updated[idx]) updated[idx] = {}
                       updated[idx].action = e.target.value
                       updatePage('page19', 'procedural_deviations', updated)
                     }}
@@ -3659,6 +3586,7 @@ export function getSyrupPageRenderers({
                     value={row.raise_by || ''}
                     onChange={(e) => {
                       const updated = [...(data.page19?.procedural_deviations || [])]
+                      if (!updated[idx]) updated[idx] = {}
                       updated[idx].raise_by = e.target.value
                       updatePage('page19', 'procedural_deviations', updated)
                     }}
@@ -3670,6 +3598,7 @@ export function getSyrupPageRenderers({
                     value={row.approved_qa || ''}
                     onChange={(e) => {
                       const updated = [...(data.page19?.procedural_deviations || [])]
+                      if (!updated[idx]) updated[idx] = {}
                       updated[idx].approved_qa = e.target.value
                       updatePage('page19', 'procedural_deviations', updated)
                     }}
@@ -3680,28 +3609,32 @@ export function getSyrupPageRenderers({
           </tbody>
         </table>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', margin: '4pt 0', fontSize: 10.5 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', margin: '14pt 0 16pt', fontSize: '9pt' }}>
           <div>
-            <strong>Prepared by/ Date </strong>
-            <input
-              className="bmr-line-input"
-              style={{ width: 130 }}
-              value={data.page19?.proc_dev_prod_sign || ''}
-              placeholder="Sign / Date"
-              onChange={(e) => updatePage('page19', 'proc_dev_prod_sign', e.target.value)}
-            />
-            <div style={{ fontSize: 9.5, color: '#334155' }}>Production</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <strong>Prepared by/ Date</strong>
+              <input
+                className="bmr-line-input"
+                style={{ width: 140 }}
+                value={data.page19?.proc_dev_prod_sign || ''}
+                placeholder="Sign / Date"
+                onChange={(e) => updatePage('page19', 'proc_dev_prod_sign', e.target.value)}
+              />
+            </div>
+            <div style={{ fontSize: '8.5pt', color: '#334155', marginTop: 2 }}>Production</div>
           </div>
           <div>
-            <strong>Approved by/ Date </strong>
-            <input
-              className="bmr-line-input"
-              style={{ width: 130 }}
-              value={data.page19?.proc_dev_qa_sign || ''}
-              placeholder="Sign / Date"
-              onChange={(e) => updatePage('page19', 'proc_dev_qa_sign', e.target.value)}
-            />
-            <div style={{ fontSize: 9.5, color: '#334155', textAlign: 'right' }}>QA</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <strong>Approved by/ Date</strong>
+              <input
+                className="bmr-line-input"
+                style={{ width: 140 }}
+                value={data.page19?.proc_dev_qa_sign || ''}
+                placeholder="Sign / Date"
+                onChange={(e) => updatePage('page19', 'proc_dev_qa_sign', e.target.value)}
+              />
+            </div>
+            <div style={{ fontSize: '8.5pt', color: '#334155', marginTop: 2, textAlign: 'right' }}>QA</div>
           </div>
         </div>
       </div>

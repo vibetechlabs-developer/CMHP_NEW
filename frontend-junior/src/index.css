@@ -1568,25 +1568,8 @@ input[type="file"]::file-selector-button:hover {
   background: #eef3f6;
 }
 
-/* =========================================================
-   18. SUPPLY CHAIN
-   ========================================================= */
-
-.supply-chain-page,
-.supply-chain-container {
-  text-align: left;
-}
-
-.supply-chain-page h1,
-.supply-chain-page h2,
-.supply-chain-page h3,
-.supply-chain-page p {
-  text-align: left;
-}
-
 /* Quick cards */
 
-.supply-actions,
 .quick-actions,
 .action-grid {
   display: grid;
@@ -1600,7 +1583,6 @@ input[type="file"]::file-selector-button:hover {
   text-align: left;
 }
 
-.supply-action-card,
 .quick-action-card,
 .action-card {
   min-height: 100px;
@@ -1619,14 +1601,12 @@ input[type="file"]::file-selector-button:hover {
   transition: 0.2s ease;
 }
 
-.supply-action-card:hover,
 .quick-action-card:hover,
 .action-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-hover);
 }
 
-.supply-action-card h3,
 .quick-action-card h3,
 .action-card h3 {
   margin: 0 0 5px;
@@ -1639,7 +1619,6 @@ input[type="file"]::file-selector-button:hover {
   text-align: left;
 }
 
-.supply-action-card p,
 .quick-action-card p,
 .action-card p {
   margin: 0;
@@ -2298,7 +2277,6 @@ input[type="file"]::file-selector-button:hover {
     padding: 22px;
   }
 
-  .supply-actions,
   .quick-actions,
   .action-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2354,7 +2332,6 @@ input[type="file"]::file-selector-button:hover {
     grid-template-columns: 1fr;
   }
 
-  .supply-actions,
   .quick-actions,
   .action-grid {
     grid-template-columns: 1fr 1fr;
@@ -2454,7 +2431,6 @@ input[type="file"]::file-selector-button:hover {
     text-align: left;
   }
 
-  .supply-actions,
   .quick-actions,
   .action-grid,
   .dashboard-grid,

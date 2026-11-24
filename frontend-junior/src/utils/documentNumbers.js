@@ -44,7 +44,7 @@ export const DOCUMENT_CONFIGS = {
   // Operations & Manufacturing
   BATCH: { prefix: 'BAT', padding: 4, isFY: false, includeYear: true, scopedByCompany: true },
 
-  // Procurement & Supply Chain
+  // Procurement
   PURCHASE_ORDER: { prefix: 'PO', padding: 4, isFY: false, includeYear: true, scopedByCompany: true },
   GRN: { prefix: 'GRN', padding: 4, isFY: false, includeYear: true, scopedByCompany: true },
   BILL: { prefix: 'BILL', padding: 4, isFY: true, includeYear: true, scopedByCompany: true },
