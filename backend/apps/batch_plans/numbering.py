@@ -6,7 +6,7 @@ order's confirmation state. It is exactly one thing: recording that this
 plan now has a permanent official identifier.
 
 CONFIRMED CLIENT NUMBERING RULES:
-- Format `CODEYY-NNN`, e.g. `GER26-001`.
+- Format `CODE-YYYY-NNNN`, e.g. `GER-2026-0001`.
 - `CODE` is the SOURCE ORDER'S CUSTOMER's own code (`SalesOrder.customer.
   code`) - explicitly NOT automatically the operating `Company.code`.
   Task 12B-1 left this as an open question for the client-register
@@ -86,12 +86,13 @@ def business_now():
 
 
 def format_batch_number(client_code, allocation_year, sequence_value):
-    """`CODE` + 2-digit year + `-` + a minimum-3-digit, never-wrapped,
-    never-truncated sequence - e.g. `format_batch_number("GER", 2026, 1)
-    == "GER26-001"`, and `format_batch_number("GER", 2026, 1000) ==
-    "GER26-1000"`.
+    """`CODE-YYYY-NNNN`. The sequence is at least 4 digits and never wraps
+    or truncates - e.g. `format_batch_number("GER", 2026, 1) ==
+    "GER-2026-0001"`, and `format_batch_number("GER", 2026, 10000) ==
+    "GER-2026-10000"`. The year is the full allocation year, so 2027 and
+    2028 are written in full and each year starts again at 0001.
     """
-    return f"{client_code}{allocation_year % 100:02d}-{sequence_value:03d}"
+    return f"{client_code}-{allocation_year}-{sequence_value:04d}"
 
 
 def _validate_client_code(code):

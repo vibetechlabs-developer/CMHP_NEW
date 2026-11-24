@@ -311,6 +311,28 @@ class UserCreateTests(UserManagementTestCase):
         self.assertFalse(user.is_staff)
         self.assertFalse(user.is_superuser)
 
+    def test_create_success_with_shift_and_profile_fields(self):
+        response = post_json(
+            self.client_,
+            USERS_URL,
+            {
+                "username": "shifty",
+                "email": "shifty@example.com",
+                "first_name": "Shift",
+                "last_name": "User",
+                "initial_password": "another-strong-pass-1",
+                "shift": "Morning",
+                "department": "QA",
+                "common_inventory_access": True,
+            },
+            self.superuser_token,
+        )
+        self.assertEqual(response.status_code, 201)
+        user = User.objects.get(username="shifty")
+        self.assertEqual(user.shift, "Morning")
+        self.assertEqual(user.department, "QA")
+        self.assertTrue(user.common_inventory_access)
+
     def test_create_response_has_no_password_field(self):
         response = post_json(
             self.client_,

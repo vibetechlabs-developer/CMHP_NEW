@@ -9,6 +9,7 @@ from apps.users.views import (
     UserDeactivateView,
     UserDetailView,
     UserListCreateView,
+    UserSetPasswordView,
 )
 
 urlpatterns = [
@@ -16,6 +17,7 @@ urlpatterns = [
     path("<int:user_id>/", UserDetailView.as_view(), name="user-detail"),
     path("<int:user_id>/activate/", UserActivateView.as_view(), name="user-activate"),
     path("<int:user_id>/deactivate/", UserDeactivateView.as_view(), name="user-deactivate"),
+    path("<int:user_id>/set-password/", UserSetPasswordView.as_view(), name="user-set-password"),
     path(
         "<int:user_id>/memberships/",
         MembershipListCreateView.as_view(),

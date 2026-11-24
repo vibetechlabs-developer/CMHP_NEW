@@ -74,11 +74,12 @@ export async function confirmSalesOrder(companyId, orderId, expectedVersion) {
   return response.data
 }
 
-// Inline lifecycle stage update - patches only the status field.
-// Used by the inline stage changer dropdown in the Sales Orders table.
-// `expectedVersion` must be the current `order.version` to prevent conflicts.
+// Inline lifecycle stage update. The confirmation `status` field is protected,
+// so the visible stage is stored as `workflow_stage`. Both keys are sent so
+// the orders endpoint accepts the change.
 export async function updateOrderStatus(companyId, orderId, status, expectedVersion) {
   const response = await api.patch(`${basePath(companyId)}/${orderId}/`, {
+    workflow_stage: status,
     status,
     expected_version: expectedVersion,
   })

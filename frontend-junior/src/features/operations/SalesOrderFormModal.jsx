@@ -14,7 +14,7 @@ import AsyncSearchSelect from './AsyncSearchSelect'
 import CustomerFormModal from './CustomerFormModal'
 import './SalesOrderFormModal.css'
 
-import { confirmSalesOrder, createSalesOrder, getConfirmationPreview, getSalesOrder, updateSalesOrder } from './salesOrdersService'
+import { confirmSalesOrder, createSalesOrder, getConfirmationPreview, getSalesOrder, updateOrderStatus, updateSalesOrder } from './salesOrdersService'
 import { searchCustomers, searchProducts } from './catalogLookupService'
 import { listProductTypes } from './productTypesService'
 import {
@@ -1012,6 +1012,23 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
     setPlans(await listBatchPlansForOrder(realCompanyId, order.id))
   }
 
+  const STAGE_RANK = ['DRAFT', 'CONFIRMED', 'STORE_PREP', 'PRODUCTION', 'QC_PENDING', 'PACKAGING', 'READY_TO_INVOICE', 'PACKED', 'DISPATCHED', 'COMPLETED']
+
+  // Move the list stage forward when a section is filled in. Never moves a
+  // later stage backwards. A failure here does not undo the saved details.
+  const advanceWorkflow = async (target) => {
+    if (!order?.id) return order
+    const current = String(order.workflow_stage || order.status || 'DRAFT').toUpperCase().replace(/\s+/g, '_')
+    if (STAGE_RANK.indexOf(current) >= STAGE_RANK.indexOf(target)) return order
+    try {
+      const updated = await updateOrderStatus(realCompanyId, order.id, target, order.version)
+      setOrder(updated)
+      return updated
+    } catch {
+      return order
+    }
+  }
+
   const saveBatch = async () => {
     if (batchBusy || !canEditBatch) return
     setBatchErrors({})
@@ -1079,6 +1096,8 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
         setSavedPopup({ title: 'Batch plan created', text: `Batch plan ${created.id} has been created.`, closeAfter: true })
         setPlans(await listBatchPlansForOrder(realCompanyId, order.id))
         await selectPlan(created.id, { force: true })
+        const moved = await advanceWorkflow('PRODUCTION')
+        onSaved?.(moved)
       } else {
         const payload = {
           expected_version: plan.version,
@@ -1104,6 +1123,8 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
         setBatchMessage('Batch details saved.')
         setSavedPopup({ title: 'Batch details saved', text: 'The batch and printing details have been saved.', closeAfter: true })
         await reloadPlanDetail()
+        const moved = await advanceWorkflow('PRODUCTION')
+        onSaved?.(moved)
       }
     } catch (error) {
       if (error?.response?.status === 409) {
@@ -1178,10 +1199,13 @@ export default function SalesOrderFormModal({ realCompanyId, companyCode, compan
       setStoreMessage('Store details saved.')
       setSavedPopup({ title: 'Store details saved', text: 'The store preparation details have been saved.', closeAfter: true })
       if (order) {
-        order.has_store_prep = true
-        order.store_prep_completed = true
-        order.packing_type = storeForm.packing_type
-        onSaved?.(order)
+        const moved = await advanceWorkflow('STORE_PREP')
+        if (moved) {
+          moved.has_store_prep = true
+          moved.store_prep_completed = true
+          moved.packing_type = storeForm.packing_type
+        }
+        onSaved?.(moved || order)
       }
     } catch (error) {
       if (error?.response?.status === 409) {

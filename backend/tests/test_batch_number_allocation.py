@@ -243,21 +243,21 @@ class AllocationBehaviorTests(AllocationTestCase):
         self.assertNotEqual(self.customer.code, self.company.code)
 
     def test_sequential_numbers_same_namespace(self):
-        year = bn.business_now().year % 100
+        year = bn.business_now().year
         first = self.allocate().json()
-        self.assertEqual(first["official_batch_number"], f"GER{year:02d}-001")
+        self.assertEqual(first["official_batch_number"], f"GER-{year}-0001")
         second_plan = self.make_plan()
         second = self.allocate(plan=second_plan).json()
-        self.assertEqual(second["official_batch_number"], f"GER{year:02d}-002")
+        self.assertEqual(second["official_batch_number"], f"GER-{year}-0002")
 
     def test_new_business_year_restarts_sequence_at_one(self):
         with patch.object(bn, "business_now", return_value=datetime.datetime(2026, 12, 31, 12, 0, tzinfo=ZoneInfo("Asia/Kolkata"))):
             first = self.allocate().json()
-        self.assertEqual(first["official_batch_number"], "GER26-001")
+        self.assertEqual(first["official_batch_number"], "GER-2026-0001")
         second_plan = self.make_plan()
         with patch.object(bn, "business_now", return_value=datetime.datetime(2027, 1, 1, 0, 30, tzinfo=ZoneInfo("Asia/Kolkata"))):
             second = self.allocate(plan=second_plan).json()
-        self.assertEqual(second["official_batch_number"], "GER27-001")
+        self.assertEqual(second["official_batch_number"], "GER-2027-0001")
 
     def test_allocation_year_ignores_planned_manufacturing_date(self):
         update_batch_plan(
@@ -267,7 +267,7 @@ class AllocationBehaviorTests(AllocationTestCase):
         with patch.object(bn, "business_now", return_value=datetime.datetime(2026, 3, 1, tzinfo=ZoneInfo("Asia/Kolkata"))):
             res = self.allocate(version=2)
         self.assertEqual(res.status_code, 200, res.content)
-        self.assertTrue(res.json()["official_batch_number"].startswith("GER26-"))
+        self.assertTrue(res.json()["official_batch_number"].startswith("GER-2026-"))
 
     def test_business_timezone_year_boundary(self):
         """31-Dec 22:00 UTC is already 1-Jan 03:30 IST (UTC+5:30) - the
@@ -277,7 +277,7 @@ class AllocationBehaviorTests(AllocationTestCase):
         with patch.object(bn.timezone, "now", return_value=utc_instant):
             res = self.allocate()
         self.assertEqual(res.status_code, 200, res.content)
-        self.assertTrue(res.json()["official_batch_number"].startswith("GER27-"))
+        self.assertTrue(res.json()["official_batch_number"].startswith("GER-2027-"))
 
     def test_minimum_padding_and_overflow_past_999(self):
         year = bn.business_now().year
@@ -286,7 +286,7 @@ class AllocationBehaviorTests(AllocationTestCase):
         )
         res = self.allocate()
         self.assertEqual(res.status_code, 200, res.content)
-        self.assertEqual(res.json()["official_batch_number"], f"GER{year % 100:02d}-1000")
+        self.assertEqual(res.json()["official_batch_number"], f"GER-{year}-1000")
 
     def test_invalid_customer_code_rejected(self):
         Customer.objects.filter(pk=self.customer.id).update(code="GE R")  # bypasses model validation deliberately
@@ -438,7 +438,7 @@ class AllocationBehaviorTests(AllocationTestCase):
         other = self.allocate(plan=other_plan).json()
         self.assertTrue(first["official_batch_number"].startswith("GER"))
         self.assertTrue(other["official_batch_number"].startswith("USA"))
-        self.assertTrue(other["official_batch_number"].endswith("-001"))
+        self.assertTrue(other["official_batch_number"].endswith("-0001"))
 
     def test_audit_records_number_and_context(self):
         body = self.allocate().json()

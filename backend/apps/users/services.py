@@ -21,6 +21,7 @@ USER_TRACKED_FIELDS = [
     "designation",
     "joining_date",
     "employment_status",
+    "shift",
 ]
 
 
@@ -49,6 +50,8 @@ def create_user(
     designation="",
     joining_date=None,
     employment_status=User.EmploymentStatus.ACTIVE,
+    shift="",
+    **extra_kwargs,
 ):
     """Create an ordinary user via Django's normal user-creation path
     (`UserManager.create_user`, which hashes the password with
@@ -57,6 +60,10 @@ def create_user(
     is_staff/is_superuser at their model defaults (False) and creates no
     membership or role assignment.
     """
+    if not employee_id:
+        count = User.objects.count() + 1
+        employee_id = f"EMP-{count:03d}"
+
     user = User.objects.create_user(
         username=username,
         email=email,
@@ -70,6 +77,7 @@ def create_user(
         designation=designation,
         joining_date=joining_date,
         employment_status=employment_status,
+        shift=shift,
     )
     record(
         actor=actor,
@@ -103,6 +111,27 @@ def update_user(*, actor, user, data):
         target_id=user.id,
         before=before,
         after=_user_snapshot(user),
+    )
+    return user
+
+
+@transaction.atomic
+def set_user_password(*, actor, user, new_password):
+    """Reset a user's password (superuser action). The new password is
+    validated against Django's configured AUTH_PASSWORD_VALIDATORS before
+    being applied. Never stored or logged in plaintext.
+    """
+    from django.contrib.auth.password_validation import validate_password
+
+    validate_password(new_password, user=user)
+    user.set_password(new_password)
+    user.save(update_fields=["password"])
+    record(
+        actor=actor,
+        action="user.password_reset",
+        target_type="user",
+        target_id=user.id,
+        after={"password_reset_by": str(actor)},
     )
     return user
 

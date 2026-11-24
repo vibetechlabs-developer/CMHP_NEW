@@ -32,7 +32,7 @@ from apps.sales_orders.confirmation import (
     business_today,
     policy_snapshot,
 )
-from apps.sales_orders.models import SalesOrder, SalesOrderConfirmationPolicy, SalesOrderLine
+from apps.sales_orders.models import WORKFLOW_STAGES, SalesOrder, SalesOrderConfirmationPolicy, SalesOrderLine
 
 # The line helpers above are imported from apps.quotations.services
 # unchanged (Decimal precision/rounding, COUNT rule, active-reference
@@ -182,6 +182,26 @@ def create_sales_order(*, actor, company, customer_id, order_date, currency, req
             "lines": _so_line_snapshot_list(order.lines.all()),
         },
     )
+    return order
+
+
+@transaction.atomic
+def set_workflow_stage(*, sales_order_id, expected_version, stage):
+    """Set the list-stage shown on the orders screen.
+
+    This does not confirm the order and does not change `status`. A
+    confirmed order can still move through later stages.
+    """
+    stage = (stage or "").strip().upper().replace(" ", "_")
+    if stage not in WORKFLOW_STAGES:
+        raise DjangoValidationError({"status": f"Status must be one of {list(WORKFLOW_STAGES)}."})
+    order = SalesOrder.objects.select_for_update().get(pk=sales_order_id)
+    if order.version != expected_version:
+        raise Conflict("This sales order has changed since it was last read. Refetch and retry.")
+    if order.workflow_stage != stage:
+        order.workflow_stage = stage
+        order.version += 1
+        order.save(update_fields=["workflow_stage", "version", "updated_at"])
     return order
 
 

@@ -8,12 +8,13 @@ import api from '../../api/axios'
 
 const basePath = (companyId) => `/v1/companies/${companyId}/products`
 
-export async function listProducts(companyId, { page, pageSize, search, isActive } = {}) {
+export async function listProducts(companyId, { page, pageSize, search, isActive, qaApproval } = {}) {
   const params = {}
   if (page) params.page = page
   if (pageSize) params.page_size = pageSize
   if (search) params.search = search
   if (isActive !== undefined && isActive !== null && isActive !== '') params.is_active = isActive
+  if (qaApproval !== undefined && qaApproval !== null && qaApproval !== '') params.qa_approval = qaApproval
   const response = await api.get(`${basePath(companyId)}/`, { params })
   return response.data
 }

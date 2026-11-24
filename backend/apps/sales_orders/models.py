@@ -7,6 +7,20 @@ from apps.customers.models import Customer
 from apps.products.models import Product
 
 
+WORKFLOW_STAGES = (
+    "DRAFT",
+    "CONFIRMED",
+    "STORE_PREP",
+    "PRODUCTION",
+    "QC_PENDING",
+    "PACKAGING",
+    "READY_TO_INVOICE",
+    "PACKED",
+    "DISPATCHED",
+    "COMPLETED",
+)
+
+
 class SalesOrder(models.Model):
     """A company-scoped DIRECT sales-order DRAFT - Task 10D. Records a
     draft only.
@@ -49,6 +63,9 @@ class SalesOrder(models.Model):
     currency = models.CharField(max_length=3)
     notes = models.CharField(max_length=2000, blank=True)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
+    # Display stage chosen on the orders list. Separate from `status`, which
+    # stays DRAFT or CONFIRMED and is still changed only by confirmation.
+    workflow_stage = models.CharField(max_length=32, blank=True, default="")
     version = models.PositiveIntegerField(default=1)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="sales_orders_created"
@@ -90,6 +107,8 @@ class SalesOrder(models.Model):
             errors["reference"] = "Reference is required."
         if self.status not in self.Status.values:
             errors["status"] = f"Status must be one of {list(self.Status.values)}."
+        if self.workflow_stage and self.workflow_stage not in WORKFLOW_STAGES:
+            errors["workflow_stage"] = f"Workflow stage must be one of {list(WORKFLOW_STAGES)}."
         if not self.currency:
             errors["currency"] = "Currency is required."
         elif len(self.currency) != 3 or not self.currency.isalpha():

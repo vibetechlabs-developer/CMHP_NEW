@@ -35,6 +35,7 @@ from apps.sales_orders.services import (
     confirm_sales_order,
     create_sales_order,
     delete_sales_order,
+    set_workflow_stage,
     update_confirmation_policy,
     update_sales_order,
 )
@@ -42,6 +43,81 @@ from apps.sales_orders.services import (
 SALES_ORDERS_VIEW = "sales_orders.view"
 SALES_ORDERS_CREATE = "sales_orders.create"
 SALES_ORDERS_EDIT = "sales_orders.edit"
+
+
+def order_batch_numbers(company, order_ids):
+    """Batch number for each order: `{customer code}-{order year}-{sequence}`.
+
+    The sequence is how many orders that same customer (the ordering
+    company) already has in that calendar year, in arrival order, starting
+    at 0001. A new year starts again at 0001. Counted across the whole
+    company, not just the current page.
+    """
+    wanted = {oid for oid in order_ids if oid}
+    if not wanted:
+        return {}
+    page_orders = SalesOrder.objects.filter(company=company, pk__in=wanted).only("id", "customer_id", "order_date")
+    customer_ids = set()
+    years = set()
+    for order in page_orders:
+        if order.order_date is None:
+            continue
+        customer_ids.add(order.customer_id)
+        years.add(order.order_date.year)
+    if not customer_ids or not years:
+        return {}
+    groups = {}
+    codes = {}
+    siblings = (
+        SalesOrder.objects.filter(company=company, customer_id__in=customer_ids, order_date__year__in=years)
+        .order_by("created_at", "id")
+        .values_list("id", "customer_id", "order_date", "customer__code")
+    )
+    for oid, customer_id, order_date, code in siblings:
+        if order_date is None:
+            continue
+        groups.setdefault((customer_id, order_date.year), []).append(oid)
+        codes[oid] = (code or "").strip().upper()
+    numbers = {}
+    for (customer_id, year), ids in groups.items():
+        for index, oid in enumerate(ids, start=1):
+            if oid not in wanted:
+                continue
+            numbers[oid] = f"{codes.get(oid) or 'XX'}-{year}-{index:04d}"
+    return numbers
+
+
+def order_section_flags(order_ids):
+    """Which order sections already have saved details.
+
+    Admin is the order itself. Manager is a saved batch plan. Store is a
+    saved store-preparation row, either on the order line or on a batch plan.
+    """
+    wanted = {oid for oid in order_ids if oid}
+    if not wanted:
+        return {}
+    from apps.batch_plans.models import BatchPlan
+    from apps.store_preparation.models import StorePreparation
+
+    with_batch = set(
+        BatchPlan.objects.filter(sales_order_line__sales_order_id__in=wanted).values_list(
+            "sales_order_line__sales_order_id", flat=True
+        )
+    )
+    with_store = set(
+        StorePreparation.objects.filter(sales_order_line__sales_order_id__in=wanted).values_list(
+            "sales_order_line__sales_order_id", flat=True
+        )
+    )
+    with_store.update(
+        StorePreparation.objects.filter(batch_plan__sales_order_line__sales_order_id__in=wanted).values_list(
+            "batch_plan__sales_order_line__sales_order_id", flat=True
+        )
+    )
+    return {
+        oid: {"has_batch_plan": oid in with_batch, "has_store_prep": oid in with_store}
+        for oid in wanted
+    }
 
 
 def _get_company_for_action(request, company_id, *required_permissions):
@@ -108,6 +184,13 @@ class SalesOrderListCreateView(generics.ListCreateAPIView):
         if not results:
             return response
         order_ids = [row.get("id") for row in results if row.get("id")]
+        numbers = order_batch_numbers(company, order_ids)
+        section_flags = order_section_flags(order_ids)
+        for row in results:
+            row["batch_number"] = numbers.get(row.get("id"))
+            flags = section_flags.get(row.get("id"), {})
+            row["has_batch_plan"] = flags.get("has_batch_plan", False)
+            row["has_store_prep"] = flags.get("has_store_prep", False)
         try:
             from apps.quality.control_sample_services import sample_qty_by_sales_order
             from apps.quality.models import ControlSample
@@ -205,6 +288,23 @@ class SalesOrderDetailView(APIView):
     def patch(self, request, company_id, sales_order_id):
         company = _get_company_for_action(request, company_id, SALES_ORDERS_VIEW, SALES_ORDERS_EDIT)
         sales_order = get_object_or_404(SalesOrder, pk=sales_order_id, company=company)
+        payload = request.data if isinstance(request.data, dict) else {}
+        stage_keys = {"status", "workflow_stage", "expected_version"}
+        if set(payload.keys()) <= stage_keys and ("status" in payload or "workflow_stage" in payload):
+            try:
+                expected_version = int(payload.get("expected_version"))
+            except (TypeError, ValueError):
+                raise exceptions.ValidationError({"expected_version": "A valid integer is required."})
+            try:
+                sales_order = set_workflow_stage(
+                    sales_order_id=sales_order.id,
+                    expected_version=expected_version,
+                    stage=payload.get("workflow_stage", payload.get("status")),
+                )
+            except DjangoValidationError as exc:
+                raise translate_django_validation_error(exc) from exc
+            sales_order = _sales_order_queryset().get(pk=sales_order.pk)
+            return Response(SalesOrderSerializer(sales_order).data)
         serializer = SalesOrderUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = dict(serializer.validated_data)

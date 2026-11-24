@@ -15,6 +15,12 @@ import Modal from '../inventory/components/Modal'
 import { getErrorMessage } from '../../utils/errors'
 import { commitProductImport, previewProductImport } from './productsService'
 
+const PRODUCT_CSV_TEMPLATE = `code,name,product_type,pack_size,bmr_no,sales_uom_code,description
+PRD-001,Flexicare,Tablet,10x10 Tablets,BMR/GER/006,TAB,Anti-inflammatory tablet formulation
+PRD-002,CURE RENOL,Drops,30ml,BMR/HM/25/05,BTL,Oral drops liquid formulation
+PRD-003,Amoxicillin 500,Capsule,10x10 Capsules,BMR/CAP/012,CAP,Antibiotic capsules
+`
+
 export default function ImportProductsModal({ companyId, onClose, onImported }) {
   const [file, setFile] = useState(null)
   const [batch, setBatch] = useState(null)
@@ -91,6 +97,15 @@ export default function ImportProductsModal({ companyId, onClose, onImported }) 
 
   const rows = batch?.rows?.results || []
 
+  const downloadTemplate = () => {
+    const url = URL.createObjectURL(new Blob([PRODUCT_CSV_TEMPLATE], { type: 'text/csv;charset=utf-8;' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'products-template.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const footer = (
     <>
       <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
@@ -122,17 +137,22 @@ export default function ImportProductsModal({ companyId, onClose, onImported }) 
         <>
           <div className="field" style={{ marginBottom: 12 }}>
             <label className="field-label" htmlFor="imp-file">CSV file</label>
-            <FileInputButton
-              id="imp-file"
-              accept=".csv,text/csv"
-              fileName={file ? file.name : ''}
-              label="📂 Choose CSV File"
-              onChange={(e) => {
-                setFile(e.target.files?.[0] || null)
-                setBatch(null)
-                setError('')
-              }}
-            />
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <FileInputButton
+                id="imp-file"
+                accept=".csv,text/csv"
+                fileName={file ? file.name : ''}
+                label="📂 Choose CSV File"
+                onChange={(e) => {
+                  setFile(e.target.files?.[0] || null)
+                  setBatch(null)
+                  setError('')
+                }}
+              />
+              <Button variant="secondary" onClick={downloadTemplate} type="button">
+                📥 Download sample template
+              </Button>
+            </div>
             <p style={{ fontSize: 12, color: '#64748b', margin: '8px 0 0' }}>
               Required columns: <strong>code</strong>, <strong>name</strong>.
               Optional: <strong>type</strong> (or product_type), <strong>pack_size</strong>, <strong>bmr_no</strong>, <strong>sales_uom_code</strong>, <strong>description</strong>. UTF-8 only.

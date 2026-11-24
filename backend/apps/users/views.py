@@ -30,6 +30,7 @@ from apps.users.services import (
     deactivate_company_membership,
     deactivate_membership_role,
     deactivate_user,
+    set_user_password,
     update_user,
 )
 
@@ -129,6 +130,28 @@ class UserDetailView(APIView):
         except IntegrityError:
             raise _duplicate_user_error()
         return Response(UserSerializer(user).data)
+
+
+@method_decorator(never_cache, name="dispatch")
+class UserSetPasswordView(APIView):
+    """POST: superuser resets another user's password. The new password
+    goes through Django's AUTH_PASSWORD_VALIDATORS before being applied.
+    The hash is never logged or returned.
+    """
+
+    permission_classes = [IsActiveSuperuser]
+
+    def post(self, request, user_id):
+        user = get_object_or_404(User, pk=user_id)
+        new_password = request.data.get("new_password", "")
+        if not new_password:
+            raise exceptions.ValidationError({"new_password": "This field is required."})
+        from django.contrib.auth.password_validation import ValidationError as DjangoValidationError
+        try:
+            set_user_password(actor=request.user, user=user, new_password=new_password)
+        except DjangoValidationError as exc:
+            raise exceptions.ValidationError({"new_password": list(exc.messages)})
+        return Response({"detail": "Password updated successfully."})
 
 
 @method_decorator(never_cache, name="dispatch")

@@ -96,6 +96,27 @@ class ProductListCreateView(generics.ListCreateAPIView):
         if is_active_param is not None:
             queryset = queryset.filter(is_active=parse_strict_bool(is_active_param))
 
+        qa_status = (
+            self.request.query_params.get("qa_approval")
+            or self.request.query_params.get("qa_status")
+            or ""
+        ).strip().upper()
+        if qa_status:
+            if qa_status == "APPROVED":
+                queryset = queryset.filter(formulas__revisions__status="APPROVED").distinct()
+            elif qa_status in ("SUBMITTED", "PENDING"):
+                queryset = queryset.filter(
+                    formulas__revisions__status__in=["SUBMITTED", "PENDING"]
+                ).exclude(formulas__revisions__status="APPROVED").distinct()
+            elif qa_status == "DRAFT":
+                queryset = queryset.filter(
+                    formulas__revisions__status="DRAFT"
+                ).exclude(formulas__revisions__status__in=["APPROVED", "SUBMITTED", "PENDING"]).distinct()
+            elif qa_status == "NOT_SUBMITTED":
+                queryset = queryset.exclude(
+                    formulas__revisions__status__in=["APPROVED", "SUBMITTED", "PENDING", "DRAFT"]
+                ).distinct()
+
         return queryset.order_by("code", "id")
 
     def create(self, request, *args, **kwargs):

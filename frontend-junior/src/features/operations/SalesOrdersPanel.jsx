@@ -104,22 +104,30 @@ export default function SalesOrdersPanel() {
       })
   }
 
+  const displayStage = (order) => order?.workflow_stage || order?.status || 'DRAFT'
+
   // Inline lifecycle stage change handler
   const handleStatusChange = async (order, newStatus) => {
-    if (!newStatus || newStatus === order.status) return
+    if (!newStatus || newStatus === displayStage(order)) return
     setUpdatingStatus((prev) => ({ ...prev, [order.id]: true }))
     try {
-      await updateOrderStatus(realCompanyId, order.id, newStatus, order.version)
-      // Optimistically update local state so the badge changes immediately
+      const updated = await updateOrderStatus(realCompanyId, order.id, newStatus, order.version)
       setData((prev) => ({
         ...prev,
         results: prev.results.map((o) =>
-          o.id === order.id ? { ...o, status: newStatus, version: (o.version || 0) + 1 } : o
+          o.id === order.id
+            ? {
+                ...o,
+                status: updated.status || o.status,
+                workflow_stage: updated.workflow_stage || newStatus,
+                version: updated.version ?? (o.version || 0) + 1,
+              }
+            : o
         ),
       }))
     } catch (error) {
       setListError(`Could not update status: ${getErrorMessage(error)}`)
-      refreshList() // reload fresh data on conflict
+      refreshList()
     } finally {
       setUpdatingStatus((prev) => ({ ...prev, [order.id]: false }))
     }
@@ -135,29 +143,25 @@ export default function SalesOrdersPanel() {
   }
 
   // 2. Section Badges helper (Admin, Mgr, Store)
-  // Admin (A) = ALWAYS completed once the order exists/has been saved — creating the order IS the admin action.
-  // Mgr (B)   = Completed when order is CONFIRMED or any production stage.
-  // Store (C) = Completed when PACKED, DISPATCHED, or COMPLETED.
+  // A is complete once the order is saved. B is complete once batch details
+  // exist. C is complete once store details exist. A later list stage also
+  // marks the sections that stage already covers.
   const getSectionBadges = (order) => {
-    const s = String(order?.status || '').toUpperCase()
+    const s = String(displayStage(order) || '').toUpperCase().replace(/\s+/g, '_')
 
-    // Admin is done as long as the order has been saved (has an id or any data).
-    // Creating / saving the order is the Admin's job, so it's always completed.
     const adminDone = !!(order?.id || order?.order_date || order?.customer_name || order?.customer_id)
 
-    // Mgr done: order is confirmed or in any production/packaging/QC stage
     const mgrDone =
-      ['CONFIRMED', 'STORE_PREP', 'PRODUCTION', 'QC_PENDING', 'QC PENDING', 'PACKAGING',
-       'READY_TO_INVOICE', 'READY TO INVOICE', 'PACKED', 'DISPATCHED', 'COMPLETED',
-       'IN_PROGRESS'].includes(s)
+      Boolean(order?.has_batch_plan) ||
+      ['CONFIRMED', 'STORE_PREP', 'PRODUCTION', 'QC_PENDING', 'PACKAGING',
+       'READY_TO_INVOICE', 'PACKED', 'DISPATCHED', 'COMPLETED', 'IN_PROGRESS'].includes(s)
 
-    // Store done: store preparation saved, or packed and beyond
     const storeDone = Boolean(
       order?.has_store_prep ||
       order?.store_prep_completed ||
       order?.packing_type ||
       (order?.preparations && order.preparations.length > 0) ||
-      ['STORE_PREP', 'STORE PREP', 'PACKED', 'DISPATCHED', 'COMPLETED'].includes(s)
+      ['STORE_PREP', 'PACKED', 'DISPATCHED', 'COMPLETED'].includes(s)
     )
 
     return [
@@ -182,22 +186,12 @@ export default function SalesOrdersPanel() {
     return 'so-sb-draft'
   }
 
-  // 4. Batch Number Helper — Format: COMPANYCODE-YYYY-0001
-  const getBatchNumber = (order, index) => {
-    if (order.batch_no) return order.batch_no
-    if (order.notes && order.notes.includes('BAT-')) {
-      const match = order.notes.match(/BAT-[\w-]+/)
-      if (match) return match[0]
-    }
-    if (order.notes && order.notes.includes('QA-')) {
-      const match = order.notes.match(/QA-[\w-]+/)
-      if (match) return match[0]
-    }
-    // Use customer code for batch number: CUSTOMERCODE-YYYY-0001
-    const year = new Date().getFullYear()
-    const code = (order.customer_code || companyCode || 'CMHP').toUpperCase()
-    const seq = String(order.id || index + 1).padStart(4, '0')
-    return `${code}-${year}-${seq}`
+  // Batch number: {company code}-{year}-{sequence of that company's orders that year}
+  const getBatchNumber = (order) => {
+    if (order.batch_number) return order.batch_number
+    const year = order.order_date ? String(order.order_date).slice(0, 4) : String(new Date().getFullYear())
+    const code = (order.customer_code || companyCode || 'XX').toUpperCase()
+    return `${code}-${year}-0001`
   }
 
   // 5. 6 KPI Summary Cards Calculation
@@ -213,7 +207,7 @@ export default function SalesOrdersPanel() {
     let overdue = 0
 
     list.forEach((o) => {
-      const s = String(o.status || 'DRAFT').toUpperCase()
+      const s = String(displayStage(o) || 'DRAFT').toUpperCase().replace(/\s+/g, '_')
       if (s === 'DRAFT' || s === 'PENDING') pending++
       else if (['COMPLETED', 'PACKED', 'DISPATCHED'].includes(s)) completed++
       else inProgress++
@@ -504,9 +498,10 @@ export default function SalesOrdersPanel() {
                 const firstLine = order.lines?.[0]
                 const totalUnits = (order.lines || []).reduce((acc, l) => acc + (Number(l.quantity) || 0), 0)
                 const sectionBadges = getSectionBadges(order)
-                const statusBadgeClass = getStatusBadgeClass(order.status)
+                const stage = displayStage(order)
+                const statusBadgeClass = getStatusBadgeClass(stage)
                 const isUpdating = !!updatingStatus[order.id]
-                const batchNumber = getBatchNumber(order, idx)
+                const batchNumber = getBatchNumber(order)
                 const productName = firstLine?.product_name || firstLine?.product_code || 'Pharmaceutical Medicine'
                 const bmrUrl = firstLine?.product_id
                   ? `/production/bmr?productId=${firstLine.product_id}&productCode=${encodeURIComponent(firstLine.product_code || '')}&productName=${encodeURIComponent(productName)}&bmrNo=${encodeURIComponent(firstLine.bmr_no || '')}&productType=${encodeURIComponent(firstLine.product_type_snapshot || '')}&packSize=${encodeURIComponent(firstLine.pack_size || '')}&orderId=${encodeURIComponent(order.id || '')}&returnTo=/orders`
@@ -560,7 +555,7 @@ export default function SalesOrdersPanel() {
 
                     {/* 4. COMPANY */}
                     <td>
-                      <span className="so-company-pill">{companyName || 'CMHP Pharma'}</span>
+                      <span className="so-company-pill">{companyName || '—'}</span>
                     </td>
 
                     {/* 4. DATE OF ORDER */}
@@ -612,7 +607,7 @@ export default function SalesOrdersPanel() {
                       <div className="so-status-select-wrap">
                         <select
                           className={`so-status-select ${statusBadgeClass}`}
-                          value={order.status || 'DRAFT'}
+                          value={stage}
                           disabled={isUpdating}
                           onChange={(e) => handleStatusChange(order, e.target.value)}
                           title="Change production lifecycle stage"

@@ -53,13 +53,38 @@ export default function UserImportModal({ onClose, onImported, defaultCompanyId 
     reader.readAsText(file)
   }
 
-  const downloadTemplate = () => {
-    const url = URL.createObjectURL(new Blob([USER_CSV_TEMPLATE], { type: 'text/csv' }))
-    const link = document.createElement('a')
-    link.href = url
-    link.download = 'users-import-template.csv'
-    link.click()
-    URL.revokeObjectURL(url)
+  const downloadTemplate = async () => {
+    try {
+      const companies = await listCompanies()
+      let sampleCompany = 'CMHP'
+      let sampleRole = ''
+      if (companies && companies.length > 0) {
+        const defaultComp = defaultCompanyId
+          ? companies.find((c) => c.id === defaultCompanyId) || companies[0]
+          : companies[0]
+        sampleCompany = defaultComp.code
+        const roles = await listCompanyRoles(defaultComp.id)
+        if (roles && roles.length > 0) {
+          sampleRole = roles[0].code
+        }
+      }
+      const header = USER_CSV_COLUMNS.join(',')
+      const sample = `jdoe,jdoe@example.com,John,Doe,TempPass123,EMP-001,QA,Executive,Morning,2026-01-15,active,${sampleCompany},${sampleRole}`
+      const content = `${header}\n${sample}\n`
+      const url = URL.createObjectURL(new Blob([content], { type: 'text/csv' }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'users-import-template.csv'
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      const url = URL.createObjectURL(new Blob([USER_CSV_TEMPLATE], { type: 'text/csv' }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'users-import-template.csv'
+      link.click()
+      URL.revokeObjectURL(url)
+    }
   }
 
   const runImport = async () => {
@@ -83,12 +108,36 @@ export default function UserImportModal({ onClose, onImported, defaultCompanyId 
     }
 
     const resolveRole = async (company, code) => {
+      const clean = String(code || '').trim()
+      if (!clean || ['-', 'na', 'n/a', 'none'].includes(clean.toLowerCase())) {
+        return null
+      }
       if (!rolesByCompany[company.id]) {
         const roles = await listCompanyRoles(company.id)
-        rolesByCompany[company.id] = Object.fromEntries(roles.map((r) => [r.code.toLowerCase(), r]))
+        rolesByCompany[company.id] = roles || []
       }
-      const role = rolesByCompany[company.id][code.toLowerCase()]
-      if (!role) throw new Error(`Role "${code}" was not found in company ${company.code}.`)
+      const rolesList = rolesByCompany[company.id]
+      // 1. Direct code match (case-insensitive)
+      let role = rolesList.find((r) => (r.code || '').toLowerCase() === clean.toLowerCase())
+      // 2. Direct name match (case-insensitive)
+      if (!role) {
+        role = rolesList.find((r) => (r.name || '').toLowerCase() === clean.toLowerCase())
+      }
+      // 3. Normalized match (ignoring underscores/spaces/hyphens)
+      if (!role) {
+        const norm = clean.toLowerCase().replace(/[^a-z0-9]/g, '')
+        role = rolesList.find(
+          (r) =>
+            (r.code || '').toLowerCase().replace(/[^a-z0-9]/g, '') === norm ||
+            (r.name || '').toLowerCase().replace(/[^a-z0-9]/g, '') === norm
+        )
+      }
+      if (!role) {
+        const validRoles = rolesList.map((r) => `${r.code} (${r.name})`).join(', ')
+        throw new Error(
+          `Role "${code}" was not found in company ${company.code}. Valid roles are: ${validRoles || 'None'}`
+        )
+      }
       return role
     }
 
@@ -104,6 +153,7 @@ export default function UserImportModal({ onClose, onImported, defaultCompanyId 
           employee_id: d.employee_id,
           department: d.department,
           designation: d.designation,
+          shift: d.shift || '',
           joining_date: d.joining_date || null,
           employment_status: d.employment_status || 'active',
         })
@@ -114,8 +164,10 @@ export default function UserImportModal({ onClose, onImported, defaultCompanyId 
           access = ` Assigned to ${company.code}.`
           if (d.role_code) {
             const role = await resolveRole(company, d.role_code)
-            await assignUserRole(user.id, membership.id, role.id)
-            access = ` Assigned to ${company.code} as ${role.code}.`
+            if (role) {
+              await assignUserRole(user.id, membership.id, role.id)
+              access = ` Assigned to ${company.code} as ${role.name || role.code}.`
+            }
           }
         } else if (defaultCompanyId) {
           // Auto-assign to the current workspace company so the user appears

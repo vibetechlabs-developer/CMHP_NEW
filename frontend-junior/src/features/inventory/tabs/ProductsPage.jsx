@@ -14,7 +14,7 @@
 // kept as a fabricated "Not tracked" placeholder for a concept that
 // isn't part of this model at all (unlike Materials' register, where the
 // concept genuinely exists but isn't computed yet).
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 
 import Alert from '../../../components/Alert'
@@ -84,9 +84,10 @@ export default function ProductsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const search = searchParams.get('search') || ''
   const status = searchParams.get('status') || ''
+  const qaStatus = searchParams.get('qaStatus') || ''
   const pageSize = Math.max(1, Number(searchParams.get('pageSize') || String(DEFAULT_PAGE_SIZE)) || DEFAULT_PAGE_SIZE)
   const page = Math.max(1, Number(searchParams.get('page') || '1') || 1)
-  const hasActiveFilters = Boolean(search || status)
+  const hasActiveFilters = Boolean(search || status || qaStatus)
 
   const setFilter = (patch) => {
     setSearchParams((prev) => {
@@ -101,7 +102,7 @@ export default function ProductsPage() {
   const clearFilters = () => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
-      ;['search', 'status', 'page'].forEach((key) => next.delete(key))
+      ;['search', 'status', 'qaStatus', 'page'].forEach((key) => next.delete(key))
       return next
     }, { replace: true })
   }
@@ -126,7 +127,7 @@ export default function ProductsPage() {
     const requestId = ++requestRef.current
     setLoading(true)
     setError('')
-    listProducts(companyId, { search, isActive: status, page, pageSize })
+    listProducts(companyId, { search, isActive: status, qaApproval: qaStatus, page, pageSize })
       .then((result) => {
         if (requestRef.current !== requestId) return
         setData({ count: result.count || 0, results: result.results || [] })
@@ -138,7 +139,20 @@ export default function ProductsPage() {
       .finally(() => {
         if (requestRef.current === requestId) setLoading(false)
       })
-  }, [companyId, permissionsLoading, canView, search, status, page, pageSize, reloadKey])
+  }, [companyId, permissionsLoading, canView, search, status, qaStatus, page, pageSize, reloadKey])
+
+  // Client-side fallback filter so results react immediately even if backend is not yet restarted
+  const displayResults = useMemo(() => {
+    if (!qaStatus) return data.results
+    return data.results.filter((product) => {
+      const s = String(product.qa_approval_status || product.qc_approval_status || 'NOT_SUBMITTED').toUpperCase()
+      if (qaStatus === 'APPROVED') return s === 'APPROVED'
+      if (qaStatus === 'SUBMITTED' || qaStatus === 'PENDING') return s === 'SUBMITTED' || s === 'PENDING'
+      if (qaStatus === 'DRAFT') return s === 'DRAFT'
+      if (qaStatus === 'NOT_SUBMITTED') return s === 'NOT_SUBMITTED' || !s
+      return true
+    })
+  }, [data.results, qaStatus])
 
   const reload = (message) => {
     if (message) setNotice(message)
@@ -244,6 +258,19 @@ export default function ProductsPage() {
               <option value="true">Active only</option>
               <option value="false">Inactive only</option>
             </select>
+            <select
+              className="company-input"
+              aria-label="QA Approval Status"
+              value={qaStatus}
+              onChange={(e) => setFilter({ qaStatus: e.target.value, page: null })}
+              style={{ width: 175, fontWeight: qaStatus ? 600 : 'normal' }}
+            >
+              <option value="">All QA Status</option>
+              <option value="APPROVED">Approved only</option>
+              <option value="SUBMITTED">Submitted only</option>
+              <option value="DRAFT">Draft only</option>
+              <option value="NOT_SUBMITTED">Not Submitted only</option>
+            </select>
             <select className="company-input" aria-label="Page size" value={pageSize} onChange={(e) => setFilter({ pageSize: e.target.value, page: null })} style={{ width: 110 }}>
               {PAGE_SIZE_OPTIONS.map((size) => (
                 <option key={size} value={size}>{size} / page</option>
@@ -252,7 +279,7 @@ export default function ProductsPage() {
             {hasActiveFilters && <Button type="button" variant="secondary" onClick={clearFilters}>Clear filters</Button>}
           </div>
 
-          {!loading && !error && data.results.length === 0 ? (
+          {!loading && !error && displayResults.length === 0 ? (
             <div className="ci-empty-card">
               <div className="ci-empty-icon">🔍</div>
               <div className="ci-empty-title">No products {hasActiveFilters ? 'match your filters' : 'yet'}</div>
@@ -277,7 +304,7 @@ export default function ProductsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.results.map((product) => {
+                    {displayResults.map((product) => {
                       const bmrUrl = `/production/bmr?productId=${product.id}&productCode=${encodeURIComponent(product.code)}&productName=${encodeURIComponent(product.name)}&bmrNo=${encodeURIComponent(product.bmr_no || '')}&productType=${encodeURIComponent(product.product_type || '')}&packSize=${encodeURIComponent(product.pack_size || '')}&returnTo=/products`
                       return (
                         <tr key={product.id}>
@@ -338,7 +365,7 @@ export default function ProductsPage() {
                         </tr>
                       )
                     })}
-                    {loading && data.results.length === 0 && (
+                    {loading && displayResults.length === 0 && (
                       <tr>
                         <td colSpan={canFormulas ? 10 : 9} style={{ textAlign: 'center', padding: '28px 0' }}>
                           <Spinner tone="brand" label="Loading products…" />

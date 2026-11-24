@@ -673,6 +673,26 @@ class ListTests(SalesOrderBase):
         self.assertEqual(response.status_code, 200, response.content)
         return [row["id"] for row in response.json()["results"]]
 
+    def test_list_stage_updates_without_changing_confirmation_status(self):
+        response = self.patch(self.q1, {"status": "PRODUCTION", "expected_version": self.q1["version"]})
+        self.assertEqual(response.status_code, 200, response.content)
+        body = response.json()
+        self.assertEqual(body["workflow_stage"], "PRODUCTION")
+        self.assertEqual(body["status"], "DRAFT")
+        listed = get_json(self.client_, sales_orders_url(self.company.id), self.token).json()
+        row = next(item for item in listed["results"] if item["id"] == self.q1["id"])
+        self.assertEqual(row["workflow_stage"], "PRODUCTION")
+        self.assertFalse(row["has_batch_plan"])
+        self.assertFalse(row["has_store_prep"])
+
+    def test_batch_number_is_company_code_year_and_arrival_sequence(self):
+        body = get_json(self.client_, sales_orders_url(self.company.id), self.token).json()
+        by_id = {row["id"]: row["batch_number"] for row in body["results"]}
+        self.assertEqual(by_id[self.q1["id"]], "C1-2026-0001")
+        self.assertEqual(by_id[self.q3["id"]], "C1-2026-0002")
+        self.assertEqual(by_id[self.q2["id"]], "C2-2026-0001")
+        self.assertEqual(body["results"][0]["customer_name"], "C1 Customer")
+
     def test_default_order_newest_first_and_envelope(self):
         self.assertEqual(self.ids(), [self.q3["id"], self.q2["id"], self.q1["id"]])
         body = get_json(self.client_, sales_orders_url(self.company.id), self.token).json()

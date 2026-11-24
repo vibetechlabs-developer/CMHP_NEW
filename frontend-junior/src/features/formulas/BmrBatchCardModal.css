@@ -1,0 +1,451 @@
+/* BmrBatchCardModal.css - Authentic Physical Batch Card (Image 3 Match) */
+
+.batch-card-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.batch-card-modal-content {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+  max-width: 860px;
+  width: 100%;
+  max-height: 94vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+}
+
+.batch-card-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.batch-card-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.batch-card-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.batch-card-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.batch-card-btn-print {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+}
+
+.batch-card-btn-print:hover {
+  background: #0369a1;
+}
+
+.batch-card-btn-pdf {
+  background: #059669;
+  color: #ffffff;
+  border-color: #059669;
+}
+
+.batch-card-btn-pdf:hover {
+  background: #047857;
+}
+
+.batch-card-btn-close {
+  background: #ffffff;
+  color: #475569;
+  border-color: #cbd5e1;
+}
+
+.batch-card-btn-close:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.batch-card-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  background: #f1f5f9;
+  display: flex;
+  justify-content: center;
+}
+
+/* AUTHENTIC BATCH CARD SHEET (EXACT EXCEL / CARD REPLICA) */
+.batch-card-sheet {
+  background: #ffffff;
+  width: 100%;
+  max-width: 800px;
+  border: 2px solid #000000;
+  color: #000000;
+  font-family: Arial, Calibri, 'Segoe UI', sans-serif;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  font-size: 13px;
+}
+
+/* SECTION 1: HEADER & LOGO */
+.bc-header-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.bc-header-table td,
+.bc-header-table th {
+  border: 1px solid #000000;
+  padding: 6px 10px;
+}
+
+.bc-logo-cell {
+  width: 130px;
+  text-align: center;
+  vertical-align: middle;
+  padding: 4px !important;
+}
+
+.bc-logo-img {
+  max-height: 48px;
+  max-width: 110px;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
+
+.bc-logo-fallback {
+  font-weight: 900;
+  font-size: 24px;
+  color: #dc2626;
+  letter-spacing: -0.5px;
+}
+
+.bc-company-title {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* PRODUCT TITLE */
+.bc-product-row {
+  background: #ffffff;
+  font-weight: 800;
+  font-size: 16px;
+  text-align: center;
+}
+
+.bc-product-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 12px;
+}
+
+.bc-product-name {
+  flex: 1;
+  text-align: center;
+  text-transform: uppercase;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.bc-pack-size {
+  font-size: 16px;
+  font-weight: 800;
+  margin-left: 20px;
+}
+
+/* METADATA GRID */
+.bc-meta-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.bc-meta-table td {
+  border: 1px solid #000000;
+  padding: 5px 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.bc-meta-label {
+  font-weight: 700;
+}
+
+.bc-meta-value {
+  font-weight: 600;
+}
+
+/* ALCOHOL & WATER VEHICLE SUMMARY BOX */
+.bc-vehicle-block {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.bc-vehicle-block td {
+  border: 1px solid #000000;
+  padding: 4px 8px;
+}
+
+.bc-vehicle-empty-col {
+  width: 48%;
+  background: #ffffff;
+}
+
+.bc-vehicle-info-col {
+  width: 52%;
+  text-align: right;
+  font-weight: 700;
+  font-size: 12.5px;
+  line-height: 1.4;
+  padding: 6px 10px;
+}
+
+.bc-veh-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin: 2px 0;
+}
+
+.bc-veh-val {
+  min-width: 130px;
+  text-align: left;
+}
+
+.bc-alc-banner {
+  background: #000000;
+  color: #ffffff;
+  font-weight: 800;
+  padding: 2px 8px;
+  display: inline-block;
+  margin-top: 2px;
+  text-align: center;
+}
+
+/* COMPOSITION TABLE */
+.bc-comp-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.bc-comp-table th,
+.bc-comp-table td {
+  border: 1px solid #000000;
+  padding: 5px 8px;
+  font-size: 12.5px;
+}
+
+.bc-comp-table th {
+  background: #ffffff;
+  font-weight: 800;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.bc-th-comp {
+  width: 42%;
+  text-align: left !important;
+}
+
+.bc-th-pot {
+  width: 18%;
+  text-align: center;
+}
+
+.bc-th-base {
+  width: 20%;
+  text-align: center;
+}
+
+.bc-th-target {
+  width: 20%;
+  text-align: center;
+}
+
+.bc-td-comp {
+  font-weight: 600;
+  text-align: left;
+}
+
+.bc-td-pot {
+  text-align: center;
+  font-weight: 600;
+}
+
+.bc-td-qty {
+  text-align: right;
+  font-weight: 700;
+}
+
+.bc-qty-split {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.bc-qty-num {
+  font-weight: 700;
+}
+
+.bc-qty-unit {
+  font-weight: 500;
+  font-size: 11.5px;
+  margin-left: 6px;
+}
+
+/* SPECIAL NOTES BOX */
+.bc-notes-block {
+  border: 1px solid #000000;
+  border-top: none;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #ffffff;
+  min-height: 50px;
+  line-height: 1.5;
+}
+
+.bc-notes-item {
+  margin: 3px 0;
+}
+
+.bc-notes-textarea {
+  width: 100%;
+  min-height: 48px;
+  border: 1px dashed #94a3b8;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 600;
+  border-radius: 4px;
+  resize: vertical;
+}
+
+/* SIGNATURES TABLE */
+.bc-sig-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.bc-sig-table th,
+.bc-sig-table td {
+  border: 1px solid #000000;
+  padding: 6px 10px;
+  font-size: 12.5px;
+}
+
+.bc-sig-table th {
+  background: #ffffff;
+  font-weight: 800;
+  text-align: center;
+}
+
+.bc-sig-label-col {
+  width: 28%;
+  font-weight: 700;
+}
+
+.bc-sig-person-col {
+  width: 36%;
+  text-align: center;
+  height: 34px;
+}
+
+/* PRINT MEDIA QUERIES */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .batch-card-modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    overflow: visible;
+    z-index: 99999;
+  }
+
+  .batch-card-modal-content {
+    box-shadow: none;
+    border: none;
+    max-width: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
+
+  .batch-card-modal-header {
+    display: none !important;
+  }
+
+  .batch-card-modal-body {
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible;
+  }
+
+  .batch-card-sheet,
+  .batch-card-sheet * {
+    visibility: visible;
+  }
+
+  .batch-card-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    border: 2px solid #000000 !important;
+    box-shadow: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .bc-notes-textarea {
+    border: none !important;
+    padding: 0 !important;
+    background: transparent !important;
+    resize: none !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 8mm;
+  }
+}

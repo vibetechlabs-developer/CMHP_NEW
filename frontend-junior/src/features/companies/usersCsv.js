@@ -9,6 +9,7 @@ export const USER_CSV_COLUMNS = [
   'employee_id',
   'department',
   'designation',
+  'shift',
   'joining_date',
   'employment_status',
   'company_code',
@@ -16,7 +17,7 @@ export const USER_CSV_COLUMNS = [
 ]
 
 export const USER_CSV_TEMPLATE = `${USER_CSV_COLUMNS.join(',')}
-jdoe,jdoe@example.com,John,Doe,TempPass123,EMP-001,Store,Store Manager,2026-01-15,probation,CMHP,STORE_MANAGER
+jdoe,jdoe@example.com,John,Doe,TempPass123,EMP-001,QA,Executive,Morning,2026-01-15,active,CMHP,
 `
 
 const EMPLOYMENT_STATUSES = ['active', 'probation', 'notice', 'resigned', 'terminated']

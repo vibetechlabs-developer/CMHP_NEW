@@ -23,6 +23,7 @@ import {
   listUserMemberships,
   listUserRoleAssignments,
   listUsers,
+  setUserPassword,
   updateUser,
 } from '../usersApiService'
 import UserImportModal from './UserImportModal'
@@ -67,6 +68,20 @@ function parseFieldErrors(error) {
 }
 
 const statusLabel = (value) => EMPLOYMENT_STATUS_OPTIONS.find(([key]) => key === value)?.[1] || value || '—'
+
+function generateNextEmployeeId(userList = []) {
+  let max = 0
+  for (const u of userList) {
+    if (!u.employee_id) continue
+    const m = String(u.employee_id).match(/(\d+)/)
+    if (m) {
+      const val = parseInt(m[1], 10)
+      if (!isNaN(val) && val > max) max = val
+    }
+  }
+  const next = max > 0 ? max + 1 : (userList.length + 1)
+  return `EMP-${String(next).padStart(3, '0')}`
+}
 
 // Company access for an existing user: memberships, their roles, and the
 // controls to add or remove either. Every change is its own API call.
@@ -171,92 +186,174 @@ function CompanyAccessPanel({ userId, onError }) {
   if (loading) return <LoadingState label="Loading company access…" compact />
 
   return (
-    <section className="uf-group">
-      <span className="uf-title">Company access and roles</span>
-      <p className="uf-help">Access is granted per company. Roles decide what the user can do inside that company.</p>
+    <section className="uf-group" style={{ marginTop: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <div>
+          <span className="uf-title">🏢 Company Access & Permission Roles</span>
+          <p className="uf-help" style={{ marginTop: 2 }}>
+            Manage user memberships across companies and assign authorized permission roles.
+          </p>
+        </div>
+      </div>
       {notice && <Alert type="success">{notice}</Alert>}
 
-      {memberships.length === 0 && <p className="uf-help">No company assigned yet.</p>}
+      {memberships.length === 0 && (
+        <div style={{ padding: '16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, color: '#64748b', fontSize: 13, textAlign: 'center' }}>
+          No company assigned yet. Select a company below to grant workspace access.
+        </div>
+      )}
+
       {memberships.map((membership) => {
         const roles = (rolesByCompany[membership.company_id] || []).filter((r) => r.is_active)
         const current = assignments[membership.id] || []
         const assignable = roles.filter((r) => !current.some((a) => a.role_id === r.id))
+
         return (
-          <div key={membership.id} className="field">
-            <div className="inv-form-grid">
-              <div className="field">
-                <span className="field-label">{membership.company_code} · {membership.company_display_name || membership.company_legal_name}</span>
-                <div>
-                  {current.length === 0 && <span className="uf-help">No role yet</span>}
-                  {current.map((a) => (
-                    <span key={a.id} className="company-badge">
-                      {a.role_name}{' '}
-                      <button type="button" className="company-link danger" onClick={() => removeRole(membership, a)} disabled={busy}>
-                        Remove
-                      </button>
-                    </span>
-                  ))}
-                </div>
+          <div key={membership.id} className="uf-company-card">
+            {/* Header: Company Pill, Name & Remove Button */}
+            <div className="uf-company-header">
+              <div className="uf-company-identity">
+                <span className="uf-company-pill">{membership.company_code}</span>
+                <span className="uf-company-name">
+                  {membership.company_display_name || membership.company_legal_name}
+                </span>
               </div>
-              <div className="field">
-                <span className="field-label">Add role</span>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <select
-                    className="field-input"
-                    value={newRoleIds[membership.id] || ''}
-                    onChange={(e) => setNewRoleIds((prev) => ({ ...prev, [membership.id]: e.target.value }))}
-                    disabled={busy}
-                  >
-                    <option value="">Select role</option>
-                    {assignable.map((r) => (
-                      <option key={r.id} value={r.id}>{r.name} ({r.code})</option>
-                    ))}
-                  </select>
-                  <Button variant="secondary" onClick={() => addRole(membership)} disabled={busy || !newRoleIds[membership.id]}>
-                    Add
-                  </Button>
-                </div>
-              </div>
-            </div>
-            <div>
-              <button type="button" className="company-link danger" onClick={() => removeCompany(membership)} disabled={busy}>
-                Remove company access
+              <button
+                type="button"
+                className="uf-remove-comp-btn"
+                onClick={() => removeCompany(membership)}
+                disabled={busy}
+                title={`Revoke access to ${membership.company_code}`}
+              >
+                ✕ Revoke Company Access
               </button>
             </div>
+
+            {/* Body: Assigned Roles */}
+            <div className="uf-roles-label">Assigned Roles ({current.length})</div>
+            {current.length === 0 ? (
+              <div className="uf-no-roles">
+                ⚠️ No roles assigned in this company yet. The user has membership but cannot access role-gated features.
+              </div>
+            ) : (
+              <div className="uf-roles-chip-wrap">
+                {current.map((a) => (
+                  <span key={a.id} className="uf-role-chip">
+                    <span>🛡️ {a.role_name}</span>
+                    <button
+                      type="button"
+                      className="uf-role-chip-x"
+                      onClick={() => removeRole(membership, a)}
+                      disabled={busy}
+                      title={`Remove role ${a.role_name}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Inline Add Role */}
+            {assignable.length > 0 ? (
+              <div className="uf-add-role-bar">
+                <select
+                  className="uf-add-role-select"
+                  value={newRoleIds[membership.id] || ''}
+                  onChange={(e) => setNewRoleIds((prev) => ({ ...prev, [membership.id]: e.target.value }))}
+                  disabled={busy}
+                >
+                  <option value="">+ Select role to grant in {membership.company_code}…</option>
+                  {assignable.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name} ({r.code})
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="uf-add-role-btn"
+                  onClick={() => addRole(membership)}
+                  disabled={busy || !newRoleIds[membership.id]}
+                >
+                  + Add Role
+                </button>
+              </div>
+            ) : roles.length > 0 ? (
+              <div style={{ fontSize: 11.5, color: '#16a34a', fontWeight: 600 }}>
+                ✓ All available roles in {membership.company_code} are already granted to this user.
+              </div>
+            ) : (
+              <div style={{ fontSize: 11.5, color: '#94a3b8', fontStyle: 'italic' }}>
+                No active roles configured for this company yet.
+              </div>
+            )}
           </div>
         )
       })}
 
-      <div className="inv-form-grid">
-        <div className="field">
-          <span className="field-label">Assign to company</span>
-          <select className="field-input" value={newCompanyId} onChange={(e) => pickNewCompany(e.target.value)} disabled={busy}>
-            <option value="">Select company</option>
-            {available.map((c) => (
-              <option key={c.id} value={c.id}>{c.code} · {c.display_name || c.legal_name}</option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <span className="field-label">Role</span>
-          <select
-            className="field-input"
-            value={newCompanyRoleId}
-            onChange={(e) => setNewCompanyRoleId(e.target.value)}
+      {/* Grant Access to Another Company Card */}
+      {available.length > 0 ? (
+        <div className="uf-assign-new-card">
+          <div className="uf-assign-new-title">
+            <span>➕ Grant Access to Another Company</span>
+          </div>
+          <div className="uf-assign-grid">
+            <div>
+              <label className="field-label" style={{ fontSize: 11, marginBottom: 4 }}>
+                Select Company
+              </label>
+              <select
+                className="field-input"
+                style={{ height: 36 }}
+                value={newCompanyId}
+                onChange={(e) => pickNewCompany(e.target.value)}
+                disabled={busy}
+              >
+                <option value="">-- Choose Company --</option>
+                {available.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.code} · {c.display_name || c.legal_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="field-label" style={{ fontSize: 11, marginBottom: 4 }}>
+                Initial Role (Optional)
+              </label>
+              <select
+                className="field-input"
+                style={{ height: 36 }}
+                value={newCompanyRoleId}
+                onChange={(e) => setNewCompanyRoleId(e.target.value)}
+                disabled={busy || !newCompanyId}
+              >
+                <option value="">{newCompanyId ? '-- Select Initial Role (Optional) --' : 'Pick a company first'}</option>
+                {(rolesByCompany[Number(newCompanyId)] || [])
+                  .filter((r) => r.is_active)
+                  .map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name} ({r.code})
+                    </option>
+                  ))}
+              </select>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="uf-assign-btn"
+            onClick={addCompany}
             disabled={busy || !newCompanyId}
           >
-            <option value="">{newCompanyId ? 'No role yet' : 'Pick a company first'}</option>
-            {(rolesByCompany[Number(newCompanyId)] || []).filter((r) => r.is_active).map((r) => (
-              <option key={r.id} value={r.id}>{r.name} ({r.code})</option>
-            ))}
-          </select>
+            + Grant Company Access
+          </button>
         </div>
-      </div>
-      <div>
-        <Button variant="secondary" onClick={addCompany} disabled={busy || !newCompanyId}>
-          Assign company
-        </Button>
-      </div>
+      ) : companies.length > 0 && memberships.length > 0 ? (
+        <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 600, padding: '8px 12px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, marginTop: 4 }}>
+          ✓ User has access to all active companies in the organization.
+        </div>
+      ) : null}
     </section>
   )
 }
@@ -287,6 +384,12 @@ export default function UserAccessTab({ companyId: propCompanyId = null }) {
   const [notice, setNotice] = useState('')
   const [importing, setImporting] = useState(false)
   const requestRef = useRef(0)
+  // Password-change panel (edit mode only)
+  const [pwOpen, setPwOpen] = useState(false)
+  const [pwForm, setPwForm] = useState({ new_password: '', confirm_password: '' })
+  const [pwError, setPwError] = useState('')
+  const [pwSaving, setPwSaving] = useState(false)
+  const [pwSuccess, setPwSuccess] = useState('')
 
   // Suggestions for the Department box come from departments already in use.
   const departmentSuggestions = useMemo(
@@ -337,13 +440,19 @@ export default function UserAccessTab({ companyId: propCompanyId = null }) {
   }, [form.company_id, companyId])
 
   const openCreate = () => {
+    const autoEmpId = generateNextEmployeeId(users)
     setForm({
       ...EMPTY_FORM,
+      employee_id: autoEmpId,
       company_id: companyId ? String(companyId) : '',
     })
     setFieldErrors({})
     setError('')
     setNotice('')
+    setPwOpen(false)
+    setPwForm({ new_password: '', confirm_password: '' })
+    setPwError('')
+    setPwSuccess('')
     setModal({ mode: 'create' })
   }
 
@@ -365,6 +474,10 @@ export default function UserAccessTab({ companyId: propCompanyId = null }) {
       both_companies_access: false,
     })
     setFieldErrors({})
+    setPwOpen(false)
+    setPwForm({ new_password: '', confirm_password: '' })
+    setPwError('')
+    setPwSuccess('')
     setError('')
     setNotice('')
     setModal({ mode: 'edit', user })
@@ -373,6 +486,31 @@ export default function UserAccessTab({ companyId: propCompanyId = null }) {
   const closeModal = () => {
     setModal(null)
     setFieldErrors({})
+    setError('')
+    setPwOpen(false)
+  }
+
+  const changePassword = async () => {
+    if (pwSaving) return
+    setPwError('')
+    setPwSuccess('')
+    if (!pwForm.new_password) { setPwError('New password is required.'); return }
+    if (pwForm.new_password.length < 8) { setPwError('Password must be at least 8 characters.'); return }
+    if (pwForm.new_password !== pwForm.confirm_password) { setPwError('Passwords do not match.'); return }
+    setPwSaving(true)
+    try {
+      await setUserPassword(modal.user.id, pwForm.new_password)
+      setPwSuccess('Password updated successfully.')
+      setPwForm({ new_password: '', confirm_password: '' })
+    } catch (err) {
+      const data = err?.response?.data
+      const msg = data?.new_password
+        ? (Array.isArray(data.new_password) ? data.new_password.join(' ') : data.new_password)
+        : getErrorMessage(err)
+      setPwError(msg)
+    } finally {
+      setPwSaving(false)
+    }
   }
 
   const profilePayload = () => ({
@@ -494,7 +632,31 @@ export default function UserAccessTab({ companyId: propCompanyId = null }) {
         </div>
       </div>
 
-      {error && !modal && <Alert type="error">{error}</Alert>}
+      {error && !modal && (
+        <div style={{ position: 'relative', marginBottom: 12 }}>
+          <Alert type="error">{error}</Alert>
+          <button
+            type="button"
+            onClick={() => setError('')}
+            style={{
+              position: 'absolute',
+              right: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 18,
+              lineHeight: 1,
+              color: '#991b1b',
+              fontWeight: 'bold',
+            }}
+            title="Dismiss error"
+          >
+            ×
+          </button>
+        </div>
+      )}
       {notice && <Alert type="success">{notice}</Alert>}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
@@ -644,8 +806,33 @@ export default function UserAccessTab({ companyId: propCompanyId = null }) {
                   {fieldError('phone')}
                 </div>
                 <div className="field">
-                  <label className="field-label" htmlFor="uf-employee">Employee ID</label>
-                  <input id="uf-employee" className="field-input" value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.target.value })} maxLength={50} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label className="field-label" htmlFor="uf-employee">Employee ID</label>
+                    <button
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, employee_id: generateNextEmployeeId(users) }))}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#2563eb',
+                        fontSize: 11,
+                        cursor: 'pointer',
+                        padding: 0,
+                        fontWeight: 600,
+                      }}
+                      title="Auto-generate next sequential Employee ID"
+                    >
+                      ⚡ Auto ID
+                    </button>
+                  </div>
+                  <input
+                    id="uf-employee"
+                    className="field-input"
+                    value={form.employee_id}
+                    onChange={(e) => setForm({ ...form, employee_id: e.target.value })}
+                    maxLength={50}
+                    placeholder="e.g. EMP-007"
+                  />
                   {fieldError('employee_id')}
                 </div>
                 <div className="field">
@@ -741,6 +928,61 @@ export default function UserAccessTab({ companyId: propCompanyId = null }) {
               </div>
             </section>
           </form>
+
+          {modal.mode === 'edit' && (
+            <section className="uf-group" style={{ marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={() => { setPwOpen((v) => !v); setPwError(''); setPwSuccess(''); setPwForm({ new_password: '', confirm_password: '' }) }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none',
+                  cursor: 'pointer', padding: '6px 0', fontSize: 13, fontWeight: 600, color: '#0f172a',
+                }}
+              >
+                <span style={{ fontSize: 16 }}>🔑</span>
+                Change Password
+                <span style={{ marginLeft: 4, fontSize: 11, color: '#64748b' }}>{pwOpen ? '▲' : '▼'}</span>
+              </button>
+
+              {pwOpen && (
+                <div style={{ marginTop: 10, padding: '16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10 }}>
+                  {pwError && <Alert type="error" style={{ marginBottom: 10 }}>{pwError}</Alert>}
+                  {pwSuccess && <Alert type="success" style={{ marginBottom: 10 }}>{pwSuccess}</Alert>}
+                  <div className="inv-form-grid" style={{ marginBottom: 12 }}>
+                    <div className="field">
+                      <label className="field-label" htmlFor="pw-new">New Password *</label>
+                      <input
+                        id="pw-new"
+                        className="field-input"
+                        type="password"
+                        value={pwForm.new_password}
+                        onChange={(e) => setPwForm({ ...pwForm, new_password: e.target.value })}
+                        placeholder="At least 8 characters"
+                        autoComplete="new-password"
+                        disabled={pwSaving}
+                      />
+                    </div>
+                    <div className="field">
+                      <label className="field-label" htmlFor="pw-confirm">Confirm New Password *</label>
+                      <input
+                        id="pw-confirm"
+                        className="field-input"
+                        type="password"
+                        value={pwForm.confirm_password}
+                        onChange={(e) => setPwForm({ ...pwForm, confirm_password: e.target.value })}
+                        placeholder="Re-enter new password"
+                        autoComplete="new-password"
+                        disabled={pwSaving}
+                      />
+                    </div>
+                  </div>
+                  <Button onClick={changePassword} loading={pwSaving} disabled={pwSaving}>
+                    🔑 Set New Password
+                  </Button>
+                </div>
+              )}
+            </section>
+          )}
 
           {modal.mode === 'edit' && <CompanyAccessPanel userId={modal.user.id} onError={setError} />}
         </Modal>

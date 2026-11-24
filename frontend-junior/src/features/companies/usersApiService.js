@@ -77,3 +77,8 @@ export async function listCompanyRoles(companyId) {
   const response = await api.get(`/v1/companies/${companyId}/roles/`, { params: { is_active: true, page_size: 100 } })
   return response.data.results || response.data || []
 }
+
+export async function setUserPassword(userId, newPassword) {
+  const response = await api.post(`${BASE}${userId}/set-password/`, { new_password: newPassword })
+  return response.data
+}

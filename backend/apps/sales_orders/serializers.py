@@ -135,6 +135,7 @@ class SalesOrderSerializer(serializers.ModelSerializer):
             "currency",
             "notes",
             "status",
+            "workflow_stage",
             "lines",
             "subtotal",
             "sample_qty",

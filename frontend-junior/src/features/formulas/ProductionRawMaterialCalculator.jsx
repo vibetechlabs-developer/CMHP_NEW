@@ -7,6 +7,7 @@ import useWorkspace from '../../hooks/useWorkspace'
 import { WORKSPACES } from '../../utils/workspace'
 import PurchaseOrderModal from '../inventory/components/PurchaseOrderModal'
 import IssueToProductionModal from './IssueToProductionModal'
+import BmrBatchCardModal from './BmrBatchCardModal'
 import { updateRevision, buildRevisionLinesPayload, searchMaterials } from './formulasService'
 import { getMyStores } from '../store/storeService'
 import { getAvailableToIssue, createMaterialIssue, postMaterialIssue } from '../store/materialIssueService'
@@ -151,6 +152,9 @@ export default function ProductionRawMaterialCalculator({
   const [prefillPoOrder, setPrefillPoOrder] = useState(null)
   const [openPoItems, setOpenPoItems] = useState({}) // { [materialId]: { poNumber, qty, status } }
 
+  // Batch Card (PDF / Print) Modal state matching Physical Card (Image 3)
+  const [batchCardOpen, setBatchCardOpen] = useState(false)
+
   // Themed Issue to Production Confirmation Modal
   const [confirmIssueModalOpen, setConfirmIssueModalOpen] = useState(false)
   const [issueBatchPlanId, setIssueBatchPlanId] = useState('') // batch plan selected in issue modal
@@ -215,9 +219,6 @@ export default function ProductionRawMaterialCalculator({
       const raw = extractRawLines(revision.lines)
       if (raw.length > 0) return raw
     }
-    if (product?.code === 'SVL/08') {
-      return EXCEL_MASTER_COMPOSITION.map((c) => ({ ...c }))
-    }
     return []
   })
 
@@ -264,15 +265,21 @@ export default function ProductionRawMaterialCalculator({
         setBottleCount(String(Math.round(baseQty)))
         const exactLtr = (baseQty * pack) / 1000
         const formattedLtr = String(Math.round(exactLtr * 100) / 100)
-        setBaseBatchLtr(formattedLtr)
+        // Standard base batch size in Homeopathic liquid compounding is 30 Litres
+        setBaseBatchLtr('30')
         setTargetVolumeLtr(formattedLtr)
-      } else {
+      } else if (['L', 'LTR', 'LIT', 'LITRE', 'LITRES'].includes(uomCode)) {
         setBaseBatchLtr(String(baseQty))
         setTargetVolumeLtr(String(baseQty))
         if (pack > 0) {
           setBottleCount(String(Math.round((baseQty * 1000) / pack)))
         }
+      } else {
+        setBaseBatchLtr('30')
+        setTargetVolumeLtr(String(baseQty))
       }
+    } else {
+      setBaseBatchLtr('30')
     }
 
     // 2. Load lines from revision
@@ -283,13 +290,8 @@ export default function ProductionRawMaterialCalculator({
       setCompositions(rawLines)
       setPreservatives(excLines)
     } else {
-      if (product?.code === 'SVL/08') {
-        setCompositions(EXCEL_MASTER_COMPOSITION.map((c) => ({ ...c })))
-        setPreservatives(EXCEL_MASTER_PRESERVATIVES.map((p) => ({ ...p })))
-      } else {
-        setCompositions([])
-        setPreservatives([])
-      }
+      setCompositions([])
+      setPreservatives([])
     }
   }, [revision?.id, revision?.lines, revision?.base_output_quantity, revision?.output_uom_code, product?.code, packSizeMl, extractRawLines, extractExcLines])
 
@@ -403,11 +405,11 @@ export default function ProductionRawMaterialCalculator({
     return Math.round(netAlcoholRequiredLtr * 1000 * 10) / 10
   }, [netAlcoholRequiredLtr])
 
-  // 5. Water required (Q.S. to batch volume minus liquid raw materials and net ENA)
+  // 5. Water required (Vehicle Q.S. to batch volume minus gross alcohol required)
   const waterRequiredLtr = useMemo(() => {
-    const w = targetVol - totalLiquidRmVolumeLtr - netAlcoholRequiredLtr
+    const w = targetVol - grossAlcoholRequiredLtr
     return Math.round(Math.max(0, w) * 1000) / 1000
-  }, [targetVol, totalLiquidRmVolumeLtr, netAlcoholRequiredLtr])
+  }, [targetVol, grossAlcoholRequiredLtr])
 
   const waterRequiredMl = useMemo(() => {
     return Math.round(waterRequiredLtr * 1000 * 10) / 10
@@ -991,6 +993,19 @@ export default function ProductionRawMaterialCalculator({
 
     setActionSuccess(`Formula reset from saved Revision (${rawLines.length} raw materials, ${excLines.length} excipients).`)
     setTimeout(() => setActionSuccess(''), 4000)
+  }
+
+  // Helper to quickly set base quantity for all active composition items (e.g. 3 Litres)
+  const handleSetAllBaseQty = (qty = 3) => {
+    setCompositions((prev) =>
+      prev.map((c) => ({
+        ...c,
+        baseQty: qty,
+        unit: c.unit || 'lit',
+      }))
+    )
+    setActionSuccess(`All ${compositions.length} active ingredients base quantity set to ${qty} Litres (for ${baseBatchLtr}L base formula).`)
+    setTimeout(() => setActionSuccess(''), 5000)
   }
 
   // Row update handlers with catalog auto-binding
@@ -1579,14 +1594,7 @@ export default function ProductionRawMaterialCalculator({
               >
                 🔄 Reset from Revision
               </button>
-              <button
-                type="button"
-                className="prc-btn-subtle"
-                onClick={handleApplyExcelTemplate}
-                title="Load 10-liquid Excel Master template (3L / 9L)"
-              >
-                📋 Load Excel Master
-              </button>
+
             </div>
           </div>
         </div>
@@ -1691,6 +1699,15 @@ export default function ProductionRawMaterialCalculator({
           <div className="prc-chb-actions">
             <button
               type="button"
+              className="prc-btn-action"
+              onClick={() => setBatchCardOpen(true)}
+              style={{ background: '#0284c7', color: '#fff', border: 'none', fontWeight: 700 }}
+              title="Preview and Export authentic Physical Batch Card (PDF / Print)"
+            >
+              📋 Batch Card (PDF)
+            </button>
+            <button
+              type="button"
               className="prc-btn-action prc-btn-action-save"
               onClick={handleSaveToRevision}
               disabled={savingRevision}
@@ -1784,6 +1801,30 @@ export default function ProductionRawMaterialCalculator({
                   <span className="prc-acb-icon">⚡</span>
                   <span>Yields approx. <strong>{formatNum(bottleCount, 0)}</strong> finished {packSizeMl}ml bottles</span>
                 </div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                  {[30, 60, 90, 180].map((tVal) => (
+                    <button
+                      key={tVal}
+                      type="button"
+                      onClick={() => {
+                        setCalcMode('VOLUME')
+                        handleVolumeChange(String(tVal))
+                      }}
+                      style={{
+                        fontSize: 11,
+                        padding: '3px 8px',
+                        borderRadius: 4,
+                        border: Number(targetVolumeLtr) === tVal ? '1.5px solid #059669' : '1px solid #cbd5e1',
+                        background: Number(targetVolumeLtr) === tVal ? '#ecfdf5' : '#f8fafc',
+                        color: Number(targetVolumeLtr) === tVal ? '#047857' : '#475569',
+                        fontWeight: Number(targetVolumeLtr) === tVal ? 700 : 500,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {tVal}L Target
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -1809,6 +1850,27 @@ export default function ProductionRawMaterialCalculator({
                   <span className="prc-inline-unit-tag">Litres</span>
                 </div>
                 <span className="prc-scale-summary-note">{baseBatchLtr}L ➔ {targetVolumeLtr}L batch</span>
+                <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                  {[30, 60, 90].map((bVal) => (
+                    <button
+                      key={bVal}
+                      type="button"
+                      onClick={() => setBaseBatchLtr(String(bVal))}
+                      style={{
+                        fontSize: 11,
+                        padding: '3px 8px',
+                        borderRadius: 4,
+                        border: Number(baseBatchLtr) === bVal ? '1.5px solid #2563eb' : '1px solid #cbd5e1',
+                        background: Number(baseBatchLtr) === bVal ? '#eff6ff' : '#f8fafc',
+                        color: Number(baseBatchLtr) === bVal ? '#1d4ed8' : '#475569',
+                        fontWeight: Number(baseBatchLtr) === bVal ? 700 : 500,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {bVal}L Base {bVal === 30 ? '(Standard)' : ''}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -1993,7 +2055,7 @@ export default function ProductionRawMaterialCalculator({
               </span>
             </div>
             <div className="prc-vstep-foot prc-text-emerald-muted">
-              = Batch ({formatNum(targetVolumeLtr, 2)}L) − RMs ({formatNum(totalLiquidRmVolumeLtr, 3)}L) − Net ENA ({formatNum(netAlcoholRequiredLtr, 3)}L)
+              = Batch ({formatNum(targetVolumeLtr, 2)}L) − Alcohol Required ({formatNum(grossAlcoholRequiredLtr, 3)}L)
             </div>
           </div>
         </div>
@@ -2014,20 +2076,54 @@ export default function ProductionRawMaterialCalculator({
           <div className="prc-table-actions-cluster">
             <button
               type="button"
+              className="prc-btn-pill prc-btn-pill-indigo"
+              onClick={() => handleSetAllBaseQty(3)}
+              title={`Set all active ingredients base quantity to 3 Litres (for ${baseBatchLtr}L base)`}
+            >
+              ⚡ Set All Base Qty to 3 Lit
+            </button>
+
+            <button
+              type="button"
+              className="prc-btn-pill prc-btn-pill-emerald"
+              onClick={handleSaveToRevision}
+              disabled={savingRevision}
+              style={{
+                fontWeight: 700,
+                background: '#059669',
+                color: '#ffffff',
+                border: 'none',
+                boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)',
+              }}
+              title={`Save this ${baseBatchLtr}L base formula and quantities permanently into Revision`}
+            >
+              {savingRevision ? '⏳ Saving…' : `💾 Save Formula (${baseBatchLtr}L Base)`}
+            </button>
+
+            <button
+              type="button"
+              className="prc-btn-pill"
+              onClick={() => setBatchCardOpen(true)}
+              style={{
+                fontWeight: 700,
+                background: '#0284c7',
+                color: '#ffffff',
+                border: 'none',
+              }}
+              title="Generate Physical Batch Card PDF matching physical template"
+            >
+              📋 Batch Card (PDF)
+            </button>
+
+            <button
+              type="button"
               className="prc-btn-pill prc-btn-pill-amber"
               onClick={() => handleSetTincturesAlcohol(60)}
               title="Set all Mother Tinctures (Q) to standard 60% alcohol content"
             >
               🧪 Set Q Tinctures to 60% Alc
             </button>
-            <button
-              type="button"
-              className="prc-btn-pill prc-btn-pill-emerald"
-              onClick={handleApplyExcelTemplate}
-              title="Reset quantities to standard Excel base ratio"
-            >
-              ⚡ Set All to 3 Lit / 9 Lit
-            </button>
+
             <button type="button" className="prc-btn-pill prc-btn-pill-primary" onClick={addCompRow}>
               + Add Composition Line
             </button>
@@ -3185,6 +3281,20 @@ export default function ProductionRawMaterialCalculator({
         <div className="prc-bottom-right">
           <button
             type="button"
+            className="prc-btn-slip"
+            onClick={() => setBatchCardOpen(true)}
+            style={{
+              fontWeight: 700,
+              background: '#0284c7',
+              color: '#ffffff',
+              border: 'none',
+            }}
+            title="Preview and Export physical Batch Card (PDF / Print)"
+          >
+            📋 Batch Card (PDF)
+          </button>
+          <button
+            type="button"
             className="prc-btn-slip prc-btn-save-rev"
             onClick={handleSaveToRevision}
             disabled={savingRevision}
@@ -3320,6 +3430,28 @@ export default function ProductionRawMaterialCalculator({
         batchPlans={availableBatchPlans}
         selectedBatchPlanId={issueBatchPlanId}
         onBatchPlanChange={(id) => setIssueBatchPlanId(id)}
+      />
+
+      {/* AUTHENTIC PHYSICAL BATCH CARD MODAL (IMAGE 3 MATCH) */}
+      <BmrBatchCardModal
+        isOpen={batchCardOpen}
+        onClose={() => setBatchCardOpen(false)}
+        companyName={companyName}
+        companyCode={companyCode}
+        productName={productName}
+        productCode={productCode}
+        packSizeMl={packSizeMl}
+        batchNo={batchNo}
+        issueDate={issueDate}
+        baseBatchLtr={baseBatchLtr}
+        targetVolumeLtr={targetVolumeLtr}
+        scaleMultiplier={scaleMultiplier}
+        grossAlcoholRequiredLtr={grossAlcoholRequiredLtr}
+        waterRequiredLtr={waterRequiredLtr}
+        targetAlcoholPct={targetAlcoholPct}
+        compositions={compositions}
+        preservatives={preservatives}
+        specialNotes={specialNotes}
       />
 
       {/* CATALOG MATERIALS DATALIST FOR EASY AUTO-BINDING */}
