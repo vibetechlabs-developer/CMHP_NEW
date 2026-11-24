@@ -274,6 +274,19 @@ export default function InwardStockModal({
       if (initialDraft.delivery_note_reference) setDeliveryNoteReference(initialDraft.delivery_note_reference)
       if (initialDraft.notes) setNotes(initialDraft.notes)
       if (Array.isArray(initialDraft.lines) && initialDraft.lines.length > 0) {
+        const populated = {}
+        initialDraft.lines.forEach((l) => {
+          if (l.source_po_line_id) {
+            populated[l.source_po_line_id] = {
+              selected: true,
+              received_quantity: String(l.received_quantity || ''),
+              lot_reference: l.lot_reference || '',
+              container_type_id: l.container_type_id ? String(l.container_type_id) : '',
+              container_quantity: l.container_quantity ? String(l.container_quantity) : '',
+            }
+          }
+        })
+        setPoLines(populated)
         const line = initialDraft.lines[0]
         if (line.received_quantity) setReceivedQuantity(String(line.received_quantity))
         if (line.lot_reference) setLotReference(line.lot_reference || '')
@@ -295,33 +308,47 @@ export default function InwardStockModal({
   const remainingQty = activeLine?.remaining_quantity != null ? Number(activeLine.remaining_quantity) : null
   const exceedsRemaining = mode === 'po' && remainingQty != null && Number(receivedQuantity) > remainingQty
 
+  const isMultiLine = mode === 'po' && selectedPo && Array.isArray(selectedPo.delivery_progress) && selectedPo.delivery_progress.length > 1
+
+  const eligibleLines = selectedPo?.delivery_progress?.filter((l) => Number(l.remaining_quantity) > 0) || []
+  const selectedCount = eligibleLines.filter((l) => poLines[l.source_po_line_id]?.selected).length
+  const isAllSelected = eligibleLines.length > 0 && selectedCount === eligibleLines.length
+  const isPartiallySelected = selectedCount > 0 && selectedCount < eligibleLines.length
+
   const buildLines = () => {
     if (mode === 'po') {
       if (!selectedPo || !Array.isArray(selectedPo.delivery_progress)) return []
-      const result = []
-      selectedPo.delivery_progress.forEach((line) => {
-        const lState = poLines[line.source_po_line_id]
-        if (lState && lState.selected && Number(lState.received_quantity) > 0) {
-          result.push({
-            source_po_line_id: line.source_po_line_id,
-            received_quantity: String(lState.received_quantity),
-            lot_reference: (lState.lot_reference || lotReference || '').trim(),
-            container_type_id: containerTypeId ? Number(containerTypeId) : null,
-            container_quantity: containerQuantity ? Number(containerQuantity) : null,
-          })
-        }
-      })
-      // Fallback if poLines was empty but activeLine and receivedQuantity exist
-      if (result.length === 0 && activeLine && receivedQuantity && Number(receivedQuantity) > 0) {
-        result.push({
-          source_po_line_id: activeLine.source_po_line_id,
-          received_quantity: receivedQuantity,
-          lot_reference: lotReference.trim(),
+      if (isMultiLine) {
+        const result = []
+        selectedPo.delivery_progress.forEach((line) => {
+          const lState = poLines[line.source_po_line_id]
+          if (lState?.selected && Number(lState.received_quantity) > 0) {
+            result.push({
+              source_po_line_id: line.source_po_line_id,
+              received_quantity: String(lState.received_quantity),
+              lot_reference: (lState.lot_reference || lotReference || '').trim(),
+              container_type_id: containerTypeId ? Number(containerTypeId) : null,
+              container_quantity: containerQuantity ? Number(containerQuantity) : null,
+            })
+          }
+        })
+        return result
+      }
+
+      // Single line PO mode
+      const line = activeLine || selectedPo.delivery_progress[0]
+      const lState = line ? poLines[line.source_po_line_id] : null
+      const qty = receivedQuantity || lState?.received_quantity || ''
+      if (!line || !qty || Number(qty) <= 0) return []
+      return [
+        {
+          source_po_line_id: line.source_po_line_id,
+          received_quantity: String(qty),
+          lot_reference: ((lState?.lot_reference) || lotReference || '').trim(),
           container_type_id: containerTypeId ? Number(containerTypeId) : null,
           container_quantity: containerQuantity ? Number(containerQuantity) : null,
-        })
-      }
-      return result
+        },
+      ]
     }
     // Direct mode manual lines
     if (!receivedQuantity || Number(receivedQuantity) <= 0) return []
@@ -338,16 +365,16 @@ export default function InwardStockModal({
     ]
   }
 
-  const saveDraft = async () => {
-    if (savingRef.current) return
+  const saveDraft = async ({ suppressOnCreated = false } = {}) => {
+    if (savingRef.current) return null
     const lines = buildLines()
     if (mode === 'po' && (!selectedPo || lines.length === 0 || !arrivedAt)) {
       setError('Select a purchase order, enter a positive received quantity, and confirm the receipt date.')
-      return
+      return null
     }
     if (mode === 'direct' && (lines.length === 0 || !arrivedAt)) {
       setError('Enter a positive received quantity and confirm the receipt date.')
-      return
+      return null
     }
 
     savingRef.current = true
@@ -389,7 +416,7 @@ export default function InwardStockModal({
       }
       setDraft(receipt)
       setDirty(false)
-      if (onCreated) onCreated(receipt)
+      if (!suppressOnCreated && onCreated) onCreated(receipt)
       return receipt
     } catch (err) {
       setError(getErrorMessage(err))
@@ -411,7 +438,7 @@ export default function InwardStockModal({
       setDraft(posted)
       if (onPosted) onPosted(posted)
     } catch (err) {
-      setError(`Receipt ${rcpt.reference} could not be posted: ${getErrorMessage(err)}`)
+      setError(`Receipt ${rcpt.reference} was created, but posting failed: ${getErrorMessage(err)}`)
     } finally {
       postingRef.current = false
       setPosting(false)
@@ -419,7 +446,7 @@ export default function InwardStockModal({
   }
 
   const handleSaveAndPost = async () => {
-    const saved = await saveDraft()
+    const saved = await saveDraft({ suppressOnCreated: true })
     if (saved?.id) {
       await doPost(saved)
     }
@@ -430,15 +457,21 @@ export default function InwardStockModal({
     ? `📥 Receipt Draft · ${draft.reference}${materialCode ? ` — ${materialCode}` : ''}`
     : `📥 New Inward Receipt${materialCode ? ` — ${materialCode}` : ''}`
 
-  const selectedLinesCount = mode === 'po'
-    ? Object.values(poLines).filter((l) => l.selected && Number(l.received_quantity) > 0).length
+  const selectedLinesCount = isMultiLine
+    ? (selectedPo?.delivery_progress || []).filter((line) => {
+        const lState = poLines[line.source_po_line_id]
+        return lState?.selected && Number(lState?.received_quantity) > 0
+      }).length
     : (Number(receivedQuantity) > 0 ? 1 : 0)
 
   const hasOverReceipt = mode === 'po' && selectedPo?.delivery_progress?.some((line) => {
-    const lState = poLines[line.source_po_line_id]
-    if (!lState || !lState.selected) return false
-    const rem = Number(line.remaining_quantity) || 0
-    return Number(lState.received_quantity) > rem
+    if (isMultiLine) {
+      const lState = poLines[line.source_po_line_id]
+      if (!lState || !lState.selected) return false
+      const rem = Number(line.remaining_quantity) || 0
+      return Number(lState.received_quantity) > rem
+    }
+    return exceedsRemaining
   })
 
   const isFormValid =
@@ -447,13 +480,13 @@ export default function InwardStockModal({
     (draft == null || draft.status === 'DRAFT') &&
     (mode === 'direct'
       ? Boolean(receivedQuantity) && Number(receivedQuantity) > 0
-      : Boolean(selectedPo) && selectedLinesCount > 0 && !hasOverReceipt)
+      : Boolean(selectedPo) && (isMultiLine ? selectedLinesCount > 0 : Boolean(receivedQuantity) && Number(receivedQuantity) > 0))
 
   return (
     <Modal
       title={title}
       onClose={saving_or_posting ? () => {} : requestClose}
-      maxWidth={mode === 'po' && selectedPo ? '860px' : '680px'}
+      maxWidth={isMultiLine ? '880px' : '680px'}
       footer={
         <>
           <Button type="button" variant="secondary" onClick={requestClose} disabled={saving_or_posting}>
@@ -462,22 +495,56 @@ export default function InwardStockModal({
           <Button
             type="button"
             variant="secondary"
-            onClick={saveDraft}
+            onClick={() => saveDraft()}
             disabled={!isFormValid || (draft != null && draft.status !== 'DRAFT')}
             loading={saving}
           >
-            {draft ? 'Update Draft' : '💾 Save Draft'}
+            {draft ? 'Update Draft' : 'Save Draft'}
           </Button>
           {!draft && (
             <button
               type="button"
-              className="mreg-btn mreg-btn-inward"
+              className="btn btn-primary"
+              style={{
+                background: '#16a34a',
+                borderColor: '#15803d',
+                color: '#ffffff',
+                fontWeight: 700,
+                fontSize: 13,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 16px',
+                borderRadius: 6,
+                cursor: !isFormValid || hasOverReceipt ? 'not-allowed' : 'pointer',
+                opacity: !isFormValid || hasOverReceipt ? 0.6 : 1,
+              }}
               onClick={handleSaveAndPost}
-              disabled={!isFormValid}
+              disabled={!isFormValid || hasOverReceipt || saving_or_posting}
             >
-              <span>✅</span> {saving_or_posting ? 'Posting…' : 'Save & Post to Stock'}
+              <span>✅</span> {posting ? 'Posting to Stock…' : saving ? 'Saving…' : 'Save & Post to Stock'}
             </button>
           )}
+          {draft && draft.status === 'DRAFT' && (
+            <Button
+              type="button"
+              onClick={() => doPost(draft)}
+              disabled={saving_or_posting || !canPost || hasOverReceipt}
+              loading={posting}
+              title={
+                !canPost
+                  ? 'You need receiving.post permission — ask your administrator.'
+                  : hasOverReceipt
+                    ? 'Quantity exceeds remaining order quantity.'
+                    : 'Post this receipt to record stock permanently'
+              }
+            >
+              Post Receipt
+            </Button>
+          )}
+        </>
+      }
+    >
           {draft && draft.status === 'DRAFT' && (
             <Button
               type="button"
