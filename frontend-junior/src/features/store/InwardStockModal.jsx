@@ -39,6 +39,7 @@ export default function InwardStockModal({
   const [showAllPos, setShowAllPos] = useState(false)
   const [selectedPo, setSelectedPo] = useState(null)
   const [selectedLineId, setSelectedLineId] = useState(null)
+  const [poLines, setPoLines] = useState({}) // { [source_po_line_id]: { selected: boolean, received_quantity: string, lot_reference: string } }
   const [arrivedAt, setArrivedAt] = useState(() => toLocalDateTimeInput(new Date().toISOString()))
   const [supplierInvoiceReference, setSupplierInvoiceReference] = useState('')
   const [deliveryNoteReference, setDeliveryNoteReference] = useState('')
@@ -149,9 +150,96 @@ export default function InwardStockModal({
         : null
       const defaultLine = match || po.delivery_progress[0]
       setSelectedLineId(defaultLine?.source_po_line_id || null)
+
+      // Auto-select all lines that have remaining_quantity > 0 and prefill quantity
+      const initial = {}
+      po.delivery_progress.forEach((l) => {
+        const rem = Number(l.remaining_quantity) || 0
+        const isPending = rem > 0
+        initial[l.source_po_line_id] = {
+          selected: isPending,
+          received_quantity: isPending ? String(rem) : '0',
+          lot_reference: '',
+        }
+      })
+      setPoLines(initial)
+      if (defaultLine) {
+        setReceivedQuantity(String(Number(defaultLine.remaining_quantity) || 0))
+      }
     } else {
       setSelectedLineId(null)
+      setPoLines({})
+      setReceivedQuantity('')
     }
+  }
+
+  const handleToggleSelectAll = (checked) => {
+    if (!selectedPo || !Array.isArray(selectedPo.delivery_progress)) return
+    setPoLines((prev) => {
+      const next = { ...prev }
+      selectedPo.delivery_progress.forEach((l) => {
+        const rem = Number(l.remaining_quantity) || 0
+        if (rem > 0) {
+          next[l.source_po_line_id] = {
+            ...(next[l.source_po_line_id] || {}),
+            selected: checked,
+            received_quantity: checked
+              ? (next[l.source_po_line_id]?.received_quantity && Number(next[l.source_po_line_id]?.received_quantity) > 0
+                  ? next[l.source_po_line_id].received_quantity
+                  : String(rem))
+              : '',
+          }
+        }
+      })
+      return next
+    })
+    markDirty()
+  }
+
+  const handleSelectAllRemaining = () => {
+    if (!selectedPo || !Array.isArray(selectedPo.delivery_progress)) return
+    setPoLines((prev) => {
+      const next = { ...prev }
+      selectedPo.delivery_progress.forEach((l) => {
+        const rem = Number(l.remaining_quantity) || 0
+        if (rem > 0) {
+          next[l.source_po_line_id] = {
+            ...(next[l.source_po_line_id] || {}),
+            selected: true,
+            received_quantity: String(rem),
+          }
+        }
+      })
+      return next
+    })
+    markDirty()
+  }
+
+  const handleClearAll = () => {
+    if (!selectedPo || !Array.isArray(selectedPo.delivery_progress)) return
+    setPoLines((prev) => {
+      const next = { ...prev }
+      selectedPo.delivery_progress.forEach((l) => {
+        next[l.source_po_line_id] = {
+          ...(next[l.source_po_line_id] || {}),
+          selected: false,
+          received_quantity: '',
+        }
+      })
+      return next
+    })
+    markDirty()
+  }
+
+  const handleUpdateLine = (lineId, field, val) => {
+    setPoLines((prev) => ({
+      ...prev,
+      [lineId]: {
+        ...(prev[lineId] || {}),
+        [field]: val,
+      },
+    }))
+    markDirty()
   }
 
   useEffect(() => {
@@ -209,16 +297,31 @@ export default function InwardStockModal({
 
   const buildLines = () => {
     if (mode === 'po') {
-      if (!activeLine || !receivedQuantity || Number(receivedQuantity) <= 0) return []
-      return [
-        {
+      if (!selectedPo || !Array.isArray(selectedPo.delivery_progress)) return []
+      const result = []
+      selectedPo.delivery_progress.forEach((line) => {
+        const lState = poLines[line.source_po_line_id]
+        if (lState && lState.selected && Number(lState.received_quantity) > 0) {
+          result.push({
+            source_po_line_id: line.source_po_line_id,
+            received_quantity: String(lState.received_quantity),
+            lot_reference: (lState.lot_reference || lotReference || '').trim(),
+            container_type_id: containerTypeId ? Number(containerTypeId) : null,
+            container_quantity: containerQuantity ? Number(containerQuantity) : null,
+          })
+        }
+      })
+      // Fallback if poLines was empty but activeLine and receivedQuantity exist
+      if (result.length === 0 && activeLine && receivedQuantity && Number(receivedQuantity) > 0) {
+        result.push({
           source_po_line_id: activeLine.source_po_line_id,
           received_quantity: receivedQuantity,
           lot_reference: lotReference.trim(),
           container_type_id: containerTypeId ? Number(containerTypeId) : null,
           container_quantity: containerQuantity ? Number(containerQuantity) : null,
-        },
-      ]
+        })
+      }
+      return result
     }
     // Direct mode manual lines
     if (!receivedQuantity || Number(receivedQuantity) <= 0) return []
@@ -327,19 +430,30 @@ export default function InwardStockModal({
     ? `📥 Receipt Draft · ${draft.reference}${materialCode ? ` — ${materialCode}` : ''}`
     : `📥 New Inward Receipt${materialCode ? ` — ${materialCode}` : ''}`
 
+  const selectedLinesCount = mode === 'po'
+    ? Object.values(poLines).filter((l) => l.selected && Number(l.received_quantity) > 0).length
+    : (Number(receivedQuantity) > 0 ? 1 : 0)
+
+  const hasOverReceipt = mode === 'po' && selectedPo?.delivery_progress?.some((line) => {
+    const lState = poLines[line.source_po_line_id]
+    if (!lState || !lState.selected) return false
+    const rem = Number(line.remaining_quantity) || 0
+    return Number(lState.received_quantity) > rem
+  })
+
   const isFormValid =
     !saving_or_posting &&
     Boolean(arrivedAt) &&
-    Boolean(receivedQuantity) &&
-    Number(receivedQuantity) > 0 &&
-    (mode === 'direct' || Boolean(selectedPo)) &&
-    (draft == null || draft.status === 'DRAFT')
+    (draft == null || draft.status === 'DRAFT') &&
+    (mode === 'direct'
+      ? Boolean(receivedQuantity) && Number(receivedQuantity) > 0
+      : Boolean(selectedPo) && selectedLinesCount > 0 && !hasOverReceipt)
 
   return (
     <Modal
       title={title}
       onClose={saving_or_posting ? () => {} : requestClose}
-      maxWidth="680px"
+      maxWidth={mode === 'po' && selectedPo ? '860px' : '680px'}
       footer={
         <>
           <Button type="button" variant="secondary" onClick={requestClose} disabled={saving_or_posting}>
@@ -352,7 +466,7 @@ export default function InwardStockModal({
             disabled={!isFormValid || (draft != null && draft.status !== 'DRAFT')}
             loading={saving}
           >
-            {draft ? 'Update Draft' : 'Save Draft'}
+            {draft ? 'Update Draft' : '💾 Save Draft'}
           </Button>
           {!draft && (
             <button

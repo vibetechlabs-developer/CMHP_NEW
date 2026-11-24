@@ -995,19 +995,6 @@ export default function ProductionRawMaterialCalculator({
     setTimeout(() => setActionSuccess(''), 4000)
   }
 
-  // Helper to quickly set base quantity for all active composition items (e.g. 3 Litres)
-  const handleSetAllBaseQty = (qty = 3) => {
-    setCompositions((prev) =>
-      prev.map((c) => ({
-        ...c,
-        baseQty: qty,
-        unit: c.unit || 'lit',
-      }))
-    )
-    setActionSuccess(`All ${compositions.length} active ingredients base quantity set to ${qty} Litres (for ${baseBatchLtr}L base formula).`)
-    setTimeout(() => setActionSuccess(''), 5000)
-  }
-
   // Row update handlers with catalog auto-binding
   const updateComp = (id, field, val) => {
     setCompositions((prev) =>
@@ -2076,15 +2063,6 @@ export default function ProductionRawMaterialCalculator({
           <div className="prc-table-actions-cluster">
             <button
               type="button"
-              className="prc-btn-pill prc-btn-pill-indigo"
-              onClick={() => handleSetAllBaseQty(3)}
-              title={`Set all active ingredients base quantity to 3 Litres (for ${baseBatchLtr}L base)`}
-            >
-              ⚡ Set All Base Qty to 3 Lit
-            </button>
-
-            <button
-              type="button"
               className="prc-btn-pill prc-btn-pill-emerald"
               onClick={handleSaveToRevision}
               disabled={savingRevision}
@@ -2760,7 +2738,49 @@ export default function ProductionRawMaterialCalculator({
                   </tr>
                 )
               }))}
-              {/* Alcohol and Water lines rendered as part of vehicle */}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 5B. BULK VEHICLE & DISPENSING SOLVENTS (SECTION 3) */}
+      <div className="prc-table-card" style={{ marginTop: 22, border: '1.5px solid #bbf7d0', boxShadow: '0 2px 10px rgba(5, 150, 105, 0.05)' }}>
+        <div className="prc-table-title-row" style={{ background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)', borderBottom: '1px solid #bbf7d0', padding: '14px 20px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 20 }}>💧</span>
+              <h4 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#065f46' }}>
+                Bulk Vehicle &amp; Dispensing Solvents (Section 3)
+              </h4>
+              <span style={{ fontSize: 11, fontWeight: 700, background: '#d1fae5', color: '#047857', padding: '3px 8px', borderRadius: 6, border: '1px solid #a7f3d0' }}>
+                {targetAlcoholPct}% Finished Strength
+              </span>
+            </div>
+            <p style={{ margin: '4px 0 0', fontSize: 12.5, color: '#047857' }}>
+              Dispensing alcohol (ENA) and purified water required to complete the {targetVolumeLtr} LTR bulk batch volume.
+            </p>
+          </div>
+        </div>
+
+        <div className="prc-table-scroll">
+          <table className="prc-table">
+            <thead>
+              <tr>
+                <th style={{ width: 45 }}>Sr.</th>
+                <th>Solvent / Vehicle Material</th>
+                <th style={{ width: 150 }}>Specification</th>
+                <th style={{ width: 120, textAlign: 'right' }}>Base Qty ({baseBatchLtr}L)</th>
+                <th style={{ width: 130, textAlign: 'right', background: '#ecfdf5', color: '#065f46' }}>
+                  Target Qty ({targetVolumeLtr}L)
+                </th>
+                <th style={{ width: 70 }}>Unit</th>
+                <th style={{ width: 130, textAlign: 'right' }}>Available in Store</th>
+                <th style={{ width: 130, textAlign: 'center' }}>Stock Status</th>
+                <th style={{ width: 110 }}>Batch Purpose</th>
+              </tr>
+            </thead>
+            <tbody>
+              {/* ROW 1: DISPENSING ALCOHOL / ENA */}
               {(() => {
                 const alcStockInfo = stockBalances['alc']
                 const alcAvail = alcStockInfo ? alcStockInfo.totalAvail : 0
@@ -2768,99 +2788,144 @@ export default function ProductionRawMaterialCalculator({
                 const alcStoreUnit = alcStockInfo ? alcStockInfo.storeUnit : 'LTR'
                 const alcShort = alcAvail < alcoholRequiredLtr
                 const alcDiff = Math.max(0, alcoholRequiredLtr - alcAvail)
-
-                // Net alcohol check: compare net ENA required vs stock
                 const netAlcShort = alcAvail < netAlcoholRequiredLtr
                 const netAlcDiff = Math.max(0, netAlcoholRequiredLtr - alcAvail)
+
                 return (
-                  <>
-                    {/* If raw materials contribute alcohol — show deduction info row */}
-                    {totalRawMaterialAlcoholLtr > 0 && (
-                      <tr style={{ background: '#fffbeb', fontStyle: 'italic' }}>
-                        <td>—</td>
-                        <td style={{ color: '#92400e', fontSize: 12 }} colSpan={3}>
-                          ⚗ Alcohol already in raw materials (C₁V₁ = Σ C₂V₂ deduction):
-                          {' '}{rawMaterialAlcoholBreakdown.map((r, i) => (
-                            <span key={r.id}>
-                              {i > 0 ? ', ' : ''}{r.name} ({r.alcoholPct}% × {r.targetQtyLtr.toFixed(3)} L = {r.alcoholContributionLtr.toFixed(4)} L)
-                            </span>
-                          ))}
-                        </td>
-                        <td style={{ textAlign: 'right', fontWeight: 700, color: '#d97706' }}>−{totalRawMaterialAlcoholLtr.toFixed(3)}</td>
-                        <td>litres</td>
-                        <td colSpan={4} style={{ fontSize: 11, color: '#92400e' }}>Deducted from gross alcohol requirement</td>
-                      </tr>
-                    )}
-                    <tr style={{ background: '#f0f9ff', fontWeight: 600 }}>
-                      <td>—</td>
-                      <td style={{ color: '#0369a1' }}>
-                        {totalRawMaterialAlcoholLtr > 0
-                          ? `⚗ Net ENA / RS Required (${alcoholStrengthPct}% V/V) — after deduction`
-                          : `Alcohol Required (${alcoholStrengthPct}% V/V Dispensing Alcohol)`
-                        }
-                      </td>
-                      <td style={{ fontSize: 11 }}>{targetAlcoholPct}% Finished</td>
-                      <td style={{ textAlign: 'right' }}>
-                        {totalRawMaterialAlcoholLtr > 0
-                          ? (netAlcoholRequiredLtr / scaleMultiplier).toFixed(3)
-                          : (alcoholRequiredLtr / scaleMultiplier).toFixed(3)
-                        }
-                      </td>
-                      <td style={{ textAlign: 'right', color: '#0369a1', fontWeight: 700 }}>
-                        {totalRawMaterialAlcoholLtr > 0
-                          ? netAlcoholRequiredLtr.toFixed(3)
-                          : alcoholRequiredLtr.toFixed(3)
-                        }
-                      </td>
-                      <td>litres</td>
-                      <td style={{ textAlign: 'right', fontWeight: 600, color: (totalRawMaterialAlcoholLtr > 0 ? netAlcShort : alcShort) ? '#b91c1c' : '#15803d' }}>
-                        <div>{alcAvail.toFixed(2)} LTR</div>
-                        {alcStockInfo && alcStockInfo.hasRecord && alcStoreUnit.toLowerCase() !== 'ltr' && (
-                          <div style={{ fontSize: 10.5, color: '#64748b' }}>
-                            ({alcRawAvail.toFixed(2)} {alcStoreUnit} in store)
-                          </div>
-                        )}
-                        {alcStockInfo && !alcStockInfo.hasRecord && (
-                          <div style={{ fontSize: 10.5, color: '#ef4444' }}>
-                            (0 {alcStoreUnit} in store)
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        {renderStockStatusCell(
+                  <tr style={{ fontWeight: 600 }}>
+                    <td>1</td>
+                    <td style={{ fontWeight: 700, color: '#0369a1' }}>
+                      Dispensing Alcohol / ENA ({alcoholStrengthPct}% V/V)
+                    </td>
+                    <td style={{ fontSize: 12, color: '#475569' }}>
+                      Target {targetAlcoholPct}% Finished
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      {totalRawMaterialAlcoholLtr > 0
+                        ? (netAlcoholRequiredLtr / scaleMultiplier).toFixed(3)
+                        : (alcoholRequiredLtr / scaleMultiplier).toFixed(3)
+                      }
+                    </td>
+                    <td style={{ textAlign: 'right', color: '#0369a1', fontWeight: 800, fontSize: 13.5 }}>
+                      {totalRawMaterialAlcoholLtr > 0
+                        ? netAlcoholRequiredLtr.toFixed(3)
+                        : alcoholRequiredLtr.toFixed(3)
+                      }
+                    </td>
+                    <td>litres</td>
+                    <td style={{ textAlign: 'right', fontWeight: 600, color: (totalRawMaterialAlcoholLtr > 0 ? netAlcShort : alcShort) ? '#b91c1c' : '#15803d' }}>
+                      <div>{alcAvail.toFixed(2)} LTR</div>
+                      {alcStockInfo && alcStockInfo.hasRecord && alcStoreUnit.toLowerCase() !== 'ltr' && (
+                        <div style={{ fontSize: 10.5, color: '#64748b' }}>
+                          ({alcRawAvail.toFixed(2)} {alcStoreUnit} in store)
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      {renderStockStatusCell(
+                        { name: 'Dispensing Alcohol (ENA / RS)', unit: 'LTR', materialCode: 'AC', materialId: 32 },
+                        totalRawMaterialAlcoholLtr > 0 ? netAlcShort : alcShort,
+                        totalRawMaterialAlcoholLtr > 0 ? netAlcDiff : alcDiff,
+                        () => handleOpenPoForRow(
                           { name: 'Dispensing Alcohol (ENA / RS)', unit: 'LTR', materialCode: 'AC', materialId: 32 },
-                          totalRawMaterialAlcoholLtr > 0 ? netAlcShort : alcShort,
-                          totalRawMaterialAlcoholLtr > 0 ? netAlcDiff : alcDiff,
-                          () => handleOpenPoForRow(
-                            { name: 'Dispensing Alcohol (ENA / RS)', unit: 'LTR', materialCode: 'AC', materialId: 32 },
-                            totalRawMaterialAlcoholLtr > 0 ? netAlcDiff : alcDiff
-                          )
-                        )}
-                      </td>
-                      <td>—</td>
-                      <td></td>
-                    </tr>
-                  </>
+                          totalRawMaterialAlcoholLtr > 0 ? netAlcDiff : alcDiff
+                        )
+                      )}
+                    </td>
+                    <td style={{ fontSize: 11, color: '#0369a1', fontWeight: 600 }}>
+                      Net to Dispense
+                    </td>
+                  </tr>
                 )
               })()}
-              <tr style={{ background: '#f8fafc', fontWeight: 600 }}>
-                <td>—</td>
-                <td style={{ color: '#0369a1' }}>Purified Water Required (DM Water)</td>
-                <td>Q.S.</td>
-                <td style={{ textAlign: 'right' }}>{(waterRequiredLtr / scaleMultiplier).toFixed(3)}</td>
-                <td style={{ textAlign: 'right', color: '#0369a1', fontWeight: 700 }}>{waterRequiredLtr.toFixed(3)}</td>
+
+              {/* ROW 2: PURIFIED WATER (DM WATER) */}
+              <tr style={{ fontWeight: 600 }}>
+                <td>2</td>
+                <td style={{ fontWeight: 700, color: '#059669' }}>
+                  Purified Water (DM Water)
+                </td>
+                <td style={{ fontSize: 12, color: '#475569' }}>
+                  Vehicle Q.S. to 100%
+                </td>
+                <td style={{ textAlign: 'right' }}>
+                  {(waterRequiredLtr / scaleMultiplier).toFixed(3)}
+                </td>
+                <td style={{ textAlign: 'right', color: '#059669', fontWeight: 800, fontSize: 13.5 }}>
+                  {waterRequiredLtr.toFixed(3)}
+                </td>
                 <td>litres</td>
-                <td style={{ textAlign: 'right', fontWeight: 600, color: '#334155' }}>Available</td>
+                <td style={{ textAlign: 'right', fontWeight: 600, color: '#334155' }}>
+                  Available
+                </td>
                 <td style={{ textAlign: 'center' }}>
                   <span className="prc-stock-in">
                     ✓ In Stock
                   </span>
                 </td>
-                <td>—</td>
-                <td></td>
+                <td style={{ fontSize: 11, color: '#059669', fontWeight: 600 }}>
+                  Q.S. to {targetVolumeLtr}L
+                </td>
               </tr>
             </tbody>
           </table>
+        </div>
+
+        {/* 4-STEP INTUITIVE EXPLANATION CARDS */}
+        <div style={{
+          margin: '14px 20px',
+          padding: '14px 18px',
+          background: '#f8fafc',
+          border: '1px solid #e2e8f0',
+          borderRadius: 10,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+        }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: '#0f172a', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 16 }}>💡</span>
+            <span>આ કેલ્ક્યુલેશન કઈ રીતે થયું? (Alcohol &amp; Vehicle Calculation Summary):</span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
+            <div style={{ background: '#ffffff', padding: '10px 14px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+              <div style={{ color: '#64748b', fontSize: 11.5, fontWeight: 600 }}>૧. કુલ જરૂરી ગ્રોસ આલ્કોહોલ (Gross)</div>
+              <div style={{ fontSize: 17, fontWeight: 800, color: '#0f172a', marginTop: 3 }}>
+                {grossAlcoholRequiredLtr.toFixed(3)} <span style={{ fontSize: 12, fontWeight: 500 }}>Litres</span>
+              </div>
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                {targetVolumeLtr}L બેચમાં {targetAlcoholPct}% ફિનિશ્ડ સ્ટ્રેન્થ મેળવવા
+              </div>
+            </div>
+
+            <div style={{ background: '#fffbeb', padding: '10px 14px', borderRadius: 8, border: '1px solid #fde68a' }}>
+              <div style={{ color: '#92400e', fontSize: 11.5, fontWeight: 600 }}>૨. હર્બલ મટીરિયલ્સમાં રહેલો આલ્કોહોલ</div>
+              <div style={{ fontSize: 17, fontWeight: 800, color: '#b45309', marginTop: 3 }}>
+                − {totalRawMaterialAlcoholLtr.toFixed(3)} <span style={{ fontSize: 12, fontWeight: 500 }}>Litres</span>
+              </div>
+              <div style={{ fontSize: 11, color: '#92400e', marginTop: 2 }}>
+                કાચા માલ / મધર ટિંચર્સમાંથી ક્રેડિટ બાદ કર્યો
+              </div>
+            </div>
+
+            <div style={{ background: '#eff6ff', padding: '10px 14px', borderRadius: 8, border: '1px solid #bfdbfe' }}>
+              <div style={{ color: '#1e40af', fontSize: 11.5, fontWeight: 600 }}>૩. સ્ટોરમાંથી લેવાનો નેટ ENA આલ્કોહોલ</div>
+              <div style={{ fontSize: 17, fontWeight: 800, color: '#1d4ed8', marginTop: 3 }}>
+                = {netAlcoholRequiredLtr.toFixed(3)} <span style={{ fontSize: 12, fontWeight: 500 }}>Litres</span>
+              </div>
+              <div style={{ fontSize: 11, color: '#1e40af', marginTop: 2 }}>
+                ગ્રોસ ({grossAlcoholRequiredLtr.toFixed(2)}L) − ક્રેડિટ ({totalRawMaterialAlcoholLtr.toFixed(2)}L)
+              </div>
+            </div>
+
+            <div style={{ background: '#f0fdf4', padding: '10px 14px', borderRadius: 8, border: '1px solid #bbf7d0' }}>
+              <div style={{ color: '#166534', fontSize: 11.5, fontWeight: 600 }}>૪. પ્યોરિફાઈડ વોટર (DM Water Q.S.)</div>
+              <div style={{ fontSize: 17, fontWeight: 800, color: '#16a34a', marginTop: 3 }}>
+                = {waterRequiredLtr.toFixed(3)} <span style={{ fontSize: 12, fontWeight: 500 }}>Litres</span>
+              </div>
+              <div style={{ fontSize: 11, color: '#166534', marginTop: 2 }}>
+                {targetVolumeLtr}L બેચ પૂરો કરવા માટે બાકીનું પાણી
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
