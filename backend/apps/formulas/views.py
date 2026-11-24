@@ -23,7 +23,8 @@ from apps.formulas.approval import (
     submit_formula_revision,
     update_approval_policy,
 )
-from apps.formulas.models import Formula, FormulaApprovalPolicy, FormulaLine, FormulaRevision
+from apps.formulas.models import Formula, FormulaApprovalPolicy, FormulaLine, FormulaRevision, ProductFormulaSlip
+from apps.products.models import Product
 from apps.formulas.requirement_preview import (
     build_requirement_preview,
     load_consistent_revision,
@@ -36,6 +37,7 @@ from apps.formulas.serializers import (
     FormulaRevisionSummarySerializer,
     FormulaSerializer,
     FormulaUpdateSerializer,
+    ProductFormulaSlipSerializer,
     RevisionApproveSerializer,
     RevisionCreateSerializer,
     RevisionRejectSerializer,
@@ -383,4 +385,92 @@ class ApprovalPolicyView(APIView):
             policy = update_approval_policy(actor=request.user, company=company, expected_version=expected_version, data=data)
         except DjangoValidationError as exc:
             raise translate_django_validation_error(exc) from exc
+        return Response(_approval_policy_representation(company, policy))
+
+
+@method_decorator(never_cache, name="dispatch")
+class ProductFormulaSlipView(APIView):
+    """GET / POST endpoints for product-specific RM and PM requisition slips.
+    Persists slip edits permanently in PostgreSQL DB per product + revision + slip_type.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, company_id):
+        company = _get_company_for_action(request, company_id, FORMULAS_VIEW)
+        product_id = request.query_params.get("product_id") or request.query_params.get("productId")
+        slip_type = (request.query_params.get("slip_type") or request.query_params.get("slipType") or "").upper()
+        revision_id = request.query_params.get("revision_id") or request.query_params.get("revisionId")
+
+        if not product_id:
+            return Response({"error": "product_id is required"}, status=400)
+        if slip_type not in (ProductFormulaSlip.SlipType.RM, ProductFormulaSlip.SlipType.PM):
+            return Response({"error": "slip_type must be RM or PM"}, status=400)
+
+        product = get_object_or_404(Product, pk=product_id, company=company)
+        qs = ProductFormulaSlip.objects.filter(company=company, product=product, slip_type=slip_type)
+
+        if revision_id:
+            try:
+                rev_id_int = int(revision_id)
+                qs = qs.filter(formula_revision_id=rev_id_int)
+            except (ValueError, TypeError):
+                qs = qs.filter(formula_revision__isnull=True)
+        else:
+            qs = qs.filter(formula_revision__isnull=True)
+
+        slip = qs.first()
+        if slip:
+            return Response({
+                "found": True,
+                "slip": ProductFormulaSlipSerializer(slip).data,
+                "data": slip.data,
+                "updated_at": slip.updated_at,
+            })
+        return Response({"found": False, "slip": None, "data": None})
+
+    def post(self, request, company_id):
+        company = _get_company_for_action(request, company_id, FORMULAS_VIEW, FORMULAS_EDIT)
+        payload = request.data or {}
+
+        product_id = payload.get("product_id") or payload.get("productId")
+        slip_type = str(payload.get("slip_type") or payload.get("slipType") or "").upper()
+        revision_id = payload.get("revision_id") or payload.get("revisionId")
+        data = payload.get("data")
+
+        if not product_id:
+            return Response({"error": "product_id is required"}, status=400)
+        if slip_type not in (ProductFormulaSlip.SlipType.RM, ProductFormulaSlip.SlipType.PM):
+            return Response({"error": "slip_type must be RM or PM"}, status=400)
+        if not isinstance(data, dict):
+            return Response({"error": "data must be a JSON object"}, status=400)
+
+        product = get_object_or_404(Product, pk=product_id, company=company)
+        revision = None
+        if revision_id:
+            try:
+                rev_id_int = int(revision_id)
+                revision = FormulaRevision.objects.filter(pk=rev_id_int, formula__product=product).first()
+            except (ValueError, TypeError):
+                pass
+
+        slip, _ = ProductFormulaSlip.objects.update_or_create(
+            company=company,
+            product=product,
+            formula_revision=revision,
+            slip_type=slip_type,
+            defaults={
+                "data": data,
+                "updated_by": request.user,
+            },
+        )
+
+        return Response({
+            "success": True,
+            "found": True,
+            "slip": ProductFormulaSlipSerializer(slip).data,
+            "data": slip.data,
+            "updated_at": slip.updated_at,
+        })
+
         return Response(_approval_policy_representation(company, policy))

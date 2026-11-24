@@ -1,15 +1,26 @@
 /**
- * Attachment-2: TEST REQUEST (BULK) Editor
- * Exact 1-to-1 Replica of SOP/QA/04/F-03/00
- * Renders 2 copies on one page (same as original paper form)
+ * Attachment-2 / Attachment-5: TEST REQUEST SLIP Editor
+ * Product-type aware: Tablet uses new Tablet layout (Attachment-2 Bulk or Attachment-5 FP).
+ * Switch between "Bulk (Attachment-2) | FP / MT (Attachment-5)" inside this tab.
+ * Two identical copies stacked on one A4 page in Print and PDF.
  */
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import cmhpLogo from '../../assets/cmhp_invoice_logo.png'
 import { getCompanyBranding } from '../../utils/companyBranding.js'
 import Button from '../../components/Button'
+import { resolveQcSlip } from '../formulas/slips/slipRegistry'
+import TabletTestRequestBulkSlip, { getInitialTabletTestRequestBulkData } from './slips/TabletTestRequestBulkSlip'
+import TabletTestRequestFpSlip, { getInitialTabletTestRequestFpData } from './slips/TabletTestRequestFpSlip'
+import SyrupTestRequestBulkSlip, { getInitialSyrupTestRequestBulkData } from './slips/SyrupTestRequestBulkSlip'
+import OilTestRequestBulkSlip, { getInitialOilTestRequestBulkData } from './slips/OilTestRequestBulkSlip'
+import MotherTinctureTestRequestBeforeFilterSlip, { getInitialMotherTinctureTrBeforeFilterData } from './slips/MotherTinctureTestRequestBeforeFilterSlip'
+import MotherTinctureTestRequestAfterFilterSlip, { getInitialMotherTinctureTrAfterFilterData } from './slips/MotherTinctureTestRequestAfterFilterSlip'
+import QcPlaceholderSlip from './slips/QcPlaceholderSlip'
+import { triggerSlipPrint, downloadSlipPdf } from '../../utils/slipPrintService'
 import './TestRequestSlip.css'
+import './slips/TabletQcSlip.css'
 
-const STORAGE_KEY = 'cmhp_test_request_slips_v1'
+const LEGACY_STORAGE_KEY = 'cmhp_test_request_slips_v1'
 
 export const INITIAL_TR_DATA = {
   tr_no: '',
@@ -28,20 +39,19 @@ export const INITIAL_TR_DATA = {
   received_qc: '',
 }
 
-/* ── Single copy of the form sheet ── */
-function SheetTable({ data, update, copyIndex, branding }) {
-  /* Inline editable field — only first copy is editable, second is read-only mirror */
+/* ── Generic / Oil Single Copy Table ── */
+function GenericSheetTable({ data, update, copyIndex, branding }) {
   const F = ({ field, style = {} }) =>
     copyIndex === 0 ? (
       <input
         className="trs-cell-input"
         style={style}
-        value={data[field]}
+        value={data[field] || ''}
         onChange={(e) => update(field, e.target.value)}
       />
     ) : (
       <span className="trs-cell-mirror" style={style}>
-        {data[field]}
+        {data[field] || ''}
       </span>
     )
 
@@ -60,7 +70,7 @@ function SheetTable({ data, update, copyIndex, branding }) {
           <td colSpan={4} className="trs-header-cell">
             <div className="trs-header-inner">
               <div className={`trs-logo-wrap ${branding?.isTej ? 'trs-logo-wrap-tej' : ''}`}>
-                <img src={branding?.isTej ? branding.logoSrc : cmhpLogo} alt={branding?.headerName || 'Logo'} className="trs-logo-img" />
+                <img src={branding?.isTej ? branding.logoSrc : cmhpLogo} alt="Logo" className="trs-logo-img" />
               </div>
               <div className="trs-company-title">{branding?.isTej ? branding.headerName : 'CMHP PRIVATE LIMITED'}</div>
             </div>
@@ -194,8 +204,7 @@ function SheetTable({ data, update, copyIndex, branding }) {
 
         {/* ROW 13: BULK bottom */}
         <tr>
-          <td colSpan={4} className="trs-center-cell trs-bold"
-            style={{ padding: '6px 10px', fontSize: '12pt', letterSpacing: '1px', borderBottom: 'none' }}>
+          <td colSpan={4} className="trs-center-cell trs-bold" style={{ padding: '6px 10px', fontSize: '12pt', letterSpacing: '1px', borderBottom: 'none' }}>
             BULK
           </td>
         </tr>
@@ -206,35 +215,292 @@ function SheetTable({ data, update, copyIndex, branding }) {
 }
 
 /* ── Main Editor Component ── */
-export default function TestRequestSlipEditor({ initialData = null, onSaved = null }) {
+export default function TestRequestSlipEditor({
+  initialData = null,
+  productType = 'tablet',
+  onSaved = null,
+  readOnly = false,
+}) {
   const branding = getCompanyBranding(initialData)
-  const [data, setData] = useState(() => {
-    if (initialData) return { ...INITIAL_TR_DATA, ...initialData }
+
+  const [variant, setVariant] = useState('bulk')
+
+  const slipKind = variant === 'fp' ? 'testRequestFp' : 'testRequestBulk'
+  const resolved = useMemo(() => resolveQcSlip(slipKind, productType), [slipKind, productType])
+  const { typeKey, displayName, isImplemented, isGenericOil } = resolved
+  const isPlaceholder = !isImplemented && !isGenericOil
+
+  const batchKey = initialData?.batch_no || initialData?.id || 'default'
+
+  // Load saved Tablet Bulk data
+  const loadTabletBulkData = () => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY)
-      if (saved) return JSON.parse(saved)
+      const specificKey = `cmhp_qc_slip_v1_test_request_bulk_tablet_${batchKey}`
+      const saved = localStorage.getItem(specificKey)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed?.data) return parsed.data
+      }
+      if (initialData?.batch_no) {
+        const legacy = localStorage.getItem(`${LEGACY_STORAGE_KEY}_${initialData.batch_no}`)
+        if (legacy) return getInitialTabletTestRequestBulkData(JSON.parse(legacy))
+      }
     } catch {}
-    return INITIAL_TR_DATA
-  })
+    return getInitialTabletTestRequestBulkData(initialData || {})
+  }
+
+  // Load saved Tablet FP data
+  const loadTabletFpData = () => {
+    try {
+      const specificKey = `cmhp_qc_slip_v1_test_request_fp_tablet_${batchKey}`
+      const saved = localStorage.getItem(specificKey)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed?.data) return parsed.data
+      }
+    } catch {}
+    return getInitialTabletTestRequestFpData(initialData || {})
+  }
+
+  // Load saved Syrup Bulk data
+  const loadSyrupBulkData = () => {
+    try {
+      const specificKey = `cmhp_qc_slip_v1_test_request_bulk_syrup_${batchKey}`
+      const saved = localStorage.getItem(specificKey)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed?.data) return parsed.data
+      }
+    } catch {}
+    return getInitialSyrupTestRequestBulkData(initialData || {})
+  }
+
+  // Load saved Mother Tincture Before Filter data
+  const loadMtBeforeData = () => {
+    try {
+      const specificKey = `cmhp_qc_slip_v1_test_request_mt_before_filter_${batchKey}`
+      const saved = localStorage.getItem(specificKey)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed?.data) return parsed.data
+      }
+    } catch {}
+    return getInitialMotherTinctureTrBeforeFilterData(initialData || {})
+  }
+
+  // Load saved Mother Tincture After Filter data
+  const loadMtAfterData = () => {
+    try {
+      const specificKey = `cmhp_qc_slip_v1_test_request_mt_after_filter_${batchKey}`
+      const saved = localStorage.getItem(specificKey)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed?.data) return parsed.data
+      }
+    } catch {}
+    return getInitialMotherTinctureTrAfterFilterData(initialData || {})
+  }
+
+  // Load Oil Bulk data
+  const loadOilBulkData = () => {
+    try {
+      const specificKey = `cmhp_qc_slip_v1_test_request_bulk_oil_${batchKey}`
+      const saved = localStorage.getItem(specificKey)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed?.data) return parsed.data
+      }
+      if (initialData?.batch_no) {
+        const legacy = localStorage.getItem(`${LEGACY_STORAGE_KEY}_${initialData.batch_no}`)
+        if (legacy) return getInitialOilTestRequestBulkData(JSON.parse(legacy))
+      }
+      const genericSaved = localStorage.getItem(LEGACY_STORAGE_KEY)
+      if (genericSaved) return getInitialOilTestRequestBulkData(JSON.parse(genericSaved))
+    } catch {}
+    return getInitialOilTestRequestBulkData(initialData || {})
+  }
+
+  // Load generic fallback data
+  const loadGenericData = () => {
+    try {
+      if (initialData?.batch_no) {
+        const legacy = localStorage.getItem(`${LEGACY_STORAGE_KEY}_${initialData.batch_no}`)
+        if (legacy) return JSON.parse(legacy)
+      }
+      const genericSaved = localStorage.getItem(LEGACY_STORAGE_KEY)
+      if (genericSaved) return JSON.parse(genericSaved)
+    } catch {}
+    return { ...INITIAL_TR_DATA, ...(initialData || {}) }
+  }
+
+  const [tabletBulkData, setTabletBulkData] = useState(loadTabletBulkData)
+  const [tabletFpData, setTabletFpData] = useState(loadTabletFpData)
+  const [syrupBulkData, setSyrupBulkData] = useState(loadSyrupBulkData)
+  const [oilBulkData, setOilBulkData] = useState(loadOilBulkData)
+  const [mtBeforeData, setMtBeforeData] = useState(loadMtBeforeData)
+  const [mtAfterData, setMtAfterData] = useState(loadMtAfterData)
+  const [genericData, setGenericData] = useState(loadGenericData)
 
   const [saving, setSaving] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [feedback, setFeedback] = useState('')
   const sheetRef = useRef(null)
 
+  // Re-sync when batch or productType or initialData changes
   useEffect(() => {
-    if (initialData) setData((prev) => ({ ...prev, ...initialData }))
-  }, [initialData])
+    setTabletBulkData(loadTabletBulkData())
+    setTabletFpData(loadTabletFpData())
+    setSyrupBulkData(loadSyrupBulkData())
+    setOilBulkData(loadOilBulkData())
+    setMtBeforeData(loadMtBeforeData())
+    setMtAfterData(loadMtAfterData())
+    setGenericData(loadGenericData())
+  }, [batchKey, productType, initialData])
 
-  const update = (field, val) => setData((prev) => ({ ...prev, [field]: val }))
+  const updateGeneric = (field, val) => setGenericData((prev) => ({ ...prev, [field]: val }))
+
+  const activeBatchNo =
+    typeKey === 'syrup'
+      ? syrupBulkData.batch_no
+      : typeKey === 'tablet'
+      ? variant === 'bulk'
+        ? tabletBulkData.batch_no
+        : tabletFpData.batch_no
+      : typeKey === 'mother-tincture'
+      ? variant === 'bulk'
+        ? mtBeforeData.batch_no
+        : mtAfterData.batch_no
+      : typeKey === 'oil'
+      ? oilBulkData.batch_no
+      : genericData.batch_no
 
   const handleSave = () => {
+    if (isPlaceholder) return
     setSaving(true)
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-      if (data.batch_no) localStorage.setItem(`${STORAGE_KEY}_${data.batch_no}`, JSON.stringify(data))
-      setFeedback('✅ Test Request saved!')
-      if (onSaved) onSaved(data)
+      if (typeKey === 'syrup') {
+        if (variant === 'bulk') {
+          const envelope = {
+            version: 1,
+            layoutId: 'syrup-att2-v1',
+            productType: 'syrup',
+            slipType: 'test_request_bulk',
+            batchNo: syrupBulkData.batch_no || '',
+            product: syrupBulkData.product || '',
+            savedAt: new Date().toISOString(),
+            data: syrupBulkData,
+          }
+          const storeKey = `cmhp_qc_slip_v1_test_request_bulk_syrup_${syrupBulkData.batch_no || batchKey}`
+          localStorage.setItem(storeKey, JSON.stringify(envelope))
+          setFeedback('✅ Syrup Test Request (Bulk) saved!')
+          if (onSaved) onSaved(envelope)
+        }
+      } else if (typeKey === 'mother-tincture') {
+        if (variant === 'bulk') {
+          const envelope = {
+            version: 1,
+            layoutId: 'mt-att2-v1',
+            productType: 'mother-tincture',
+            slipType: 'test_request_mt_before',
+            subKind: 'before_filter',
+            batchNo: mtBeforeData.batch_no || '',
+            product: mtBeforeData.product || '',
+            savedAt: new Date().toISOString(),
+            data: mtBeforeData,
+          }
+          const storeKey = `cmhp_qc_slip_v1_test_request_mt_before_filter_${mtBeforeData.batch_no || batchKey}`
+          localStorage.setItem(storeKey, JSON.stringify(envelope))
+          setFeedback('✅ Mother Tincture Test Request (Before Filter) saved!')
+          if (onSaved) onSaved(envelope)
+        } else {
+          const envelope = {
+            version: 1,
+            layoutId: 'mt-att4-v1',
+            productType: 'mother-tincture',
+            slipType: 'test_request_mt_after',
+            subKind: 'after_filter',
+            batchNo: mtAfterData.batch_no || '',
+            product: mtAfterData.product || '',
+            savedAt: new Date().toISOString(),
+            data: mtAfterData,
+          }
+          const storeKey = `cmhp_qc_slip_v1_test_request_mt_after_filter_${mtAfterData.batch_no || batchKey}`
+          localStorage.setItem(storeKey, JSON.stringify(envelope))
+          setFeedback('✅ Mother Tincture Test Request (After Filter) saved!')
+          if (onSaved) onSaved(envelope)
+        }
+      } else if (typeKey === 'tablet') {
+        if (variant === 'bulk') {
+          const envelope = {
+            version: 1,
+            layoutId: 'tablet-att2-v1',
+            productType: 'tablet',
+            slipType: 'test_request_bulk',
+            batchNo: tabletBulkData.batch_no || '',
+            product: tabletBulkData.product || '',
+            savedAt: new Date().toISOString(),
+            data: tabletBulkData,
+          }
+          const storeKey = `cmhp_qc_slip_v1_test_request_bulk_tablet_${tabletBulkData.batch_no || batchKey}`
+          localStorage.setItem(storeKey, JSON.stringify(envelope))
+          if (tabletBulkData.batch_no) {
+            localStorage.setItem(`${LEGACY_STORAGE_KEY}_${tabletBulkData.batch_no}`, JSON.stringify(tabletBulkData))
+          }
+          setFeedback('✅ Tablet Test Request (Bulk) saved!')
+          if (onSaved) onSaved(envelope)
+        } else {
+          const envelope = {
+            version: 1,
+            layoutId: 'tablet-att5-v1',
+            productType: 'tablet',
+            slipType: 'test_request_fp',
+            batchNo: tabletFpData.batch_no || '',
+            product: tabletFpData.product || '',
+            savedAt: new Date().toISOString(),
+            data: tabletFpData,
+          }
+          const storeKey = `cmhp_qc_slip_v1_test_request_fp_tablet_${tabletFpData.batch_no || batchKey}`
+          localStorage.setItem(storeKey, JSON.stringify(envelope))
+          setFeedback('✅ Tablet Test Request (FP) saved!')
+          if (onSaved) onSaved(envelope)
+        }
+      } else if (typeKey === 'oil') {
+        if (variant === 'bulk') {
+          const envelope = {
+            version: 1,
+            layoutId: 'oil-att2-v1',
+            productType: 'oil',
+            slipType: 'test_request_bulk',
+            batchNo: oilBulkData.batch_no || '',
+            product: oilBulkData.product || '',
+            savedAt: new Date().toISOString(),
+            data: oilBulkData,
+          }
+          const storeKey = `cmhp_qc_slip_v1_test_request_bulk_oil_${oilBulkData.batch_no || batchKey}`
+          localStorage.setItem(storeKey, JSON.stringify(envelope))
+          localStorage.setItem(LEGACY_STORAGE_KEY, JSON.stringify(oilBulkData))
+          if (oilBulkData.batch_no) {
+            localStorage.setItem(`${LEGACY_STORAGE_KEY}_${oilBulkData.batch_no}`, JSON.stringify(oilBulkData))
+          }
+          setFeedback('✅ Oil Test Request (Bulk) saved!')
+          if (onSaved) onSaved(envelope)
+        }
+      } else {
+        const envelope = {
+          version: 1,
+          layoutId: 'generic-att2-v1',
+          productType: typeKey,
+          slipType: variant === 'fp' ? 'test_request_fp' : 'test_request_bulk',
+          batchNo: genericData.batch_no || '',
+          product: genericData.product || '',
+          savedAt: new Date().toISOString(),
+          data: genericData,
+        }
+        const storeKey = `cmhp_qc_slip_v1_test_request_${variant}_${typeKey}_${genericData.batch_no || batchKey}`
+        localStorage.setItem(storeKey, JSON.stringify(envelope))
+        setFeedback('✅ Test Request saved!')
+        if (onSaved) onSaved(envelope)
+      }
     } catch {
       setFeedback('⚠️ Could not save.')
     } finally {
@@ -244,95 +510,73 @@ export default function TestRequestSlipEditor({ initialData = null, onSaved = nu
   }
 
   const handleReset = () => {
+    if (isPlaceholder) return
     if (window.confirm('Reset all fields to blank?')) {
-      setData(INITIAL_TR_DATA)
+      if (typeKey === 'syrup') {
+        if (variant === 'bulk') {
+          setSyrupBulkData(getInitialSyrupTestRequestBulkData({}))
+        }
+      } else if (typeKey === 'mother-tincture') {
+        if (variant === 'bulk') {
+          setMtBeforeData(getInitialMotherTinctureTrBeforeFilterData({}))
+        } else {
+          setMtAfterData(getInitialMotherTinctureTrAfterFilterData({}))
+        }
+      } else if (typeKey === 'tablet') {
+        if (variant === 'bulk') {
+          setTabletBulkData(getInitialTabletTestRequestBulkData({}))
+        } else {
+          setTabletFpData(getInitialTabletTestRequestFpData({}))
+        }
+      } else if (typeKey === 'oil') {
+        if (variant === 'bulk') {
+          setOilBulkData(getInitialOilTestRequestBulkData({}))
+        }
+      } else {
+        setGenericData(INITIAL_TR_DATA)
+      }
       setFeedback('Reset to blank.')
       setTimeout(() => setFeedback(''), 3000)
     }
   }
 
-  const handlePrint = () => window.print()
+  const handlePrint = async () => {
+    if (isPlaceholder) return
+    await triggerSlipPrint()
+  }
 
   const handleDownloadPdf = async () => {
-    if (!sheetRef.current) return
+    if (!sheetRef.current || isPlaceholder || downloading) return
     setDownloading(true)
     try {
-      const html2canvas = (await import('html2canvas')).default
-      const { jsPDF } = await import('jspdf')
-
-      // A4 at 96dpi = 794px wide, 1123px tall
-      // Our page element is 794px wide → scale 2 → 1588px canvas → maps to 190mm on A4
-      // This gives proper font sizes (not shrunken)
-      const canvas = await html2canvas(sheetRef.current, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        onclone: (clonedDoc) => {
-          // Hide toolbar in cloned doc
-          const toolbar = clonedDoc.querySelector('.test-req-toolbar')
-          if (toolbar) toolbar.style.display = 'none'
-
-          // Fix inputs: remove border, keep value visible
-          clonedDoc.querySelectorAll('input').forEach((inp) => {
-            inp.style.border = 'none'
-            inp.style.borderBottom = 'none'
-            inp.style.outline = 'none'
-            inp.style.boxShadow = 'none'
-            inp.style.background = 'transparent'
-            inp.style.color = '#000000'
-            inp.style.fontFamily = "'Times New Roman', Times, Georgia, serif"
-            inp.style.fontSize = '11pt'
-            inp.style.fontWeight = '700'
-            inp.style.padding = '0 2px'
-            inp.style.overflow = 'visible'
-            inp.style.whiteSpace = 'nowrap'
-          })
-
-          // Fix mirror spans: remove dotted border
-          clonedDoc.querySelectorAll('.trs-cell-mirror').forEach((el) => {
-            el.style.borderBottom = 'none'
-          })
-
-          // Make all label cells properly bold and large
-          clonedDoc.querySelectorAll('.trs-lbl-cell, .trs-lbl, .trs-sign-lbl').forEach((el) => {
-            el.style.fontWeight = '700'
-            el.style.fontSize = '11pt'
-          })
-        },
-      })
-
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true })
-      const pageW = pdf.internal.pageSize.getWidth()   // 210mm
-      const pageH = pdf.internal.pageSize.getHeight()  // 297mm
-      const marginX = 10
-      const marginY = 10
-      const availW = pageW - marginX * 2  // 190mm
-      const availH = pageH - marginY * 2  // 277mm
-
-      // canvas width at scale:2 is ~1588px (794*2)
-      // 1588px / 2 = 794px → at 96dpi → 210mm — perfect A4 width mapping
-      // So ratio = availW / (canvas.width / 2) = availW * 2 / canvas.width
-      // But simpler: just fit to available area maintaining aspect ratio
-      const ratio = Math.min(availW / canvas.width, availH / canvas.height)
-      const imgW = canvas.width * ratio
-      const imgH = canvas.height * ratio
-      const x = marginX + (availW - imgW) / 2
-      const y = marginY
-
-      pdf.addImage(canvas.toDataURL('image/jpeg', 1.0), 'JPEG', x, y, imgW, imgH, undefined, 'FAST')
-      const fileName = `Attachment2_TestRequest_${(data.batch_no || 'slip').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`
-      pdf.save(fileName)
-      setFeedback(`⬇️ ${fileName}`)
+      const attPrefix =
+        typeKey === 'mother-tincture'
+          ? variant === 'fp'
+            ? 'Attachment4_TestRequest_AfterFilter'
+            : 'Attachment2_TestRequest_BeforeFilter'
+          : variant === 'fp'
+          ? 'Attachment5_TestRequest_FP'
+          : 'Attachment2_TestRequest_Bulk'
+      const fileName = `${attPrefix}_${(activeBatchNo || 'slip').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`
+      await downloadSlipPdf(sheetRef.current, fileName)
+      setFeedback(`⬇️ PDF downloaded: ${fileName}`)
       setTimeout(() => setFeedback(''), 4000)
     } catch (err) {
       console.error(err)
-      alert('PDF failed. Try Print → Save as PDF.')
+      alert('Could not generate PDF. Please try Print -> Save as PDF.')
     } finally {
       setDownloading(false)
     }
   }
+
+  const slipTitle =
+    typeKey === 'mother-tincture'
+      ? variant === 'fp'
+        ? 'Attachment-4 : TEST REQUEST FOR BULK AFTER FILTER'
+        : 'Attachment-2 : TEST REQUEST FOR BULK BEFORE FILTER'
+      : variant === 'fp'
+      ? 'Attachment-5 : TEST REQUEST (MT/FP)'
+      : 'Attachment-2 : TEST REQUEST (BULK)'
 
   return (
     <div className="test-req-wrapper">
@@ -340,11 +584,58 @@ export default function TestRequestSlipEditor({ initialData = null, onSaved = nu
       <div className="test-req-toolbar no-print">
         <div className="test-req-toolbar-left">
           <span style={{ fontWeight: 700, color: '#0f172a', fontSize: 13.5 }}>
-            Attachment-2 : TEST REQUEST (BULK)
+            {slipTitle}
           </span>
-          {data.batch_no && (
+          <span style={{ background: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700 }}>
+            {displayName}
+          </span>
+
+          {/* Switch options: For Mother Tincture show Before Filter (Attachment-2) and After Filter (Attachment-4) */}
+          <div style={{ display: 'inline-flex', alignItems: 'center', background: '#f1f5f9', padding: '2px', borderRadius: 6, border: '1px solid #cbd5e1', marginLeft: 8 }}>
+            <button
+              type="button"
+              onClick={() => setVariant('bulk')}
+              style={{
+                fontSize: 12,
+                fontWeight: variant === 'bulk' ? 700 : 500,
+                padding: '4px 10px',
+                border: 'none',
+                borderRadius: 4,
+                background: variant === 'bulk' ? '#ffffff' : 'transparent',
+                color: variant === 'bulk' ? '#0f172a' : '#64748b',
+                boxShadow: variant === 'bulk' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                cursor: 'pointer',
+              }}
+            >
+              {typeKey === 'mother-tincture' ? 'Before Filter (Attachment-2)' : 'Bulk (Attachment-2)'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setVariant('fp')}
+              style={{
+                fontSize: 12,
+                fontWeight: variant === 'fp' ? 700 : 500,
+                padding: '4px 10px',
+                border: 'none',
+                borderRadius: 4,
+                background: variant === 'fp' ? '#ffffff' : 'transparent',
+                color: variant === 'fp' ? '#0f172a' : '#64748b',
+                boxShadow: variant === 'fp' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                cursor: 'pointer',
+              }}
+            >
+              {typeKey === 'mother-tincture' ? 'After Filter (Attachment-4)' : 'FP / MT (Attachment-5)'}
+            </button>
+          </div>
+
+          {activeBatchNo && (
             <span style={{ background: '#fef9c3', color: '#854d0e', padding: '2px 8px', borderRadius: 4, fontSize: 11.5, fontWeight: 700 }}>
-              Batch: {data.batch_no}
+              Batch: {activeBatchNo}
+            </span>
+          )}
+          {readOnly && (
+            <span style={{ background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700 }}>
+              🔒 Completed (View Only)
             </span>
           )}
           {feedback && (
@@ -353,35 +644,97 @@ export default function TestRequestSlipEditor({ initialData = null, onSaved = nu
             </span>
           )}
         </div>
+
         <div className="test-req-toolbar-right">
-          <Button size="sm" variant="secondary" onClick={handleReset}>🔄 Blank</Button>
-          <Button size="sm" variant="secondary" onClick={handlePrint}>🖨️ Print</Button>
-          <Button size="sm" variant="secondary" onClick={handleDownloadPdf} disabled={downloading}>
+          <Button size="sm" variant="secondary" onClick={handleReset} disabled={isPlaceholder || readOnly}>
+            🔄 Blank
+          </Button>
+          <Button size="sm" variant="secondary" onClick={handlePrint} disabled={isPlaceholder}>
+            🖨️ Print
+          </Button>
+          <Button size="sm" variant="secondary" onClick={handleDownloadPdf} disabled={isPlaceholder || downloading}>
             {downloading ? '⏳ Generating…' : '⬇️ Download PDF'}
           </Button>
-          <Button size="sm" variant="primary" onClick={handleSave} disabled={saving}>
+          <Button size="sm" variant="primary" onClick={handleSave} disabled={isPlaceholder || saving || readOnly}>
             {saving ? '⏳ Saving…' : '💾 Save Slip'}
           </Button>
         </div>
       </div>
 
-      {/* ── TWO COPIES ON ONE PAGE (same as original attachment) ── */}
-      <div className="test-req-page" ref={sheetRef}>
-
-        {/* Copy 1 — Editable */}
-        <div className="test-req-sheet">
-          <SheetTable data={data} update={update} copyIndex={0} branding={branding} />
+      {/* ── SLIP CONTENT AREA ── */}
+      {isPlaceholder ? (
+        <QcPlaceholderSlip
+          productType={displayName}
+          slipType={variant === 'fp' ? 'attachment_5' : 'attachment_2'}
+          customMessage={resolved?.config?.customMessage || ''}
+        />
+      ) : typeKey === 'mother-tincture' ? (
+        <div ref={sheetRef} style={{ width: '100%' }}>
+          {variant === 'bulk' ? (
+            <MotherTinctureTestRequestBeforeFilterSlip
+              data={mtBeforeData}
+              onChange={setMtBeforeData}
+              branding={branding}
+            />
+          ) : (
+            <MotherTinctureTestRequestAfterFilterSlip
+              data={mtAfterData}
+              onChange={setMtAfterData}
+              branding={branding}
+            />
+          )}
         </div>
-
-        {/* Gap between copies */}
-        <div className="trs-copy-gap" />
-
-        {/* Copy 2 — Mirror (read-only, same data) */}
-        <div className="test-req-sheet">
-          <SheetTable data={data} update={update} copyIndex={1} branding={branding} />
+      ) : typeKey === 'syrup' ? (
+        <div ref={sheetRef} style={{ width: '100%' }}>
+          <SyrupTestRequestBulkSlip
+            data={syrupBulkData}
+            onChange={setSyrupBulkData}
+            branding={branding}
+          />
         </div>
+      ) : typeKey === 'tablet' ? (
+        <div ref={sheetRef} style={{ width: '100%' }}>
+          {variant === 'bulk' ? (
+            <TabletTestRequestBulkSlip
+              data={tabletBulkData}
+              onChange={setTabletBulkData}
+              branding={branding}
+            />
+          ) : (
+            <TabletTestRequestFpSlip
+              data={tabletFpData}
+              onChange={setTabletFpData}
+              branding={branding}
+            />
+          )}
+        </div>
+      ) : (
+        /* Legacy / Generic Fallback Slip (Two copies) - used for Oil and generic types */
+        <div className="test-req-page cmhp-printable-slip" ref={sheetRef}>
+          {/* Copy 1 — Editable */}
+          <div className="test-req-sheet">
+            <GenericSheetTable
+              data={typeKey === 'oil' ? oilBulkData : genericData}
+              update={typeKey === 'oil' ? ((f, v) => setOilBulkData((p) => ({ ...p, [f]: v }))) : updateGeneric}
+              copyIndex={0}
+              branding={branding}
+            />
+          </div>
 
-      </div>
+          {/* Gap between copies */}
+          <div className="trs-copy-gap" />
+
+          {/* Copy 2 — Mirror */}
+          <div className="test-req-sheet">
+            <GenericSheetTable
+              data={typeKey === 'oil' ? oilBulkData : genericData}
+              update={typeKey === 'oil' ? ((f, v) => setOilBulkData((p) => ({ ...p, [f]: v }))) : updateGeneric}
+              copyIndex={1}
+              branding={branding}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -62,8 +62,11 @@ import ProductionInvoice
 import BmrForm
   from '../features/production/BmrForm'
 
-import BmrManagementPage
-  from '../features/production/BmrManagementPage'
+import RecordsPage
+  from '../features/records/RecordsPage'
+
+import DispatchPage
+  from '../features/dispatch/DispatchPage'
 
 import InvoiceViewPage
   from '../features/invoice/InvoiceViewPage'
@@ -71,9 +74,6 @@ import InvoiceViewPage
 import Invoice
   from '../features/invoice/Invoice'
 
-
-import SupplyChain
-  from '../features/supplyChain/SupplyChain'
 
 import WorkspaceSelection
   from '../features/workspace/WorkspaceSelection'
@@ -367,8 +367,9 @@ export default function AppRoutes() {
             }
           />
 
+          {/* Records Route */}
           <Route
-            path="/bmr-records"
+            path="/records"
             element={
               <RoleRoute
                 roles={[
@@ -380,7 +381,32 @@ export default function AppRoutes() {
                   'EMPLOYEE',
                 ]}
               >
-                <BmrManagementPage />
+                <RecordsPage />
+              </RoleRoute>
+            }
+          />
+
+          {/* Redirect /bmr-records to /records */}
+          <Route
+            path="/bmr-records"
+            element={<Navigate to="/records" replace />}
+          />
+
+          {/* Dispatch Route */}
+          <Route
+            path="/dispatch"
+            element={
+              <RoleRoute
+                roles={[
+                  'SUPER_ADMIN',
+                  'MANAGEMENT',
+                  'DEPARTMENT_MANAGER',
+                  'STORES_MANAGER',
+                  'HR_MANAGER',
+                  'EMPLOYEE',
+                ]}
+              >
+                <DispatchPage />
               </RoleRoute>
             }
           />
@@ -465,13 +491,6 @@ export default function AppRoutes() {
           />
 
 
-
-          <Route
-            path="/supply-chain"
-            element={
-              <SupplyChain />
-            }
-          />
 
 
           {/* CUSTOMER MANAGEMENT */}

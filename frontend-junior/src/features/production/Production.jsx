@@ -8,7 +8,8 @@ import StatusPill from '../../components/StatusPill'
 import { getErrorMessage } from '../../utils/errors'
 import { DOSAGE_FORMS } from '../../constants/dosageForms'
 import { selectDosageForms, addInvoice, saveOrderInvoice } from '../../store/erpSlice'
-import { selectActiveCompanyKey } from '../../utils/companySelectors'
+import { selectActiveCompanyKey, selectActiveCompanyId } from '../../utils/companySelectors'
+import api from '../../api/axios'
 import { generateInvoiceNumber } from '../invoice/invoiceService'
 import './Production.css'
 import { getCompanyBranding } from '../../utils/companyBranding.js'
@@ -43,11 +44,56 @@ export default function Production() {
     ...(state.erp.byCompany?.[compKey]?.products || []),
   ])
 
+  const activeCompId = useSelector(selectActiveCompanyId)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [lastSynced, setLastSynced] = useState(null)
   const [syncing, setSyncing] = useState(false)
+
+  // Dispatch modal state
+  const [dispatchModalOrder, setDispatchModalOrder] = useState(null)
+  const [dispatchReason, setDispatchReason] = useState('')
+  const [dispatching, setDispatching] = useState(false)
+  const [dispatchError, setDispatchError] = useState('')
+
+  const handleOpenDispatchModal = (order) => {
+    setDispatchModalOrder(order)
+    setDispatchReason('')
+    setDispatchError('')
+  }
+
+  const handleConfirmDispatch = async () => {
+    if (!dispatchModalOrder) return
+    setDispatching(true)
+    setDispatchError('')
+    try {
+      const cid = dispatchModalOrder.company_id || dispatchModalOrder.company || activeCompId || (compKey === 'tej' ? 3 : 2)
+      const orderId = dispatchModalOrder.id
+      const res = await api.post(`/v1/companies/${cid}/orders/${orderId}/dispatch/`, {
+        reason: dispatchReason.trim() || 'Dispatched to Records & Dispatch',
+      })
+      setSuccess(res.data?.message || `Order #${dispatchModalOrder.number || dispatchModalOrder.id} dispatched successfully to Records & Dispatch!`)
+      setDispatchModalOrder(null)
+      await syncFromApi(true)
+      setTimeout(() => setSuccess(''), 4000)
+    } catch (err) {
+      const respData = err.response?.data
+      let msg = ''
+      if (respData?.pending && Array.isArray(respData.pending)) {
+        msg = `Cannot dispatch order. Pending: ${respData.pending.join(', ')}.`
+      } else if (respData?.error) {
+        msg = respData.error
+      } else if (respData?.detail) {
+        msg = respData.detail
+      } else {
+        msg = err.message || 'Dispatch failed'
+      }
+      setDispatchError(msg)
+    } finally {
+      setDispatching(false)
+    }
+  }
 
   // Live API fetch — runs on mount and refreshes every 30s
   const syncFromApi = useCallback(async (showSpinner = false) => {
@@ -278,6 +324,15 @@ export default function Production() {
   const filteredOrders = useMemo(() => {
     const term = search.trim().toLowerCase()
     return orders.filter((order) => {
+      // Exclude dispatched orders from active Production list
+      const isDispatched =
+        (order.dispatch_status || '').toUpperCase() === 'YES' ||
+        order.is_dispatched === true ||
+        order.status === 'DISPATCHED'
+      if (isDispatched) {
+        return false
+      }
+
       const matchesSearch =
         !term ||
         String(order.number || '').toLowerCase().includes(term) ||
@@ -549,7 +604,7 @@ export default function Production() {
                   <th>Packaging Status</th>
                   <th>Dispatch</th>
                   <th>Invoice</th>
-                  <th>BMR Action</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -693,7 +748,8 @@ export default function Production() {
                           <button
                             type="button"
                             className={`prod-row-yn-btn ${dispatchStatus === 'YES' ? 'active-yes' : ''}`}
-                            onClick={() => handleUpdate(order.id, { dispatch: 'YES' })}
+                            onClick={() => handleOpenDispatchModal(order)}
+                            title="Click to dispatch order"
                           >
                             Yes
                           </button>
@@ -741,15 +797,43 @@ export default function Production() {
                         })()}
                       </td>
 
-                      {/* 14. BMR Action Button */}
+                      {/* 14. Actions: BMR + Brown Dispatch Button */}
                       <td>
-                        <button
-                          type="button"
-                          className="prod-action-btn-bmr"
-                          onClick={() => navigate(`/production/bmr/${order.id}`)}
-                        >
-                          📄 BMR
-                        </button>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <button
+                            type="button"
+                            className="prod-action-btn-bmr"
+                            onClick={() => navigate(`/production/bmr/${order.id}`)}
+                          >
+                            📄 BMR
+                          </button>
+                          <button
+                            type="button"
+                            className="prod-action-btn-dispatch"
+                            style={{
+                              backgroundColor: '#78350f',
+                              color: '#ffffff',
+                              border: 'none',
+                              borderRadius: '6px',
+                              padding: '5px 12px',
+                              fontWeight: 700,
+                              fontSize: '12px',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                              transition: 'all 0.15s ease',
+                              whiteSpace: 'nowrap',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#92400e')}
+                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#78350f')}
+                            onClick={() => handleOpenDispatchModal(order)}
+                            title="Send this order to Records and Dispatch"
+                          >
+                            📦 Dispatch
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -788,6 +872,214 @@ export default function Production() {
           </>
         )}
       </div>
+
+      {/* DISPATCH CONFIRMATION MODAL */}
+      {dispatchModalOrder && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(2px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '16px',
+          }}
+          onClick={() => !dispatching && setDispatchModalOrder(null)}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '12px',
+              maxWidth: '520px',
+              width: '100%',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1)',
+              overflow: 'hidden',
+              border: '1px solid #e2e8f0',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                backgroundColor: '#78350f',
+                color: '#ffffff',
+                padding: '16px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '18px' }}>📦</span>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#ffffff' }}>
+                  Send Order to Records & Dispatch
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => !dispatching && setDispatchModalOrder(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#fde68a',
+                  fontSize: '20px',
+                  cursor: 'pointer',
+                  lineHeight: 1,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '20px' }}>
+              <p style={{ margin: '0 0 14px 0', fontSize: '14px', color: '#334155', lineHeight: 1.5 }}>
+                Are you sure you want to send this order to <strong>Records</strong> and <strong>Dispatch</strong>?
+              </p>
+
+              {/* Order Info Card */}
+              <div
+                style={{
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  padding: '12px 14px',
+                  marginBottom: '16px',
+                  fontSize: '13px',
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '8px',
+                }}
+              >
+                <div>
+                  <span style={{ color: '#64748b' }}>Order: </span>
+                  <strong style={{ color: '#0f172a' }}>#{dispatchModalOrder.number || dispatchModalOrder.id}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b' }}>Batch No: </span>
+                  <strong style={{ color: '#0f172a' }}>{dispatchModalOrder.batch_no || '—'}</strong>
+                </div>
+                <div style={{ gridColumn: 'span 2' }}>
+                  <span style={{ color: '#64748b' }}>Product: </span>
+                  <strong style={{ color: '#0f172a' }}>{dispatchModalOrder.product_name || '—'}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b' }}>Dosage Form: </span>
+                  <span style={{ color: '#0f172a', fontWeight: 600 }}>{dispatchModalOrder.dosage_form || '—'}</span>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b' }}>Batch Size: </span>
+                  <span style={{ color: '#0f172a', fontWeight: 600 }}>{dispatchModalOrder.batch_size || '—'}</span>
+                </div>
+              </div>
+
+              {/* Error Notice */}
+              {dispatchError && (
+                <div
+                  style={{
+                    backgroundColor: '#fef2f2',
+                    border: '1px solid #f87171',
+                    borderRadius: '8px',
+                    padding: '12px',
+                    marginBottom: '16px',
+                    color: '#991b1b',
+                    fontSize: '13px',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '8px',
+                  }}
+                >
+                  <span style={{ fontSize: '16px' }}>⚠️</span>
+                  <div>
+                    <strong>Dispatch Blocked:</strong>
+                    <div style={{ marginTop: '2px' }}>{dispatchError}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Dispatch Reason */}
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
+                Dispatch Note / Reason (Optional)
+              </label>
+              <textarea
+                rows={2}
+                value={dispatchReason}
+                onChange={(e) => setDispatchReason(e.target.value)}
+                placeholder="Enter dispatch notes, delivery details or comments..."
+                disabled={dispatching}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  padding: '8px 10px',
+                  borderRadius: '6px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '13px',
+                  fontFamily: 'inherit',
+                  resize: 'vertical',
+                }}
+              />
+
+              <div style={{ marginTop: '12px', fontSize: '11.5px', color: '#64748b', lineHeight: 1.4 }}>
+                ℹ️ This will lock Attachments 1–6, BMR, COA, and Invoice for this order and remove it from the active Production and Orders lists.
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              style={{
+                padding: '14px 20px',
+                backgroundColor: '#f8fafc',
+                borderTop: '1px solid #e2e8f0',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '10px',
+              }}
+            >
+              <button
+                type="button"
+                disabled={dispatching}
+                onClick={() => setDispatchModalOrder(null)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: '1px solid #cbd5e1',
+                  backgroundColor: '#ffffff',
+                  color: '#475569',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  cursor: dispatching ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={dispatching}
+                onClick={handleConfirmDispatch}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  backgroundColor: '#78350f',
+                  color: '#ffffff',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  cursor: dispatching ? 'not-allowed' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                }}
+              >
+                {dispatching ? '⏳ Dispatching…' : '📦 Confirm Dispatch'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

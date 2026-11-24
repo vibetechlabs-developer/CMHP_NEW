@@ -1,30 +1,15 @@
-import { useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Button from '../../components/Button'
 import { exportFormulaExcel } from '../../utils/formulaExport'
 import { getCompanyBranding, isTejBiocare } from '../../utils/companyBranding.js'
+import { resolveSlipConfig } from './slips/slipRegistry'
+import { exportTabletRmExcel, exportTabletPmExcel, exportOilRmExcel, exportOilPmExcel, exportMotherTinctureRmExcel, exportSyrupRmExcel, exportSyrupPmExcel } from './slips/tabletExcelExport'
+import { getFormulaSlip, saveFormulaSlip } from './formulasService'
+import { triggerSlipPrint, downloadSlipPdf } from '../../utils/slipPrintService'
 import './BmrRequisitionSlipModal.css'
-
-const DEFAULT_PACKING_ITEMS = [
-  'Label',
-  'Mono Box',
-  'Insert',
-  'Hall Mark',
-  'Bottle',
-  'Plug',
-  'Cap',
-  'Inner',
-  'Outer',
-  'Measuring Cap',
-  'Droper',
-]
-
-// Helper to format pharmaceutical quantities cleanly without trailing zeroes
-function formatQty(q) {
-  if (q === null || q === undefined || q === '') return ''
-  const n = Number(q)
-  if (isNaN(n)) return q
-  return n % 1 === 0 ? n.toString() : parseFloat(n.toFixed(3)).toString()
-}
+import './slips/TabletSlip.css'
+import './slips/MotherTinctureSlip.css'
+import './slips/SyrupSlip.css'
 
 export default function BmrRequisitionSlipModal({
   isOpen,
@@ -36,16 +21,37 @@ export default function BmrRequisitionSlipModal({
   company = {},
   initialTab = 'RM',
   batchAllocation = null,
+  readOnly = false,
 }) {
   const [activeTab, setActiveTab] = useState(initialTab || 'RM')
-  const [batchNo, setBatchNo] = useState(() => (product?.bmr_no ? `${product.code}-01` : 'AH2602'))
-  const [effectiveDate, setEffectiveDate] = useState(() => '12-04-2024')
-  const [supersedesNo] = useState('00')
-  const [mfgFor, setMfgFor] = useState(() => 'APEX ANIMAL HEALTH PRODUCTS')
-  const [downloading, setDownloading] = useState(false)
 
-  // Authentic pharmaceutical title matching BMR master format
-  // Resolve branding from the company object (id, name, code) first; fall back to active workspace
+  useEffect(() => {
+    if (isOpen && initialTab) {
+      setActiveTab(initialTab)
+    }
+  }, [isOpen, initialTab])
+  const [downloading, setDownloading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveFeedback, setSaveFeedback] = useState('')
+  const [isDirty, setIsDirty] = useState(false)
+  const [isSaved, setIsSaved] = useState(false)
+  const [slipData, setSlipData] = useState(null)
+  const [loadingSlip, setLoadingSlip] = useState(false)
+
+  // Drops backward-compatibility state
+  const [dropsBatchNo, setDropsBatchNo] = useState(() => (product?.bmr_no ? `${product.code}-01` : 'AH2602'))
+  const [dropsEffectiveDate, setDropsEffectiveDate] = useState(() => '12-04-2024')
+  const [dropsSupersedesNo] = useState('00')
+  const [dropsMfgFor, setDropsMfgFor] = useState(() => 'APEX ANIMAL HEALTH PRODUCTS')
+
+  const slipRef = useRef(null)
+
+  // Resolve product type using the exact same logic as BMR and COA screens
+  const resolved = useMemo(() => resolveSlipConfig(product), [product])
+  const { typeKey, displayName, isImplemented, config } = resolved
+  const activeSlipConfig = activeTab === 'RM' ? config.rm : config.pm
+  const isPlaceholder = Boolean(activeSlipConfig.isPlaceholder)
+
   const isTejActive = isTejBiocare(company) || isTejBiocare()
   const branding = getCompanyBranding(isTejActive ? 'tej' : 'cmhp')
   const rawCompanyName = company?.display_name || company?.name || ''
@@ -55,188 +61,164 @@ export default function BmrRequisitionSlipModal({
         ? 'CENTRAL MANUFACTURING HOMEOPATHIC PHARMACY'
         : rawCompanyName.toUpperCase())
 
-  const slipRef = useRef(null)
+  const productId = product?.id
+  const revisionId = revision?.id || null
+
+  // Load saved slip data from PostgreSQL DB per product + revision + slip_type
+  // When switching products, state is immediately cleared and Product 2's own slip is loaded.
+  useEffect(() => {
+    if (!isOpen || !productId) return
+
+    let cancelled = false
+    setLoadingSlip(true)
+    setIsDirty(false)
+    setSaveFeedback('')
+
+    // Reset drops local state per product
+    setDropsBatchNo(product?.bmr_no ? `${product.code}-01` : 'AH2602')
+    setDropsEffectiveDate('12-04-2024')
+    setDropsMfgFor('APEX ANIMAL HEALTH PRODUCTS')
+
+    if (isPlaceholder) {
+      setSlipData({})
+      setLoadingSlip(false)
+      return
+    }
+
+    getFormulaSlip(company?.id || 2, {
+      productId,
+      revisionId,
+      slipType: activeTab,
+    })
+      .then((res) => {
+        if (cancelled) return
+        if (res && res.found && res.data) {
+          // Loaded permanently saved edits from database
+          setSlipData(res.data)
+          setIsSaved(true)
+          setIsDirty(false)
+        } else {
+          // First open (nothing saved yet): auto-fill from this product's own formula
+          const initial = activeSlipConfig.getInitialData(product, formula, revision, activeLines, company)
+          setSlipData(initial)
+          setIsSaved(false)
+          setIsDirty(false)
+        }
+        setLoadingSlip(false)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.warn('Could not load saved slip from backend, using auto-filled defaults:', err)
+        const initial = activeSlipConfig.getInitialData(product, formula, revision, activeLines, company)
+        setSlipData(initial)
+        setIsSaved(false)
+        setLoadingSlip(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen, productId, revisionId, activeTab, isPlaceholder, activeSlipConfig, product, formula, revision, activeLines, company])
+
+  // Save current slip edits to PostgreSQL backend database
+  const handleSaveSlip = useCallback(async (dataToSave = slipData) => {
+    if (!productId || saving || isPlaceholder || !dataToSave) return
+    setSaving(true)
+    setSaveFeedback('')
+
+    try {
+      await saveFormulaSlip(company?.id || 2, {
+        productId,
+        revisionId,
+        slipType: activeTab,
+        data: dataToSave,
+      })
+      setIsDirty(false)
+      setIsSaved(true)
+      setSaveFeedback('✓ Saved')
+      setTimeout(() => setSaveFeedback(''), 2500)
+    } catch (err) {
+      console.error('Failed to save slip to DB:', err)
+      setSaveFeedback('❌ Failed to save')
+    } finally {
+      setSaving(false)
+    }
+  }, [productId, revisionId, activeTab, company?.id, isPlaceholder, saving, slipData])
+
+  // Handle edits made by the user on the slip
+  const handleSlipDataChange = useCallback((newData) => {
+    setSlipData(newData)
+    setIsDirty(true)
+  }, [])
 
   if (!isOpen) return null
 
-  const lines = (activeLines && activeLines.length > 0) ? activeLines : (revision?.lines || [])
-  const getLinePart = (l) => {
-    if (!l) return 1
-    if (l.part) return Number(l.part)
-    if (l.notes) {
-      const match = l.notes.match(/PART:(\d+)/)
-      if (match) return Number(match[1])
-    }
-    return 1
-  }
-
-  const isTwoPart = Boolean(
-    (revision?.notes && (revision.notes.includes('FORMULA_PARTS:2') || revision.notes.includes('TWO_PART:true'))) ||
-    lines.some((l) => getLinePart(l) === 2)
-  )
-  const part2UsesPart1 = isTwoPart && Boolean(
-    revision?.notes && revision.notes.includes('PART2_USES_PART1:true')
-  )
-
-  const rawMaterials = lines.filter((l) => l.material_type === 'RAW_MATERIAL')
-  const rawPart1 = rawMaterials.filter((l) => getLinePart(l) === 1)
-  const rawPart2 = rawMaterials.filter((l) => getLinePart(l) === 2)
-  const excipients = lines.filter(
-    (l) =>
-      l.material_type === 'EXCIPIENT' ||
-      (l.notes && l.notes.toLowerCase().includes('excipient')) ||
-      (l.special_value && l.special_value.toUpperCase().includes('Q.S.'))
-  )
-  const packagingMaterials = lines.filter(
-    (l) => l.material_type === 'PACKAGING_MATERIAL' || l.material_type === 'PACKAGING'
-  )
-
-  // Standard template has 9 rows on Page 1 for RM
-  const displayRaw = [...rawMaterials]
-  while (displayRaw.length < 9) {
-    displayRaw.push(null)
-  }
-
-  const renderRmRow = (line, idx, offset = 0) => {
-    if (!line) {
-      return (
-        <tr key={`empty-raw-${offset}-${idx}`} className="bmr-exact-row-empty">
-          <td>{offset + idx + 1}</td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-        </tr>
-      )
-    }
-
-    const matCode = line.material?.code || line.material_code || ''
-    const baseName = line.material?.name || line.material_name || ''
-    const fullMatName = line.potency && !baseName.includes(line.potency)
-      ? `${baseName} ${line.potency}`
-      : baseName
-
-    const isFormula = line.calculation_mode === 'AS_PER_FORMULA'
-    let labelClaim = isFormula
-      ? '—'
-      : (line.label_claim ||
-        (line.calculation_mode === 'AS_PER_LABEL_CLAIM'
-          ? `${line.label_claim_quantity || ''} ${line.label_claim_uom?.code || ''}`
-          : line.special_value || '—'))
-
-    if (labelClaim === '0.00' || labelClaim === '0' || labelClaim === '0 ML' || !labelClaim) {
-      labelClaim = '—'
-    }
-
-    return (
-      <tr key={line.id ?? `rm-${offset}-${idx}`}>
-        <td>{offset + idx + 1}</td>
-        <td>{matCode}</td>
-        <td style={{ textAlign: 'left', paddingLeft: '8px', fontWeight: 'normal', textTransform: 'uppercase' }}>
-          {fullMatName}
-        </td>
-        <td>{labelClaim}</td>
-        <td>{formatQty(line.quantity)}</td>
-        <td>{line.unit || line.unit_code || '—'}</td>
-        <td>{line.ar_no || ''}</td>
-      </tr>
-    )
-  }
-
-  // Page 1 excipients (rows 1 & 2)
-  const displayExcP1 = excipients.slice(0, 2)
-  while (displayExcP1.length < 2) {
-    displayExcP1.push(null)
-  }
-
-  // Page 2 excipients (rows 3 & 4)
-  const displayExcP2 = excipients.slice(2, 4)
-  while (displayExcP2.length < 2) {
-    displayExcP2.push(null)
-  }
-
-  // Packaging materials for Attachment 4 (11 standard rows matching ATTACHMENT 4.docx)
-  const displayPkg = [...packagingMaterials]
-  if (displayPkg.length === 0) {
-    DEFAULT_PACKING_ITEMS.forEach((name, idx) => {
-      displayPkg.push({
-        id: `def-pm-${idx}`,
-        material_name: name,
-        material_code: '',
-        quantity: '',
-        quantity_received: '',
-        ar_no: '',
-      })
-    })
-  } else {
-    while (displayPkg.length < 11) {
-      displayPkg.push(null)
-    }
-  }
-
-  const handlePrint = () => {
-    window.print()
+  const handlePrint = async () => {
+    if (isPlaceholder) return
+    await triggerSlipPrint()
   }
 
   const handleDownloadPdf = async () => {
-    if (downloading) return
+    if (downloading || isPlaceholder) return
     const container = slipRef.current
     if (!container) return
-
-    const page1El = container.querySelector('.bmr-exact-page-1')
-    const page2El = container.querySelector('.bmr-exact-page-2')
-    if (!page1El) return
 
     setDownloading(true)
 
     try {
-      const html2canvas = (await import('html2canvas')).default
-      const { jsPDF } = await import('jspdf')
-
-      const sanitizedProdName = (product?.name || 'FIBROGONE').replace(/[^a-zA-Z0-9]/g, '_')
+      const sanitizedProdName = (product?.name || 'PRODUCT').replace(/[^a-zA-Z0-9]/g, '_')
       const revNo = String(revision?.revision_number || '01').padStart(2, '0')
-      const filename = activeTab === 'RM'
-        ? `BMR_RM_Attachment_1_${sanitizedProdName}_Rev${revNo}.pdf`
-        : `BMR_PM_Attachment_4_${sanitizedProdName}_Rev${revNo}.pdf`
 
-      // Mark container in export mode so print-only values show and inputs hide
-      container.classList.add('bmr-pdf-export-mode')
+      if (typeKey === 'tablet' || typeKey === 'oil' || typeKey === 'mother-tincture' || typeKey === 'syrup') {
+        const typePrefix = typeKey === 'oil' ? 'Oil' : typeKey === 'mother-tincture' ? 'Mother_Tincture' : typeKey === 'syrup' ? 'Syrup' : 'Tablet'
+        const filename = activeTab === 'RM'
+          ? `${typePrefix}_RM_Attachment_1_${sanitizedProdName}_Rev${revNo}.pdf`
+          : `${typePrefix}_PM_Attachment_4_${sanitizedProdName}_Rev${revNo}.pdf`
 
-      const captureOptions = {
-        scale: 2.5,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        logging: false,
+        await downloadSlipPdf(container, filename)
+      } else {
+        // Drops 2-page PDF capture
+        const page1El = container.querySelector('.bmr-exact-page-1')
+        const page2El = container.querySelector('.bmr-exact-page-2')
+        if (!page1El) return
+
+        const filename = activeTab === 'RM'
+          ? `BMR_RM_Attachment_1_${sanitizedProdName}_Rev${revNo}.pdf`
+          : `BMR_PM_Attachment_4_${sanitizedProdName}_Rev${revNo}.pdf`
+
+        container.classList.add('bmr-pdf-export-mode')
+
+        const captureOptions = {
+          scale: 2.5,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+        }
+
+        const canvas1 = await html2canvas(page1El, captureOptions)
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4',
+          compress: true,
+        })
+
+        const imgData1 = canvas1.toDataURL('image/png')
+        const imgWidth = 210
+        const imgHeight1 = Math.min((canvas1.height * imgWidth) / canvas1.width, 297)
+        pdf.addImage(imgData1, 'PNG', 0, 0, imgWidth, imgHeight1, undefined, 'FAST')
+
+        if (page2El) {
+          const canvas2 = await html2canvas(page2El, captureOptions)
+          const imgData2 = canvas2.toDataURL('image/png')
+          const imgHeight2 = Math.min((canvas2.height * imgWidth) / canvas2.width, 297)
+          pdf.addPage('a4', 'portrait')
+          pdf.addImage(imgData2, 'PNG', 0, 0, imgWidth, imgHeight2, undefined, 'FAST')
+        }
+
+        pdf.save(filename)
       }
-
-      // 1. Capture Page 1 at high resolution
-      const canvas1 = await html2canvas(page1El, captureOptions)
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-        compress: true,
-      })
-
-      // Lossless PNG format for crisp, vector-grade sharp text and borders
-      const imgData1 = canvas1.toDataURL('image/png')
-      const imgWidth = 210
-      const imgHeight1 = Math.min((canvas1.height * imgWidth) / canvas1.width, 297)
-      pdf.addImage(imgData1, 'PNG', 0, 0, imgWidth, imgHeight1, undefined, 'FAST')
-
-      // 2. Capture Page 2 if exists
-      if (page2El) {
-        const canvas2 = await html2canvas(page2El, captureOptions)
-        const imgData2 = canvas2.toDataURL('image/png')
-        const imgHeight2 = Math.min((canvas2.height * imgWidth) / canvas2.width, 297)
-        pdf.addPage('a4', 'portrait')
-        pdf.addImage(imgData2, 'PNG', 0, 0, imgWidth, imgHeight2, undefined, 'FAST')
-      }
-
-      pdf.save(filename)
     } catch (err) {
       console.error('Failed to generate PDF:', err)
       window.print()
@@ -247,11 +229,91 @@ export default function BmrRequisitionSlipModal({
   }
 
   const handleExcel = () => {
+    if (isPlaceholder) return
+
+    if (typeKey === 'tablet') {
+      if (activeTab === 'RM') {
+        exportTabletRmExcel({
+          slipData: slipData || {},
+          product,
+          formula,
+          revision,
+          company,
+        })
+      } else {
+        exportTabletPmExcel({
+          slipData: slipData || {},
+          product,
+          formula,
+          revision,
+          company,
+        })
+      }
+      return
+    }
+
+    if (typeKey === 'oil') {
+      if (activeTab === 'RM') {
+        exportOilRmExcel({
+          slipData: slipData || {},
+          product,
+          formula,
+          revision,
+          company,
+        })
+      } else {
+        exportOilPmExcel({
+          slipData: slipData || {},
+          product,
+          formula,
+          revision,
+          company,
+        })
+      }
+      return
+    }
+
+    if (typeKey === 'mother-tincture') {
+      if (activeTab === 'RM') {
+        exportMotherTinctureRmExcel({
+          slipData: slipData || {},
+          product,
+          formula,
+          revision,
+          company,
+        })
+      }
+      return
+    }
+
+    if (typeKey === 'syrup') {
+      if (activeTab === 'RM') {
+        exportSyrupRmExcel({
+          slipData: slipData || {},
+          product,
+          formula,
+          revision,
+          company,
+        })
+      } else {
+        exportSyrupPmExcel({
+          slipData: slipData || {},
+          product,
+          formula,
+          revision,
+          company,
+        })
+      }
+      return
+    }
+
+    // Drops existing excel export
+    const lines = (activeLines && activeLines.length > 0) ? activeLines : (revision?.lines || [])
     if (activeTab === 'RM') {
       exportFormulaExcel({
         product,
         formula,
-        revision: { name: `Rev. ${revision.revision_number || '01'}` },
+        revision: { name: `Rev. ${revision?.revision_number || '01'}` },
         materials: lines.filter((l) => l.material_type === 'RAW_MATERIAL').map((l) => ({
           rmCode: l.material?.code || l.material_code || '',
           name: l.material?.name || l.material_name || '',
@@ -266,21 +328,24 @@ export default function BmrRequisitionSlipModal({
           unit: l.unit || l.unit_code || 'ML',
           arNo: l.ar_no || '—',
         })),
-        batchQty: revision.base_output_quantity || 100,
-        batchUnit: revision.output_uom_code || 'ML',
+        batchQty: revision?.base_output_quantity || 100,
+        batchUnit: revision?.output_uom_code || 'ML',
         approval: {
-          status: revision.status,
+          status: revision?.status,
           submittedBy: 'Production Chemist',
-          decidedBy: revision.status === 'APPROVED' ? 'QA / QC Manager' : 'Pending Review',
+          decidedBy: revision?.status === 'APPROVED' ? 'QA / QC Manager' : 'Pending Review',
         },
         companyName: companyTitle,
       })
     } else {
+      const packagingMaterials = lines.filter(
+        (l) => l.material_type === 'PACKAGING_MATERIAL' || l.material_type === 'PACKAGING'
+      )
       exportFormulaExcel({
         product,
         formula,
-        revision: { name: `Rev. ${revision.revision_number || '01'}` },
-        materials: displayPkg.filter(Boolean).map((l) => ({
+        revision: { name: `Rev. ${revision?.revision_number || '01'}` },
+        materials: packagingMaterials.map((l) => ({
           rmCode: l.material?.code || l.material_code || '',
           name: l.material?.name || l.material_name || '',
           labelClaim: '—',
@@ -288,20 +353,20 @@ export default function BmrRequisitionSlipModal({
           unit: 'NOS',
           arNo: l.ar_no || '—',
         })),
-        batchQty: revision.base_output_quantity || 100,
+        batchQty: revision?.base_output_quantity || 100,
         batchUnit: 'NOS',
         approval: {
-          status: revision.status,
+          status: revision?.status,
           submittedBy: 'Warehouse Chemist',
-          decidedBy: revision.status === 'APPROVED' ? 'QA / QC Manager' : 'Pending Review',
+          decidedBy: revision?.status === 'APPROVED' ? 'QA / QC Manager' : 'Pending Review',
         },
         companyName: companyTitle,
       })
     }
   }
 
-  // Common Header Component matching exact PDF
-  const renderHeader = () => (
+  // Common Header Component for Drops matching exact PDF
+  const renderDropsHeader = () => (
     <div className="bmr-exact-header-box">
       <div className="bmr-exact-top-banner">
         <div className={`bmr-exact-logo-wrap ${branding.isTej ? 'bmr-exact-logo-wrap-tej' : ''}`}>
@@ -330,27 +395,27 @@ export default function BmrRequisitionSlipModal({
           <tr>
             <td style={{ width: '50%' }}>
               <span className="bmr-field-lbl">PRODUCT : </span>
-              <span className="bmr-field-val">{product?.name || 'FIBROGONE'}</span>
+              <span className="bmr-field-val">{product?.name || ''}</span>
             </td>
             <td style={{ width: '50%' }}>
               <span className="bmr-field-lbl">BMR NO. : </span>
-              <span className="bmr-field-val">{product?.bmr_no || 'BMR/AA/25/06'}</span>
+              <span className="bmr-field-val">{product?.bmr_no || ''}</span>
             </td>
           </tr>
           <tr>
             <td>
               <span className="bmr-field-lbl">PRODUCT CODE : </span>
-              <span className="bmr-field-val">{product?.code || 'AHP/06'}</span>
+              <span className="bmr-field-val">{product?.code || ''}</span>
             </td>
             <td>
               <span className="bmr-field-lbl">EFFECTIVE DATE : </span>
               <input
                 className="bmr-exact-input no-print"
-                value={effectiveDate}
-                onChange={(e) => setEffectiveDate(e.target.value)}
+                value={dropsEffectiveDate}
+                onChange={(e) => setDropsEffectiveDate(e.target.value)}
                 style={{ width: '85px' }}
               />
-              <span className="print-only">{effectiveDate}</span>
+              <span className="print-only">{dropsEffectiveDate}</span>
             </td>
           </tr>
           <tr>
@@ -360,7 +425,7 @@ export default function BmrRequisitionSlipModal({
             </td>
             <td>
               <span className="bmr-field-lbl">SUPERSEDES NO : </span>
-              <span className="bmr-field-val">{supersedesNo}</span>
+              <span className="bmr-field-val">{dropsSupersedesNo}</span>
             </td>
           </tr>
           <tr>
@@ -368,11 +433,11 @@ export default function BmrRequisitionSlipModal({
               <span className="bmr-field-lbl">BATCH NO. : </span>
               <input
                 className="bmr-exact-input no-print"
-                value={batchNo}
-                onChange={(e) => setBatchNo(e.target.value)}
+                value={dropsBatchNo}
+                onChange={(e) => setDropsBatchNo(e.target.value)}
                 style={{ width: '100px' }}
               />
-              <span className="print-only">{batchNo}</span>
+              <span className="print-only">{dropsBatchNo}</span>
             </td>
             <td>
               <span className="bmr-field-lbl">VERSION NO : </span>
@@ -384,11 +449,11 @@ export default function BmrRequisitionSlipModal({
               <span className="bmr-field-lbl">MFG. FOR : </span>
               <input
                 className="bmr-exact-input no-print"
-                value={mfgFor}
-                onChange={(e) => setMfgFor(e.target.value)}
+                value={dropsMfgFor}
+                onChange={(e) => setDropsMfgFor(e.target.value)}
                 style={{ width: '180px' }}
               />
-              <span className="print-only">{mfgFor}</span>
+              <span className="print-only">{dropsMfgFor}</span>
             </td>
             <td>
               <span className="bmr-field-lbl">MASTER FORMULA NO. : </span>
@@ -400,8 +465,8 @@ export default function BmrRequisitionSlipModal({
     </div>
   )
 
-  // Common Signature Table matching exact 4-column PDF structure
-  const renderSignatures = () => (
+  // Common Signature Table for Drops
+  const renderDropsSignatures = () => (
     <table className="bmr-exact-sign-table">
       <thead>
         <tr>
@@ -443,8 +508,8 @@ export default function BmrRequisitionSlipModal({
     </table>
   )
 
-  // Batch Output Reconciliation & Sample Allocation Table (GMP / BMR Compliant)
-  const renderBatchAllocation = () => {
+  // Batch Output Reconciliation Table for Drops
+  const renderDropsBatchAllocation = () => {
     if (!batchAllocation) return null
     const {
       totalBottles = 0,
@@ -544,6 +609,8 @@ export default function BmrRequisitionSlipModal({
     )
   }
 
+  const ActiveComponent = activeSlipConfig.Component
+
   return (
     <div className="bmr-modal-overlay">
       <div className="bmr-modal-container">
@@ -551,14 +618,10 @@ export default function BmrRequisitionSlipModal({
         <div className="bmr-modal-toolbar no-print">
           <div className="bmr-toolbar-left">
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#f8fafc' }}>
-              {activeTab === 'RM'
-                ? '📄 Drops RM Requisition Slip (Attachment - 1 Master Format)'
-                : '📦 Packing Material Requirement Slip (Attachment - 4 Master Format)'}
+              {activeSlipConfig.title}
             </h3>
             <span style={{ fontSize: 11.5, color: '#94a3b8' }}>
-              {activeTab === 'RM'
-                ? 'Exact replica of Drops RM Requistion ATTACHMENT 1 MASTER FORMAT.docx.pdf'
-                : 'Exact replica of ATTACHMENT 4.docx (1).pdf'}
+              {activeSlipConfig.subtitle}
             </span>
           </div>
 
@@ -581,13 +644,56 @@ export default function BmrRequisitionSlipModal({
           </div>
 
           <div className="bmr-toolbar-right">
-            <Button type="button" onClick={handleDownloadPdf} disabled={downloading}>
+            {/* Status Indicator */}
+            {saveFeedback ? (
+              <span className="bmr-save-feedback">{saveFeedback}</span>
+            ) : isDirty ? (
+              <span className="bmr-unsaved-badge">● Unsaved edits</span>
+            ) : isSaved ? (
+              <span className="bmr-saved-badge">✓ Saved</span>
+            ) : null}
+
+            {/* Save Button for editable slips */}
+            {!readOnly && (typeKey === 'tablet' || typeKey === 'oil' || typeKey === 'mother-tincture' || typeKey === 'syrup') && (
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => handleSaveSlip()}
+                disabled={saving || !isDirty}
+              >
+                {saving ? '⏳ Saving...' : '💾 Save Slip'}
+              </Button>
+            )}
+            {readOnly && (
+              <span style={{ fontSize: '12px', background: '#f1f5f9', color: '#475569', padding: '6px 12px', borderRadius: '4px', fontWeight: 600 }}>
+                🔒 Read-Only
+              </span>
+            )}
+
+            <Button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={downloading || isPlaceholder}
+              title={isPlaceholder ? 'Slip not available yet for this product type' : 'Download PDF'}
+            >
               {downloading ? '⏳ Generating PDF...' : '⬇️ Download PDF'}
             </Button>
-            <Button type="button" variant="secondary" onClick={handlePrint}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handlePrint}
+              disabled={isPlaceholder}
+              title={isPlaceholder ? 'Slip not available yet for this product type' : 'Print / Save as PDF'}
+            >
               🖨️ Print / Save as PDF
             </Button>
-            <Button type="button" variant="secondary" onClick={handleExcel}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleExcel}
+              disabled={isPlaceholder}
+              title={isPlaceholder ? 'Slip not available yet for this product type' : 'Export Excel'}
+            >
               📥 Export Excel
             </Button>
             <Button type="button" variant="secondary" onClick={onClose}>
@@ -598,346 +704,41 @@ export default function BmrRequisitionSlipModal({
 
         {/* PRINTABLE SLIP CONTAINER */}
         <div className="bmr-slip-wrapper">
-          <div className="bmr-exact-document-sheet" ref={slipRef}>
-
-            {/* =========================================================
-                ATTACHMENT - 1: RAW MATERIAL REQUISITION SLIP
-                ========================================================= */}
-            {activeTab === 'RM' && (
-              <>
-                {/* PAGE 1 (EXACT MATCH TO PDF PAGE 1) */}
-                <div className="bmr-exact-page bmr-exact-page-1">
-                  <div className="bmr-exact-page-top">
-                    {renderHeader()}
-
-                    {/* ATTACHMENT TITLES */}
-                    <div className="bmr-exact-attachment-block">
-                      <div className="bmr-exact-att-num">ATTACHMENT - 1</div>
-                      <div className="bmr-exact-att-title">RAW MATERIAL REQUISITION SLIP</div>
-                      <div className="bmr-exact-batch-title">BATCH FORMULA:</div>
-                    </div>
-
-                    {/* RAW MATERIAL REQUISITION TABLE (EXACT 7 COLUMNS) */}
-                    <table className="bmr-exact-table">
-                      <thead>
-                        <tr>
-                          <th style={{ width: '40px' }}>Sr.<br />No.</th>
-                          <th style={{ width: '70px' }}>RM<br />Code</th>
-                          <th>RAW MATERIAL NAME</th>
-                          <th style={{ width: '90px' }}>Label<br />Claim</th>
-                          <th style={{ width: '70px' }}>Qty. Req</th>
-                          <th style={{ width: '45px' }}>Unit</th>
-                          <th style={{ width: '80px' }}>AR.No.</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {isTwoPart ? (
-                          <>
-                            <tr className="bmr-exact-part-span-row">
-                              <td colSpan={7} style={{ fontWeight: 800, textAlign: 'left', background: '#eff6ff', color: '#1d4ed8', padding: '5px 8px', fontSize: '11px', borderBottom: '1px solid #bfdbfe' }}>
-                                🔹 PART - I (ACTIVE INGREDIENTS / PREPARATION - 1)
-                              </td>
-                            </tr>
-                            {rawPart1.length === 0 ? (
-                              <tr className="bmr-exact-row-empty">
-                                <td>1</td>
-                                <td colSpan={6} style={{ color: '#94a3b8', fontStyle: 'italic', textAlign: 'left', paddingLeft: 10 }}>No ingredients in Part-1</td>
-                              </tr>
-                            ) : (
-                              rawPart1.map((line, idx) => renderRmRow(line, idx, 0))
-                            )}
-                            <tr className="bmr-exact-part-span-row">
-                              <td colSpan={7} style={{ fontWeight: 800, textAlign: 'left', background: '#faf5ff', color: '#7e22ce', padding: '5px 8px', fontSize: '11px', borderBottom: '1px solid #e9d5ff' }}>
-                                🔹 PART - II (SECONDARY MIX / PREPARATION - 2)
-                              </td>
-                            </tr>
-                            {part2UsesPart1 && (
-                              <tr style={{ background: '#f0fdf4', borderBottom: '1px dashed #86efac' }}>
-                                <td style={{ fontWeight: 700, color: '#166534', textAlign: 'center' }}>{rawPart1.length + 1}</td>
-                                <td style={{ fontWeight: 700, color: '#166534', textAlign: 'center' }}>P-I</td>
-                                <td style={{ fontWeight: 700, color: '#166534', fontStyle: 'italic', textAlign: 'left', paddingLeft: 8 }}>
-                                  Part-I Preparation (Intermediate) — As prepared in Part-I
-                                </td>
-                                <td style={{ color: '#166534', textAlign: 'center' }}>—</td>
-                                <td style={{ fontWeight: 700, color: '#166534', textAlign: 'center' }}>Q.S.</td>
-                                <td style={{ color: '#166534', textAlign: 'center' }}>—</td>
-                                <td style={{ color: '#166534', textAlign: 'center' }}>—</td>
-                              </tr>
-                            )}
-                            {rawPart2.length === 0 ? (
-                              <tr className="bmr-exact-row-empty">
-                                <td>{rawPart1.length + (part2UsesPart1 ? 2 : 1)}</td>
-                                <td colSpan={6} style={{ color: '#94a3b8', fontStyle: 'italic', textAlign: 'left', paddingLeft: 10 }}>No ingredients in Part-2</td>
-                              </tr>
-                            ) : (
-                              rawPart2.map((line, idx) => renderRmRow(line, idx, 0))
-                            )}
-                          </>
-                        ) : (
-                          displayRaw.map((line, idx) => renderRmRow(line, idx, 0))
-                        )}
-
-                        {/* REPEATED HEADER FOR EXCIPIENTS (7 COLUMNS) */}
-                        <tr className="bmr-exact-repeat-header">
-                          <th style={{ width: '40px' }}>Sr.<br />No.</th>
-                          <th style={{ width: '70px' }}>RM<br />Code</th>
-                          <th>RAW MATERIAL NAME</th>
-                          <th style={{ width: '90px' }}>Label<br />Claim</th>
-                          <th style={{ width: '70px' }}>Qty. Req</th>
-                          <th style={{ width: '45px' }}>Unit</th>
-                          <th style={{ width: '80px' }}>AR.No.</th>
-                        </tr>
-
-                        {/* EXCIPIENTS ROW SPANNING ALL COLUMNS */}
-                        <tr className="bmr-exact-excipients-span-row">
-                          <td colSpan={7}>EXCIPIENTS</td>
-                        </tr>
-
-                        {/* EXCIPIENTS ROWS 1 & 2 */}
-                        {displayExcP1.map((line, idx) => {
-                          const srNo = idx + 1
-                          if (!line) {
-                            return (
-                              <tr key={`empty-exc-p1-${idx}`} className="bmr-exact-row-empty">
-                                <td>{srNo}</td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                              </tr>
-                            )
-                          }
-
-                          return (
-                            <tr key={`exc-p1-${line.id ?? idx}`}>
-                              <td>{srNo}</td>
-                              <td>{line.material?.code || line.material_code || ''}</td>
-                              <td style={{ textAlign: 'left', paddingLeft: '8px', fontWeight: 'normal', textTransform: 'uppercase' }}>
-                                {line.material?.name || line.material_name || ''}
-                              </td>
-                              <td>{line.label_claim || line.special_value || 'Q.S.'}</td>
-                              <td>{formatQty(line.quantity)}</td>
-                              <td>{line.unit || line.unit_code || ''}</td>
-                              <td>{line.ar_no || ''}</td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className="bmr-exact-page-bottom">
-                    {/* SIGNATURE BLOCK PAGE 1 */}
-                    {renderSignatures()}
-
-                    {/* PAGE 1 FOOTER */}
-                    <div className="bmr-exact-footer-row">
-                      <span className="bmr-exact-form-no">FORM NO. SOP/QA/04/F-02/00</span>
-                      <span className="bmr-exact-page-no">Page 1 of 2</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* SCREEN PAGE SEPARATOR */}
-                <div className="bmr-screen-page-divider no-print">
-                  <span>PAGE 2 (ATTACHMENT - 1 CONTINUATION)</span>
-                </div>
-
-                {/* PAGE 2 (EXACT MATCH TO PDF PAGE 2) */}
-                <div className="bmr-exact-page bmr-exact-page-2">
-                  <div className="bmr-exact-page-top">
-                    {renderHeader()}
-
-                    {/* EXCIPIENTS CONTINUATION TABLE (ROWS 3 & 4) */}
-                    <table className="bmr-exact-table bmr-exact-table-p2">
-                      <tbody>
-                        {displayExcP2.map((line, idx) => {
-                          const srNo = idx + 3
-                          if (!line) {
-                            return (
-                              <tr key={`empty-exc-p2-${idx}`} className="bmr-exact-row-empty">
-                                <td style={{ width: '40px' }}>{srNo}</td>
-                                <td style={{ width: '70px' }}></td>
-                                <td></td>
-                                <td style={{ width: '90px' }}></td>
-                                <td style={{ width: '70px' }}></td>
-                                <td style={{ width: '45px' }}></td>
-                                <td style={{ width: '80px' }}></td>
-                              </tr>
-                            )
-                          }
-                          return (
-                            <tr key={`exc-p2-${line.id ?? idx}`}>
-                              <td style={{ width: '40px' }}>{srNo}</td>
-                              <td style={{ width: '70px' }}>{line.material?.code || line.material_code || ''}</td>
-                              <td style={{ textAlign: 'left', paddingLeft: '8px', fontWeight: 'normal', textTransform: 'uppercase' }}>
-                                {line.material?.name || line.material_name || ''}
-                              </td>
-                              <td>{line.label_claim || line.special_value || 'Q.S.'}</td>
-                              <td style={{ width: '70px' }}>{formatQty(line.quantity)}</td>
-                              <td style={{ width: '45px' }}>{line.unit || line.unit_code || ''}</td>
-                              <td style={{ width: '80px' }}>{line.ar_no || ''}</td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-
-                    {/* BATCH YIELD RECONCILIATION & SAMPLE SPLIT (IF ALLOCATED) */}
-                    {renderBatchAllocation()}
-
-                    {/* WEIGHT BY / CHECKED BY VERIFICATION LINES */}
-                    <div className="bmr-exact-verifications">
-                      <div>Weight by/Date (Warehouse) :</div>
-                      <div>Checked by / Date (Production) :</div>
-                      <div>Checked by / Date (QA) :</div>
-                    </div>
-                  </div>
-
-                  <div className="bmr-exact-page-bottom">
-                    {/* SIGNATURE BLOCK PAGE 2 */}
-                    {renderSignatures()}
-
-                    {/* PAGE 2 FOOTER */}
-                    <div className="bmr-exact-footer-row">
-                      <span className="bmr-exact-form-no">FORM NO. SOP/QA/04/F-02/00</span>
-                      <span className="bmr-exact-page-no">Page 2 of 2</span>
-                    </div>
-                  </div>
-                </div>
-              </>
+          <div className="bmr-exact-document-sheet" ref={slipRef} style={readOnly ? { pointerEvents: 'none', userSelect: 'text' } : {}}>
+            {loadingSlip ? (
+              <div style={{ padding: '60px 20px', textAlign: 'center', color: '#64748b' }}>
+                <span style={{ fontSize: 24 }}>⏳</span>
+                <p style={{ marginTop: 8, fontWeight: 600 }}>Loading requisition slip data…</p>
+              </div>
+            ) : isPlaceholder ? (
+              <ActiveComponent
+                productType={displayName}
+                tabType={activeTab}
+                customMessage={activeSlipConfig.customMessage}
+              />
+            ) : (typeKey === 'tablet' || typeKey === 'oil' || typeKey === 'mother-tincture' || typeKey === 'syrup') ? (
+              <ActiveComponent
+                data={slipData || {}}
+                onChange={handleSlipDataChange}
+                company={company}
+                product={product}
+                formula={formula}
+                revision={revision}
+              />
+            ) : (
+              /* Drops Slip */
+              <ActiveComponent
+                product={product}
+                formula={formula}
+                revision={revision}
+                activeLines={activeLines}
+                company={company}
+                batchAllocation={batchAllocation}
+                renderHeader={renderDropsHeader}
+                renderSignatures={renderDropsSignatures}
+                renderBatchAllocation={renderDropsBatchAllocation}
+              />
             )}
-
-            {/* =========================================================
-                ATTACHMENT - 4: PACKING MATERIAL REQUIREMENT
-                ========================================================= */}
-            {activeTab === 'PM' && (
-              <>
-                {/* PAGE 1 (EXACT MATCH TO ATTACHMENT 4 PDF PAGE 1) */}
-                <div className="bmr-exact-page bmr-exact-page-1">
-                  <div className="bmr-exact-page-top">
-                    {renderHeader()}
-
-                    {/* ATTACHMENT TITLES */}
-                    <div className="bmr-exact-attachment-block">
-                      <div className="bmr-exact-att-num">ATTACHMENT - 4</div>
-                      <div className="bmr-exact-att-title" style={{ marginTop: '8px' }}>
-                        PACKING MATERIAL REQUIREMENT:
-                      </div>
-                    </div>
-
-                    {/* PACKING MATERIAL TABLE (EXACT 6 COLUMNS MATCHING ATTACHMENT 4) */}
-                    <table className="bmr-exact-table bmr-exact-pm-table">
-                      <thead>
-                        <tr>
-                          <th style={{ width: '42px' }}>Sr.<br />No.</th>
-                          <th style={{ width: '90px' }}>Material<br />Code</th>
-                          <th>Material</th>
-                          <th style={{ width: '120px' }}>Quantity<br />Required<br />Nos.</th>
-                          <th style={{ width: '120px' }}>Quantity<br />Received<br />Nos.</th>
-                          <th style={{ width: '80px' }}>AR No.</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {displayPkg.map((line, idx) => {
-                          if (!line) {
-                            return (
-                              <tr key={`empty-pm-${idx}`} className="bmr-exact-row-empty">
-                                <td>{idx + 1}</td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                              </tr>
-                            )
-                          }
-
-                          const matCode = line.material?.code || line.material_code || ''
-                          const matName = line.material?.name || line.material_name || ''
-                          let qtyTextFromNotes = ''
-                          let recvFromNotes = ''
-                          if (line.notes) {
-                            const parts = line.notes.split('|').map((s) => s.trim())
-                            for (const p of parts) {
-                              if (p.startsWith('QTY_TEXT:')) qtyTextFromNotes = p.replace('QTY_TEXT:', '').trim()
-                              if (p.startsWith('RECV:')) recvFromNotes = p.replace('RECV:', '').trim()
-                            }
-                          }
-                          const qtyReq = qtyTextFromNotes || formatQty(line.quantity) || ''
-                          const qtyRecv = line.quantity_received || recvFromNotes || ''
-                          const arNo = line.ar_no || ''
-
-                          return (
-                            <tr key={line.id ?? `pm-${idx}`}>
-                              <td>{idx + 1}</td>
-                              <td>{matCode}</td>
-                              <td style={{ textAlign: 'left', paddingLeft: '8px', fontWeight: 'normal' }}>
-                                {matName}
-                              </td>
-                              <td>{qtyReq}</td>
-                              <td>{qtyRecv}</td>
-                              <td>{arNo}</td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-
-                    {/* CHECKED BY (WAREHOUSE) */}
-                    <div className="bmr-exact-pm-checked">
-                      Checked By (Warehouse)
-                    </div>
-                  </div>
-
-                  <div className="bmr-exact-page-bottom">
-                    {/* SIGNATURE BLOCK PAGE 1 */}
-                    {renderSignatures()}
-
-                    {/* PAGE 1 FOOTER */}
-                    <div className="bmr-exact-footer-row">
-                      <span className="bmr-exact-form-no">FORM NO. SOP/QA/04/F-02/00</span>
-                      <span className="bmr-exact-page-no">Page 1 of 2</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* SCREEN PAGE SEPARATOR */}
-                <div className="bmr-screen-page-divider no-print">
-                  <span>PAGE 2 (ATTACHMENT - 4 CONTINUATION)</span>
-                </div>
-
-                {/* PAGE 2 (EXACT MATCH TO ATTACHMENT 4 PDF PAGE 2) */}
-                <div className="bmr-exact-page bmr-exact-page-2">
-                  <div className="bmr-exact-page-top">
-                    {renderHeader()}
-
-                    {/* BATCH YIELD RECONCILIATION & SAMPLE SPLIT (IF ALLOCATED) */}
-                    {renderBatchAllocation()}
-
-                    {/* RECEIVED BY / VERIFIED BY LINES */}
-                    <div className="bmr-exact-pm-p2-verifications">
-                      <div>Received By (Production)</div>
-                      <div>Verified by ( QA)</div>
-                    </div>
-                  </div>
-
-                  <div className="bmr-exact-page-bottom">
-                    {/* SIGNATURE BLOCK PAGE 2 */}
-                    {renderSignatures()}
-
-                    {/* PAGE 2 FOOTER */}
-                    <div className="bmr-exact-footer-row">
-                      <span className="bmr-exact-form-no">FORM NO. SOP/QA/04/F-02/00</span>
-                      <span className="bmr-exact-page-no">Page 2 of 2</span>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-
           </div>
         </div>
       </div>

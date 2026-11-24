@@ -1,0 +1,281 @@
+/* =========================================================================
+   TABLET BMR REQUISITION SLIPS (ATTACHMENT - 1 & ATTACHMENT - 4)
+   Exact replica styling for MASTER_RM_Requistion_ATTACHMENT_1.docx
+   and MASTER__PM_Requistion_ATTACHMENT_4.docx
+   ========================================================================= */
+
+.tablet-slip-sheet {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  background: #ffffff;
+  color: #000000;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 11pt;
+  line-height: 1.25;
+  box-sizing: border-box;
+}
+
+.tablet-slip-title-block {
+  text-align: center;
+  margin: 10px 0 12px 0;
+}
+
+.tablet-slip-u-bold {
+  font-weight: bold;
+  text-decoration: underline;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.tablet-slip-att-num {
+  font-size: 11.5pt;
+}
+
+.tablet-slip-att-title {
+  font-size: 11.5pt;
+}
+
+.tablet-slip-att-batch {
+  font-size: 11pt;
+  text-align: left;
+  margin-top: 6px;
+  margin-bottom: 4px;
+}
+
+/* Master Table Styles */
+.tablet-slip-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #000000;
+  margin-bottom: 14px;
+  font-family: inherit;
+  font-size: 10pt;
+}
+
+.tablet-slip-table th,
+.tablet-slip-table td {
+  border: 1px solid #000000;
+  padding: 3px 4px;
+  vertical-align: middle;
+}
+
+.tablet-slip-table th {
+  background: #ffffff;
+  font-weight: bold;
+  text-align: center;
+  font-size: 10pt;
+}
+
+.tablet-slip-table td {
+  height: 22px;
+}
+
+.tablet-slip-table .cell-center {
+  text-align: center;
+}
+
+.tablet-slip-table .cell-left {
+  text-align: left;
+}
+
+.tablet-slip-table .cell-right {
+  text-align: right;
+}
+
+.tablet-slip-excipients-row td {
+  background: #ffffff;
+  font-weight: bold;
+  text-align: left;
+  padding: 4px 6px;
+  font-size: 10pt;
+  letter-spacing: 0.5px;
+}
+
+/* Editable inputs matching COA style */
+.tablet-slip-sheet .qc-cell-input {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 18px !important;
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  font-family: 'Times New Roman', Times, serif !important;
+  font-size: 10pt !important;
+  color: #000000 !important;
+  padding: 1px 2px !important;
+  line-height: 1.2 !important;
+}
+
+.tablet-slip-sheet .qc-cell-input:focus {
+  background-color: #f0fdf4 !important;
+}
+
+.tablet-slip-sheet .qc-cell-input.bold-text {
+  font-weight: bold !important;
+}
+
+/* Footer Section - RM Slip */
+.tablet-rm-footer {
+  margin-top: 18px;
+  padding: 4px 0;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 10.5pt;
+}
+
+.tablet-rm-footer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 22px;
+  gap: 20px;
+}
+
+.tablet-rm-footer-col {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.tablet-rm-footer-label {
+  white-space: nowrap;
+  font-weight: normal;
+}
+
+.tablet-rm-footer-input {
+  flex: 1;
+  border-bottom: 1px dotted #000;
+  padding-bottom: 2px;
+  min-height: 20px;
+}
+
+/* Footer Section - PM Slip */
+.tablet-pm-footer {
+  margin-top: 24px;
+  padding: 4px 0;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 10.5pt;
+}
+
+.tablet-pm-footer-grid {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.tablet-pm-footer-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tablet-pm-footer-label {
+  font-weight: normal;
+}
+
+.tablet-pm-footer-field {
+  border-bottom: 1px dotted #000;
+  min-height: 22px;
+  padding-bottom: 2px;
+}
+
+/* Approval Footer Table matching docx footer */
+.slip-approval-box {
+  margin-top: 18px;
+  width: 100%;
+  font-family: 'Times New Roman', Times, serif;
+}
+
+.slip-approval-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #000;
+  font-size: 10pt;
+}
+
+.slip-approval-table th,
+.slip-approval-table td {
+  border: 1px solid #000;
+  padding: 3px 6px;
+  vertical-align: middle;
+}
+
+.slip-approval-table th {
+  background: #ffffff;
+  font-weight: bold;
+  text-align: center;
+  font-size: 9.5pt;
+  line-height: 1.2;
+}
+
+.slip-approval-table .slip-approval-lbl {
+  font-weight: bold;
+  text-align: left;
+  width: 80px;
+}
+
+.slip-footer-bottom-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+  font-size: 9pt;
+  font-weight: bold;
+}
+
+/* Placeholder Slip */
+.placeholder-slip-container {
+  padding: 60px 20px;
+  text-align: center;
+  background: #f8fafc;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 8px;
+  margin: 30px auto;
+  max-width: 650px;
+}
+
+.placeholder-slip-icon {
+  font-size: 40px;
+  margin-bottom: 14px;
+}
+
+.placeholder-slip-message {
+  font-size: 16px;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 8px;
+}
+
+.placeholder-slip-sub {
+  font-size: 13px;
+  color: #64748b;
+}
+
+/* Print and PDF Export overrides */
+@media print {
+  .tablet-slip-sheet .no-print {
+    display: none !important;
+  }
+  .tablet-slip-sheet .print-only {
+    display: block !important;
+  }
+  .tablet-slip-sheet {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .tablet-slip-table {
+    page-break-inside: avoid;
+  }
+}
+
+.bmr-pdf-export-mode .tablet-slip-sheet .no-print {
+  display: none !important;
+}
+
+.bmr-pdf-export-mode .tablet-slip-sheet .print-only {
+  display: block !important;
+}

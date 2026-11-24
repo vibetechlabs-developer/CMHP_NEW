@@ -20,7 +20,7 @@
 //     production custody, returns, QC disposition, defect classification and disposal
 //   * Control Samples (/inventory/control-samples) - company-scoped GMP retention register
 // - Remaining demo flows:
-//   * Invoices, Supply Chain, HRMS (/invoices, /supply-chain, /hrms)
+//   * Invoices, HRMS (/invoices, /hrms)
 // - Partial:
 //   * Profile (/profile) - real user identity, HR persona bridge
 
@@ -46,7 +46,6 @@ const DEMO_EXACT = []
 
 const DEMO_PREFIXES = [
   '/invoices',
-  '/supply-chain',
   '/hrms',
 ]
 

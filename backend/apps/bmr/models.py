@@ -124,6 +124,36 @@ class ProductionOrderStatus(models.Model):
     dispatch_status = models.CharField(max_length=10, choices=DispatchStatus.choices, default=DispatchStatus.NO)
     qa_status = models.CharField(max_length=50, blank=True, default="Pending")
     qa_remark = models.TextField(blank=True, default="")
+    dispatched_at = models.DateTimeField(null=True, blank=True)
+    dispatched_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="orders_dispatched",
+    )
+    is_locked = models.BooleanField(default=False, db_index=True)
+    physically_dispatched = models.BooleanField(default=False)
+    coa_returned = models.BooleanField(default=False, db_index=True)
+    coa_returned_at = models.DateTimeField(null=True, blank=True)
+    coa_returned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="coas_returned",
+    )
+    coa_return_reason = models.TextField(blank=True, default="")
+    production_returned = models.BooleanField(default=False, db_index=True)
+    production_returned_at = models.DateTimeField(null=True, blank=True)
+    production_returned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="productions_returned",
+    )
+    production_return_reason = models.TextField(blank=True, default="")
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -196,4 +226,85 @@ class BMRDocumentAttachment(models.Model):
         if self.status == self.Status.ATTACHED and not self.is_physically_attached:
             return "FILE_MISSING"
         return self.status
+
+
+class OrderDocumentRecord(models.Model):
+    """Permanent database persistence for every order document:
+    Attachment 1 (RM Requisition Slip), Attachment 2 (Test Request / Receipt),
+    Attachment 3 (Bulk Release Slip), Attachment 4 (PM Requisition Slip),
+    Attachment 5 (Test Request FP / After Filter / After Test),
+    Attachment 6 (Finish Product Transfer Slip), BMR, COA, and INVOICE.
+    Stores complete JSON data and optional file uploads for true database persistence.
+    """
+
+    class DocType(models.TextChoices):
+        ATTACHMENT_1 = "ATTACHMENT_1", "Attachment 1 (RM Requisition Slip)"
+        ATTACHMENT_2 = "ATTACHMENT_2", "Attachment 2 (Test Request / Receipt)"
+        ATTACHMENT_3 = "ATTACHMENT_3", "Attachment 3 (Bulk Release Slip)"
+        ATTACHMENT_4 = "ATTACHMENT_4", "Attachment 4 (PM Requisition Slip)"
+        ATTACHMENT_5 = "ATTACHMENT_5", "Attachment 5 (After Test / FP)"
+        ATTACHMENT_6 = "ATTACHMENT_6", "Attachment 6 (Transfer Slip)"
+        BMR = "BMR", "Batch Manufacturing Record"
+        COA = "COA", "Certificate of Analysis"
+        INVOICE = "INVOICE", "Invoice"
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        SAVED = "SAVED", "Saved"
+        COMPLETED = "COMPLETED", "Completed"
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, null=True, blank=True, related_name="order_documents")
+    order_id = models.CharField(max_length=100, db_index=True)
+    order_reference = models.CharField(max_length=100, blank=True, default="", db_index=True)
+    product_type = models.CharField(max_length=50, blank=True, default="tablet", db_index=True)
+    batch_no = models.CharField(max_length=100, blank=True, default="", db_index=True)
+    doc_type = models.CharField(max_length=50, choices=DocType.choices, db_index=True)
+    sub_type = models.CharField(max_length=100, blank=True, default="", db_index=True)  # e.g., "before_filter", "after_filter", "bulk", "fp"
+    title = models.CharField(max_length=255, blank=True, default="")
+    status = models.CharField(max_length=30, choices=Status.choices, default=Status.COMPLETED, db_index=True)
+    data = models.JSONField(default=dict)
+    file = models.FileField(upload_to="order_documents/%Y/%m/", null=True, blank=True)
+    is_locked = models.BooleanField(default=False, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "order_id", "doc_type", "sub_type"],
+                name="unique_order_doc_type_sub_type",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.doc_type} ({self.sub_type}) for Order #{self.order_id}"
+
+
+class OrderDispatchAuditLog(models.Model):
+    """Audit log tracking every Dispatch, Return to Production, and Back to COA action.
+    Records who, when, which order, action type, reason, and metadata.
+    """
+
+    class Action(models.TextChoices):
+        DISPATCH = "DISPATCH", "Dispatched to Records & Dispatch"
+        RETURN_TO_PRODUCTION = "RETURN_TO_PRODUCTION", "Returned to Production"
+        BACK_TO_COA = "BACK_TO_COA", "Sent Back to COA"
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, null=True, blank=True, related_name="order_dispatch_logs")
+    order_id = models.CharField(max_length=100, db_index=True)
+    order_reference = models.CharField(max_length=100, blank=True, default="", db_index=True)
+    action = models.CharField(max_length=50, choices=Action.choices, db_index=True)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="order_dispatch_actions")
+    actor_username = models.CharField(max_length=150, blank=True, default="")
+    reason = models.TextField(blank=True, default="")
+    metadata = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self):
+        return f"{self.action} on Order #{self.order_id} by {self.actor_username} at {self.created_at}"
+
 

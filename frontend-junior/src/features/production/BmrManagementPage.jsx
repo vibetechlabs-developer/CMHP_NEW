@@ -528,35 +528,94 @@ export default function BmrManagementPage() {
       ) : (
         /* ── BMR TEMPLATES REFERENCE GUIDE ── */
         <div className="bmr-templates-grid">
-          {Object.entries(BMR_TEMPLATES)
-            .filter(([k, tmpl]) => tmpl && tmpl.isAvailable && !k.endsWith('s') && k !== 'Drop' && k !== 'MT' && k !== 'MotherTincture' && k !== 'Mother-Tincture')
-            .map(([formName, tmpl]) => (
-              <div key={formName} className="bmr-template-card">
+          {[
+            'Syrup',
+            'Drops',
+            'Mother Tincture',
+            'Tablet',
+            'Oil',
+            'Liquid',
+            'Capsule',
+            'Kits',
+            'Pills',
+          ].map((formName) => {
+            const tmpl = getBmrTemplate(formName)
+            if (tmpl) {
+              return (
+                <div key={formName} className="bmr-template-card">
+                  <div>
+                    <div className="bmr-template-card-header">
+                      <div>
+                        <h4 className="bmr-template-card-title">{tmpl.title}</h4>
+                        <div className="bmr-template-card-dept">{tmpl.department}</div>
+                      </div>
+                      <StatusPill tone="success">{tmpl.pagesCount} Pages</StatusPill>
+                    </div>
+
+                    <div className="bmr-template-card-specs">
+                      <div>
+                        <span>Form Number:</span>
+                        <strong>{tmpl.formNo}</strong>
+                      </div>
+                      <div>
+                        <span>Dosage Form:</span>
+                        <strong>{tmpl.dosageForm}</strong>
+                      </div>
+                      <div>
+                        <span>Sections:</span>
+                        <strong>{tmpl.sections?.length || tmpl.pagesCount} GMP Sections</strong>
+                      </div>
+                      <div>
+                        <span>Master Stamp:</span>
+                        <strong>{tmpl.showMasterTag ? tmpl.masterTagText : 'None'}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => launchBmr({
+                      dosageForm: tmpl.dosageForm,
+                      bmrNo: `DEMO-${tmpl.dosageForm.toUpperCase().replace(/\s+/g, '')}-01`,
+                      productName: `${tmpl.dosageForm} Master Formulation`,
+                    })}
+                    style={{ width: '100%' }}
+                  >
+                    🚀 Open Sample {tmpl.dosageForm} BMR
+                  </Button>
+                </div>
+              )
+            }
+
+            // No-BMR Dosage Form Card (Capsule, Liquid, Kits, Pills)
+            return (
+              <div key={formName} className="bmr-template-card" style={{ opacity: 0.85, background: '#f8fafc' }}>
                 <div>
                   <div className="bmr-template-card-header">
                     <div>
-                      <h4 className="bmr-template-card-title">{tmpl.title}</h4>
-                      <div className="bmr-template-card-dept">{tmpl.department}</div>
+                      <h4 className="bmr-template-card-title">{formName} BMR</h4>
+                      <div className="bmr-template-card-dept">PRODUCTION DEPARTMENT</div>
                     </div>
-                    <StatusPill tone="success">{tmpl.pagesCount} Pages</StatusPill>
+                    <StatusPill tone="neutral">No BMR</StatusPill>
                   </div>
 
                   <div className="bmr-template-card-specs">
                     <div>
                       <span>Form Number:</span>
-                      <strong>{tmpl.formNo}</strong>
+                      <strong>Not Assigned</strong>
                     </div>
                     <div>
                       <span>Dosage Form:</span>
-                      <strong>{tmpl.dosageForm}</strong>
+                      <strong>{formName}</strong>
                     </div>
                     <div>
-                      <span>Sections:</span>
-                      <strong>{tmpl.sections?.length || 19} GMP Sections</strong>
+                      <span>Status:</span>
+                      <strong>No BMR Available</strong>
                     </div>
                     <div>
-                      <span>Master Copy Stamp:</span>
-                      <strong>{tmpl.hideMasterCopy ? 'No (Plain)' : 'Yes (Master Stamp)'}</strong>
+                      <span>Template:</span>
+                      <strong>None</strong>
                     </div>
                   </div>
                 </div>
@@ -565,16 +624,17 @@ export default function BmrManagementPage() {
                   size="sm"
                   variant="secondary"
                   onClick={() => launchBmr({
-                    dosageForm: tmpl.dosageForm,
-                    bmrNo: `DEMO-${tmpl.dosageForm.toUpperCase().replace(/\s+/g, '')}-01`,
-                    productName: `${tmpl.dosageForm} Master Formulation`,
+                    dosageForm: formName,
+                    bmrNo: `DEMO-${formName.toUpperCase().replace(/\s+/g, '')}-01`,
+                    productName: `${formName} Master Formulation`,
                   })}
                   style={{ width: '100%' }}
                 >
-                  🚀 Open Sample {tmpl.dosageForm} BMR
+                  📋 Open Sample {formName} BMR
                 </Button>
               </div>
-            ))}
+            )
+          })}
         </div>
       )}
     </div>

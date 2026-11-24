@@ -63,6 +63,28 @@ export async function getApprovalPreview(companyId, formulaId, revisionId) {
   return response.data
 }
 
+export async function getFormulaSlip(companyId, { productId, revisionId, slipType }) {
+  const params = {
+    product_id: productId,
+    slip_type: slipType,
+  }
+  if (revisionId) params.revision_id = revisionId
+  const response = await api.get(`/v1/companies/${companyId}/formula-slips/`, { params })
+  return response.data
+}
+
+export async function saveFormulaSlip(companyId, { productId, revisionId, slipType, data }) {
+  const payload = {
+    product_id: productId,
+    slip_type: slipType,
+    data,
+  }
+  if (revisionId) payload.revision_id = revisionId
+  const response = await api.post(`/v1/companies/${companyId}/formula-slips/`, payload)
+  return response.data
+}
+
+
 // DRAFT -> SUBMITTED. Required before approve/reject can act on a
 // revision - see this file's own top comment.
 export async function submitRevision(companyId, formulaId, revisionId, expectedVersion) {

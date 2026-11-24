@@ -112,8 +112,9 @@ export function generateInvoiceNumber(existingInvoices, date = new Date()) {
   return `G/${fy}/${String(nextSerial).padStart(3, '0')}`
 }
 
-export default function ProductionInvoice() {
-  const { orderId } = useParams()
+export default function ProductionInvoice({ initialOrderId = null, readOnly = false, onBack = null } = {}) {
+  const { orderId: paramOrderId } = useParams()
+  const orderId = initialOrderId || paramOrderId
   const navigate = useNavigate()
   const dispatch = useDispatch()
 
@@ -493,44 +494,52 @@ export default function ProductionInvoice() {
           <button
             type="button"
             className="prod-inv-btn-back"
-            onClick={() => navigate('/production')}
+            onClick={() => (onBack ? onBack() : navigate('/production'))}
           >
-            ← Back to Production
+            ← Back
           </button>
           <div>
             <h2 style={{ margin: 0, fontSize: 18, color: '#0f172a' }}>
               Tax Invoice — Order #{order?.number || orderId}
             </h2>
             <span style={{ fontSize: 12, color: '#64748b' }}>
-              Batch: <strong>{order?.batch_no || invoice.lines[0]?.batch_no || 'N/A'}</strong> | All fields directly editable on the sheet below
+              Batch: <strong>{order?.batch_no || invoice.lines[0]?.batch_no || 'N/A'}</strong> | {readOnly ? 'Locked View' : 'All fields directly editable on the sheet below'}
             </span>
           </div>
         </div>
 
         <div className="prod-inv-toolbar-right">
-          <button
-            type="button"
-            className="prod-inv-btn-secondary"
-            onClick={handleAddLine}
-            title="Add a new line item to the invoice table"
-          >
-            + Add Line Item
-          </button>
-          <button
-            type="button"
-            className="prod-inv-btn-reset"
-            onClick={handleReset}
-            title="Re-fetch original order and customer values"
-          >
-            🔄 Reset to order data
-          </button>
-          <button
-            type="button"
-            className="prod-inv-btn-primary"
-            onClick={handleExplicitSave}
-          >
-            💾 Save Invoice
-          </button>
+          {readOnly ? (
+            <span style={{ fontSize: 13, background: '#f8fafc', color: '#334155', border: '1px solid #cbd5e1', padding: '6px 14px', borderRadius: 6, fontWeight: 700 }}>
+              🔒 View & Print Only (Locked)
+            </span>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="prod-inv-btn-secondary"
+                onClick={handleAddLine}
+                title="Add a new line item to the invoice table"
+              >
+                + Add Line Item
+              </button>
+              <button
+                type="button"
+                className="prod-inv-btn-reset"
+                onClick={handleReset}
+                title="Re-fetch original order and customer values"
+              >
+                🔄 Reset to order data
+              </button>
+              <button
+                type="button"
+                className="prod-inv-btn-primary"
+                onClick={handleExplicitSave}
+              >
+                💾 Save Invoice
+              </button>
+            </>
+          )}
           <button
             type="button"
             className="prod-inv-btn-primary"
@@ -558,7 +567,7 @@ export default function ProductionInvoice() {
 
       {/* PRINTABLE A4 INVOICE SHEET (EXACT REPLICA OF USER FORMAT) */}
       <div className="invoice-sheet-wrapper">
-        <div className="invoice-printable-sheet" id="invoice-sheet">
+        <div className="invoice-printable-sheet" id="invoice-sheet" style={readOnly ? { pointerEvents: 'none', userSelect: 'text' } : {}}>
           {/* TOP STRIP (Row 1) */}
           <div className="inv-top-strip">
             <span className="inv-top-strip-left">{invoice.top_title_left}</span>

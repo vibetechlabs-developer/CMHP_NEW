@@ -68,7 +68,7 @@ export function isSuperAdmin(user) {
 
 // Kept from frontend-junior's own original workspace.js - still used by
 // utils/companyScope.js (isManagerOrAdmin) and, through it, by several
-// still-mock screens (HR, Supply Chain, Invoicing, Quality, Operations).
+// still-mock screens (HR, Invoicing, Quality, Operations).
 // Not part of the real auth/permission path itself - those always check
 // the server, never this label (see authService.js's own docstring).
 export function isManagementRole(user) {

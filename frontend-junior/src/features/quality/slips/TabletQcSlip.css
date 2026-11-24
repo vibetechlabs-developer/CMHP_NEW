@@ -1,0 +1,484 @@
+/* =========================================================
+   CMHP PHARMA - TABLET QC SLIPS STYLESHEET
+   Attachment-2: Test Request (Bulk) - Tablet
+   Attachment-5: Test Request (MT/FP) - Tablet
+   Attachment-3: Bulk Release Slip - Tablet
+   Font: Times New Roman / Serif
+   ========================================================= */
+
+/* ── EDITABLE FIELD PRIMITIVES ── */
+.qc-slip-input {
+  border: none;
+  border-bottom: 1px dotted #666666;
+  background: transparent;
+  outline: none;
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: inherit;
+  color: #000000;
+  box-sizing: border-box;
+  vertical-align: middle;
+  padding: 1px 3px;
+  line-height: normal;
+}
+.qc-slip-input:focus {
+  background: rgba(2, 132, 199, 0.08);
+  border-bottom: 1.5px solid #0284c7;
+  border-radius: 2px;
+}
+
+.qc-slip-text-field {
+  border: 1px solid transparent;
+  background: transparent;
+  outline: none;
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: inherit;
+  color: #000000;
+  box-sizing: border-box;
+  vertical-align: middle;
+  padding: 1px 2px;
+  line-height: inherit;
+  cursor: text;
+}
+.qc-slip-text-field:hover {
+  border-bottom: 1px dotted #94a3b8;
+}
+.qc-slip-text-field:focus {
+  background: rgba(2, 132, 199, 0.08);
+  border-bottom: 1.5px solid #0284c7;
+  border-radius: 2px;
+}
+
+.qc-slip-textarea {
+  resize: none;
+  width: 100%;
+  line-height: 1.4;
+  overflow: hidden;
+  display: block;
+}
+
+/* ── ATTACHMENT-2 & ATTACHMENT-5 (TABLET TEST REQUEST) ── */
+.tablet-tr-page {
+  width: 794px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin: 0 auto;
+}
+
+.tablet-tr-sheet {
+  width: 100%;
+  background: #ffffff;
+  color: #000000;
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+  font-size: 11pt;
+  line-height: 1.35;
+  border: 1.5px solid #000000;
+}
+
+/* Stacked second copy hidden on screen, displayed in print / PDF */
+.tablet-tr-copy-gap.print-only-copy,
+.tablet-tr-sheet.print-only-copy {
+  display: none;
+}
+
+.tablet-tr-copy-gap {
+  height: 16px;
+}
+
+/* Master Table for Attachment-2 / Attachment-5 */
+.tablet-tr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  font-size: 11pt;
+  color: #000000;
+  table-layout: fixed;
+}
+
+.tablet-tr-table td {
+  border: 1px solid #000000;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+
+.tablet-tr-header-cell {
+  padding: 0 !important;
+  border-bottom: 1.5px solid #000000 !important;
+}
+
+.tablet-tr-header-inner {
+  display: flex;
+  align-items: center;
+  padding: 6px 14px;
+  min-height: 48px;
+}
+
+.tablet-tr-logo-wrap {
+  width: 70px;
+  flex-shrink: 0;
+}
+
+.tablet-tr-logo-img {
+  height: 36px;
+  width: auto;
+  display: block;
+}
+
+.tablet-tr-company-title {
+  flex: 1;
+  text-align: center;
+  font-size: 17pt;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #000000;
+  margin-left: -70px;
+}
+
+.tablet-tr-center-cell {
+  text-align: center;
+  padding: 4px 8px;
+  box-sizing: border-box;
+}
+
+.tablet-tr-lbl-cell {
+  background: #e8e8e8;
+  font-weight: 700;
+  font-size: 10.5pt;
+  padding: 4px 8px;
+  vertical-align: middle;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+.tablet-tr-val-cell {
+  background: #ffffff;
+  font-weight: 400;
+  padding: 3px 6px;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+
+.tablet-tr-tests-cell {
+  padding: 6px 10px 8px !important;
+  font-size: 10.5pt;
+  font-weight: 400;
+  line-height: 1.45;
+  vertical-align: top !important;
+}
+
+.tablet-tr-tests-cell-fp {
+  padding: 8px 14px !important;
+  font-size: 11pt;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tablet-tr-sign-cell {
+  padding: 6px 10px;
+  min-height: 36px;
+  box-sizing: border-box;
+  font-size: 10.5pt;
+  vertical-align: middle;
+}
+
+/* ── ATTACHMENT-3: TABLET BULK RELEASE SLIP ── */
+.tablet-br-sheet {
+  width: 720px;
+  max-width: 100%;
+  background: #ffffff;
+  border: 1.5px solid #000000;
+  color: #000000;
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+  font-size: 11pt;
+  line-height: 1.35;
+  margin: 0 auto;
+}
+
+.tablet-br-top-box {
+  border-bottom: 1.5px solid #000000;
+  padding: 14px 20px 8px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.tablet-br-header-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.tablet-br-logo-wrap {
+  width: 80px;
+  flex-shrink: 0;
+}
+
+.tablet-br-logo-img {
+  height: 40px;
+  width: auto;
+  display: block;
+}
+
+.tablet-br-company-title {
+  flex: 1;
+  text-align: center;
+  font-size: 18pt;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: #000000;
+  margin-left: -80px;
+}
+
+.tablet-br-qc-row {
+  text-align: center;
+  font-size: 12pt;
+  font-weight: 700;
+  padding: 6px 10px;
+  border-bottom: 1.5px solid #000000;
+  letter-spacing: 0.6px;
+}
+
+.tablet-br-title-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 16px;
+  border-bottom: 1.5px solid #000000;
+  font-size: 11pt;
+  font-weight: 700;
+}
+
+.tablet-br-title-center {
+  flex: 1;
+  text-align: center;
+  letter-spacing: 0.8px;
+}
+
+.tablet-br-title-right {
+  flex-shrink: 0;
+}
+
+.tablet-br-todep-row {
+  display: flex;
+  border-bottom: 1.5px solid #000000;
+  min-height: 36px;
+  align-items: stretch;
+}
+
+.tablet-br-todep-left {
+  width: 63%;
+  border-right: 1.5px solid #000000;
+  display: flex;
+  align-items: center;
+  padding: 4px 16px;
+  font-weight: 700;
+  font-size: 11pt;
+  box-sizing: border-box;
+}
+
+.tablet-br-todep-right {
+  width: 37%;
+  display: flex;
+  align-items: center;
+  padding: 4px 16px;
+  font-weight: 700;
+  font-size: 11pt;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+.tablet-br-open-row {
+  display: flex;
+  align-items: center;
+  border-bottom: 1.5px solid #000000;
+  min-height: 36px;
+  padding: 4px 16px;
+  box-sizing: border-box;
+  font-size: 11pt;
+}
+
+.tablet-br-label {
+  font-weight: 700;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tablet-br-tests-box {
+  border-bottom: 1.5px solid #000000;
+  padding: 10px 16px 14px;
+  box-sizing: border-box;
+}
+
+.tablet-br-tests-head {
+  font-weight: 700;
+  font-size: 11pt;
+  margin-bottom: 8px;
+}
+
+.tablet-br-test-item {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  margin-bottom: 4px;
+  font-size: 11pt;
+  line-height: 1.35;
+}
+
+.tablet-br-test-name {
+  width: 210px;
+  min-width: 210px;
+  font-weight: 700;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+}
+
+.tablet-br-test-obs-wrap {
+  width: 140px;
+  min-width: 140px;
+  display: flex;
+  align-items: center;
+}
+
+.tablet-br-test-limit-wrap {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.tablet-br-sign-row {
+  display: flex;
+  align-items: center;
+  border-bottom: 1.5px solid #000000;
+  min-height: 42px;
+  padding: 5px 16px;
+  box-sizing: border-box;
+  font-size: 11pt;
+  font-weight: 700;
+}
+
+.tablet-br-status-row {
+  border-bottom: 1.5px solid #000000;
+  min-height: 36px;
+  padding: 8px 16px;
+  font-weight: 700;
+  font-size: 11pt;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.tablet-br-sign-row-bottom {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 5px 16px;
+  box-sizing: border-box;
+  font-size: 11pt;
+  font-weight: 700;
+}
+
+/* ── PLACEHOLDER SLIP COMPONENT ── */
+.qc-placeholder-box {
+  width: 720px;
+  max-width: 100%;
+  margin: 20px auto;
+  padding: 48px 24px;
+  background: #ffffff;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 12px;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.qc-placeholder-icon {
+  font-size: 40px;
+  margin-bottom: 14px;
+}
+
+.qc-placeholder-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 8px;
+}
+
+.qc-placeholder-sub {
+  font-size: 13px;
+  color: #64748b;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+/* ── PRINT RULES ── */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .tablet-tr-page,
+  .tablet-tr-page *,
+  .tablet-br-sheet,
+  .tablet-br-sheet * {
+    visibility: visible;
+  }
+
+  .tablet-tr-page {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .tablet-tr-sheet {
+    box-shadow: none !important;
+    border: 1.5px solid #000 !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Force second copy to display in print */
+  .tablet-tr-copy-gap.print-only-copy {
+    display: block !important;
+    height: 12px;
+  }
+  .tablet-tr-sheet.print-only-copy {
+    display: block !important;
+  }
+
+  .tablet-br-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    border: 1.5px solid #000 !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .qc-slip-input,
+  .qc-slip-text-field {
+    border: none !important;
+    border-bottom: none !important;
+    background: transparent !important;
+  }
+
+  .no-print,
+  .bulk-slip-toolbar,
+  .test-req-toolbar,
+  header,
+  nav,
+  .sidebar,
+  .inv-header {
+    display: none !important;
+  }
+}

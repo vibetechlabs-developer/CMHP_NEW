@@ -1,4 +1,5 @@
 import React from 'react'
+import SpecimenUpload from './SpecimenUpload'
 
 export function getTabletPageRenderers({
   data,
@@ -3810,42 +3811,11 @@ export function getTabletPageRenderers({
       <div className="bmr-sheet bmr-tablet-sheet" key="page-17">
         {renderHeader(17)}
         <div className="bmr-body">
-          <div style={{ margin: '8pt 0', fontSize: '9pt' }}>
-            Attach the approved specimen of each carton/ label in below given space
-          </div>
-
-          <div className="bmr-specimen-box">
-            {data.page17?.specimen_image ? (
-              <div style={{ textAlign: 'center', width: '100%' }}>
-                <img
-                  src={data.page17.specimen_image}
-                  alt="Specimen preview"
-                  className="bmr-specimen-preview"
-                />
-                <div style={{ marginTop: 8 }} className="no-print">
-                  <button
-                    type="button"
-                    className="bmr-back-btn"
-                    style={{ fontSize: 11, padding: '3px 8px' }}
-                    onClick={() => updatePage('page17', 'specimen_image', null)}
-                  >
-                    Remove Specimen
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="no-print" style={{ color: '#64748b', fontSize: 13, padding: '40px 20px' }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>📎</div>
-                <div style={{ marginBottom: 12 }}>Attach specimen image here</div>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  style={{ fontSize: 12 }}
-                />
-              </div>
-            )}
-          </div>
+          <SpecimenUpload
+            images={data.page17?.specimens || data.page17?.specimen_images || (data.page17?.specimen_image ? [data.page17.specimen_image] : [])}
+            onChange={(imgs) => updatePage('page17', 'specimens', imgs)}
+            maxHeight={460}
+          />
         </div>
         {renderFooter(17)}
       </div>
