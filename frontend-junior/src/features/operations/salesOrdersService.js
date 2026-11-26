@@ -74,14 +74,13 @@ export async function confirmSalesOrder(companyId, orderId, expectedVersion) {
   return response.data
 }
 
-// Inline lifecycle stage update. The confirmation `status` field is protected,
-// so the visible stage is stored as `workflow_stage`. Both keys are sent so
-// the orders endpoint accepts the change.
+// Inline lifecycle stage update. Uses the dedicated /workflow-stage/ endpoint
+// which accepts workflow_stage + expected_version cleanly without conflicting
+// with the main PATCH serializer's protected-field checks.
 export async function updateOrderStatus(companyId, orderId, status, expectedVersion) {
-  const response = await api.patch(`${basePath(companyId)}/${orderId}/`, {
+  const response = await api.patch(`${basePath(companyId)}/${orderId}/workflow-stage/`, {
     workflow_stage: status,
-    status,
-    expected_version: expectedVersion,
+    expected_version: expectedVersion ?? undefined,
   })
   return response.data
 }

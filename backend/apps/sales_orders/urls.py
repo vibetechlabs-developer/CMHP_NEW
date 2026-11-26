@@ -6,6 +6,7 @@ from apps.sales_orders.views import (
     SalesOrderConfirmationPreviewView,
     SalesOrderDetailView,
     SalesOrderListCreateView,
+    SalesOrderWorkflowStageView,
 )
 
 urlpatterns = [
@@ -14,6 +15,11 @@ urlpatterns = [
         "<int:company_id>/sales-orders/<int:sales_order_id>/",
         SalesOrderDetailView.as_view(),
         name="sales-order-detail",
+    ),
+    path(
+        "<int:company_id>/sales-orders/<int:sales_order_id>/workflow-stage/",
+        SalesOrderWorkflowStageView.as_view(),
+        name="sales-order-workflow-stage",
     ),
     path(
         "<int:company_id>/sales-orders/<int:sales_order_id>/confirmation-preview/",

@@ -359,6 +359,45 @@ class SalesOrderDetailView(APIView):
 
 
 @method_decorator(never_cache, name="dispatch")
+class SalesOrderWorkflowStageView(APIView):
+    """PATCH `sales_orders.view` + `sales_orders.edit`.
+    Dedicated endpoint for changing the workflow stage of a sales order.
+    Accepts: { workflow_stage, expected_version }.
+    Does NOT touch `status` (DRAFT/CONFIRMED) - only the display stage.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, company_id, sales_order_id):
+        company = _get_company_for_action(request, company_id, SALES_ORDERS_VIEW, SALES_ORDERS_EDIT)
+        sales_order = get_object_or_404(SalesOrder, pk=sales_order_id, company=company)
+
+        # Accept workflow_stage or status (alias) as the stage value
+        stage = (
+            request.data.get("workflow_stage")
+            or request.data.get("status")
+        )
+        raw_version = request.data.get("expected_version")
+        try:
+            expected_version = int(raw_version)
+        except (TypeError, ValueError):
+            # If version is missing, use the current order version (safe read)
+            expected_version = sales_order.version
+
+        try:
+            sales_order = set_workflow_stage(
+                sales_order_id=sales_order.id,
+                expected_version=expected_version,
+                stage=stage,
+            )
+        except DjangoValidationError as exc:
+            raise translate_django_validation_error(exc) from exc
+
+        sales_order = _sales_order_queryset().get(pk=sales_order.pk)
+        numbers = order_batch_numbers(company, [sales_order.id])
+        return Response(SalesOrderSerializer(sales_order, context={"batch_numbers": numbers}).data)
+
+@method_decorator(never_cache, name="dispatch")
 class SalesOrderConfirmationPreviewView(APIView):
     """GET only, `sales_orders.view` - exactly the same access as order
     detail; reveals no additional authority. Strictly read-only: no
