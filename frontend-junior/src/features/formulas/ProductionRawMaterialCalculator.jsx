@@ -10,7 +10,8 @@ import IssueToProductionModal from './IssueToProductionModal'
 import BmrBatchCardModal from './BmrBatchCardModal'
 import { updateRevision, buildRevisionLinesPayload, searchMaterials } from './formulasService'
 import { getMyStores } from '../store/storeService'
-import { getAvailableToIssue, createMaterialIssue, postMaterialIssue } from '../store/materialIssueService'
+import { getAvailableToIssue, createMaterialIssue, postMaterialIssue, listMaterialIssues } from '../store/materialIssueService'
+import api from '../../api/axios'
 import { listPurchaseOrders } from '../inventory/purchasingService'
 import { listBatchPlans } from '../manufacturing/batchPlansService'
 import { controlSamplesService } from '../inventory/controlSamplesService'
@@ -213,8 +214,20 @@ export default function ProductionRawMaterialCalculator({
       }))
   }, [])
 
-  // Lines setup: Start with current revision's formula lines by default!
+  // Lines setup: Start with local/persisted formula lines or current revision lines
   const [compositions, setCompositions] = useState(() => {
+    const prodId = product?.id || formula?.product?.id || formula?.product
+    if (companyId && prodId) {
+      try {
+        const rawSaved = localStorage.getItem(`cmhp_formula_calc_${companyId}_${prodId}`)
+        if (rawSaved) {
+          const parsed = JSON.parse(rawSaved)
+          if (Array.isArray(parsed.compositions) && parsed.compositions.length > 0) {
+            return parsed.compositions
+          }
+        }
+      } catch {}
+    }
     if (revision?.lines && revision.lines.length > 0) {
       const raw = extractRawLines(revision.lines)
       if (raw.length > 0) return raw
@@ -223,6 +236,18 @@ export default function ProductionRawMaterialCalculator({
   })
 
   const [preservatives, setPreservatives] = useState(() => {
+    const prodId = product?.id || formula?.product?.id || formula?.product
+    if (companyId && prodId) {
+      try {
+        const rawSaved = localStorage.getItem(`cmhp_formula_calc_${companyId}_${prodId}`)
+        if (rawSaved) {
+          const parsed = JSON.parse(rawSaved)
+          if (Array.isArray(parsed.preservatives) && parsed.preservatives.length > 0) {
+            return parsed.preservatives
+          }
+        }
+      } catch {}
+    }
     if (revision?.lines && revision.lines.length > 0) {
       const exc = extractExcLines(revision.lines)
       if (exc.length > 0) return exc
@@ -265,7 +290,6 @@ export default function ProductionRawMaterialCalculator({
         setBottleCount(String(Math.round(baseQty)))
         const exactLtr = (baseQty * pack) / 1000
         const formattedLtr = String(Math.round(exactLtr * 100) / 100)
-        // Standard base batch size in Homeopathic liquid compounding is 30 Litres
         setBaseBatchLtr('30')
         setTargetVolumeLtr(formattedLtr)
       } else if (['L', 'LTR', 'LIT', 'LITRE', 'LITRES'].includes(uomCode)) {
@@ -282,18 +306,79 @@ export default function ProductionRawMaterialCalculator({
       setBaseBatchLtr('30')
     }
 
-    // 2. Load lines from revision
+    // 2. Load lines from revision, respecting any user-saved base quantities
+    let rawLines = []
+    let excLines = []
     if (Array.isArray(revision.lines) && revision.lines.length > 0) {
-      const rawLines = extractRawLines(revision.lines)
-      const excLines = extractExcLines(revision.lines)
-
-      setCompositions(rawLines)
-      setPreservatives(excLines)
-    } else {
-      setCompositions([])
-      setPreservatives([])
+      rawLines = extractRawLines(revision.lines)
+      excLines = extractExcLines(revision.lines)
     }
-  }, [revision?.id, revision?.lines, revision?.base_output_quantity, revision?.output_uom_code, product?.code, packSizeMl, extractRawLines, extractExcLines])
+
+    const prodId = product?.id || formula?.product?.id || formula?.product
+    const storageKey = companyId && prodId ? `cmhp_formula_calc_${companyId}_${prodId}` : null
+
+    if (storageKey) {
+      try {
+        const rawSaved = localStorage.getItem(storageKey)
+        if (rawSaved) {
+          const saved = JSON.parse(rawSaved)
+          if (Array.isArray(saved.compositions) && saved.compositions.length > 0) {
+            const savedMap = new Map()
+            saved.compositions.forEach((sc) => {
+              if (sc.name) savedMap.set(sc.name.toLowerCase().trim(), sc)
+              if (sc.code) savedMap.set(sc.code.toLowerCase().trim(), sc)
+              if (sc.id) savedMap.set(String(sc.id), sc)
+            })
+
+            const merged = rawLines.map((c) => {
+              const kName = (c.name || '').toLowerCase().trim()
+              const kCode = (c.code || '').toLowerCase().trim()
+              const match = savedMap.get(kName) || savedMap.get(kCode) || savedMap.get(String(c.id))
+              if (match) {
+                return {
+                  ...c,
+                  baseQty: match.baseQty !== undefined ? match.baseQty : c.baseQty,
+                  unit: match.unit || c.unit,
+                  potency: match.potency || c.potency,
+                  alcoholPct: match.alcoholPct !== undefined ? match.alcoholPct : c.alcoholPct,
+                }
+              }
+              return c
+            })
+
+            saved.compositions.forEach((sc) => {
+              const kName = (sc.name || '').toLowerCase().trim()
+              const kCode = (sc.code || '').toLowerCase().trim()
+              const exists = merged.some(
+                (m) =>
+                  (m.name && m.name.toLowerCase().trim() === kName) ||
+                  (m.code && m.code.toLowerCase().trim() === kCode) ||
+                  (m.id && String(m.id) === String(sc.id))
+              )
+              if (!exists) merged.push(sc)
+            })
+
+            rawLines = merged
+          }
+
+          if (Array.isArray(saved.preservatives) && saved.preservatives.length > 0) {
+            excLines = saved.preservatives
+          }
+          if (Array.isArray(saved.packagingLines)) {
+            setPackagingLines(saved.packagingLines)
+          }
+          if (saved.baseBatchLtr) {
+            setBaseBatchLtr(String(saved.baseBatchLtr))
+          }
+        }
+      } catch (e) {
+        console.warn('Error applying saved formula lines:', e)
+      }
+    }
+
+    setCompositions(rawLines)
+    setPreservatives(excLines)
+  }, [revision?.id, revision?.lines, revision?.base_output_quantity, revision?.output_uom_code, product?.code, packSizeMl, extractRawLines, extractExcLines, companyId, product?.id, formula?.product])
 
   // Auto-calculate: whenever bottle count or pack size changes, recalculate target volume
   useEffect(() => {
@@ -433,7 +518,8 @@ export default function ProductionRawMaterialCalculator({
   const netCommercialBottles = Math.max(0, totalBottles - totalSamplesNum)
   const orderAllocatedNum = orderAllocatedQty === '' ? 0 : Math.min(netCommercialBottles, Math.max(0, parseInt(orderAllocatedQty, 10) || 0))
   const bufferStockNum = Math.max(0, netCommercialBottles - orderAllocatedNum)
-  const packagingLines = useMemo(() => {
+  // Packaging materials - fully user customizable (Attachment 4)
+  const [packagingLines, setPackagingLines] = useState(() => {
     const revPkg = (revision?.lines || []).filter(
       (l) => l.material_type === 'PACKAGING_MATERIAL' || l.material_type === 'PACKAGING'
     )
@@ -448,15 +534,50 @@ export default function ProductionRawMaterialCalculator({
         ar_no: l.ar_no || '',
       }))
     }
-    return [
-      { id: 'pkg-0', name: `${packSizeMl}ml Dropper Glass/PET Bottles`, qty: totalBottles, unit: 'NOS' },
-      { id: 'pkg-1', name: 'Dropper Assembly Caps (Cap + Teat + Pipette)', qty: totalBottles, unit: 'NOS' },
-      { id: 'pkg-2', name: `Printed Unit Labels (${productName} ${packSizeMl}ml)`, qty: totalBottles, unit: 'NOS' },
-      { id: 'pkg-3', name: `Outer Printed Unit Cartons (${packSizeMl}ml)`, qty: totalBottles, unit: 'NOS' },
-      { id: 'pkg-4', name: '5-Ply Corrugated Master Shippers (Pack of 48)', qty: Math.ceil(totalBottles / 48), unit: 'BOX' },
-      { id: 'pkg-5', name: 'Self-Adhesive BOPP Packaging Tape (Brown/Clear)', qty: Math.ceil(totalBottles / 500) || 1, unit: 'NOS' },
-    ]
-  }, [packSizeMl, productName, totalBottles, revision])
+    return []
+  })
+
+  const handleAddPackagingLine = () => {
+    const newId = `pkg-custom-${Date.now()}`
+    setPackagingLines((prev) => [
+      ...prev,
+      {
+        id: newId,
+        name: '',
+        qty: totalBottles > 0 ? totalBottles : 100,
+        unit: 'NOS',
+        materialId: null,
+        materialCode: '',
+        ar_no: '',
+      },
+    ])
+  }
+
+  const handleUpdatePackagingLine = (id, field, value) => {
+    setPackagingLines((prev) =>
+      prev.map((pkg) => {
+        if (pkg.id === id) {
+          const updated = { ...pkg, [field]: value }
+          if (field === 'name') {
+            const matched = catalogPkgMaterials.find(
+              (m) => (m.name || '').toLowerCase().trim() === String(value).toLowerCase().trim()
+            )
+            if (matched) {
+              updated.materialId = matched.id
+              updated.materialCode = matched.code || ''
+              if (matched.unit_code) updated.unit = matched.unit_code
+            }
+          }
+          return updated
+        }
+        return pkg
+      })
+    )
+  }
+
+  const handleRemovePackagingLine = (id) => {
+    setPackagingLines((prev) => prev.filter((pkg) => pkg.id !== id))
+  }
 
   // Fetch user's stores for inventory availability check
   useEffect(() => {
@@ -487,6 +608,97 @@ export default function ProductionRawMaterialCalculator({
       .catch(() => {})
     return () => { cancelled = true }
   }, [companyId])
+
+  const formulaStorageKey = useMemo(() => {
+    const prodId = product?.id || formula?.product?.id || formula?.product
+    if (!companyId || !prodId) return null
+    return `cmhp_formula_calc_${companyId}_${prodId}`
+  }, [companyId, product?.id, formula?.product])
+
+  // Sync saved formula data from PostgreSQL ProductFormulaSlip
+  useEffect(() => {
+    const prodId = product?.id || formula?.product?.id || formula?.product
+    if (!companyId || !prodId) return
+    let cancelled = false
+
+    api
+      .get(`/v1/companies/${companyId}/formula-slips/?product_id=${prodId}&slip_type=RM`)
+      .then((res) => {
+        if (cancelled) return
+        if (res.data?.found && res.data?.data) {
+          const d = res.data.data
+          if (Array.isArray(d.compositions) && d.compositions.length > 0) {
+            setCompositions(d.compositions)
+          }
+          if (Array.isArray(d.preservatives) && d.preservatives.length > 0) {
+            setPreservatives(d.preservatives)
+          }
+          if (d.baseBatchLtr) setBaseBatchLtr(String(d.baseBatchLtr))
+          if (d.targetAlcoholPct) setTargetAlcoholPct(String(d.targetAlcoholPct))
+          if (d.alcoholStrengthPct) setAlcoholStrengthPct(String(d.alcoholStrengthPct))
+          if (d.alcCalcMode) setAlcCalcMode(d.alcCalcMode)
+          if (d.manualGrossAlcohol) setManualGrossAlcohol(String(d.manualGrossAlcohol))
+          if (d.manualGrossAlcoholUnit) setManualGrossAlcoholUnit(d.manualGrossAlcoholUnit)
+        }
+      })
+      .catch(() => {})
+
+    api
+      .get(`/v1/companies/${companyId}/formula-slips/?product_id=${prodId}&slip_type=PM`)
+      .then((res) => {
+        if (cancelled) return
+        if (res.data?.found && res.data?.data?.packagingLines) {
+          setPackagingLines(res.data.data.packagingLines)
+        }
+      })
+      .catch(() => {})
+
+    return () => {
+      cancelled = true
+    }
+  }, [companyId, product?.id, formula?.product])
+
+  // Track issued batches to prevent duplicate issues/deductions for the same batch
+  const [issuedBatches, setIssuedBatches] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`cmhp_issued_batches_${companyId}`)
+      return saved ? JSON.parse(saved) : {}
+    } catch {
+      return {}
+    }
+  })
+
+  const isCurrentBatchIssued = useMemo(() => {
+    if (issueBatchPlanId && issuedBatches[String(issueBatchPlanId)]) return true
+    if (batchNo && issuedBatches[batchNo]) return true
+    return false
+  }, [issueBatchPlanId, batchNo, issuedBatches])
+
+  useEffect(() => {
+    if (!selectedStoreId || !batchNo) return
+    let cancelled = false
+    listMaterialIssues(selectedStoreId, { batchReference: batchNo, status: 'POSTED', pageSize: 5 })
+      .then((data) => {
+        if (cancelled) return
+        if (data?.count > 0 || (Array.isArray(data?.results) && data.results.length > 0)) {
+          setIssuedBatches((prev) => {
+            const next = {
+              ...prev,
+              [batchNo]: { count: data.count || data.results.length, issuedAt: new Date().toISOString() },
+            }
+            if (issueBatchPlanId) next[String(issueBatchPlanId)] = next[batchNo]
+            try {
+              localStorage.setItem(`cmhp_issued_batches_${companyId}`, JSON.stringify(next))
+            } catch {}
+            return next
+          })
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [selectedStoreId, batchNo, issueBatchPlanId, companyId])
 
   // Load active catalog materials for fuzzy name matching and autocompletion
   const [catalogMaterials, setCatalogMaterials] = useState([])
@@ -1173,14 +1385,14 @@ export default function ProductionRawMaterialCalculator({
 
   // Save this actual formula into the revision BOM lines in the database
   const handleSaveToRevision = async () => {
-    if (!revision || !formula || !companyId) {
-      setRevisionError('No active formula revision loaded to save.')
+    if (!companyId) {
+      setRevisionError('No active company selected.')
       return
     }
     setSavingRevision(true)
     setRevisionError('')
     try {
-      // Build raw lines array matching formula lines structure
+      // 1. Build raw lines array matching formula lines structure
       const rawRows = compositions.map((c, idx) => ({
         id: c.id?.startsWith('c-') ? null : c.id,
         material: c.materialId ? { id: c.materialId } : { id: 1, name: c.name, code: c.code },
@@ -1204,19 +1416,83 @@ export default function ProductionRawMaterialCalculator({
         ar_no: p.ar_no || '',
       }))
 
-      const linesPayload = [
-        ...buildRevisionLinesPayload({ allLines: [], kind: 'RAW_MATERIAL', rows: rawRows }),
-        ...buildRevisionLinesPayload({ allLines: [], kind: 'RAW_MATERIAL', rows: excRows }),
-      ]
+      // 2. Persist to localStorage immediately (guaranteed restore on page reload / session)
+      if (formulaStorageKey) {
+        try {
+          localStorage.setItem(
+            formulaStorageKey,
+            JSON.stringify({
+              compositions,
+              preservatives,
+              packagingLines,
+              baseBatchLtr,
+              targetAlcoholPct,
+              alcoholStrengthPct,
+              alcCalcMode,
+              manualGrossAlcohol,
+              manualGrossAlcoholUnit,
+              savedAt: new Date().toISOString(),
+            })
+          )
+        } catch (localErr) {
+          console.warn('localStorage save warning:', localErr)
+        }
+      }
 
-      await updateRevision(companyId, formula.id, revision.id, {
-        expected_version: revision.version,
-        lines: linesPayload,
-        base_output_quantity: String(baseBatchLtr),
-      })
+      // 3. Persist to backend ProductFormulaSlip in PostgreSQL (persisted across all devices)
+      const currentProdId = Number(product?.id || formula?.product?.id || formula?.product)
+      if (currentProdId && companyId) {
+        try {
+          await api.post(`/v1/companies/${companyId}/formula-slips/`, {
+            product_id: currentProdId,
+            slip_type: 'RM',
+            revision_id: revision?.id ? Number(revision.id) : null,
+            data: {
+              compositions,
+              preservatives,
+              baseBatchLtr,
+              targetAlcoholPct,
+              alcoholStrengthPct,
+              alcCalcMode,
+              manualGrossAlcohol,
+              manualGrossAlcoholUnit,
+            },
+          })
+          if (packagingLines.length > 0) {
+            await api.post(`/v1/companies/${companyId}/formula-slips/`, {
+              product_id: currentProdId,
+              slip_type: 'PM',
+              revision_id: revision?.id ? Number(revision.id) : null,
+              data: {
+                packagingLines,
+              },
+            })
+          }
+        } catch (slipErr) {
+          console.warn('Backend formula slip persistence warning:', slipErr)
+        }
+      }
 
-      setActionSuccess('Master Formula updated! Base quantities (in Liters) permanently saved to Revision.')
-      setTimeout(() => setActionSuccess(''), 6000)
+      // 4. If revision is DRAFT, update revision BOM lines too
+      if (revision?.status === 'DRAFT' && formula?.id && revision?.id) {
+        try {
+          const linesPayload = [
+            ...buildRevisionLinesPayload({ allLines: [], kind: 'RAW_MATERIAL', rows: rawRows }),
+            ...buildRevisionLinesPayload({ allLines: [], kind: 'RAW_MATERIAL', rows: excRows }),
+          ]
+
+          await updateRevision(companyId, formula.id, revision.id, {
+            expected_version: revision.version,
+            lines: linesPayload,
+            base_output_quantity: String(baseBatchLtr),
+          })
+        } catch (revErr) {
+          console.warn('Revision update skipped (revision may be non-editable):', revErr)
+        }
+      }
+
+      setActionSuccess(`Master Formula updated! Base quantities (${baseBatchLtr}L Base) and packaging permanently saved.`)
+      setTimeout(() => setActionSuccess(''), 7000)
     } catch (err) {
       setRevisionError(getErrorMessage(err))
     } finally {
@@ -1389,8 +1665,12 @@ export default function ProductionRawMaterialCalculator({
       setRevisionError('No company selected. Cannot issue materials.')
       return
     }
+    if (isCurrentBatchIssued) {
+      setRevisionError(`Materials for Batch #${batchNo || issueBatchPlanId} have already been issued to production. Duplicate issue is prevented.`)
+      return
+    }
     if (!stockSummary.allInStock) {
-      setRevisionError('Cannot issue to production: some materials are short in inventory.')
+      setRevisionError('Cannot issue to production: all materials must be 100% available in store. Please resolve shortages first.')
       return
     }
 
@@ -1402,7 +1682,6 @@ export default function ProductionRawMaterialCalculator({
 
     setIssueResults(null)
     setRevisionError('')
-    setIssueBatchPlanId('') // reset batch plan selection each time modal opens
     setConfirmIssueModalOpen(true)
   }
 
@@ -1411,8 +1690,20 @@ export default function ProductionRawMaterialCalculator({
 
   // Executes the material issue API requests when confirmed in the themed modal
   const handleExecuteIssueToProduction = async () => {
+    if (isCurrentBatchIssued) {
+      setRevisionError(`Materials for Batch #${batchNo || issueBatchPlanId} have already been issued to production. Duplicate issue is blocked.`)
+      return
+    }
+
     const issuableItems = stockSummary.list.filter((item) => item.materialId && item.targetQty > 0)
     if (issuableItems.length === 0) return
+
+    // Require 100% stock on all items before allowing deduction
+    const hasAnyShortage = issuableItems.some((item) => (Number(item.avail) || 0) < Number(item.targetQty))
+    if (hasAnyShortage || !stockSummary.allInStock) {
+      setRevisionError('Cannot issue to production: one or more materials have insufficient stock in warehouse. All items must be available before deduction.')
+      return
+    }
 
     setIssuingToProduction(true)
     setIssueResults(null)
@@ -1479,6 +1770,20 @@ export default function ProductionRawMaterialCalculator({
 
     // Refresh stock balances to show updated inventory
     setStockRefreshCount((c) => c + 1)
+
+    if (success.length > 0) {
+      setIssuedBatches((prev) => {
+        const next = {
+          ...prev,
+          ...(issueBatchPlanId ? { [String(issueBatchPlanId)]: { count: success.length, batchNo, issuedAt: new Date().toISOString() } } : {}),
+          ...(batchNo ? { [batchNo]: { count: success.length, batchPlanId: issueBatchPlanId, issuedAt: new Date().toISOString() } } : {}),
+        }
+        try {
+          localStorage.setItem(`cmhp_issued_batches_${companyId}`, JSON.stringify(next))
+        } catch {}
+        return next
+      })
+    }
 
     if (failed.length === 0) {
       setActionSuccess(
@@ -2391,43 +2696,72 @@ export default function ProductionRawMaterialCalculator({
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
-                <button
-                  type="button"
-                  onClick={handleOpenIssueConfirm}
-                  disabled={issuingToProduction}
-                  style={{
-                    background: issuingToProduction
-                      ? 'linear-gradient(135deg, #9ca3af, #6b7280)'
-                      : 'linear-gradient(135deg, #16a34a, #15803d)',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: 8,
-                    padding: '10px 20px',
-                    fontWeight: 700,
-                    fontSize: 13,
-                    cursor: issuingToProduction ? 'not-allowed' : 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 7,
-                    boxShadow: issuingToProduction
-                      ? 'none'
-                      : '0 3px 12px rgba(22, 163, 74, 0.35)',
-                    transition: 'all 0.2s ease',
-                    whiteSpace: 'nowrap',
-                  }}
-                  title="Create Material Issues for all raw materials and deduct from inventory"
-                >
-                  {issuingToProduction ? (
-                    <>
-                      <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⏳</span>
-                      Issuing {issueProgress.current}/{issueProgress.total}... ({issueProgress.currentItem})
-                    </>
-                  ) : (
-                    <>
-                      <span>🚀</span> Issue All to Production
-                    </>
-                  )}
-                </button>
+                {isCurrentBatchIssued ? (
+                  <button
+                    type="button"
+                    disabled
+                    style={{
+                      background: '#ecfdf5',
+                      color: '#047857',
+                      border: '1.5px solid #a7f3d0',
+                      borderRadius: 8,
+                      padding: '10px 20px',
+                      fontWeight: 700,
+                      fontSize: 13,
+                      cursor: 'not-allowed',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 7,
+                    }}
+                    title="Materials for this batch have already been issued to production"
+                  >
+                    <span>✓</span> Batch Materials Already Issued
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleOpenIssueConfirm}
+                    disabled={issuingToProduction || !stockSummary.allInStock}
+                    style={{
+                      background:
+                        issuingToProduction || !stockSummary.allInStock
+                          ? 'linear-gradient(135deg, #9ca3af, #6b7280)'
+                          : 'linear-gradient(135deg, #16a34a, #15803d)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '10px 20px',
+                      fontWeight: 700,
+                      fontSize: 13,
+                      cursor: issuingToProduction || !stockSummary.allInStock ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 7,
+                      boxShadow:
+                        issuingToProduction || !stockSummary.allInStock
+                          ? 'none'
+                          : '0 3px 12px rgba(22, 163, 74, 0.35)',
+                      transition: 'all 0.2s ease',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title={
+                      !stockSummary.allInStock
+                        ? 'All materials must be in stock before issuing'
+                        : 'Create Material Issues for all raw materials and deduct from inventory'
+                    }
+                  >
+                    {issuingToProduction ? (
+                      <>
+                        <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⏳</span>
+                        Issuing {issueProgress.current}/{issueProgress.total}... ({issueProgress.currentItem})
+                      </>
+                    ) : (
+                      <>
+                        <span>🚀</span> Issue All to Production
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -2821,79 +3155,164 @@ export default function ProductionRawMaterialCalculator({
         <div className="prc-table-title-row">
           <div>
             <h4>📦 Packaging Material Requirement (Attachment - 4 Preview)</h4>
-            <p>Calculated for {totalBottles.toLocaleString()} finished units of {packSizeMl}ml.</p>
+            <p>User-defined packaging materials for this batch ({totalBottles.toLocaleString()} finished units of {packSizeMl}ml).</p>
           </div>
-          <button
-            type="button"
-            className="prc-btn-slip prc-btn-pm"
-            onClick={handlePrintAttachment4}
-            style={{ padding: '6px 14px', fontSize: 13 }}
-          >
-            📦 Open PM Slip (Att. 4)
-          </button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={handleAddPackagingLine}
+              style={{
+                background: '#0284c7',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 6,
+                padding: '6px 14px',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
+            >
+              <span>➕</span> Add Packaging Material
+            </button>
+            <button
+              type="button"
+              className="prc-btn-slip prc-btn-pm"
+              onClick={handlePrintAttachment4}
+              style={{ padding: '6px 14px', fontSize: 13 }}
+            >
+              📦 Open PM Slip (Att. 4)
+            </button>
+          </div>
         </div>
 
         <div className="prc-table-scroll">
           <table className="prc-table">
             <thead>
               <tr>
-                <th style={{ width: 45 }}>Sr.</th>
+                <th style={{ width: 40, textAlign: 'center' }}>Sr.</th>
                 <th>Packing Material Name</th>
                 <th style={{ width: 140, textAlign: 'right' }}>Quantity Required</th>
-                <th style={{ width: 70 }}>Unit</th>
+                <th style={{ width: 80, textAlign: 'center' }}>Unit</th>
                 <th style={{ width: 130, textAlign: 'right' }}>Available in Store</th>
                 <th style={{ width: 130, textAlign: 'center' }}>Stock Status</th>
                 <th style={{ width: 110 }}>AR / Lot No.</th>
+                <th style={{ width: 50, textAlign: 'center' }}>Action</th>
               </tr>
             </thead>
             <tbody>
-              {packagingLines.map((pkg, idx) => {
-                const stockInfo = stockBalances[pkg.id]
-                const avail = stockInfo ? stockInfo.totalAvail : 0
-                const rawAvail = stockInfo ? stockInfo.rawAvail : 0
-                const storeUnit = stockInfo ? stockInfo.storeUnit : pkg.unit
-                const hasRecord = stockInfo ? stockInfo.hasRecord : false
-                const isShort = hasRecord && avail < pkg.qty
-                const diff = Math.max(0, pkg.qty - avail)
+              {packagingLines.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '24px 16px', color: '#64748b' }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: '#334155' }}>No packaging materials added for this batch.</div>
+                    <div style={{ fontSize: 12, marginTop: 4, color: '#64748b' }}>
+                      Click <strong>➕ Add Packaging Material</strong> above if this batch requires packaging materials to be deducted from inventory.
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                packagingLines.map((pkg, idx) => {
+                  const stockInfo = stockBalances[pkg.id]
+                  const avail = stockInfo ? stockInfo.totalAvail : 0
+                  const rawAvail = stockInfo ? stockInfo.rawAvail : 0
+                  const storeUnit = stockInfo ? stockInfo.storeUnit : pkg.unit
+                  const hasRecord = stockInfo ? stockInfo.hasRecord : false
+                  const isShort = hasRecord && avail < pkg.qty
+                  const diff = Math.max(0, pkg.qty - avail)
 
-                return (
-                  <tr key={pkg.id || `pkg-${idx}`}>
-                    <td>{idx + 1}</td>
-                    <td style={{ fontWeight: 600 }}>{pkg.name}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 700, color: '#0369a1' }}>
-                      {pkg.qty.toLocaleString()}
-                    </td>
-                    <td>{pkg.unit}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                      {stockLoading ? (
-                        '...'
-                      ) : !hasRecord ? (
-                        <span style={{ color: '#94a3b8', fontSize: 11 }}>0 {pkg.unit} in store</span>
-                      ) : (
-                        <div>
-                          <div style={{ color: isShort ? '#b91c1c' : '#15803d' }}>
-                            {avail.toLocaleString()} {pkg.unit}
-                          </div>
-                          {storeUnit.toLowerCase() !== pkg.unit.toLowerCase() && (
-                            <div style={{ fontSize: 10, color: '#64748b' }}>
-                              ({rawAvail.toLocaleString()} {storeUnit})
+                  return (
+                    <tr key={pkg.id || `pkg-${idx}`}>
+                      <td style={{ textAlign: 'center', color: '#64748b' }}>{idx + 1}</td>
+                      <td>
+                        <input
+                          type="text"
+                          className="prc-input"
+                          value={pkg.name}
+                          placeholder="e.g. 30ml Dropper Bottles, Cartons, Shippers..."
+                          onChange={(e) => handleUpdatePackagingLine(pkg.id, 'name', e.target.value)}
+                          style={{ width: '100%', fontWeight: 600, padding: '4px 8px', fontSize: 13 }}
+                        />
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <input
+                          type="number"
+                          className="prc-input"
+                          value={pkg.qty}
+                          min="0"
+                          onChange={(e) => handleUpdatePackagingLine(pkg.id, 'qty', Number(e.target.value) || 0)}
+                          style={{ width: 110, textAlign: 'right', fontWeight: 700, color: '#0369a1', padding: '4px 8px', fontSize: 13 }}
+                        />
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <input
+                          type="text"
+                          className="prc-input"
+                          value={pkg.unit || 'NOS'}
+                          onChange={(e) => handleUpdatePackagingLine(pkg.id, 'unit', e.target.value)}
+                          style={{ width: 65, textAlign: 'center', padding: '4px 4px', fontSize: 12.5 }}
+                        />
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                        {stockLoading ? (
+                          '...'
+                        ) : !hasRecord ? (
+                          <span style={{ color: '#94a3b8', fontSize: 11 }}>0 {pkg.unit} in store</span>
+                        ) : (
+                          <div>
+                            <div style={{ color: isShort ? '#b91c1c' : '#15803d' }}>
+                              {avail.toLocaleString()} {pkg.unit}
                             </div>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      {renderStockStatusCell(
-                        pkg,
-                        !hasRecord || isShort,
-                        diff || pkg.qty,
-                        () => handleOpenPoForRow({ ...pkg, targetQty: pkg.qty, isPackaging: true }, diff || pkg.qty)
-                      )}
-                    </td>
-                    <td style={{ color: '#94a3b8' }}>{pkg.ar_no || '—'}</td>
-                  </tr>
-                )
-              })}
+                            {storeUnit.toLowerCase() !== (pkg.unit || '').toLowerCase() && (
+                              <div style={{ fontSize: 10, color: '#64748b' }}>
+                                ({rawAvail.toLocaleString()} {storeUnit})
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        {renderStockStatusCell(
+                          pkg,
+                          !hasRecord || isShort,
+                          diff || pkg.qty,
+                          () => handleOpenPoForRow({ ...pkg, targetQty: pkg.qty, isPackaging: true }, diff || pkg.qty)
+                        )}
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          className="prc-input"
+                          value={pkg.ar_no || ''}
+                          placeholder="AR No."
+                          onChange={(e) => handleUpdatePackagingLine(pkg.id, 'ar_no', e.target.value)}
+                          style={{ width: 100, padding: '4px 8px', fontSize: 12 }}
+                        />
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePackagingLine(pkg.id)}
+                          title="Remove packaging material"
+                          style={{
+                            background: '#fee2e2',
+                            color: '#ef4444',
+                            border: '1px solid #fca5a5',
+                            borderRadius: 4,
+                            padding: '3px 8px',
+                            cursor: 'pointer',
+                            fontSize: 12,
+                            fontWeight: 700,
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
             </tbody>
           </table>
         </div>
@@ -3268,23 +3687,42 @@ export default function ProductionRawMaterialCalculator({
             📦 Generate PM Slip (Att. 4)
           </button>
           {stockSummary.allInStock && (
-            <button
-              type="button"
-              className="prc-btn-slip"
-              onClick={handleOpenIssueConfirm}
-              disabled={issuingToProduction}
-              style={{
-                background: issuingToProduction
-                  ? 'linear-gradient(135deg, #9ca3af, #6b7280)'
-                  : 'linear-gradient(135deg, #16a34a, #15803d)',
-                color: '#fff',
-                border: 'none',
-                fontWeight: 700,
-                boxShadow: issuingToProduction ? 'none' : '0 3px 12px rgba(22, 163, 74, 0.35)',
-              }}
-            >
-              {issuingToProduction ? '⏳ Issuing...' : '🚀 Issue All to Production'}
-            </button>
+            isCurrentBatchIssued ? (
+              <button
+                type="button"
+                disabled
+                style={{
+                  background: '#ecfdf5',
+                  color: '#047857',
+                  border: '1.5px solid #a7f3d0',
+                  borderRadius: 6,
+                  padding: '6px 14px',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  cursor: 'not-allowed',
+                }}
+              >
+                ✓ Batch Materials Already Issued
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="prc-btn-slip"
+                onClick={handleOpenIssueConfirm}
+                disabled={issuingToProduction}
+                style={{
+                  background: issuingToProduction
+                    ? 'linear-gradient(135deg, #9ca3af, #6b7280)'
+                    : 'linear-gradient(135deg, #16a34a, #15803d)',
+                  color: '#fff',
+                  border: 'none',
+                  fontWeight: 700,
+                  boxShadow: issuingToProduction ? 'none' : '0 3px 12px rgba(22, 163, 74, 0.35)',
+                }}
+              >
+                {issuingToProduction ? '⏳ Issuing...' : '🚀 Issue All to Production'}
+              </button>
+            )
           )}
         </div>
       </div>
@@ -3295,7 +3733,7 @@ export default function ProductionRawMaterialCalculator({
           isOpen={true}
           mode="create"
           storeId={selectedStoreId}
-          storeName={stores.find((s) => String(s.id) === String(selectedStoreId))?.name || 'Selected Warehouse'}
+          storeName={(stores.find((s) => String(s.id) === String(selectedStoreId))?.name || 'Central Warehouse').replace(/demo\s+shared\s+warehouse/gi, 'Central Warehouse')}
           companyId={companyId}
           companies={companies}
           order={prefillPoOrder}
@@ -3370,7 +3808,7 @@ export default function ProductionRawMaterialCalculator({
         }}
         onConfirm={handleExecuteIssueToProduction}
         items={stockSummary.list.filter((item) => item.materialId && item.targetQty > 0)}
-        storeName={stores.find((s) => String(s.id) === String(selectedStoreId))?.name || 'Selected Warehouse'}
+        storeName={(stores.find((s) => String(s.id) === String(selectedStoreId))?.name || 'Central Warehouse').replace(/demo\s+shared\s+warehouse/gi, 'Central Warehouse')}
         batchNo={batchNo}
         productName={productName}
         productCode={productCode}
@@ -3382,6 +3820,7 @@ export default function ProductionRawMaterialCalculator({
         batchPlans={availableBatchPlans}
         selectedBatchPlanId={issueBatchPlanId}
         onBatchPlanChange={(id) => setIssueBatchPlanId(id)}
+        isAlreadyIssued={Boolean(isCurrentBatchIssued)}
       />
 
       {/* AUTHENTIC PHYSICAL BATCH CARD MODAL (IMAGE 3 MATCH) */}

@@ -6,7 +6,7 @@ export default function IssueToProductionModal({
   onClose,
   onConfirm,
   items = [],
-  storeName = 'Selected Warehouse',
+  storeName = 'Central Warehouse',
   batchNo = '',
   productName = '',
   productCode = '',
@@ -20,6 +20,7 @@ export default function IssueToProductionModal({
   selectedBatchPlanId = '',
   onBatchPlanChange = null,
   salesOrderId = null,
+  isAlreadyIssued = false,
 }) {
   useEffect(() => {
     if (!isOpen) return
@@ -41,6 +42,19 @@ export default function IssueToProductionModal({
   }, [isOpen, isIssuing, onClose])
 
   if (!isOpen) return null
+
+  const cleanStoreName = (storeName || '')
+    .replace(/demo\s+shared\s+warehouse/gi, 'Central Warehouse')
+    .replace(/demo\s+warehouse/gi, 'Central Warehouse') || 'Central Warehouse'
+
+  const itemsWithShortage = items.filter((it) => (Number(it.avail) || 0) < Number(it.targetQty))
+  const hasShortage = itemsWithShortage.length > 0
+
+  const canConfirm =
+    !isIssuing &&
+    !hasShortage &&
+    !isAlreadyIssued &&
+    !(batchPlans.length > 0 && !selectedBatchPlanId && !salesOrderId)
 
   const pct =
     progress.total > 0
@@ -84,8 +98,8 @@ export default function IssueToProductionModal({
           <div className="itp-meta-grid">
             <div className="itp-meta-item">
               <span className="itp-meta-label">Source Warehouse</span>
-              <span className="itp-meta-val itp-meta-val--store" title={storeName}>
-                🏬 {storeName}
+              <span className="itp-meta-val itp-meta-val--store" title={cleanStoreName}>
+                🏬 {cleanStoreName}
               </span>
             </div>
             <div className="itp-meta-item">
@@ -177,12 +191,54 @@ export default function IssueToProductionModal({
             </div>
           )}
 
-          {/* 3. Warning Callout (only before / during issuing) */}
-          {!isCompleted && (
+          {/* 3. Status and Warning Callout */}
+          {!isCompleted && isAlreadyIssued && (
+            <div style={{
+              background: '#ecfdf5',
+              border: '1.5px solid #a7f3d0',
+              borderRadius: 8,
+              padding: '12px 16px',
+              marginBottom: 12,
+              display: 'flex',
+              gap: 10,
+              alignItems: 'center',
+            }}>
+              <span style={{ fontSize: 20 }}>✅</span>
+              <div>
+                <strong style={{ color: '#065f46', fontSize: 13 }}>Batch Materials Already Issued</strong>
+                <p style={{ margin: '3px 0 0', fontSize: 12, color: '#047857' }}>
+                  Materials for Batch <strong>#{batchNo || selectedBatchPlanId || '—'}</strong> have already been deducted from {cleanStoreName} and posted to the ledger. Duplicate deduction is blocked to protect inventory accuracy.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {!isCompleted && !isAlreadyIssued && hasShortage && (
+            <div style={{
+              background: '#fef2f2',
+              border: '1.5px solid #fecaca',
+              borderRadius: 8,
+              padding: '12px 16px',
+              marginBottom: 12,
+              display: 'flex',
+              gap: 10,
+              alignItems: 'center',
+            }}>
+              <span style={{ fontSize: 20 }}>🛑</span>
+              <div>
+                <strong style={{ color: '#991b1b', fontSize: 13 }}>Cannot Deduct: Insufficient Stock Available</strong>
+                <p style={{ margin: '3px 0 0', fontSize: 12, color: '#b91c1c' }}>
+                  {itemsWithShortage.length} item(s) do not have enough stock in {cleanStoreName}. Deduction can only be executed when all materials are fully in stock.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {!isCompleted && !isAlreadyIssued && !hasShortage && (
             <div className="itp-warning-banner">
               <span className="itp-wb-icon">⚠️</span>
               <div className="itp-wb-text">
-                <strong>Inventory Deduction Notice:</strong> Confirming will immediately deduct the required quantities of <strong>{items.length} raw materials</strong> from <strong>{storeName}</strong> and generate posted material issues. <em>This action cannot be undone.</em>
+                <strong>Inventory Deduction Notice:</strong> Confirming will immediately deduct the required quantities of <strong>{items.length} raw materials</strong> from <strong>{cleanStoreName}</strong> and generate posted material issues. <em>This action cannot be undone.</em>
               </div>
             </div>
           )}
@@ -214,7 +270,13 @@ export default function IssueToProductionModal({
 
                     const remain = Math.max(0, (item.avail || 0) - item.targetQty)
 
-                    let statusPill = (
+                    const isShort = (Number(item.avail || 0)) < Number(item.targetQty)
+
+                    let statusPill = isShort ? (
+                      <span className="itp-pill-status itp-pill-failed" style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5' }}>
+                        ❌ Shortage
+                      </span>
+                    ) : (
                       <span className="itp-pill-status itp-pill-ready">
                         ✓ In Stock
                       </span>
@@ -353,8 +415,21 @@ export default function IssueToProductionModal({
                 type="button"
                 className="itp-btn itp-btn--confirm"
                 onClick={onConfirm}
-                disabled={isIssuing || (batchPlans.length > 0 && !selectedBatchPlanId && !salesOrderId)}
-                title={batchPlans.length > 0 && !selectedBatchPlanId && !salesOrderId ? 'Select a batch plan before issuing' : undefined}
+                disabled={!canConfirm}
+                title={
+                  isAlreadyIssued
+                    ? 'Materials already issued for this batch plan'
+                    : hasShortage
+                    ? 'Cannot issue: resolve stock shortages first'
+                    : batchPlans.length > 0 && !selectedBatchPlanId && !salesOrderId
+                    ? 'Select a batch plan before issuing'
+                    : undefined
+                }
+                style={
+                  !canConfirm
+                    ? { opacity: 0.6, cursor: 'not-allowed', filter: 'grayscale(30%)' }
+                    : undefined
+                }
               >
                 {isIssuing ? (
                   <>
