@@ -3,6 +3,8 @@ import { useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
 import { selectActiveCompanyKey, selectActiveCompanyId } from '../../utils/companySelectors'
+import { getRealScopedCompanyId } from '../../utils/companyScope'
+import { getErrorMessage } from '../../utils/errors'
 import { DOSAGE_FORMS } from '../../constants/dosageForms'
 import OrderDocumentViewerModal from './OrderDocumentViewerModal'
 import './RecordsPage.css'
@@ -11,7 +13,7 @@ export default function RecordsPage({ mode = 'records' }) {
   const navigate = useNavigate()
   const compKey = useSelector(selectActiveCompanyKey)
   const activeCompId = useSelector(selectActiveCompanyId)
-  const companyId = activeCompId || (compKey === 'tej' ? 3 : 2)
+  const companyId = getRealScopedCompanyId() || activeCompId || (compKey === 'tej' ? 3 : 2)
 
   // State
   const [orders, setOrders] = useState([])
@@ -73,7 +75,7 @@ export default function RecordsPage({ mode = 'records' }) {
       setOrders(list)
     } catch (err) {
       console.error('Failed to load records:', err)
-      setError(err.response?.data?.error || err.message || 'Failed to fetch records')
+      setError(getErrorMessage(err) || 'Failed to fetch records')
     } finally {
       setLoading(false)
     }
@@ -174,7 +176,7 @@ export default function RecordsPage({ mode = 'records' }) {
       await fetchRecords()
       setTimeout(() => setSuccess(''), 4000)
     } catch (err) {
-      const msg = err.response?.data?.error || err.message || 'Action failed'
+      const msg = getErrorMessage(err) || 'Action failed'
       setActionDialog((prev) => ({ ...prev, loading: false, error: msg }))
     }
   }
