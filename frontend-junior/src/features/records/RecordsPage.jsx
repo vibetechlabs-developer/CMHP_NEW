@@ -69,10 +69,26 @@ export default function RecordsPage({ mode = 'records' }) {
         coa_status: quickFilter === 'COA_RETURNED' ? 'coa_returned' : undefined,
       }
 
-      const res = await api.get(endpoint, { params })
-      const data = res.data
-      const list = Array.isArray(data.results) ? data.results : (Array.isArray(data) ? data : [])
-      setOrders(list)
+      try {
+        const res = await api.get(endpoint, { params })
+        const data = res.data
+        const list = Array.isArray(data.results) ? data.results : (Array.isArray(data) ? data : [])
+        setOrders(list)
+        return
+      } catch (scopedErr) {
+        // If company-scoped endpoint returned 404, fall back to general /v1/companies/records/ or /v1/companies/dispatch/
+        if (scopedErr.response?.status === 404) {
+          const fallbackEndpoint = mode === 'dispatch'
+            ? `/v1/companies/dispatch/`
+            : `/v1/companies/records/`
+          const res = await api.get(fallbackEndpoint, { params })
+          const data = res.data
+          const list = Array.isArray(data.results) ? data.results : (Array.isArray(data) ? data : [])
+          setOrders(list)
+          return
+        }
+        throw scopedErr
+      }
     } catch (err) {
       console.error('Failed to load records:', err)
       setError(getErrorMessage(err) || 'Failed to fetch records')

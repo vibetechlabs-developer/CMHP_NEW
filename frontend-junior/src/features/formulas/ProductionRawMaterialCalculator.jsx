@@ -715,12 +715,14 @@ export default function ProductionRawMaterialCalculator({
         const cIds = [companyId, 2].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)
         const map = {}
 
-        const registerItem = (mId, mName, mCode, qty, status, poRef, receivedQty = 0) => {
+        const registerItem = (mId, mName, mCode, qty, status, poRef, receivedQty = 0, remainingQty = 0, isCompleted = false) => {
           const info = {
             poNumber: poRef,
             qty: qty,
             receivedQty: receivedQty,
-            status: status, // 'ORDERED' | 'RECEIVED_IN_QC'
+            remainingQty: remainingQty,
+            isCompleted: isCompleted,
+            status: status, // 'ORDERED' | 'RECEIVED_IN_QC' | 'COMPLETED'
             name: mName || '',
             code: mCode || '',
           }
@@ -752,8 +754,9 @@ export default function ProductionRawMaterialCalculator({
                 prog.forEach((dp) => {
                   const recQty = Number(dp.received_quantity || 0)
                   const ordQty = Number(dp.ordered_quantity || 0)
-                  const isReceived = dp.delivery_status === 'COMPLETED' || recQty > 0
-                  const itemStatus = isReceived ? 'RECEIVED_IN_QC' : 'ORDERED'
+                  const remQty = Number(dp.remaining_quantity !== undefined ? dp.remaining_quantity : Math.max(0, ordQty - recQty))
+                  const isCompleted = dp.delivery_status === 'COMPLETED' || (ordQty > 0 && recQty >= ordQty && remQty <= 0)
+                  const itemStatus = remQty > 0 ? 'ORDERED' : (isCompleted ? 'COMPLETED' : (recQty > 0 ? 'RECEIVED_IN_QC' : 'ORDERED'))
                   registerItem(
                     null,
                     dp.material_name,
@@ -761,7 +764,9 @@ export default function ProductionRawMaterialCalculator({
                     ordQty,
                     itemStatus,
                     poRef,
-                    recQty
+                    recQty,
+                    remQty,
+                    isCompleted
                   )
                 })
               }
@@ -778,8 +783,10 @@ export default function ProductionRawMaterialCalculator({
                 const existing = (cleanN && map[cleanN]) || (cleanC && map[cleanC]) || (mId && map[String(mId)])
                 const itemStatus = existing?.status || 'ORDERED'
                 const recQty = existing?.receivedQty || 0
+                const remQty = existing?.remainingQty !== undefined ? existing.remainingQty : ordQty
+                const isCompleted = existing?.isCompleted || false
 
-                registerItem(mId, mName, mCode, ordQty, itemStatus, poRef, recQty)
+                registerItem(mId, mName, mCode, ordQty, itemStatus, poRef, recQty, remQty, isCompleted)
               })
             })
           } catch (_) {}
@@ -940,8 +947,18 @@ export default function ProductionRawMaterialCalculator({
     })
 
     const shortages = list.filter((l) => l.isShort)
-    const unOrderedShortages = shortages.filter((s) => !getPoInfoForMaterial(s))
-    const orderedShortages = shortages.filter((s) => Boolean(getPoInfoForMaterial(s)))
+    const isPipelineShortage = (s) => {
+      const po = getPoInfoForMaterial(s)
+      if (!po) return false
+      // If material has available stock (released by QC), and PO has no remaining ordered quantity,
+      // it is not pending in the pipeline.
+      if (Number(s.avail || 0) > 0 && (po.isCompleted || Number(po.remainingQty) <= 0)) {
+        return false
+      }
+      return Number(po.remainingQty) > 0 || (po.status === 'RECEIVED_IN_QC' && Number(s.avail || 0) === 0)
+    }
+    const unOrderedShortages = shortages.filter((s) => !isPipelineShortage(s))
+    const orderedShortages = shortages.filter((s) => isPipelineShortage(s))
 
     return {
       allInStock: shortages.length === 0,
@@ -1488,6 +1505,11 @@ export default function ProductionRawMaterialCalculator({
     if (!item?.name || !item.name.trim()) {
       return <span style={{ color: '#94a3b8', fontSize: 11, fontStyle: 'italic' }}>Select material</span>
     }
+
+    const stockInfo = stockBalances[item.id]
+    const avail = stockInfo ? Number(stockInfo.totalAvail || 0) : 0
+
+    // 1. Fully in stock (Ready for batch)
     if (!isShort) {
       return (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
@@ -1498,8 +1520,59 @@ export default function ProductionRawMaterialCalculator({
     }
 
     const poItem = getPoInfoForMaterial(item)
-    if (poItem) {
-      const isQc = poItem.status === 'RECEIVED_IN_QC'
+    const isPoCompleted = poItem ? (poItem.isCompleted || (Number(poItem.remainingQty) <= 0 && Number(poItem.receivedQty) > 0)) : false
+    const hasPendingOrder = poItem && Number(poItem.remainingQty) > 0
+
+    // 2. Partial In Stock: Material has available stock (QC released), but target requires more
+    if (avail > 0) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+          <span className="prc-stock-ok" style={{ fontSize: 11, padding: '2px 7px' }}>
+            ✓ In Stock ({avail.toFixed(2)} {item.unit || ''})
+          </span>
+          {hasPendingOrder ? (
+            <Link
+              to="/inventory/orders"
+              onClick={handleGoToPurchasingHub}
+              style={{
+                background: '#eff6ff',
+                color: '#1d4ed8',
+                border: '1px solid #bfdbfe',
+                borderRadius: 4,
+                padding: '2px 6px',
+                fontSize: 10.5,
+                fontWeight: 700,
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 3,
+              }}
+              title={`PO ${poItem.poNumber}: ${poItem.remainingQty} on order`}
+            >
+              <span>📦</span> Ordered ({poItem.poNumber})
+            </Link>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span className="prc-stock-short" style={{ fontSize: 10.5, padding: '2px 6px' }}>
+                ⚠ Short: {(diff || 0).toFixed(2)} {item.unit || ''}
+              </span>
+              <button
+                type="button"
+                className="prc-btn-mini-po"
+                onClick={onRaisePo}
+                title={`Create Purchase Order for ${(diff || 0).toFixed(2)} ${item.unit || ''} of ${item.name}`}
+              >
+                + PO
+              </button>
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    // 3. Zero available stock in store
+    if (poItem && !isPoCompleted) {
+      const isQc = poItem.status === 'RECEIVED_IN_QC' || (Number(poItem.receivedQty) > 0 && Number(poItem.remainingQty) <= 0)
       return (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
           <Link
@@ -1525,7 +1598,7 @@ export default function ProductionRawMaterialCalculator({
           </Link>
           <span style={{ fontSize: 10, color: isQc ? '#b45309' : '#2563eb', fontWeight: 500 }}>
             {isQc
-              ? (Number(poItem.receivedQty) > 0 ? `Received ${Number(poItem.receivedQty)} — In QC` : 'Awaiting QA Clearance')
+              ? (Number(poItem.receivedQty) > 0 ? `Received ${Number(poItem.receivedQty)} — Awaiting QC Clearance` : 'Awaiting QA Clearance')
               : 'Awaiting Store Receipt'}
           </span>
         </div>
@@ -2153,7 +2226,7 @@ export default function ProductionRawMaterialCalculator({
                       <strong>
                         {stockSummary.orderedShortages.map((s) => {
                           const po = getPoInfoForMaterial(s)
-                          const statusLabel = po?.status === 'RECEIVED_IN_QC' ? 'In QC Check' : 'Ordered'
+                          const statusLabel = (po?.status === 'RECEIVED_IN_QC' && Number(s.avail || 0) === 0) ? 'In QC Check' : 'Ordered'
                           return `${s.name} (${statusLabel}${po?.poNumber ? ` - ${po.poNumber}` : ''})`
                         }).join(', ')}
                       </strong>.
