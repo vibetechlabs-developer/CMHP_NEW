@@ -69,9 +69,10 @@ export default function CommonMaterialsTab() {
   const supplier = searchParams.get('supplier') || ''
   const receiptFrom = searchParams.get('receiptFrom') || ''
   const receiptTo = searchParams.get('receiptTo') || ''
+  const hasAlcohol = searchParams.get('hasAlcohol') || ''
   const pageSize = Math.max(1, Number(searchParams.get('pageSize') || String(DEFAULT_PAGE_SIZE)) || DEFAULT_PAGE_SIZE)
   const page = Math.max(1, Number(searchParams.get('page') || '1') || 1)
-  const hasActiveFilters = Boolean(search || kind || status || supplier || receiptFrom || receiptTo)
+  const hasActiveFilters = Boolean(search || kind || status || supplier || receiptFrom || receiptTo || hasAlcohol)
 
   const setFilter = (patch) => {
     setSearchParams((prev) => {
@@ -87,7 +88,7 @@ export default function CommonMaterialsTab() {
   const clearFilters = () => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
-      ;['search', 'kind', 'status', 'supplier', 'receiptFrom', 'receiptTo', 'page'].forEach((key) => next.delete(key))
+      ;['search', 'kind', 'status', 'supplier', 'receiptFrom', 'receiptTo', 'hasAlcohol', 'page'].forEach((key) => next.delete(key))
       return next
     }, { replace: true })
   }
@@ -120,7 +121,7 @@ export default function CommonMaterialsTab() {
     const requestId = ++requestRef.current
     setLoading(true)
     setError('')
-    listMaterials({ search, kind, isActive: status, supplier, receiptFrom, receiptTo, page, pageSize })
+    listMaterials({ search, kind, isActive: status, supplier, receiptFrom, receiptTo, hasAlcohol, page, pageSize })
       .then((result) => {
         if (requestRef.current !== requestId) return
         setData(result)
@@ -132,7 +133,7 @@ export default function CommonMaterialsTab() {
       .finally(() => {
         if (requestRef.current === requestId) setLoading(false)
       })
-  }, [search, kind, status, supplier, receiptFrom, receiptTo, page, pageSize, reloadKey])
+  }, [search, kind, status, supplier, receiptFrom, receiptTo, hasAlcohol, page, pageSize, reloadKey])
 
   const reload = (message) => {
     if (message) setNotice(message)
@@ -157,7 +158,7 @@ export default function CommonMaterialsTab() {
       let totalCount = 0
       for (; exportedPage <= EXPORT_MAX_PAGES; exportedPage += 1) {
         const result = await listMaterials({
-          search, kind, isActive: status, supplier, receiptFrom, receiptTo,
+          search, kind, isActive: status, supplier, receiptFrom, receiptTo, hasAlcohol,
           page: exportedPage, pageSize: EXPORT_PAGE_SIZE,
         })
         totalCount = result.count
@@ -382,6 +383,21 @@ export default function CommonMaterialsTab() {
               readOnly
             >
               <option value="">All Stock Status</option>
+            </select>
+          </div>
+
+          {/* Alcohol Content filter */}
+          <div className="mm-filter-field">
+            <label className="mm-filter-label">Alcohol Content</label>
+            <select
+              className="company-input mm-input-full"
+              aria-label="Alcohol content filter"
+              value={hasAlcohol}
+              onChange={(e) => setFilter({ hasAlcohol: e.target.value, page: null })}
+            >
+              <option value="">All Materials</option>
+              <option value="true">⚗️ With Alcohol %</option>
+              <option value="false">Without Alcohol</option>
             </select>
           </div>
         </div>

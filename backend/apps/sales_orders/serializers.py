@@ -117,6 +117,7 @@ class SalesOrderSerializer(serializers.ModelSerializer):
     subtotal = serializers.SerializerMethodField()
     sample_qty = serializers.SerializerMethodField()
     sample_unit = serializers.SerializerMethodField()
+    batch_number = serializers.SerializerMethodField()
 
     class Meta:
         model = SalesOrder
@@ -128,6 +129,7 @@ class SalesOrderSerializer(serializers.ModelSerializer):
             "customer_code",
             "customer_name",
             "customer_is_active",
+            "batch_number",
             "order_date",
             "requested_delivery_date",
             "planned_manufacturing_date",
@@ -171,6 +173,18 @@ class SalesOrderSerializer(serializers.ModelSerializer):
         """
         total = sum((line.line_amount for line in obj.lines.all()), Decimal("0"))
         return str(total.quantize(_LINE_AMOUNT_QUANTIZE))
+
+    def get_batch_number(self, obj):
+        batch_numbers = self.context.get("batch_numbers") or {}
+        if obj.id in batch_numbers:
+            return batch_numbers[obj.id]
+        code = (
+            getattr(getattr(obj, "customer", None), "code", None)
+            or getattr(getattr(obj, "company", None), "code", None)
+            or "XX"
+        )
+        year = obj.order_date.year if obj.order_date else 2026
+        return f"{str(code).strip().upper()}-{year}-{obj.id:04d}"
 
 
 class SalesOrderListSerializer(SalesOrderSerializer):

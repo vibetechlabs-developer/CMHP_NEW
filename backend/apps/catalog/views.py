@@ -379,6 +379,17 @@ class MaterialListCreateView(generics.ListCreateAPIView):
                 )
             queryset = queryset.filter(id__in=movements.values("material_id"))
 
+        # Alcohol-content filter: has_alcohol=true → only materials with
+        # alcohol_percentage > 0; has_alcohol=false → only those without.
+        has_alcohol_param = self.request.query_params.get("has_alcohol")
+        if has_alcohol_param is not None:
+            if parse_strict_bool(has_alcohol_param):
+                queryset = queryset.filter(alcohol_percentage__gt=0)
+            else:
+                queryset = queryset.filter(
+                    Q(alcohol_percentage__isnull=True) | Q(alcohol_percentage=0)
+                )
+
         return queryset.order_by("code", "id").distinct()
 
     def create(self, request, *args, **kwargs):

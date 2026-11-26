@@ -90,6 +90,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
             "shift",
         ]
         extra_kwargs = {
+            "email": {"required": False, "allow_blank": True},
             "first_name": {"required": False, "allow_blank": True},
             "last_name": {"required": False, "allow_blank": True},
             "phone": {"required": False, "allow_blank": True, "max_length": 30},
