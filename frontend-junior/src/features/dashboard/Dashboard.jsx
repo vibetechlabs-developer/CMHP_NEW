@@ -15,12 +15,12 @@ import {
   selectActiveCompanyId,
   selectActiveCompanyKey,
 } from '../../utils/companySelectors'
-import { inventoryService } from '../inventory/inventoryService'
 import { listSalesOrders } from '../operations/salesOrdersService'
 import { listProducts } from '../products/productsService'
 import { listUsers } from '../companies/usersApiService'
 import { getMyStores, getStoreSummary } from '../store/storeService'
 import { listPurchaseOrders } from '../inventory/purchasingService'
+import api from '../../api/axios'
 import { getErrorMessage } from '../../utils/errors'
 
 import './Dashboard.css'
@@ -185,21 +185,14 @@ export default function Dashboard() {
   const [customEnd, setCustomEnd] = useState('')
 
   // Live Backend Data
-  const [invSummary, setInvSummary] = useState(null)
-  const [_invError, setInvError] = useState('')
-  const [realOrders, setRealOrders] = useState([])
-  const [realProducts, setRealProducts] = useState([])
-  const [realUsers, setRealUsers] = useState([])
+  const [realOrders, setRealOrders] = useState(null)
+  const [realProducts, setRealProducts] = useState(null)
+  const [realUsers, setRealUsers] = useState(null)
   const [realStoreSummary, setRealStoreSummary] = useState(null)
   const [realPurchaseOrders, setRealPurchaseOrders] = useState([])
+  // Live HRMS summary: { kpis: { totalEmployees, presentToday, onLeaveToday, ... }, ... }
+  const [realHrmsSummary, setRealHrmsSummary] = useState(null)
   const [loadingData, setLoadingData] = useState(false)
-
-  useEffect(() => {
-    inventoryService
-      .getDashboardSummary(targetCompanyId)
-      .then((res) => setInvSummary(res.data))
-      .catch((err) => setInvError(getErrorMessage(err)))
-  }, [targetCompanyId])
 
   useEffect(() => {
     if (!targetCompanyId) return
@@ -208,29 +201,29 @@ export default function Dashboard() {
     // 1. Live Sales Orders API
     listSalesOrders(targetCompanyId, { pageSize: 100 })
       .then((res) => setRealOrders(res.results || []))
-      .catch(() => setRealOrders([]))
+      .catch(() => setRealOrders(null))
 
     // 2. Live Products API
     listProducts(targetCompanyId, { pageSize: 100 })
       .then((res) => setRealProducts(res.results || []))
-      .catch(() => setRealProducts([]))
+      .catch(() => setRealProducts(null))
 
     // 3. Live Purchase Orders API
     listPurchaseOrders(targetCompanyId, { pageSize: 100 })
       .then((res) => setRealPurchaseOrders(res.results || []))
       .catch(() => setRealPurchaseOrders([]))
 
-    // 4. Live Staff / Users API
+    // 4. Live Staff / Users API (superuser endpoint)
     listUsers({ companyId: targetCompanyId })
       .then((users) => {
         if (users && users.length > 0) {
           setRealUsers(users)
         } else {
-          listUsers().then((all) => setRealUsers(all || [])).catch(() => {})
+          listUsers().then((all) => setRealUsers(all || [])).catch(() => setRealUsers(null))
         }
       })
       .catch(() => {
-        listUsers().then((all) => setRealUsers(all || [])).catch(() => {})
+        listUsers().then((all) => setRealUsers(all || [])).catch(() => setRealUsers(null))
       })
 
     // 5. Live Store & Stock Summary API
@@ -243,6 +236,11 @@ export default function Dashboard() {
       })
       .catch(() => {})
       .finally(() => setLoadingData(false))
+
+    // 6. Live HRMS Dashboard Summary API (staff count + attendance from real DB)
+    api.get(`/v1/companies/${targetCompanyId}/hrms/dashboard/summary/`)
+      .then((res) => setRealHrmsSummary(res.data))
+      .catch(() => setRealHrmsSummary(null))
   }, [targetCompanyId])
 
   /* =========================================================
@@ -250,13 +248,13 @@ export default function Dashboard() {
      ========================================================= */
 
   const companyProducts = useMemo(() => {
-    if (realProducts && realProducts.length > 0) return realProducts
+    if (realProducts !== null) return realProducts
     const list = erpState.byCompany?.[compKey]?.products || erpState.products || []
     return list.filter((p) => !p.company || Number(p.company) === targetCompanyId)
   }, [realProducts, erpState, compKey, targetCompanyId])
 
   const companyOrders = useMemo(() => {
-    if (realOrders && realOrders.length > 0) return realOrders
+    if (realOrders !== null) return realOrders
     const list = erpState.byCompany?.[compKey]?.orders || erpState.orders || []
     return list.filter((o) => !o.company || Number(o.company) === targetCompanyId)
   }, [realOrders, erpState, compKey, targetCompanyId])
@@ -267,7 +265,7 @@ export default function Dashboard() {
   }, [erpState, compKey, targetCompanyId])
 
   const companyEmployees = useMemo(() => {
-    if (realUsers && realUsers.length > 0) return realUsers
+    if (realUsers !== null) return realUsers
     return (erpState.users || []).filter(
       (u) =>
         Number(u.primary_company) === targetCompanyId ||
@@ -304,12 +302,6 @@ export default function Dashboard() {
     )
   }, [companyOrders, dateRange, customStart, customEnd])
 
-  const filteredInvoices = useMemo(() => {
-    return companyInvoices.filter((i) =>
-      isWithinRange(i.invoice_date || i.created_at, dateRange, customStart, customEnd)
-    )
-  }, [companyInvoices, dateRange, customStart, customEnd])
-
   // KPI Metrics
   const kpiData = useMemo(() => {
     // Orders
@@ -342,37 +334,43 @@ export default function Dashboard() {
       })
     }
 
-    // Invoices & Revenue
+    // Revenue: use real order subtotals from the backend (no standalone invoice model exists)
+    // filteredOrders come from the live Sales Orders API — use subtotal (sum of line_amounts)
     let totalRevenue = 0
     let amountCollected = 0
-    filteredInvoices.forEach((inv) => {
-      const amount = Number(inv.total_amount || inv.grand_total || inv.amount || 0)
-      totalRevenue += amount
-      const st = String(inv.status || 'DRAFT').toUpperCase()
-      if (st === 'PAID') {
-        amountCollected += amount
-      } else if (inv.paid_amount) {
-        amountCollected += Number(inv.paid_amount)
+    filteredOrders.forEach((o) => {
+      // subtotal is returned by the backend serializer as the pre-tax sum of line_amounts
+      const val = Number(o.subtotal || 0)
+      totalRevenue += val
+      // CONFIRMED orders = revenue committed/collected
+      const st = String(o.status || 'DRAFT').toUpperCase()
+      if (st === 'CONFIRMED') {
+        amountCollected += val
       }
     })
-
-    // Calculate revenue from real Sales Orders if standalone invoices are 0
+    // If orders have no subtotal (older serializer), fall back to line math
     if (totalRevenue === 0 && filteredOrders.length > 0) {
       filteredOrders.forEach((o) => {
-        const val = Number(o.subtotal || 0) || (o.lines || []).reduce((sum, l) => sum + (Number(l.line_amount) || Number(l.quantity) * Number(l.unit_price) || 0), 0)
+        const val = (o.lines || []).reduce(
+          (sum, l) => sum + (Number(l.line_amount) || Number(l.quantity) * Number(l.unit_price) || 0),
+          0,
+        )
         totalRevenue += val
-        if (String(o.status).toUpperCase() === 'CONFIRMED') {
+        if (String(o.status || '').toUpperCase() === 'CONFIRMED') {
           amountCollected += val
         }
       })
     }
     const outstandingRevenue = Math.max(0, totalRevenue - amountCollected)
 
-    // Staff / HRMS
-    const totalEmployees = companyEmployees.length
-    const presentToday = companyAttendance.length > 0
-      ? companyAttendance.filter((a) => a.date === todayStr && ['PRESENT', 'LATE', 'HALF_DAY'].includes(a.status)).length
-      : totalEmployees
+    // Staff / HRMS — prefer the live HRMS Dashboard Summary API (real DB counts)
+    // Falls back to companyEmployees (users API) when HRMS summary not yet loaded
+    const totalEmployees = realHrmsSummary?.kpis?.totalEmployees ?? companyEmployees.length
+    const presentToday = realHrmsSummary?.kpis?.presentToday ?? (
+      companyAttendance.length > 0
+        ? companyAttendance.filter((a) => a.date === todayStr && ['PRESENT', 'LATE', 'HALF_DAY'].includes(a.status)).length
+        : totalEmployees
+    )
 
     return {
       totalOrders,
@@ -391,10 +389,10 @@ export default function Dashboard() {
     filteredOrders,
     companyProducts,
     realStoreSummary,
-    filteredInvoices,
     companyEmployees,
     companyAttendance,
     realPurchaseOrders,
+    realHrmsSummary,
   ])
 
   /* =========================================================
@@ -474,23 +472,40 @@ export default function Dashboard() {
 
   // 3. Revenue vs Collected Monthly Comparison
   const revenueComparisonData = useMemo(() => {
-    const months = ['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    return months.map((m, idx) => {
-      if (idx === 3) {
-        // Current month
-        return {
-          label: m,
-          revenue: kpiData.totalRevenue,
-          collected: kpiData.amountCollected,
+    const now = new Date()
+    const months = []
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const label = d.toLocaleDateString('en-IN', { month: 'short' })
+      months.push({ key, label, revenue: 0, collected: 0 })
+    }
+
+    const monthMap = new Map(months.map((m) => [m.key, m]))
+
+    companyOrders.forEach((o) => {
+      const dateStr = o.order_date || o.created_at || ''
+      const key = dateStr.slice(0, 7)
+      if (monthMap.has(key)) {
+        const item = monthMap.get(key)
+        const val = Number(o.subtotal || 0) || (o.lines || []).reduce(
+          (sum, l) => sum + (Number(l.line_amount) || Number(l.quantity) * Number(l.unit_price) || 0),
+          0,
+        )
+        item.revenue += val
+        const st = String(o.status || 'DRAFT').toUpperCase()
+        if (st === 'CONFIRMED') {
+          item.collected += val
         }
       }
-      return {
-        label: m,
-        revenue: Math.round(kpiData.totalRevenue * 0.7 * (0.8 + idx * 0.05)),
-        collected: Math.round(kpiData.amountCollected * 0.75 * (0.8 + idx * 0.05)),
-      }
     })
-  }, [kpiData])
+
+    return months.map(({ label, revenue, collected }) => ({
+      label,
+      revenue,
+      collected,
+    }))
+  }, [companyOrders])
 
   // 4. Upcoming Order Deadlines (Nearest first)
   const upcomingDeadlines = useMemo(() => {
@@ -532,25 +547,29 @@ export default function Dashboard() {
   // 7. HR Snapshot
   const hrSnapshot = useMemo(() => {
     const todayStr = new Date().toISOString().slice(0, 10)
-    const onLeaveToday = (erpState.leaveRequests || []).filter(
-      (l) =>
-        l.status === 'APPROVED' &&
-        l.start_date <= todayStr &&
-        l.end_date >= todayStr &&
-        companyEmployees.some((e) => Number(e.id) === Number(l.user))
-    ).length
+    const onLeaveToday = realHrmsSummary?.kpis?.onLeaveToday ?? (
+      (erpState.leaveRequests || []).filter(
+        (l) =>
+          l.status === 'APPROVED' &&
+          l.start_date <= todayStr &&
+          l.end_date >= todayStr &&
+          companyEmployees.some((e) => Number(e.id) === Number(l.user))
+      ).length
+    )
 
-    const upcomingHolidays = (erpState.holidays || [])
-      .filter((h) => h.date >= todayStr)
-      .slice(0, 2)
+    const upcomingHolidays = realHrmsSummary?.upcomingHolidays && realHrmsSummary.upcomingHolidays.length > 0
+      ? realHrmsSummary.upcomingHolidays.slice(0, 2)
+      : (erpState.holidays || [])
+          .filter((h) => h.date >= todayStr)
+          .slice(0, 2)
 
     return {
-      totalEmployees: companyEmployees.length,
+      totalEmployees: kpiData.totalEmployees,
       presentToday: kpiData.presentToday,
       onLeaveToday,
       upcomingHolidays,
     }
-  }, [erpState, companyEmployees, kpiData])
+  }, [realHrmsSummary, erpState.leaveRequests, erpState.holidays, companyEmployees, kpiData])
 
   /* =========================================================
      NON-ADMIN EMPLOYEE VIEW
@@ -818,7 +837,7 @@ export default function Dashboard() {
             <span className="dash-kpi-icon" style={{ background: '#eff6ff', color: '#2563eb' }}>
               📋
             </span>
-            <Sparkline data={[8, 12, 10, 15, 14, 18, Math.max(kpiData.totalOrders, 1)]} color="#2563eb" />
+            <Sparkline data={ordersTrendData.length > 1 ? ordersTrendData.map((d) => d.value) : [0, Math.max(kpiData.totalOrders, 1)]} color="#2563eb" />
           </div>
           <div className="dash-kpi-val">{kpiData.totalOrders}</div>
           <div className="dash-kpi-title">Total Orders</div>
@@ -974,7 +993,7 @@ export default function Dashboard() {
             <span className="dash-kpi-icon" style={{ background: '#ecfdf5', color: '#059669' }}>
               ✅
             </span>
-            <Sparkline data={[4, 5, 5, 6, 7, 6, Math.max(kpiData.presentToday, 1)]} color="#059669" />
+            <Sparkline data={realHrmsSummary?.attendanceTrend?.length > 1 ? realHrmsSummary.attendanceTrend.map((d) => d.value) : [4, 5, 5, 6, 7, 6, Math.max(kpiData.presentToday, 1)]} color="#059669" />
           </div>
           <div className="dash-kpi-val" style={{ color: '#059669' }}>
             {kpiData.presentToday}
