@@ -98,6 +98,25 @@ ASGI_APPLICATION = "config.asgi.application"
 # PostgreSQL only. No SQLite fallback - if these variables are missing or
 # the server is unreachable, startup/migrations must fail loudly rather
 # than silently switching databases.
+#
+# CONN_MAX_AGE: reuse persistent connections across requests instead of
+# opening a new TCP connection per request (Django default = 0 = new
+# connection every time). Set to 60 seconds so each gunicorn worker holds
+# at most one idle connection that is recycled rather than discarded.
+#
+# DEPLOYMENT CONSTRAINT: CONN_MAX_AGE > 0 means each gunicorn worker
+# keeps an open PostgreSQL connection between requests. With W workers
+# you consume up to W persistent connections from the PG connection pool.
+# Ensure PostgreSQL max_connections > (workers * instances) + headroom.
+# Recommended: also deploy PgBouncer in transaction mode ahead of this for
+# production at > 50 concurrent users (see docs/deployment-guide.md).
+#
+# CONN_HEALTH_CHECKS: added in Django 4.1 — when True, Django verifies the
+# persistent connection is still alive before reuse and transparently
+# reopens it if the database closed it (e.g. after a PG restart or a
+# connection recycled by a firewall/load balancer). Without this, a
+# stale persistent connection raises an OperationalError on the first
+# request after the break. Always True when CONN_MAX_AGE > 0.
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -106,6 +125,20 @@ DATABASES = {
         "PASSWORD": env("DB_PASSWORD"),
         "HOST": env("DB_HOST", default="localhost"),
         "PORT": env("DB_PORT", default="5432"),
+        # Reuse connections for 60 s. Configurable via DB_CONN_MAX_AGE env
+        # var so a deployment that sits behind PgBouncer (transaction mode)
+        # can set this to 0 to avoid "prepared statement" conflicts while
+        # still benefiting from PgBouncer's own connection pooling.
+        "CONN_MAX_AGE": env.int("DB_CONN_MAX_AGE", default=60),
+        # Verify the persistent connection is still alive before each reuse.
+        # Required whenever CONN_MAX_AGE > 0 to survive PG restarts and
+        # firewall/NAT timeouts transparently.
+        "CONN_HEALTH_CHECKS": env.bool("DB_CONN_HEALTH_CHECKS", default=True),
+        # Explicit connection options. application_name makes this process
+        # identifiable in pg_stat_activity.
+        "OPTIONS": {
+            "application_name": env("DB_APPLICATION_NAME", default="cmhp_erp"),
+        },
     }
 }
 

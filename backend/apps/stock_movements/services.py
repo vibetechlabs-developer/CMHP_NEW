@@ -132,7 +132,7 @@ def stock_movements_queryset(*, store, accessible_companies):
     )
 
 
-def compute_stock_balances(*, store, accessible_companies, material_id=None, posted_from=None, posted_to=None, issue_eligible_only=False):
+def compute_stock_balances(*, store, accessible_companies, material_id=None, material_ids=None, posted_from=None, posted_to=None, issue_eligible_only=False):
     """Recorded-receipt totals, grouped by (material, unit, source_company)
     - NEVER just (material), so two lines for the same material recorded
     in different units are never summed together as if they were the
@@ -160,7 +160,9 @@ def compute_stock_balances(*, store, accessible_companies, material_id=None, pos
     from django.db.models import Q
 
     queryset = stock_movements_queryset(store=store, accessible_companies=accessible_companies)
-    if material_id is not None:
+    if material_ids is not None:
+        queryset = queryset.filter(material_id__in=material_ids)
+    elif material_id is not None:
         queryset = queryset.filter(material_id=material_id)
     if posted_from is not None:
         queryset = queryset.filter(posted_at__date__gte=posted_from)
@@ -334,7 +336,7 @@ def material_issue_movements_queryset(*, store, accessible_companies):
     ).select_related("material", "unit", "source_company", "posted_by")
 
 
-def compute_issued_balances(*, store, accessible_companies, material_id=None, posted_from=None, posted_to=None):
+def compute_issued_balances(*, store, accessible_companies, material_id=None, material_ids=None, posted_from=None, posted_to=None):
     """Recorded-issue totals, grouped by (material, unit, source_company) -
     the issue-side counterpart of compute_stock_balances, same grouping,
     same date-window semantics, same "never merge across units or
@@ -345,7 +347,9 @@ def compute_issued_balances(*, store, accessible_companies, material_id=None, po
     material_register_balances's own additions).
     """
     queryset = material_issue_movements_queryset(store=store, accessible_companies=accessible_companies)
-    if material_id is not None:
+    if material_ids is not None:
+        queryset = queryset.filter(material_id__in=material_ids)
+    elif material_id is not None:
         queryset = queryset.filter(material_id=material_id)
     if posted_from is not None:
         queryset = queryset.filter(posted_at__date__gte=posted_from)
@@ -363,7 +367,7 @@ def compute_issued_balances(*, store, accessible_companies, material_id=None, po
     )
 
 
-def compute_returned_balances(*, store, accessible_companies, material_id=None, created_from=None, created_to=None, disposition=None):
+def compute_returned_balances(*, store, accessible_companies, material_id=None, material_ids=None, created_from=None, created_to=None, disposition=None):
     """Recorded `MaterialReturn` totals, grouped by (material, unit,
     source_company) - the physical-return counterpart of
     compute_issued_balances, same grouping, same "never merge across
@@ -374,7 +378,9 @@ def compute_returned_balances(*, store, accessible_companies, material_id=None, 
     for physical `book_quantity` bookkeeping.
     """
     queryset = MaterialReturn.objects.filter(store=store, source_company__in=accessible_companies)
-    if material_id is not None:
+    if material_ids is not None:
+        queryset = queryset.filter(material_id__in=material_ids)
+    elif material_id is not None:
         queryset = queryset.filter(material_id=material_id)
     if disposition is not None:
         queryset = queryset.filter(disposition=disposition)
@@ -392,6 +398,73 @@ def compute_returned_balances(*, store, accessible_companies, material_id=None, 
         .annotate(recorded_returned_quantity=Sum("quantity"))
         .order_by("material__code", "unit__code", "source_company__code")
     )
+
+
+def batch_net_recorded_balances(*, store, accessible_companies, material_ids):
+    """Batched version of net_recorded_balances. Computes recorded receipt,
+    issued, returned, and released-usable balances across multiple materials
+    in exactly 4 database queries, returning a dict keyed by
+    (material_id, unit_id, source_company_id).
+    """
+    if not material_ids:
+        return {}
+
+    received = {}
+    unit_labels = {}
+    for row in compute_stock_balances(
+        store=store, accessible_companies=accessible_companies, material_ids=material_ids, issue_eligible_only=True,
+    ):
+        key = (row["material_id"], row["unit_id"], row["source_company_id"])
+        received[key] = row["recorded_receipt_quantity"]
+        unit_labels[(row["material_id"], row["unit_id"])] = (row["unit_code_snapshot"], row["unit_name_snapshot"])
+
+    issued = {}
+    for row in compute_issued_balances(
+        store=store, accessible_companies=accessible_companies, material_ids=material_ids
+    ):
+        key = (row["material_id"], row["unit_id"], row["source_company_id"])
+        issued[key] = row["recorded_issued_quantity"]
+        unit_labels.setdefault((row["material_id"], row["unit_id"]), (row["unit_code_snapshot"], row["unit_name_snapshot"]))
+
+    returned = {}
+    for row in compute_returned_balances(
+        store=store, accessible_companies=accessible_companies, material_ids=material_ids
+    ):
+        key = (row["material_id"], row["unit_id"], row["source_company_id"])
+        returned[key] = row["recorded_returned_quantity"]
+        unit_labels.setdefault((row["material_id"], row["unit_id"]), (row["unit__code"], row["unit__name"]))
+
+    released = {}
+    for row in compute_returned_balances(
+        store=store, accessible_companies=accessible_companies, material_ids=material_ids, disposition="RELEASED_USABLE",
+    ):
+        key = (row["material_id"], row["unit_id"], row["source_company_id"])
+        released[key] = row["recorded_returned_quantity"]
+        unit_labels.setdefault((row["material_id"], row["unit_id"]), (row["unit__code"], row["unit__name"]))
+
+    all_keys = set(received) | set(issued) | set(returned) | set(released)
+    results = {}
+    for mat_id, u_id, comp_id in all_keys:
+        received_qty = received.get((mat_id, u_id, comp_id), Decimal("0"))
+        issued_qty = issued.get((mat_id, u_id, comp_id), Decimal("0"))
+        returned_qty = returned.get((mat_id, u_id, comp_id), Decimal("0"))
+        released_qty = released.get((mat_id, u_id, comp_id), Decimal("0"))
+        unit_code, unit_name = unit_labels.get((mat_id, u_id), ("", ""))
+        net_quantity = received_qty - issued_qty + released_qty
+        results[(mat_id, u_id, comp_id)] = {
+            "material_id": mat_id,
+            "unit_id": u_id,
+            "unit_code": unit_code,
+            "unit_name": unit_name,
+            "source_company_id": comp_id,
+            "recorded_receipt_quantity": received_qty,
+            "recorded_issued_quantity": issued_qty,
+            "net_quantity": net_quantity,
+            "recorded_returned_quantity": returned_qty,
+            "recorded_released_usable_quantity": released_qty,
+            "book_quantity": received_qty - issued_qty + returned_qty,
+        }
+    return results
 
 
 def net_recorded_balances(*, store, accessible_companies, material_id):
@@ -420,56 +493,24 @@ def net_recorded_balances(*, store, accessible_companies, material_id):
     Outward form needs a real unit label next to this number, never a
     hardcoded "KG" (see NetRecordedBalanceSerializer).
     """
-    received = {}
-    unit_labels = {}
-    # Issue eligibility uses QC-approved (or untracked) receipt lots only.
-    for row in compute_stock_balances(
-        store=store, accessible_companies=accessible_companies, material_id=material_id, issue_eligible_only=True,
-    ):
-        key = (row["unit_id"], row["source_company_id"])
-        received[key] = row["recorded_receipt_quantity"]
-        unit_labels[row["unit_id"]] = (row["unit_code_snapshot"], row["unit_name_snapshot"])
-    issued = {}
-    for row in compute_issued_balances(store=store, accessible_companies=accessible_companies, material_id=material_id):
-        key = (row["unit_id"], row["source_company_id"])
-        issued[key] = row["recorded_issued_quantity"]
-        unit_labels.setdefault(row["unit_id"], (row["unit_code_snapshot"], row["unit_name_snapshot"]))
-    returned = {}
-    for row in compute_returned_balances(store=store, accessible_companies=accessible_companies, material_id=material_id):
-        key = (row["unit_id"], row["source_company_id"])
-        returned[key] = row["recorded_returned_quantity"]
-        unit_labels.setdefault(row["unit_id"], (row["unit__code"], row["unit__name"]))
-    released = {}
-    for row in compute_returned_balances(
-        store=store, accessible_companies=accessible_companies, material_id=material_id, disposition="RELEASED_USABLE",
-    ):
-        key = (row["unit_id"], row["source_company_id"])
-        released[key] = row["recorded_returned_quantity"]
-        unit_labels.setdefault(row["unit_id"], (row["unit__code"], row["unit__name"]))
-
-    keys = set(received) | set(issued) | set(returned) | set(released)
-    results = []
-    for unit_id, company_id in keys:
-        received_qty = received.get((unit_id, company_id), Decimal("0"))
-        issued_qty = issued.get((unit_id, company_id), Decimal("0"))
-        returned_qty = returned.get((unit_id, company_id), Decimal("0"))
-        released_qty = released.get((unit_id, company_id), Decimal("0"))
-        unit_code, unit_name = unit_labels.get(unit_id, ("", ""))
-        # Released-usable returns are issue-eligible again; held/rejected are not.
-        net_quantity = received_qty - issued_qty + released_qty
-        results.append({
-            "unit_id": unit_id,
-            "unit_code": unit_code,
-            "unit_name": unit_name,
-            "source_company_id": company_id,
-            "recorded_receipt_quantity": received_qty,
-            "recorded_issued_quantity": issued_qty,
-            "net_quantity": net_quantity,
-            "recorded_returned_quantity": returned_qty,
-            "recorded_released_usable_quantity": released_qty,
-            "book_quantity": received_qty - issued_qty + returned_qty,
-        })
-    return results
+    batched = batch_net_recorded_balances(
+        store=store, accessible_companies=accessible_companies, material_ids=[material_id]
+    )
+    return [
+        {
+            "unit_id": data["unit_id"],
+            "unit_code": data["unit_code"],
+            "unit_name": data["unit_name"],
+            "source_company_id": data["source_company_id"],
+            "recorded_receipt_quantity": data["recorded_receipt_quantity"],
+            "recorded_issued_quantity": data["recorded_issued_quantity"],
+            "net_quantity": data["net_quantity"],
+            "recorded_returned_quantity": data["recorded_returned_quantity"],
+            "recorded_released_usable_quantity": data["recorded_released_usable_quantity"],
+            "book_quantity": data["book_quantity"],
+        }
+        for data in batched.values()
+    ]
 
 
 def _issue_header_snapshot(material_issue):
@@ -792,21 +833,36 @@ def post_material_issue(*, actor, material_issue_id, expected_version):
     lines = list(material_issue.lines.select_related("material", "unit").order_by("line_number", "id"))
     if not lines:
         lines = [None]
+
+    # Collect unique material IDs and lock in deterministic ascending order to prevent deadlocks
+    unique_material_ids = sorted(list({
+        line.material_id if line else material_issue.material_id for line in lines
+    }))
+    list(Material.objects.select_for_update().filter(pk__in=unique_material_ids).order_by("id"))
+
+    # Batch compute net balances for all materials in the issue at once (4 queries total)
+    batch_balances = batch_net_recorded_balances(
+        store=material_issue.store,
+        accessible_companies=[material_issue.source_company],
+        material_ids=unique_material_ids,
+    )
+
+    # Track allocated quantities across lines in this issue to prevent intra-slip over-allocation
+    allocated_in_slip = {}
+
     for line in lines:
         material_id = line.material_id if line else material_issue.material_id
         unit_id = line.unit_id if line else material_issue.unit_id
         qty = line.issued_quantity if line else material_issue.issued_quantity
-        Material.objects.select_for_update().get(pk=material_id)
-        balances = net_recorded_balances(
-            store=material_issue.store,
-            accessible_companies=[material_issue.source_company],
-            material_id=material_id,
-        )
-        row = next(
-            (b for b in balances if b["unit_id"] == unit_id and b["source_company_id"] == material_issue.source_company_id),
-            None,
-        )
-        net_available = row["net_quantity"] if row else Decimal("0")
+
+        key = (material_id, unit_id, material_issue.source_company_id)
+        row = batch_balances.get(key)
+        total_net_available = row["net_quantity"] if row else Decimal("0")
+
+        # Deduct any quantity already claimed by earlier lines of the same material/unit in this slip
+        previously_claimed = allocated_in_slip.get((material_id, unit_id), Decimal("0"))
+        net_available = total_net_available - previously_claimed
+
         label = (line.material_code_snapshot if line else material_issue.material_code_snapshot) or str(material_id)
         unit_label = (line.unit_code_snapshot if line else material_issue.unit_code_snapshot) or ""
         if qty > net_available:
@@ -817,6 +873,7 @@ def post_material_issue(*, actor, material_issue_id, expected_version):
                     "Quarantine / on-hold / rejected lots are not issue-eligible."
                 )
             })
+        allocated_in_slip[(material_id, unit_id)] = previously_claimed + qty
 
     before = {"status": material_issue.status}
     posted_at = timezone.now()
