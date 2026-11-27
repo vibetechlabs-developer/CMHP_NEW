@@ -115,6 +115,12 @@ class StockMovement(models.Model):
         constraints = [
             models.CheckConstraint(check=models.Q(quantity__gt=0), name="stock_movement_quantity_positive"),
         ]
+        indexes = [
+            models.Index(
+                fields=["store", "source_company", "material", "posted_at"],
+                name="sm_store_comp_mat_post_idx",
+            ),
+        ]
 
     def __str__(self):
         return f"StockMovement #{self.pk or 'new'} ({self.movement_type}, {self.material_code_snapshot})"
@@ -394,6 +400,12 @@ class MaterialIssueMovement(models.Model):
         constraints = [
             models.CheckConstraint(check=models.Q(quantity__gt=0), name="material_issue_movement_quantity_positive"),
         ]
+        indexes = [
+            models.Index(
+                fields=["store", "source_company", "material", "posted_at"],
+                name="mim_store_comp_mat_post_idx",
+            ),
+        ]
 
     def __str__(self):
         return f"MaterialIssueMovement #{self.pk or 'new'} ({self.material_code_snapshot})"
@@ -545,6 +557,12 @@ class MaterialReturn(models.Model):
         ordering = ["-created_at", "-id"]
         constraints = [
             models.CheckConstraint(check=models.Q(quantity__gt=0), name="material_return_quantity_positive"),
+        ]
+        indexes = [
+            models.Index(
+                fields=["store", "source_company", "material", "created_at"],
+                name="mr_store_comp_mat_created_idx",
+            ),
         ]
 
     def __str__(self):
