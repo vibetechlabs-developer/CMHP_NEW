@@ -1,0 +1,29 @@
+/* Shared Pharma Hero Banner */
+.shared-pharma-hero {
+  margin-bottom: 20px !important;
+}
+
+.shared-pharma-hero .dash-hero-text h1 {
+  font-size: 26px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 6px 0 8px;
+  line-height: 1.25;
+}
+
+.shared-pharma-hero .dash-hero-text p {
+  font-size: 13.5px;
+  color: #334155;
+  margin: 0 0 14px;
+  max-width: 650px;
+  line-height: 1.5;
+}
+
+.shared-pharma-hero-actions {
+  position: relative;
+  z-index: 10;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}

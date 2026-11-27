@@ -10,9 +10,10 @@ import { resolveQcSlip } from '../formulas/slips/slipRegistry'
 import TabletBulkReleaseSlip, { getInitialTabletBulkReleaseData } from './slips/TabletBulkReleaseSlip'
 import MotherTinctureBulkReleaseSlip, { getInitialMotherTinctureBulkReleaseData } from './slips/MotherTinctureBulkReleaseSlip'
 import SyrupBulkReleaseSlip, { getInitialSyrupBulkReleaseData } from './slips/SyrupBulkReleaseSlip'
+import DropsBulkReleaseSlip, { getInitialDropsBulkReleaseData } from './slips/DropsBulkReleaseSlip'
 import OilBulkReleaseSlip, { getInitialOilBulkReleaseData } from './slips/OilBulkReleaseSlip'
 import QcPlaceholderSlip from './slips/QcPlaceholderSlip'
-import { triggerSlipPrint, downloadSlipPdf } from '../../utils/slipPrintService'
+import { triggerSlipPrint } from '../../utils/slipPrintService'
 import './BulkReleaseSlip.css'
 import './slips/TabletQcSlip.css'
 
@@ -143,13 +144,26 @@ export default function BulkReleaseSlipEditor({
     return getInitialSyrupBulkReleaseData(initialData || {})
   }
 
+  // Load saved Drops slip data
+  const loadDropsData = () => {
+    try {
+      const specificKey = `cmhp_qc_slip_v1_bulk_release_drops_${batchKey}`
+      const saved = localStorage.getItem(specificKey)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed?.data) return parsed.data
+      }
+    } catch {}
+    return getInitialDropsBulkReleaseData(initialData || {})
+  }
+
   const [tabletData, setTabletData] = useState(loadTabletData)
   const [mtData, setMtData] = useState(loadMtData)
   const [syrupData, setSyrupData] = useState(loadSyrupData)
+  const [dropsData, setDropsData] = useState(loadDropsData)
   const [genericData, setGenericData] = useState(loadGenericData)
 
   const [saving, setSaving] = useState(false)
-  const [downloading, setDownloading] = useState(false)
   const [feedback, setFeedback] = useState('')
   const sheetRef = useRef(null)
 
@@ -158,6 +172,7 @@ export default function BulkReleaseSlipEditor({
     setTabletData(loadTabletData())
     setMtData(loadMtData())
     setSyrupData(loadSyrupData())
+    setDropsData(loadDropsData())
     setGenericData(loadGenericData())
   }, [batchKey, productType, initialData])
 
@@ -166,7 +181,9 @@ export default function BulkReleaseSlipEditor({
   }
 
   const activeBatchNo =
-    typeKey === 'syrup'
+    typeKey === 'drops'
+      ? dropsData.batch_no
+      : typeKey === 'syrup'
       ? syrupData.batch_no
       : typeKey === 'tablet'
       ? tabletData.batch_no
@@ -178,7 +195,22 @@ export default function BulkReleaseSlipEditor({
     if (isPlaceholder) return
     setSaving(true)
     try {
-      if (typeKey === 'syrup') {
+      if (typeKey === 'drops') {
+        const envelope = {
+          version: 1,
+          layoutId: 'drops-att3-v1',
+          productType: 'drops',
+          slipType: 'bulk_release',
+          batchNo: dropsData.batch_no || '',
+          product: dropsData.product || '',
+          savedAt: new Date().toISOString(),
+          data: dropsData,
+        }
+        const storeKey = `cmhp_qc_slip_v1_bulk_release_drops_${dropsData.batch_no || batchKey}`
+        localStorage.setItem(storeKey, JSON.stringify(envelope))
+        setFeedback('✅ Drops Bulk Release Slip saved!')
+        if (onSaved) onSaved(envelope)
+      } else if (typeKey === 'syrup') {
         const envelope = {
           version: 1,
           layoutId: 'syrup-att3-v1',
@@ -265,7 +297,9 @@ export default function BulkReleaseSlipEditor({
   const handleReset = () => {
     if (isPlaceholder) return
     if (window.confirm('Reset all fields to default blank slip?')) {
-      if (typeKey === 'syrup') {
+      if (typeKey === 'drops') {
+        setDropsData(getInitialDropsBulkReleaseData({}))
+      } else if (typeKey === 'syrup') {
         setSyrupData(getInitialSyrupBulkReleaseData({}))
       } else if (typeKey === 'mother-tincture') {
         setMtData(getInitialMotherTinctureBulkReleaseData({}))
@@ -284,22 +318,6 @@ export default function BulkReleaseSlipEditor({
   const handlePrint = async () => {
     if (isPlaceholder) return
     await triggerSlipPrint()
-  }
-
-  const handleDownloadPdf = async () => {
-    if (!sheetRef.current || isPlaceholder || downloading) return
-    setDownloading(true)
-    try {
-      const fileName = `Attachment3_BulkRelease_${(activeBatchNo || 'slip').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`
-      await downloadSlipPdf(sheetRef.current, fileName)
-      setFeedback(`⬇️ PDF downloaded: ${fileName}`)
-      setTimeout(() => setFeedback(''), 4000)
-    } catch (err) {
-      console.error('PDF generation error:', err)
-      alert('Could not generate PDF. Please try Print -> Save as PDF.')
-    } finally {
-      setDownloading(false)
-    }
   }
 
   return (
@@ -337,9 +355,6 @@ export default function BulkReleaseSlipEditor({
           <Button variant="secondary" size="sm" onClick={handlePrint} disabled={isPlaceholder}>
             🖨️ Print
           </Button>
-          <Button variant="secondary" size="sm" onClick={handleDownloadPdf} disabled={isPlaceholder || downloading}>
-            {downloading ? 'Generating PDF…' : '⬇️ Download PDF'}
-          </Button>
           <Button variant="primary" size="sm" onClick={handleSave} disabled={isPlaceholder || saving || readOnly}>
             {saving ? 'Saving…' : '💾 Save Slip'}
           </Button>
@@ -349,6 +364,15 @@ export default function BulkReleaseSlipEditor({
       {/* ── SLIP CONTENT AREA ── */}
       {isPlaceholder ? (
         <QcPlaceholderSlip productType={displayName} slipType="attachment_3" />
+      ) : typeKey === 'drops' ? (
+        <div ref={sheetRef} style={{ width: '100%' }}>
+          <DropsBulkReleaseSlip
+            data={dropsData}
+            onChange={setDropsData}
+            branding={branding}
+            readOnly={readOnly}
+          />
+        </div>
       ) : typeKey === 'syrup' ? (
         <div ref={sheetRef} style={{ width: '100%' }}>
           <SyrupBulkReleaseSlip

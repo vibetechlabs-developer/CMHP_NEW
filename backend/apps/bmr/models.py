@@ -122,6 +122,16 @@ class ProductionOrderStatus(models.Model):
     production_remark = models.TextField(blank=True, default="")
     packaging_status = models.CharField(max_length=50, default="Pending")
     dispatch_status = models.CharField(max_length=10, choices=DispatchStatus.choices, default=DispatchStatus.NO)
+    in_records = models.BooleanField(default=False, db_index=True)
+    sent_to_records_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    sent_to_records_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="orders_sent_to_records",
+    )
+    is_dispatch_confirmed = models.BooleanField(default=False, db_index=True)
     qa_status = models.CharField(max_length=50, blank=True, default="Pending")
     qa_remark = models.TextField(blank=True, default="")
     dispatched_at = models.DateTimeField(null=True, blank=True)
@@ -288,6 +298,8 @@ class OrderDispatchAuditLog(models.Model):
 
     class Action(models.TextChoices):
         DISPATCH = "DISPATCH", "Dispatched to Records & Dispatch"
+        SEND_TO_RECORDS = "SEND_TO_RECORDS", "Sent to Records"
+        DISPATCH_CONFIRM = "DISPATCH_CONFIRM", "Dispatch Confirmed"
         RETURN_TO_PRODUCTION = "RETURN_TO_PRODUCTION", "Returned to Production"
         BACK_TO_COA = "BACK_TO_COA", "Sent Back to COA"
 
@@ -306,5 +318,36 @@ class OrderDispatchAuditLog(models.Model):
 
     def __str__(self):
         return f"{self.action} on Order #{self.order_id} by {self.actor_username} at {self.created_at}"
+
+
+class DispatchRecord(models.Model):
+    """Permanent record created upon Dispatch Confirm.
+    Stores which order was confirmed for dispatch, when, by whom, and order details.
+    """
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, null=True, blank=True, related_name="dispatch_records")
+    order_id = models.CharField(max_length=100, db_index=True)
+    order_reference = models.CharField(max_length=100, blank=True, default="", db_index=True)
+    product_name = models.CharField(max_length=255, blank=True, default="")
+    product_type = models.CharField(max_length=50, blank=True, default="tablet")
+    batch_no = models.CharField(max_length=100, blank=True, default="")
+    order_date = models.DateField(null=True, blank=True)
+    dispatched_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    dispatched_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="dispatch_records_created",
+    )
+    dispatched_by_username = models.CharField(max_length=150, blank=True, default="")
+    notes = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["-dispatched_at", "-id"]
+
+    def __str__(self):
+        return f"DispatchRecord order={self.order_id} at {self.dispatched_at}"
+
 
 

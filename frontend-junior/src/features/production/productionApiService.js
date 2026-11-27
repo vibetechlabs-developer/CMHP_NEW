@@ -99,6 +99,9 @@ function normalizeOrder(apiOrder, statusMap = {}) {
     production_remark: ps.production_remark || '',
     packaging_status: ps.packaging_status || 'Pending',
     dispatch_status: ps.dispatch_status || 'NO',
+    in_records: ps.in_records || false,
+    sent_to_records_at: ps.sent_to_records_at || null,
+    is_dispatch_confirmed: ps.is_dispatch_confirmed || false,
     qa_status: ps.qa_status || 'Pending',
     qa_remark: ps.qa_remark || '',
 

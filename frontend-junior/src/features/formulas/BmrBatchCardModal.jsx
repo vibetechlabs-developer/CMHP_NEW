@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react'
-import html2pdf from 'html2pdf.js'
 import cmhpLogo from '../../assets/cmhp_bmr_logo.png'
 import './BmrBatchCardModal.css'
 
@@ -34,7 +33,6 @@ export default function BmrBatchCardModal({
   specialNotes = '',
 }) {
   const cardRef = useRef(null)
-  const [downloading, setDownloading] = useState(false)
   const [localBatchNo, setLocalBatchNo] = useState(batchNo || '')
   const [localNotes, setLocalNotes] = useState(
     specialNotes ||
@@ -45,31 +43,6 @@ export default function BmrBatchCardModal({
 
   const handlePrint = () => {
     window.print()
-  }
-
-  const handleDownloadPdf = async () => {
-    if (downloading) return
-    const el = cardRef.current
-    if (!el) return
-
-    setDownloading(true)
-    try {
-      const sanitizedName = (productName || 'BATCH_CARD').replace(/[^a-zA-Z0-9]/g, '_')
-      const opt = {
-        margin: [8, 8, 8, 8],
-        filename: `Batch_Card_${sanitizedName}_${targetVolumeLtr}L.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2.5, useCORS: true, letterRendering: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      }
-      await html2pdf().from(el).set(opt).save()
-    } catch (err) {
-      console.error('PDF download failed:', err)
-      // Fallback to native print dialog
-      window.print()
-    } finally {
-      setDownloading(false)
-    }
   }
 
   // Format today's date if not provided
@@ -98,15 +71,6 @@ export default function BmrBatchCardModal({
               title="Print directly or save to system PDF"
             >
               🖨️ Print Batch Card
-            </button>
-            <button
-              type="button"
-              className="batch-card-btn batch-card-btn-pdf"
-              onClick={handleDownloadPdf}
-              disabled={downloading}
-              title="Download formatted A4 PDF file"
-            >
-              {downloading ? '⏳ Generating PDF…' : '⬇️ Download PDF'}
             </button>
             <button type="button" className="batch-card-btn batch-card-btn-close" onClick={onClose}>
               ✕ Close

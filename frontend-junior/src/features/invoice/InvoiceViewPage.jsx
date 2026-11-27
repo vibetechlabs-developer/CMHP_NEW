@@ -18,6 +18,7 @@ import {
   generateInvoiceNumber,
   amountInWordsINR,
 } from './invoiceService'
+import api from '../../api/axios'
 import './InvoiceViewPage.css'
 
 
@@ -1742,6 +1743,23 @@ export default function InvoiceViewPage({ isNew: isNewProp = false }) {
           })
         )
 
+        const orderIdToSync = order?.id || currentInvoice?.order
+        if (orderIdToSync) {
+          try {
+            const apiCid = compId || (compKey === 'tej' ? 3 : 2)
+            api
+              .post(`/v1/companies/${apiCid}/orders/${orderIdToSync}/documents/`, {
+                doc_type: 'INVOICE',
+                data: {
+                  invoice_no: newInvoiceRecord.number,
+                  total: finalTotal,
+                  sheetData: newInvoiceRecord.sheetData,
+                },
+              })
+              .catch(() => {})
+          } catch {}
+        }
+
         setCreatedId(newId)
         window.history.replaceState(null, '', `/invoices/view/${newId}`)
 
@@ -1769,6 +1787,19 @@ export default function InvoiceViewPage({ isNew: isNewProp = false }) {
               },
             })
           )
+          try {
+            const apiCid = compId || (compKey === 'tej' ? 3 : 2)
+            api
+              .post(`/v1/companies/${apiCid}/orders/${targetOrderId}/documents/`, {
+                doc_type: 'INVOICE',
+                data: {
+                  invoice_no: sheet.invoice_no,
+                  total: finalTotal,
+                  sheetData: sheet,
+                },
+              })
+              .catch(() => {})
+          } catch {}
         }
 
         if (targetInvoiceId) {

@@ -303,6 +303,9 @@ export default function Quality() {
     () =>
       orderQcRecords.filter((rec) => {
         if (orderQcFilter !== 'ALL' && rec.status !== orderQcFilter) return false
+        if (rec.order && (rec.order.in_records || rec.order.dispatch_status === 'YES' || rec.order.status === 'IN_RECORDS') && !rec.order.coa_returned) {
+          return false
+        }
         if (orderQcSearch.trim()) {
           const q = orderQcSearch.toLowerCase().trim()
           return (
@@ -321,6 +324,9 @@ export default function Quality() {
     () =>
       orderQaRecords.filter((rec) => {
         if (orderQaFilter !== 'ALL' && rec.status !== orderQaFilter) return false
+        if (rec.order && (rec.order.in_records || rec.order.dispatch_status === 'YES' || rec.order.status === 'IN_RECORDS') && !rec.order.coa_returned) {
+          return false
+        }
         if (orderQaSearch.trim()) {
           const q = orderQaSearch.toLowerCase().trim()
           return (

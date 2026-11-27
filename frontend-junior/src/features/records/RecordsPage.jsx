@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
 import { selectActiveCompanyKey, selectActiveCompanyId } from '../../utils/companySelectors'
 import { DOSAGE_FORMS } from '../../constants/dosageForms'
+import PharmaHeroBanner from '../../components/PharmaHeroBanner'
+import SharedFilterBar from '../../components/SharedFilterBar'
 import OrderDocumentViewerModal from './OrderDocumentViewerModal'
 import './RecordsPage.css'
 
@@ -12,6 +14,8 @@ export default function RecordsPage({ mode = 'records' }) {
   const compKey = useSelector(selectActiveCompanyKey)
   const activeCompId = useSelector(selectActiveCompanyId)
   const companyId = activeCompId || (compKey === 'tej' ? 3 : 2)
+  const savedOrderInvoices = useSelector((state) => state.erp?.orderInvoices || {})
+  const reduxInvoices = useSelector((state) => state.erp?.byCompany?.[compKey]?.invoices || state.erp?.invoices || [])
 
   // State
   const [orders, setOrders] = useState([])
@@ -85,28 +89,63 @@ export default function RecordsPage({ mode = 'records' }) {
 
   const isDispatchMode = mode === 'dispatch'
 
-  // Client-side filtering by Company dropdown if selected
+  // Client-side filtering by Company, Search, Type, Quick Filter, and Date
   const filteredOrders = useMemo(() => {
-    return orders.filter((o) => {
-      if (companyFilter === 'ALL') return true
-      if (companyFilter === 'CMHP' && (o.company_id === 2 || String(o.company_name).toLowerCase().includes('cmhp'))) return true
-      if (companyFilter === 'TEJ' && (o.company_id === 3 || String(o.company_name).toLowerCase().includes('tej'))) return true
-      return true
-    }).filter((o) => {
-      if (!isDispatchMode) return true
-      if (quickFilter === 'READY') return !o.physically_dispatched && !o.coa_returned && !o.production_returned
-      if (quickFilter === 'SHIPPED') return o.physically_dispatched
-      if (quickFilter === 'REQUIRES_ACTION') return o.coa_returned || o.production_returned
-      return true
+    return orders
+      .filter((o) => {
+        if (companyFilter === 'ALL') return true
+        const cLower = String(o.company_name || '').toLowerCase()
+        const cId = Number(o.company_id || o.company)
+        if (companyFilter.toLowerCase() === 'cmhp' && (cId === 2 || cLower.includes('cmhp'))) return true
+        if (companyFilter.toLowerCase() === 'tej' && (cId === 3 || cLower.includes('tej'))) return true
+        return true
+      })
+      .filter((o) => {
+        if (!isDispatchMode) return true
+        if (quickFilter === 'READY') return !o.physically_dispatched && !o.coa_returned && !o.production_returned
+        if (quickFilter === 'SHIPPED') return o.physically_dispatched
+        if (quickFilter === 'REQUIRES_ACTION') return o.coa_returned || o.production_returned
+        return true
+      })
+      .filter((o) => {
+        if (!search.trim()) return true
+        const q = search.trim().toLowerCase()
+        const num = String(o.order_number || o.id || o.order_id || '').toLowerCase()
+        const prod = String(o.product_name || '').toLowerCase()
+        const batch = String(o.batch_no || '').toLowerCase()
+        const cust = String(o.customer_name || '').toLowerCase()
+        return num.includes(q) || prod.includes(q) || batch.includes(q) || cust.includes(q)
+      })
+      .filter((o) => {
+        if (typeFilter === 'ALL') return true
+        const t = String(o.product_type || o.dosage_form || '').toLowerCase()
+        return t === typeFilter.toLowerCase()
+      })
+      .filter((o) => {
+        if (!fromDate && !toDate) return true
+        const rawDate = o.sent_to_records_at || o.dispatched_at || o.order_date || o.created_at || ''
+        const dStr = String(rawDate).slice(0, 10)
+        if (fromDate && dStr && dStr < fromDate) return false
+        if (toDate && dStr && dStr > toDate) return false
+        return true
+      })
+  }, [orders, companyFilter, isDispatchMode, quickFilter, search, typeFilter, fromDate, toDate])
+
+  // Sort orders: Most recently sent to Records first (fall back to dispatched_at, then created_at, then order_date)
+  const sortedOrders = useMemo(() => {
+    return [...filteredOrders].sort((a, b) => {
+      const timeA = new Date(a.sent_to_records_at || a.dispatched_at || a.created_at || a.order_date || 0).getTime()
+      const timeB = new Date(b.sent_to_records_at || b.dispatched_at || b.created_at || b.order_date || 0).getTime()
+      return timeB - timeA
     })
-  }, [orders, companyFilter, isDispatchMode, quickFilter])
+  }, [filteredOrders])
 
   // Pagination
-  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize))
+  const totalPages = Math.max(1, Math.ceil(sortedOrders.length / pageSize))
   const paginatedOrders = useMemo(() => {
     const start = (currentPage - 1) * pageSize
-    return filteredOrders.slice(start, start + pageSize)
-  }, [filteredOrders, currentPage, pageSize])
+    return sortedOrders.slice(start, start + pageSize)
+  }, [sortedOrders, currentPage, pageSize])
 
   // Open Document Viewer
   const handleOpenDoc = (order, docType, subType = '', title = '') => {
@@ -181,17 +220,12 @@ export default function RecordsPage({ mode = 'records' }) {
 
   return (
     <div className="records-container">
-      {/* PAGE HEADER */}
-      <div className="records-header">
-        <h1>
-          <span>{isDispatchMode ? '📦 Dispatch Management' : '📋 Records'}</span>
-        </h1>
-        <p>
-          {isDispatchMode
-            ? 'Track real-time order lifecycle stage, factory-to-shipment milestones, and dispatch status.'
-            : 'Order-wise manufacturing records, digital dossiers (Attachments 1–6, BMR, COA, Invoice), and compliance audit trails.'}
-        </p>
-      </div>
+      {/* PAGE HEADER / PHARMA BANNER */}
+      <PharmaHeroBanner
+        badge="📋 Records & Compliance"
+        title="Manufacturing Records & Compliance Dossiers"
+        subtitle="Order-wise manufacturing records, digital dossiers (Attachments 1–6, BMR, COA, Invoice), and compliance audit trails."
+      />
 
       {/* TOAST ALERTS */}
       {error && (
@@ -260,7 +294,7 @@ export default function RecordsPage({ mode = 'records' }) {
                 setCurrentPage(1)
               }}
             >
-              All Dispatched Orders ({orders.length})
+              All Records ({orders.length})
             </button>
             <button
               type="button"
@@ -276,95 +310,43 @@ export default function RecordsPage({ mode = 'records' }) {
         )}
       </div>
 
-      {/* FILTER BAR */}
-      <div className="records-filter-bar">
-        <input
-          type="text"
-          className="records-search-input"
-          placeholder="Search by Order #, Product, Batch No..."
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value)
-            setCurrentPage(1)
-          }}
-        />
-
-        {/* Product Type Filter */}
-        <select
-          className="records-select"
-          value={typeFilter}
-          onChange={(e) => {
-            setTypeFilter(e.target.value)
-            setCurrentPage(1)
-          }}
-        >
-          <option value="ALL">All Types</option>
-          {DOSAGE_FORMS.map((df) => (
-            <option key={df} value={df}>
-              {df}
-            </option>
-          ))}
-        </select>
-
-        {/* Company Filter */}
-        <select
-          className="records-select"
-          value={companyFilter}
-          onChange={(e) => {
-            setCompanyFilter(e.target.value)
-            setCurrentPage(1)
-          }}
-        >
-          <option value="ALL">All Companies</option>
-          <option value="CMHP">CMHP Pharma</option>
-          <option value="TEJ">Tej Biocare</option>
-        </select>
-
-        {/* Date Range: From / To */}
-        <div className="records-date-group">
-          <span>From:</span>
-          <input
-            type="date"
-            className="records-date-input"
-            value={fromDate}
-            onChange={(e) => {
-              setFromDate(e.target.value)
-              setCurrentPage(1)
-            }}
-          />
-        </div>
-
-        <div className="records-date-group">
-          <span>To:</span>
-          <input
-            type="date"
-            className="records-date-input"
-            value={toDate}
-            onChange={(e) => {
-              setToDate(e.target.value)
-              setCurrentPage(1)
-            }}
-          />
-        </div>
-
-        {(search || typeFilter !== 'ALL' || companyFilter !== 'ALL' || fromDate || toDate) && (
-          <button
-            type="button"
-            className="records-pill"
-            style={{ color: '#ef4444', borderColor: '#fca5a5' }}
-            onClick={() => {
-              setSearch('')
-              setTypeFilter('ALL')
-              setCompanyFilter('ALL')
-              setFromDate('')
-              setToDate('')
-              setCurrentPage(1)
-            }}
-          >
-            ✕ Reset Filters
-          </button>
-        )}
-      </div>
+      {/* FILTER BAR: Single-Row Universal Filter Bar */}
+      <SharedFilterBar
+        search={search}
+        onSearchChange={(val) => {
+          setSearch(val)
+          setCurrentPage(1)
+        }}
+        typeFilter={typeFilter}
+        onTypeChange={(val) => {
+          setTypeFilter(val)
+          setCurrentPage(1)
+        }}
+        companyFilter={companyFilter}
+        onCompanyChange={(val) => {
+          setCompanyFilter(val)
+          setCurrentPage(1)
+        }}
+        fromDate={fromDate}
+        onFromDateChange={(val) => {
+          setFromDate(val)
+          setCurrentPage(1)
+        }}
+        toDate={toDate}
+        onToDateChange={(val) => {
+          setToDate(val)
+          setCurrentPage(1)
+        }}
+        onReset={() => {
+          setSearch('')
+          setTypeFilter('ALL')
+          setCompanyFilter('ALL')
+          setFromDate('')
+          setToDate('')
+          setCurrentPage(1)
+        }}
+        placeholder="Search by Order #, Product, Batch No..."
+      />
 
       {/* ORDER-WISE RECORDS TABLE */}
       <div className="records-table-card">
@@ -527,9 +509,9 @@ export default function RecordsPage({ mode = 'records' }) {
 
                                 {/* Visual Stepper Bar showing which stage the order is at */}
                                 <div className="dispatch-stepper-track">
-                                  <div className="dispatch-step completed" title="Manufacturing BMR Completed">
+                                  <div className="dispatch-step completed" title="Manufacturing Production Completed">
                                     <span className="step-dot">✓</span>
-                                    <span className="step-label">BMR</span>
+                                    <span className="step-label">Production</span>
                                   </div>
                                   <span className="step-arrow">→</span>
                                   <div className={`dispatch-step ${order.coa_returned ? 'alert' : 'completed'}`} title="QC Testing & Bulk Release">
@@ -749,7 +731,12 @@ export default function RecordsPage({ mode = 'records' }) {
 
                             {/* 13. Invoice */}
                             <td>
-                              {invoice.exists ? (
+                              {Boolean(
+                                invoice.exists ||
+                                (order.id && savedOrderInvoices[String(order.id)]) ||
+                                (order.order_id && savedOrderInvoices[String(order.order_id)]) ||
+                                (reduxInvoices || []).some((inv) => String(inv.order || inv.order_id) === String(order.id || order.order_id))
+                              ) ? (
                                 <button
                                   type="button"
                                   className="records-view-btn"

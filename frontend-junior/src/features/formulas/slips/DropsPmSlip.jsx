@@ -1,13 +1,8 @@
 import React from 'react'
+import DropsSlipHeader from './DropsSlipHeader'
+import './DropsSlip.css'
 
-function formatQty(q) {
-  if (q === null || q === undefined || q === '') return ''
-  const n = Number(q)
-  if (isNaN(n)) return q
-  return n % 1 === 0 ? n.toString() : parseFloat(n.toFixed(3)).toString()
-}
-
-const DEFAULT_PACKING_ITEMS = [
+const DROPS_PM_STANDARD_ITEMS = [
   'Label',
   'Mono Box',
   'Insert',
@@ -18,169 +13,356 @@ const DEFAULT_PACKING_ITEMS = [
   'Inner',
   'Outer',
   'Measuring Cap',
-  'Droper',
+  'Droper', // Exact spelling per master docx format
 ]
 
-export function getInitialDropsPmData(product = {}, formula = {}, revision = {}) {
+export function getInitialDropsPmData(product = {}, formula = {}, revision = {}, activeLines = null, company = {}) {
+  const lines = (activeLines && activeLines.length > 0) ? activeLines : (revision?.lines || [])
+  const pmLines = lines.filter((l) => l.material_type === 'PACKING_MATERIAL' || l.material_kind_snapshot === 'PACKING_MATERIAL')
+
+  const rows = DROPS_PM_STANDARD_ITEMS.map((itemName, idx) => {
+    // Try matching an item in formula revision lines
+    const matchedLine = pmLines.find(
+      (l) => {
+        const n = (l.material?.name || l.material_name || l.material_name_snapshot || '').toLowerCase()
+        return n.includes(itemName.toLowerCase())
+      }
+    )
+
+    const matCode = matchedLine
+      ? (matchedLine.material?.code || matchedLine.material_code || matchedLine.material_code_snapshot || '')
+      : ''
+    const qtyReq = matchedLine
+      ? (matchedLine.quantity != null ? String(matchedLine.quantity) : '')
+      : ''
+
+    return {
+      sr_no: String(idx + 1),
+      material_code: matCode,
+      material: itemName,
+      qty_required: qtyReq,
+      qty_received: '',
+      ar_no: matchedLine?.ar_no || '',
+    }
+  })
+
+  const isTej = Boolean(company?.code && String(company.code).toUpperCase().includes('TEJ'))
+
   return {
-    batch_no: product?.bmr_no ? `${product.code}-01` : 'AH2602',
-    effective_date: '12-04-2024',
-    supersedes_no: '00',
-    mfg_for: 'APEX ANIMAL HEALTH PRODUCTS',
+    header: {
+      product: product?.name || '',
+      bmr_no: product?.bmr_no || '',
+      product_code: product?.code || '',
+      effective_date: revision?.effective_date || '12-04-2024',
+      company_code: isTej ? 'TEJ' : (company?.code || 'AAHP'),
+      supersedes_no: '00',
+      batch_no: product?.code ? `${product.code}-01` : 'AH2602',
+      version_no: String(revision?.revision_number || 1).padStart(2, '0'),
+      mfg_for: 'APEX ANIMAL HEALTH PRODUCTS',
+      master_formula_no: formula?.code || '',
+    },
+    rows,
+    verifications: {
+      checked_by_warehouse: '',
+      received_by_production: '',
+      verified_by_qa: '',
+    },
+    signatures: {
+      name_prepared: '',
+      name_reviewed: '',
+      name_approved: '',
+      sign_prepared: '',
+      sign_reviewed: '',
+      sign_approved: '',
+      date_prepared: '',
+      date_reviewed: '',
+      date_approved: '',
+    },
   }
 }
 
 export default function DropsPmSlip({
-  product = {},
-  formula = {},
-  revision = {},
-  activeLines = null,
+  data = {},
+  onChange = () => {},
+  readOnly = false,
   company = {},
-  batchAllocation = null,
-  renderHeader,
-  renderSignatures,
-  renderBatchAllocation,
 }) {
-  const lines = (activeLines && activeLines.length > 0) ? activeLines : (revision?.lines || [])
-  const packagingMaterials = lines.filter(
-    (l) => l.material_type === 'PACKAGING_MATERIAL' || l.material_type === 'PACKAGING'
-  )
+  const d = data || {}
+  const header = d.header || {}
+  const rows = d.rows || []
+  const verifications = d.verifications || {}
+  const signatures = d.signatures || {}
 
-  const displayPkg = [...packagingMaterials]
-  if (displayPkg.length === 0) {
-    DEFAULT_PACKING_ITEMS.forEach((name, idx) => {
-      displayPkg.push({
-        id: `def-pm-${idx}`,
-        material_name: name,
-        material_code: '',
-        quantity: '',
-        quantity_received: '',
-        ar_no: '',
-      })
+  const updateHeader = (field, val) => {
+    if (readOnly) return
+    onChange({
+      ...d,
+      header: { ...header, [field]: val },
     })
-  } else {
-    while (displayPkg.length < 11) {
-      displayPkg.push(null)
-    }
+  }
+
+  const updateRow = (idx, field, val) => {
+    if (readOnly) return
+    const next = [...rows]
+    next[idx] = { ...next[idx], [field]: val }
+    onChange({ ...d, rows: next })
+  }
+
+  const updateVerification = (field, val) => {
+    if (readOnly) return
+    onChange({
+      ...d,
+      verifications: { ...verifications, [field]: val },
+    })
+  }
+
+  const updateSignature = (field, val) => {
+    if (readOnly) return
+    onChange({
+      ...d,
+      signatures: { ...signatures, [field]: val },
+    })
   }
 
   return (
-    <>
-      {/* PAGE 1 (EXACT MATCH TO ATTACHMENT 4 PDF PAGE 1) */}
-      <div className="bmr-exact-page bmr-exact-page-1">
-        <div className="bmr-exact-page-top">
-          {renderHeader && renderHeader()}
+    <div className="drops-slip-page drops-att4-page cmhp-printable-slip">
+      {/* ── TOP BLOCK: HEADER + TITLES + TABLE ── */}
+      <div>
+        <DropsSlipHeader
+          header={header}
+          onHeaderChange={updateHeader}
+          readOnly={readOnly}
+          company={company}
+        />
 
-          {/* ATTACHMENT TITLES */}
-          <div className="bmr-exact-attachment-block">
-            <div className="bmr-exact-att-num">ATTACHMENT - 4</div>
-            <div className="bmr-exact-att-title" style={{ marginTop: '8px' }}>
-              PACKING MATERIAL REQUIREMENT:
-            </div>
-          </div>
+        {/* Headings */}
+        <div className="drops-att-title">
+          <u>ATTACHMENT - 4</u>
+        </div>
+        <div className="drops-section-heading">
+          <u>PACKING MATERIAL REQUIREMENT:</u>
+        </div>
 
-          {/* PACKING MATERIAL TABLE (EXACT 6 COLUMNS MATCHING ATTACHMENT 4) */}
-          <table className="bmr-exact-table bmr-exact-pm-table">
-            <thead>
-              <tr>
-                <th style={{ width: '42px' }}>Sr.<br />No.</th>
-                <th style={{ width: '90px' }}>Material<br />Code</th>
-                <th>Material</th>
-                <th style={{ width: '120px' }}>Quantity<br />Required<br />Nos.</th>
-                <th style={{ width: '120px' }}>Quantity<br />Received<br />Nos.</th>
-                <th style={{ width: '80px' }}>AR No.</th>
+        {/* ── PM REQUIREMENT TABLE ── */}
+        <table className="drops-data-table">
+          <colgroup>
+            <col style={{ width: '7%' }} />
+            <col style={{ width: '15%' }} />
+            <col style={{ width: '22%' }} />
+            <col style={{ width: '21%' }} />
+            <col style={{ width: '21%' }} />
+            <col style={{ width: '14%' }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th style={{ width: '7%' }}>Sr. No.</th>
+              <th style={{ width: '15%' }}>Material Code</th>
+              <th style={{ width: '22%' }}>Material</th>
+              <th style={{ width: '21%' }}>Quantity<br />Required Nos.</th>
+              <th style={{ width: '21%' }}>Quantity<br />Received Nos.</th>
+              <th style={{ width: '14%' }}>AR No.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, idx) => (
+              <tr key={`pm-${idx}`}>
+                <td className="drops-cell-center">{row.sr_no || idx + 1}</td>
+                <td className="drops-cell-center">
+                  <input
+                    className="drops-input drops-input-screen"
+                    style={{ textAlign: 'center', width: '100%' }}
+                    value={row.material_code || ''}
+                    disabled={readOnly}
+                    onChange={(e) => updateRow(idx, 'material_code', e.target.value)}
+                  />
+                </td>
+                <td className="drops-cell-left" style={{ fontWeight: 700 }}>
+                  {row.material}
+                </td>
+                <td className="drops-cell-right">
+                  <input
+                    className="drops-input drops-input-screen"
+                    style={{ textAlign: 'right', width: '100%' }}
+                    value={row.qty_required || ''}
+                    disabled={readOnly}
+                    onChange={(e) => updateRow(idx, 'qty_required', e.target.value)}
+                  />
+                </td>
+                <td className="drops-cell-right">
+                  <input
+                    className="drops-input drops-input-screen"
+                    style={{ textAlign: 'right', width: '100%' }}
+                    value={row.qty_received || ''}
+                    disabled={readOnly}
+                    onChange={(e) => updateRow(idx, 'qty_received', e.target.value)}
+                  />
+                </td>
+                <td className="drops-cell-center">
+                  <input
+                    className="drops-input drops-input-screen"
+                    style={{ textAlign: 'center', width: '100%' }}
+                    value={row.ar_no || ''}
+                    disabled={readOnly}
+                    onChange={(e) => updateRow(idx, 'ar_no', e.target.value)}
+                  />
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {displayPkg.map((line, idx) => {
-                if (!line) {
-                  return (
-                    <tr key={`empty-pm-${idx}`} className="bmr-exact-row-empty">
-                      <td>{idx + 1}</td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                  )
-                }
+            ))}
+          </tbody>
+        </table>
 
-                const matCode = line.material?.code || line.material_code || ''
-                const matName = line.material?.name || line.material_name || ''
-                let qtyTextFromNotes = ''
-                let recvFromNotes = ''
-                if (line.notes) {
-                  const parts = line.notes.split('|').map((s) => s.trim())
-                  for (const p of parts) {
-                    if (p.startsWith('QTY_TEXT:')) qtyTextFromNotes = p.replace('QTY_TEXT:', '').trim()
-                    if (p.startsWith('RECV:')) recvFromNotes = p.replace('RECV:', '').trim()
-                  }
-                }
-                const qtyReq = qtyTextFromNotes || formatQty(line.quantity) || ''
-                const qtyRecv = line.quantity_received || recvFromNotes || ''
-                const arNo = line.ar_no || ''
-
-                return (
-                  <tr key={line.id ?? `pm-${idx}`}>
-                    <td>{idx + 1}</td>
-                    <td>{matCode}</td>
-                    <td style={{ textAlign: 'left', paddingLeft: '8px', fontWeight: 'normal' }}>
-                      {matName}
-                    </td>
-                    <td>{qtyReq}</td>
-                    <td>{qtyRecv}</td>
-                    <td>{arNo}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-
-          {/* CHECKED BY (WAREHOUSE) */}
-          <div className="bmr-exact-pm-checked">
-            Checked By (Warehouse)
+        {/* ── VERIFICATION LINES ── */}
+        <div className="drops-verification-group">
+          <div className="drops-verification-line">
+            <span className="drops-verification-lbl">Checked By (Warehouse)&nbsp;:&nbsp;</span>
+            <input
+              className="drops-input drops-input-screen"
+              style={{ flex: 1 }}
+              value={verifications.checked_by_warehouse || ''}
+              disabled={readOnly}
+              onChange={(e) => updateVerification('checked_by_warehouse', e.target.value)}
+            />
           </div>
-        </div>
-
-        <div className="bmr-exact-page-bottom">
-          {renderSignatures && renderSignatures()}
-
-          <div className="bmr-exact-footer-row">
-            <span className="bmr-exact-form-no">FORM NO. SOP/QA/04/F-02/00</span>
-            <span className="bmr-exact-page-no">Page 1 of 2</span>
+          <div className="drops-verification-line">
+            <span className="drops-verification-lbl">Received By (Production)&nbsp;:&nbsp;</span>
+            <input
+              className="drops-input drops-input-screen"
+              style={{ flex: 1 }}
+              value={verifications.received_by_production || ''}
+              disabled={readOnly}
+              onChange={(e) => updateVerification('received_by_production', e.target.value)}
+            />
+          </div>
+          <div className="drops-verification-line">
+            <span className="drops-verification-lbl">Verified by ( QA)&nbsp;:&nbsp;</span>
+            <input
+              className="drops-input drops-input-screen"
+              style={{ flex: 1 }}
+              value={verifications.verified_by_qa || ''}
+              disabled={readOnly}
+              onChange={(e) => updateVerification('verified_by_qa', e.target.value)}
+            />
           </div>
         </div>
       </div>
 
-      {/* SCREEN PAGE SEPARATOR */}
-      <div className="bmr-screen-page-divider no-print">
-        <span>PAGE 2 (ATTACHMENT - 4 CONTINUATION)</span>
-      </div>
+      {/* ── BOTTOM BLOCK: SIGNATURE GRID + FOOTER ── */}
+      <div>
+        <table className="drops-sig-grid">
+          <colgroup>
+            <col style={{ width: '16%' }} />
+            <col style={{ width: '28%' }} />
+            <col style={{ width: '28%' }} />
+            <col style={{ width: '28%' }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th></th>
+              <th>Prepared By<br />Production Chemist</th>
+              <th>Reviewed By<br />Production In-Charge</th>
+              <th>Approved By<br />QA Manager</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="drops-sig-lbl-col">Name</td>
+              <td>
+                <input
+                  className="drops-input drops-input-screen"
+                  style={{ width: '100%', textAlign: 'center' }}
+                  value={signatures.name_prepared || ''}
+                  disabled={readOnly}
+                  onChange={(e) => updateSignature('name_prepared', e.target.value)}
+                />
+              </td>
+              <td>
+                <input
+                  className="drops-input drops-input-screen"
+                  style={{ width: '100%', textAlign: 'center' }}
+                  value={signatures.name_reviewed || ''}
+                  disabled={readOnly}
+                  onChange={(e) => updateSignature('name_reviewed', e.target.value)}
+                />
+              </td>
+              <td>
+                <input
+                  className="drops-input drops-input-screen"
+                  style={{ width: '100%', textAlign: 'center' }}
+                  value={signatures.name_approved || ''}
+                  disabled={readOnly}
+                  onChange={(e) => updateSignature('name_approved', e.target.value)}
+                />
+              </td>
+            </tr>
+            <tr>
+              <td className="drops-sig-lbl-col">Signature</td>
+              <td>
+                <input
+                  className="drops-input drops-input-screen"
+                  style={{ width: '100%', textAlign: 'center' }}
+                  value={signatures.sign_prepared || ''}
+                  disabled={readOnly}
+                  onChange={(e) => updateSignature('sign_prepared', e.target.value)}
+                />
+              </td>
+              <td>
+                <input
+                  className="drops-input drops-input-screen"
+                  style={{ width: '100%', textAlign: 'center' }}
+                  value={signatures.sign_reviewed || ''}
+                  disabled={readOnly}
+                  onChange={(e) => updateSignature('sign_reviewed', e.target.value)}
+                />
+              </td>
+              <td>
+                <input
+                  className="drops-input drops-input-screen"
+                  style={{ width: '100%', textAlign: 'center' }}
+                  value={signatures.sign_approved || ''}
+                  disabled={readOnly}
+                  onChange={(e) => updateSignature('sign_approved', e.target.value)}
+                />
+              </td>
+            </tr>
+            <tr>
+              <td className="drops-sig-lbl-col">Date</td>
+              <td>
+                <input
+                  className="drops-input drops-input-screen"
+                  style={{ width: '100%', textAlign: 'center' }}
+                  value={signatures.date_prepared || ''}
+                  disabled={readOnly}
+                  onChange={(e) => updateSignature('date_prepared', e.target.value)}
+                />
+              </td>
+              <td>
+                <input
+                  className="drops-input drops-input-screen"
+                  style={{ width: '100%', textAlign: 'center' }}
+                  value={signatures.date_reviewed || ''}
+                  disabled={readOnly}
+                  onChange={(e) => updateSignature('date_reviewed', e.target.value)}
+                />
+              </td>
+              <td>
+                <input
+                  className="drops-input drops-input-screen"
+                  style={{ width: '100%', textAlign: 'center' }}
+                  value={signatures.date_approved || ''}
+                  disabled={readOnly}
+                  onChange={(e) => updateSignature('date_approved', e.target.value)}
+                />
+              </td>
+            </tr>
+          </tbody>
+        </table>
 
-      {/* PAGE 2 (EXACT MATCH TO ATTACHMENT 4 PDF PAGE 2) */}
-      <div className="bmr-exact-page bmr-exact-page-2">
-        <div className="bmr-exact-page-top">
-          {renderHeader && renderHeader()}
-
-          {renderBatchAllocation && renderBatchAllocation()}
-
-          {/* RECEIVED BY / VERIFIED BY LINES */}
-          <div className="bmr-exact-pm-p2-verifications">
-            <div>Received By (Production)</div>
-            <div>Verified by ( QA)</div>
-          </div>
+        {/* Footer */}
+        <div className="drops-footer-row">
+          <span>FORM NO. SOP/QA/04/F-02/00</span>
+          <span>Page 1 of 1</span>
         </div>
-
-        <div className="bmr-exact-page-bottom">
-          {renderSignatures && renderSignatures()}
-
-          <div className="bmr-exact-footer-row">
-            <span className="bmr-exact-form-no">FORM NO. SOP/QA/04/F-02/00</span>
-            <span className="bmr-exact-page-no">Page 2 of 2</span>
-          </div>
-        </div>
       </div>
-    </>
+    </div>
   )
 }

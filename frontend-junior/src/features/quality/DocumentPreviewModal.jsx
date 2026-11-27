@@ -61,17 +61,6 @@ export default function DocumentPreviewModal({ isOpen, onClose, docType, doc, co
 
   if (!isOpen || !doc) return null
 
-  const handleDownload = () => {
-    if (blobUrl) {
-      const a = document.createElement('a')
-      a.href = blobUrl
-      a.download = doc.document_name || (docType === 'BMR' ? 'BMR_Document.pdf' : 'COA_Document.pdf')
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-    }
-  }
-
   const handlePrint = () => {
     if (viewMode === 'PDF' && blobUrl) {
       const iframe = document.querySelector('.doc-preview-frame')
@@ -153,9 +142,6 @@ export default function DocumentPreviewModal({ isOpen, onClose, docType, doc, co
             )}
             <Button variant="secondary" onClick={handlePrint}>
               🖨️ Print CoA
-            </Button>
-            <Button variant="secondary" onClick={handleDownload} disabled={!blobUrl}>
-              ⬇ Download PDF
             </Button>
             <Button variant="primary" onClick={onClose}>
               Close

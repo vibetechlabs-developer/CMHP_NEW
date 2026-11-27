@@ -13,6 +13,8 @@ urlpatterns = [
     path("api/v1/companies/", include("apps.batch_register.urls")),
     path("api/v1/companies/", include("apps.bmr.urls")),
     path("api/v1/bmr/", include("apps.bmr.urls")),
+    path("api/v1/", include("apps.bmr.urls")),
+    path("api/", include("apps.bmr.urls")),
     path("api/v1/companies/", include("apps.companies.urls")),
     path("api/v1/companies/", include("apps.customers.urls")),
     path("api/v1/companies/", include("apps.formula_imports.urls")),

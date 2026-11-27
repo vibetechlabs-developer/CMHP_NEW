@@ -8,10 +8,14 @@ from apps.bmr.views import (
     ProductionOrderStatusListCreateView,
     ProductionOrderStatusDetailView,
     ProductionOrderQaReleaseView,
+    OrderSendToRecordsActionView,
     OrderDispatchActionView,
+    OrderDispatchConfirmActionView,
     OrderReturnToProductionActionView,
     OrderBackToCoaActionView,
     RecordsOrderListView,
+    DispatchTrackingListView,
+    DispatchRecordListView,
     OrderDocumentDetailView,
     OrderDocumentSaveView,
     OrderDocumentUploadView,
@@ -73,6 +77,26 @@ urlpatterns = [
     ),
     # Order Dispatch & Records Actions
     path(
+        "<int:company_id>/orders/<str:order_id>/send-to-records/",
+        OrderSendToRecordsActionView.as_view(),
+        name="order-send-to-records",
+    ),
+    path(
+        "orders/<str:order_id>/send-to-records/",
+        OrderSendToRecordsActionView.as_view(),
+        name="order-send-to-records-general",
+    ),
+    path(
+        "<int:company_id>/orders/<str:order_id>/dispatch-confirm/",
+        OrderDispatchConfirmActionView.as_view(),
+        name="order-dispatch-confirm",
+    ),
+    path(
+        "orders/<str:order_id>/dispatch-confirm/",
+        OrderDispatchConfirmActionView.as_view(),
+        name="order-dispatch-confirm-general",
+    ),
+    path(
         "<int:company_id>/orders/<str:order_id>/dispatch/",
         OrderDispatchActionView.as_view(),
         name="order-dispatch",
@@ -112,6 +136,26 @@ urlpatterns = [
         "records/",
         RecordsOrderListView.as_view(),
         name="records-order-list-general",
+    ),
+    path(
+        "<int:company_id>/dispatch/tracking/",
+        DispatchTrackingListView.as_view(),
+        name="dispatch-tracking-list",
+    ),
+    path(
+        "dispatch/tracking/",
+        DispatchTrackingListView.as_view(),
+        name="dispatch-tracking-list-general",
+    ),
+    path(
+        "<int:company_id>/dispatch/records/",
+        DispatchRecordListView.as_view(),
+        name="dispatch-record-list",
+    ),
+    path(
+        "dispatch/records/",
+        DispatchRecordListView.as_view(),
+        name="dispatch-record-list-general",
     ),
     path(
         "<int:company_id>/dispatch/",

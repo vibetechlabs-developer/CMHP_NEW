@@ -16,7 +16,7 @@ import StatusPill from '../../components/StatusPill'
 import { getErrorMessage } from '../../utils/errors'
 import { getCurrentWorkspaceObject } from '../../utils/workspace'
 import useAuth from '../../hooks/useAuth'
-import { printBulkReleaseNote, downloadBulkReleaseNotePdf } from './bulkReleasePrint'
+import { printBulkReleaseNote } from './bulkReleasePrint'
 import BulkReleaseSlipEditor from './BulkReleaseSlipEditor'
 import TestRequestSlipEditor from './TestRequestSlipEditor'
 import CoaDocumentTab from './CoaDocumentTab'
@@ -572,14 +572,6 @@ export default function MaterialQC() {
     printBulkReleaseNote(buildAtt3Data(rec))
   }
 
-  const downloadAtt3 = async (rec) => {
-    try {
-      await downloadBulkReleaseNotePdf(buildAtt3Data(rec))
-    } catch (err) {
-      setError(getErrorMessage(err))
-    }
-  }
-
   /* Add new QC record */
   const handleAddRecord = () => {
     if (!newForm.material_name || !newForm.batch_no) {
@@ -1069,9 +1061,6 @@ export default function MaterialQC() {
                     </Button>
                     <Button size="xs" variant="secondary" onClick={() => printAtt3(rec)}>
                       🖨 Print ATT-3
-                    </Button>
-                    <Button size="xs" variant="secondary" onClick={() => downloadAtt3(rec)}>
-                      ⬇️ PDF
                     </Button>
                   </div>
                 </td>

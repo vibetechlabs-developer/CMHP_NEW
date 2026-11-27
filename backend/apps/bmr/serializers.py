@@ -7,6 +7,7 @@ from apps.bmr.models import (
     ProductionOrderStatus,
     OrderDocumentRecord,
     OrderDispatchAuditLog,
+    DispatchRecord,
 )
 
 _UPDATE_ALLOWED = {"expected_version", "special_value", "label_claim", "ar_no", "qty_received"}
@@ -109,6 +110,9 @@ class ProductionOrderStatusSerializer(serializers.ModelSerializer):
             "dispatched_by_name",
             "is_locked",
             "physically_dispatched",
+            "in_records",
+            "sent_to_records_at",
+            "is_dispatch_confirmed",
             "coa_returned",
             "coa_returned_at",
             "coa_return_reason",
@@ -176,4 +180,25 @@ class OrderDispatchAuditLogSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["id", "created_at"]
+
+
+class DispatchRecordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DispatchRecord
+        fields = [
+            "id",
+            "company_id",
+            "order_id",
+            "order_reference",
+            "product_name",
+            "product_type",
+            "batch_no",
+            "order_date",
+            "dispatched_at",
+            "dispatched_by_id",
+            "dispatched_by_username",
+            "notes",
+        ]
+        read_only_fields = ["id", "dispatched_at"]
+
 

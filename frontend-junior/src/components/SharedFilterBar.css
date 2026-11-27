@@ -1,0 +1,201 @@
+/* =========================================================
+   UNIVERSAL SHARED FILTER BAR STYLES
+   ========================================================= */
+
+.shared-filter-bar {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  flex-wrap: wrap; /* Wraps cleanly on smaller screens */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+/* 1. Search Box */
+.sfb-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 200px;
+  min-width: 180px;
+  height: 36px;
+}
+
+.sfb-search-icon {
+  position: absolute;
+  left: 10px;
+  font-size: 13px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.sfb-search-input {
+  width: 100%;
+  height: 36px;
+  padding: 0 28px 0 32px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #1e293b;
+  outline: none;
+  background-color: #f8fafc;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.sfb-search-input:focus {
+  background-color: #ffffff;
+  border-color: #0284c7;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.12);
+}
+
+.sfb-clear-search-btn {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  font-size: 12px;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 50%;
+  line-height: 1;
+}
+
+.sfb-clear-search-btn:hover {
+  color: #ef4444;
+}
+
+/* 2. Control Groups (Label + Select/Input) */
+.sfb-control-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.sfb-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.sfb-select {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  background-color: #ffffff;
+  color: #1e293b;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.sfb-select:focus {
+  border-color: #0284c7;
+}
+
+.sfb-type-select {
+  min-width: 110px;
+}
+
+.sfb-company-select {
+  min-width: 125px;
+}
+
+.sfb-preset-select {
+  min-width: 115px;
+  background-color: #f8fafc;
+}
+
+/* 3. Date Section (Preset + Pickers) */
+.sfb-date-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+
+.sfb-date-pickers {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sfb-date-field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sfb-date-sublabel {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.sfb-date-input {
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #1e293b;
+  background-color: #ffffff;
+  outline: none;
+  transition: border-color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.sfb-date-input:focus {
+  border-color: #0284c7;
+}
+
+/* 4. Reset Button */
+.sfb-reset-btn {
+  height: 36px;
+  padding: 0 14px;
+  background-color: #fff1f2;
+  border: 1px solid #fecdd3;
+  color: #e11d48;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.sfb-reset-btn:hover {
+  background-color: #ffe4e6;
+  border-color: #fda4af;
+}
+
+/* Responsive adjustment */
+@media (max-width: 1180px) {
+  .shared-filter-bar {
+    gap: 8px;
+  }
+  .sfb-search-wrap {
+    min-width: 150px;
+  }
+}

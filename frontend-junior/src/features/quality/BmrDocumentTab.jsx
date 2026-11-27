@@ -52,24 +52,6 @@ export default function BmrDocumentTab({
     loadDocuments()
   }, [loadDocuments])
 
-  const handleDownload = async (doc) => {
-    try {
-      const res = await documentsService.downloadBmrFile(companyId, doc.id, false)
-      const blob = new Blob([res.data], { type: res.headers?.['content-type'] || 'application/pdf' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = doc.document_name || `BMR_${doc.batch_number}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch (err) {
-      console.error('Download failed:', err)
-      alert('Could not download document file.')
-    }
-  }
-
   const formatSize = (bytes) => {
     if (!bytes) return '0 KB'
     const kb = bytes / 1024
@@ -201,14 +183,6 @@ export default function BmrDocumentTab({
                           onClick={() => onPreviewClick(doc)}
                         >
                           👁 Preview
-                        </button>
-                        <button
-                          type="button"
-                          className="doc-btn-icon"
-                          title="Download File"
-                          onClick={() => handleDownload(doc)}
-                        >
-                          ⬇ Download
                         </button>
                         <button
                           type="button"

@@ -950,3 +950,303 @@ export function exportSyrupPmExcel({ slipData = {}, product = {}, formula = {}, 
 
   triggerDownload(html, filename)
 }
+
+export function exportDropsRmExcel({ slipData = {}, product = {}, formula = {}, revision = {}, company = {} }) {
+  const isTej = isTejBiocare(company) || isTejBiocare()
+  const branding = getCompanyBranding(isTej ? 'tej' : 'cmhp')
+  const companyTitle = branding.isTej ? branding.headerName : 'CMHP PRIVATE LIMITED'
+
+  const header = slipData.header || {}
+  const mainRows = slipData.main_rows || []
+  const excipientRows = slipData.excipient_rows || []
+  const verifications = slipData.verifications || {}
+  const signatures = slipData.signatures || {}
+
+  const filename = `Drops_RM_Attachment_1_${(product.code || 'PRD').replace(/\s+/g, '_')}_Rev${revision.revision_number || '01'}.xls`
+
+  const mainRowsHtml = mainRows
+    .map(
+      (r, idx) => `
+    <tr>
+      <td style="border: 1px solid #000; text-align: center;">${r.sr_no || idx + 1}</td>
+      <td style="border: 1px solid #000; text-align: center;">${r.rm_code || ''}</td>
+      <td style="border: 1px solid #000; text-align: left; text-transform: uppercase;">${r.name || ''}</td>
+      <td style="border: 1px solid #000; text-align: center;">${r.label_claim || ''}</td>
+      <td style="border: 1px solid #000; text-align: center;">${r.qty_req || ''}</td>
+      <td style="border: 1px solid #000; text-align: center;">${r.unit || ''}</td>
+      <td style="border: 1px solid #000; text-align: center;">${r.ar_no || ''}</td>
+    </tr>`
+    )
+    .join('')
+
+  const excipientRowsHtml = excipientRows
+    .map(
+      (r, idx) => `
+    <tr>
+      <td style="border: 1px solid #000; text-align: center;">${r.sr_no || idx + 1}</td>
+      <td style="border: 1px solid #000; text-align: center;">${r.rm_code || ''}</td>
+      <td style="border: 1px solid #000; text-align: left; text-transform: uppercase;">${r.name || ''}</td>
+      <td style="border: 1px solid #000; text-align: center;">${r.label_claim || ''}</td>
+      <td style="border: 1px solid #000; text-align: center;">${r.qty_req || ''}</td>
+      <td style="border: 1px solid #000; text-align: center;">${r.unit || ''}</td>
+      <td style="border: 1px solid #000; text-align: center;">${r.ar_no || ''}</td>
+    </tr>`
+    )
+    .join('')
+
+  const html = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body { font-family: 'Times New Roman', serif; font-size: 10pt; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 8px; }
+        th, td { border: 1px solid #000; padding: 3px 5px; }
+        .text-center { text-align: center; }
+        .text-bold { font-weight: bold; }
+        .u-bold { font-weight: bold; text-decoration: underline; }
+      </style>
+    </head>
+    <body>
+      <table>
+        <tr>
+          <th colspan="7" class="text-center text-bold" style="font-size: 14pt; height: 35px;">${companyTitle}</th>
+        </tr>
+        <tr>
+          <th colspan="7" class="text-center text-bold">PRODUCTION ( ORAL LIQUID DEPARTMENT)</th>
+        </tr>
+        <tr>
+          <th colspan="7" class="text-center text-bold">BATCH MANUFACTURING RECORD (BMR)</th>
+        </tr>
+        <tr>
+          <td colspan="4"><strong>PRODUCT : </strong>${header.product || product.name || ''}</td>
+          <td colspan="3"><strong>BMR NO. : </strong>${header.bmr_no || product.bmr_no || ''}</td>
+        </tr>
+        <tr>
+          <td colspan="4"><strong>PRODUCT CODE : </strong>${header.product_code || product.code || ''}</td>
+          <td colspan="3"><strong>EFFECTIVE DATE : </strong>${header.effective_date || '12-04-2024'}</td>
+        </tr>
+        <tr>
+          <td colspan="4"><strong>COMPANY CODE : </strong>${header.company_code || 'AAHP'}</td>
+          <td colspan="3"><strong>SUPERSEDES NO : </strong>${header.supersedes_no || '00'}</td>
+        </tr>
+        <tr>
+          <td colspan="4"><strong>BATCH NO. : </strong>${header.batch_no || ''}</td>
+          <td colspan="3"><strong>VERSION NO  : </strong>${header.version_no || '01'}</td>
+        </tr>
+        <tr>
+          <td colspan="4"><strong>MFG. FOR : </strong>${header.mfg_for || 'APEX ANIMAL HEALTH PRODUCTS'}</td>
+          <td colspan="3"><strong>MASTER FORMULA NO. : </strong>${header.master_formula_no || formula.code || ''}</td>
+        </tr>
+      </table>
+
+      <div class="text-center" style="margin: 8px 0;">
+        <div class="u-bold">ATTACHMENT - 1</div>
+        <div class="u-bold">RAW MATERIAL REQUISITION SLIP</div>
+        <div class="u-bold" style="text-align: left; margin-top: 5px;">BATCH FORMULA:</div>
+      </div>
+
+      <table>
+        <tr style="background: #f1f5f9;">
+          <th style="width: 45px;">Sr. No.</th>
+          <th style="width: 80px;">RM Code</th>
+          <th>RAW MATERIAL NAME</th>
+          <th style="width: 90px;">Label Claim</th>
+          <th style="width: 75px;">Qty. Req</th>
+          <th style="width: 55px;">Unit</th>
+          <th style="width: 90px;">AR.No.</th>
+        </tr>
+        ${mainRowsHtml}
+        <tr style="background: #f1f5f9;">
+          <th style="width: 45px;">Sr. No.</th>
+          <th style="width: 80px;">RM Code</th>
+          <th>RAW MATERIAL NAME</th>
+          <th style="width: 90px;">Label Claim</th>
+          <th style="width: 75px;">Qty. Req</th>
+          <th style="width: 55px;">Unit</th>
+          <th style="width: 90px;">AR.No.</th>
+        </tr>
+        <tr>
+          <td colspan="7" class="text-center text-bold">EXCIPIENTS</td>
+        </tr>
+        ${excipientRowsHtml}
+      </table>
+
+      <div style="margin: 6px 0;">
+        <div><strong>Weight by/Date (Warehouse) : </strong>${verifications.weight_by_warehouse || ''}</div>
+        <div><strong>Checked by / Date (Production) : </strong>${verifications.checked_by_production || ''}</div>
+        <div><strong>Checked by / Date (QA) : </strong>${verifications.checked_by_qa || ''}</div>
+      </div>
+
+      <table>
+        <tr style="background: #f1f5f9;">
+          <th style="width: 15%;"></th>
+          <th>Prepared By<br/>Production Chemist</th>
+          <th>Reviewed By<br/>Production In-Charge</th>
+          <th>Approved By<br/>QA Manager</th>
+        </tr>
+        <tr>
+          <td><strong>Name</strong></td>
+          <td>${signatures.name_prepared || ''}</td>
+          <td>${signatures.name_reviewed || ''}</td>
+          <td>${signatures.name_approved || ''}</td>
+        </tr>
+        <tr>
+          <td><strong>Signature</strong></td>
+          <td>${signatures.sign_prepared || ''}</td>
+          <td>${signatures.sign_reviewed || ''}</td>
+          <td>${signatures.sign_approved || ''}</td>
+        </tr>
+        <tr>
+          <td><strong>Date</strong></td>
+          <td>${signatures.date_prepared || ''}</td>
+          <td>${signatures.date_reviewed || ''}</td>
+          <td>${signatures.date_approved || ''}</td>
+        </tr>
+      </table>
+      <table>
+        <tr>
+          <td colspan="4" style="border: none;">FORM NO. SOP/QA/04/F-02/00</td>
+          <td colspan="3" style="border: none; text-align: right;">Page 1 of 1</td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `
+
+  triggerDownload(html, filename)
+}
+
+export function exportDropsPmExcel({ slipData = {}, product = {}, formula = {}, revision = {}, company = {} }) {
+  const isTej = isTejBiocare(company) || isTejBiocare()
+  const branding = getCompanyBranding(isTej ? 'tej' : 'cmhp')
+  const companyTitle = branding.isTej ? branding.headerName : 'CMHP PRIVATE LIMITED'
+
+  const header = slipData.header || {}
+  const rows = slipData.rows || []
+  const verifications = slipData.verifications || {}
+  const signatures = slipData.signatures || {}
+
+  const filename = `Drops_PM_Attachment_4_${(product.code || 'PRD').replace(/\s+/g, '_')}_Rev${revision.revision_number || '01'}.xls`
+
+  const rowsHtml = rows
+    .map(
+      (r, idx) => `
+    <tr>
+      <td style="border: 1px solid #000; text-align: center;">${r.sr_no || idx + 1}</td>
+      <td style="border: 1px solid #000; text-align: center;">${r.material_code || ''}</td>
+      <td style="border: 1px solid #000; text-align: left; font-weight: bold;">${r.material || ''}</td>
+      <td style="border: 1px solid #000; text-align: center;">${r.qty_required || ''}</td>
+      <td style="border: 1px solid #000; text-align: center;">${r.qty_received || ''}</td>
+      <td style="border: 1px solid #000; text-align: center;">${r.ar_no || ''}</td>
+    </tr>`
+    )
+    .join('')
+
+  const html = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body { font-family: 'Times New Roman', serif; font-size: 10pt; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 8px; }
+        th, td { border: 1px solid #000; padding: 3px 5px; }
+        .text-center { text-align: center; }
+        .text-bold { font-weight: bold; }
+        .u-bold { font-weight: bold; text-decoration: underline; }
+      </style>
+    </head>
+    <body>
+      <table>
+        <tr>
+          <th colspan="6" class="text-center text-bold" style="font-size: 14pt; height: 35px;">${companyTitle}</th>
+        </tr>
+        <tr>
+          <th colspan="6" class="text-center text-bold">PRODUCTION ( ORAL LIQUID DEPARTMENT)</th>
+        </tr>
+        <tr>
+          <th colspan="6" class="text-center text-bold">BATCH MANUFACTURING RECORD (BMR)</th>
+        </tr>
+        <tr>
+          <td colspan="3"><strong>PRODUCT : </strong>${header.product || product.name || ''}</td>
+          <td colspan="3"><strong>BMR NO. : </strong>${header.bmr_no || product.bmr_no || ''}</td>
+        </tr>
+        <tr>
+          <td colspan="3"><strong>PRODUCT CODE : </strong>${header.product_code || product.code || ''}</td>
+          <td colspan="3"><strong>EFFECTIVE DATE : </strong>${header.effective_date || '12-04-2024'}</td>
+        </tr>
+        <tr>
+          <td colspan="3"><strong>COMPANY CODE : </strong>${header.company_code || 'AAHP'}</td>
+          <td colspan="3"><strong>SUPERSEDES NO : </strong>${header.supersedes_no || '00'}</td>
+        </tr>
+        <tr>
+          <td colspan="3"><strong>BATCH NO. : </strong>${header.batch_no || ''}</td>
+          <td colspan="3"><strong>VERSION NO  : </strong>${header.version_no || '01'}</td>
+        </tr>
+        <tr>
+          <td colspan="3"><strong>MFG. FOR : </strong>${header.mfg_for || 'APEX ANIMAL HEALTH PRODUCTS'}</td>
+          <td colspan="3"><strong>MASTER FORMULA NO. : </strong>${header.master_formula_no || formula.code || ''}</td>
+        </tr>
+      </table>
+
+      <div class="text-center" style="margin: 8px 0;">
+        <div class="u-bold">ATTACHMENT - 4</div>
+        <div class="u-bold">PACKING MATERIAL REQUIREMENT:</div>
+      </div>
+
+      <table>
+        <tr style="background: #f1f5f9;">
+          <th style="width: 50px;">Sr. No.</th>
+          <th style="width: 90px;">Material Code</th>
+          <th>Material</th>
+          <th style="width: 110px;">Quantity Required Nos.</th>
+          <th style="width: 110px;">Quantity Received  Nos.</th>
+          <th style="width: 90px;">AR No.</th>
+        </tr>
+        ${rowsHtml}
+      </table>
+
+      <div style="margin: 6px 0;">
+        <div><strong>Checked By (Warehouse) : </strong>${verifications.checked_by_warehouse || ''}</div>
+        <div><strong>Received By (Production) : </strong>${verifications.received_by_production || ''}</div>
+        <div><strong>Verified by ( QA) : </strong>${verifications.verified_by_qa || ''}</div>
+      </div>
+
+      <table>
+        <tr style="background: #f1f5f9;">
+          <th style="width: 15%;"></th>
+          <th>Prepared By<br/>Production Chemist</th>
+          <th>Reviewed By<br/>Production In-Charge</th>
+          <th>Approved By<br/>QA Manager</th>
+        </tr>
+        <tr>
+          <td><strong>Name</strong></td>
+          <td>${signatures.name_prepared || ''}</td>
+          <td>${signatures.name_reviewed || ''}</td>
+          <td>${signatures.name_approved || ''}</td>
+        </tr>
+        <tr>
+          <td><strong>Signature</strong></td>
+          <td>${signatures.sign_prepared || ''}</td>
+          <td>${signatures.sign_reviewed || ''}</td>
+          <td>${signatures.sign_approved || ''}</td>
+        </tr>
+        <tr>
+          <td><strong>Date</strong></td>
+          <td>${signatures.date_prepared || ''}</td>
+          <td>${signatures.date_reviewed || ''}</td>
+          <td>${signatures.date_approved || ''}</td>
+        </tr>
+      </table>
+      <table>
+        <tr>
+          <td colspan="3" style="border: none;">FORM NO. SOP/QA/04/F-02/00</td>
+          <td colspan="3" style="border: none; text-align: right;">Page 1 of 1</td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `
+
+  triggerDownload(html, filename)
+}

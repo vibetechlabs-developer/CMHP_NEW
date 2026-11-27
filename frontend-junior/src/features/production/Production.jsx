@@ -7,7 +7,7 @@ import Button from '../../components/Button'
 import StatusPill from '../../components/StatusPill'
 import { getErrorMessage } from '../../utils/errors'
 import { DOSAGE_FORMS } from '../../constants/dosageForms'
-import { selectDosageForms, addInvoice, saveOrderInvoice } from '../../store/erpSlice'
+import { selectDosageForms, addInvoice, saveOrderInvoice, editOrder } from '../../store/erpSlice'
 import { selectActiveCompanyKey, selectActiveCompanyId } from '../../utils/companySelectors'
 import api from '../../api/axios'
 import { generateInvoiceNumber } from '../invoice/invoiceService'
@@ -70,10 +70,22 @@ export default function Production() {
     try {
       const cid = dispatchModalOrder.company_id || dispatchModalOrder.company || activeCompId || (compKey === 'tej' ? 3 : 2)
       const orderId = dispatchModalOrder.id
-      const res = await api.post(`/v1/companies/${cid}/orders/${orderId}/dispatch/`, {
-        reason: dispatchReason.trim() || 'Dispatched to Records & Dispatch',
+      const res = await api.post(`/v1/companies/${cid}/orders/${orderId}/send-to-records/`, {
+        reason: dispatchReason.trim() || 'Sent to Records',
       })
-      setSuccess(res.data?.message || `Order #${dispatchModalOrder.number || dispatchModalOrder.id} dispatched successfully to Records & Dispatch!`)
+      dispatch(
+        editOrder({
+          id: orderId,
+          payload: {
+            in_records: true,
+            status: 'IN_RECORDS',
+            dispatch_status: 'YES',
+            is_dispatched: true,
+            sent_to_records_at: new Date().toISOString(),
+          },
+        })
+      )
+      setSuccess(res.data?.message || `Order #${dispatchModalOrder.number || dispatchModalOrder.id} sent successfully to Records!`)
       setDispatchModalOrder(null)
       await syncFromApi(true)
       setTimeout(() => setSuccess(''), 4000)
@@ -81,13 +93,13 @@ export default function Production() {
       const respData = err.response?.data
       let msg = ''
       if (respData?.pending && Array.isArray(respData.pending)) {
-        msg = `Cannot dispatch order. Pending: ${respData.pending.join(', ')}.`
+        msg = `Cannot move order to Records. Pending: ${respData.pending.join(', ')}.`
       } else if (respData?.error) {
         msg = respData.error
       } else if (respData?.detail) {
         msg = respData.detail
       } else {
-        msg = err.message || 'Dispatch failed'
+        msg = err.message || 'Handoff to Records failed'
       }
       setDispatchError(msg)
     } finally {
@@ -314,6 +326,19 @@ export default function Production() {
 
       dispatch(addInvoice(newInvoice))
       dispatch(saveOrderInvoice({ orderId: order.id, invoiceData: initialSheet }))
+      try {
+        const cid = order.company_id || order.company || activeCompId || (compKey === 'tej' ? 3 : 2)
+        api
+          .post(`/v1/companies/${cid}/orders/${order.id}/documents/`, {
+            doc_type: 'INVOICE',
+            data: {
+              invoice_no: invoiceNumber,
+              total: grandTotal,
+              sheetData: initialSheet,
+            },
+          })
+          .catch(() => {})
+      } catch {}
       targetId = newId
     }
 
@@ -324,11 +349,14 @@ export default function Production() {
   const filteredOrders = useMemo(() => {
     const term = search.trim().toLowerCase()
     return orders.filter((order) => {
-      // Exclude dispatched orders from active Production list
+      // Exclude dispatched or records orders from active Production list
       const isDispatched =
         (order.dispatch_status || '').toUpperCase() === 'YES' ||
         order.is_dispatched === true ||
-        order.status === 'DISPATCHED'
+        order.status === 'DISPATCHED' ||
+        order.in_records === true ||
+        order.in_records === 'true' ||
+        order.status === 'IN_RECORDS'
       if (isDispatched) {
         return false
       }
@@ -846,7 +874,7 @@ export default function Production() {
                           </button>
                           <button
                             type="button"
-                            className="prod-action-btn-dispatch"
+                            className="prod-action-btn-records"
                             style={{
                               backgroundColor: '#78350f',
                               color: '#ffffff',
@@ -866,9 +894,9 @@ export default function Production() {
                             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#92400e')}
                             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#78350f')}
                             onClick={() => handleOpenDispatchModal(order)}
-                            title="Send this order to Records and Dispatch"
+                            title="Send this order to Records"
                           >
-                            📦 Dispatch
+                            📋 Records
                           </button>
                         </div>
                       </td>
@@ -950,9 +978,9 @@ export default function Production() {
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '18px' }}>📦</span>
+                <span style={{ fontSize: '18px' }}>📋</span>
                 <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#ffffff' }}>
-                  Send Order to Records & Dispatch
+                  Send Order to Records
                 </h3>
               </div>
               <button
@@ -974,7 +1002,7 @@ export default function Production() {
             {/* Modal Body */}
             <div style={{ padding: '20px' }}>
               <p style={{ margin: '0 0 14px 0', fontSize: '14px', color: '#334155', lineHeight: 1.5 }}>
-                Are you sure you want to send this order to <strong>Records</strong> and <strong>Dispatch</strong>?
+                Are you sure you want to send this order to <strong>Records</strong>?
               </p>
 
               {/* Order Info Card */}
@@ -1031,7 +1059,7 @@ export default function Production() {
                 >
                   <span style={{ fontSize: '16px' }}>⚠️</span>
                   <div>
-                    <strong>Dispatch Blocked:</strong>
+                    <strong>Action Blocked:</strong>
                     <div style={{ marginTop: '2px' }}>{dispatchError}</div>
                   </div>
                 </div>
@@ -1039,13 +1067,13 @@ export default function Production() {
 
               {/* Dispatch Reason */}
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
-                Dispatch Note / Reason (Optional)
+                Handoff Note / Remarks (Optional)
               </label>
               <textarea
                 rows={2}
                 value={dispatchReason}
                 onChange={(e) => setDispatchReason(e.target.value)}
-                placeholder="Enter dispatch notes, delivery details or comments..."
+                placeholder="Enter handoff notes or comments..."
                 disabled={dispatching}
                 style={{
                   width: '100%',
@@ -1060,7 +1088,7 @@ export default function Production() {
               />
 
               <div style={{ marginTop: '12px', fontSize: '11.5px', color: '#64748b', lineHeight: 1.4 }}>
-                ℹ️ This will lock Attachments 1–6, BMR, COA, and Invoice for this order and remove it from the active Production and Orders lists.
+                ℹ️ This will lock Attachments 1–6, BMR, and COA for this order and move it to Records. It will remain in Live Tracking until final dispatch confirmation.
               </div>
             </div>
 
@@ -1111,7 +1139,7 @@ export default function Production() {
                   boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
                 }}
               >
-                {dispatching ? '⏳ Dispatching…' : '📦 Confirm Dispatch'}
+                {dispatching ? '⏳ Sending to Records…' : '📋 Send to Records'}
               </button>
             </div>
           </div>

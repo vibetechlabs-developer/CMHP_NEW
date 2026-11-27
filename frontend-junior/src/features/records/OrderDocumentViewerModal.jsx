@@ -5,6 +5,7 @@ import BulkReleaseSlipEditor from '../quality/BulkReleaseSlipEditor'
 import BmrForm from '../production/BmrForm'
 import QcViewPage from '../qc/QcViewPage'
 import ProductionInvoice from '../production/ProductionInvoice'
+import Attachment6TransferSlip, { getInitialAttachment6Data } from '../quality/slips/Attachment6TransferSlip'
 import Button from '../../components/Button'
 import { triggerSlipPrint } from '../../utils/slipPrintService'
 
@@ -398,7 +399,138 @@ export default function OrderDocumentViewerModal({
     )
   }
 
-  // 7. Attachment 6 (Finish Product Transfer Slip) or Generic Fallback
+  // 7. Attachment 6 (Finish Product Transfer Slip)
+  if (docType === 'ATTACHMENT_6') {
+    const att6Data = getInitialAttachment6Data({
+      product: order.product_name,
+      material_name: order.product_name,
+      batch_no: order.batch_no,
+      quantity: order.batch_size || order.quantity,
+      batch_qty: order.batch_size || order.quantity,
+      tr_no: `AR-${order.batch_no || orderId}`,
+      ar_no: `AR-${order.batch_no || orderId}`,
+      mfg_date: order.mfg_date || new Date().toLocaleDateString('en-GB').replace(/\//g, '-'),
+      best_before: order.best_before || order.expiry_date || '5 Years',
+    })
+
+    return (
+      <div
+        className="records-modal-overlay"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(3px)',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px',
+        }}
+        onClick={onClose}
+      >
+        <div
+          style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '12px',
+            maxWidth: '1000px',
+            width: '100%',
+            maxHeight: '92vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            overflow: 'hidden',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Modal Header */}
+          <div
+            className="no-print"
+            style={{
+              padding: '14px 20px',
+              backgroundColor: '#1e293b',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              borderBottom: '1px solid #334155',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '18px' }}>📄</span>
+              <div>
+                <strong style={{ fontSize: '15px' }}>
+                  {title || 'Finish Product Transfer Slip (Attachment 6)'}
+                </strong>
+                <span style={{ marginLeft: '10px', fontSize: '12px', color: '#94a3b8' }}>
+                  Order #{order.order_number || orderId} • {order.product_name}
+                </span>
+              </div>
+              <span style={{ fontSize: '11px', background: '#334155', color: '#cbd5e1', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
+                🔒 Read-Only
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => triggerSlipPrint()}
+                style={{
+                  backgroundColor: '#059669',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '6px 14px',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                }}
+              >
+                🖨️ Print
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  backgroundColor: '#475569',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '6px 12px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                ✕ Close
+              </button>
+            </div>
+          </div>
+
+          {/* Modal Content */}
+          <div
+            style={{
+              padding: '20px',
+              overflowY: 'auto',
+              flex: 1,
+              backgroundColor: '#f8fafc',
+            }}
+          >
+            <div style={{ pointerEvents: 'none', userSelect: 'text' }}>
+              <Attachment6TransferSlip
+                data={att6Data}
+                readOnly={true}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // 8. Generic Fallback
   return (
     <div
       className="records-modal-overlay"

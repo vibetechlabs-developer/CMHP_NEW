@@ -1,0 +1,313 @@
+/* ==========================================================================
+   DROPS SLIPS - EXACT SOURCE MASTER FORMATS (A4 PORTRAIT)
+   Attachments 1, 2, 3, 4
+   ========================================================================== */
+
+/* Base font & sizing */
+.drops-slip-page {
+  font-family: 'Times New Roman', Times, Georgia, serif !important;
+  color: #000000 !important;
+  background: #ffffff !important;
+  box-sizing: border-box !important;
+  position: relative !important;
+  margin: 0 auto !important;
+  width: 100% !important;
+  max-width: 210mm !important;
+}
+
+/* Att 1 & Att 4 Margins: top 0.5" (12.7mm), right 0.46" (11.7mm), bottom 0.3" (7.6mm), left 1.0" (25.4mm) */
+.drops-att1-page,
+.drops-att4-page {
+  padding-top: 12.7mm !important;
+  padding-right: 11.7mm !important;
+  padding-bottom: 7.6mm !important;
+  padding-left: 25.4mm !important;
+  min-height: 297mm !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+}
+
+/* Att 3 Margins: 0.5" (12.7mm) on all sides */
+.drops-att3-page {
+  padding: 12.7mm !important;
+  min-height: 297mm !important;
+  display: block !important;
+}
+
+/* Att 2 Margins: Visual match to Excel/PDF - Must fit 2 complete copies on 1 A4 page */
+.drops-att2-page {
+  padding: 4mm 10mm !important;
+  height: 297mm !important;
+  max-height: 297mm !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  box-sizing: border-box !important;
+}
+
+/* Input fields inside slips: borderless on print, subtle underline on screen */
+.drops-input {
+  font-family: 'Times New Roman', Times, Georgia, serif !important;
+  color: #000000 !important;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  padding: 1px 2px !important;
+  font-size: inherit !important;
+  box-sizing: border-box !important;
+}
+.drops-input-screen {
+  border-bottom: 1px dashed #94a3b8 !important;
+}
+.drops-input-screen:focus {
+  border-bottom: 1.5px solid #2563eb !important;
+  background-color: #eff6ff !important;
+}
+
+/* ==========================================================================
+   HEADER BOX (Att 1 & Att 4)
+   ========================================================================== */
+.drops-header-box {
+  width: 100% !important;
+  border: 1px solid #000000 !important;
+  border-collapse: collapse !important;
+  margin-bottom: 4px !important;
+}
+.drops-header-box td,
+.drops-header-box th {
+  border: 1px solid #000000 !important;
+  padding: 2px 4px !important;
+  vertical-align: middle !important;
+}
+.drops-logo-cell {
+  width: 110px !important;
+  text-align: center !important;
+  padding: 2px !important;
+}
+.drops-logo-img {
+  max-height: 36px !important;
+  max-width: 100px !important;
+  object-fit: contain !important;
+}
+.drops-company-title {
+  font-size: 13pt !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  letter-spacing: 0.5px !important;
+}
+.drops-dept-title {
+  font-size: 9pt !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+}
+.drops-bmr-title {
+  font-size: 9pt !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+}
+.drops-grid-lbl {
+  font-size: 8pt !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+}
+.drops-grid-val {
+  font-size: 8pt !important;
+  font-weight: 400 !important;
+}
+
+/* Headings below header box */
+.drops-att-title {
+  font-size: 10.5pt !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  margin-top: 3px !important;
+  margin-bottom: 2px !important;
+}
+.drops-att-subtitle {
+  font-size: 10pt !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  margin-bottom: 3px !important;
+}
+.drops-section-heading {
+  font-size: 9pt !important;
+  font-weight: 700 !important;
+  text-align: left !important;
+  margin-top: 3px !important;
+  margin-bottom: 3px !important;
+}
+
+/* ==========================================================================
+   DATA TABLES (Att 1 & Att 4)
+   ========================================================================== */
+.drops-data-table {
+  width: 100% !important;
+  border: 1px solid #000000 !important;
+  border-collapse: collapse !important;
+  table-layout: fixed !important;
+}
+.drops-data-table th {
+  border: 1px solid #000000 !important;
+  padding: 3px 2px !important;
+  font-size: 8pt !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+  line-height: 1.15 !important;
+}
+.drops-data-table td {
+  border: 1px solid #000000 !important;
+  padding: 3px 3px !important;
+  font-size: 8pt !important;
+  vertical-align: middle !important;
+  height: 22px !important;
+}
+.drops-cell-center {
+  text-align: center !important;
+}
+.drops-cell-left {
+  text-align: left !important;
+}
+.drops-cell-right {
+  text-align: right !important;
+}
+.drops-cell-bold {
+  font-weight: 700 !important;
+}
+
+/* Repeated / Merged Header Row */
+.drops-merged-excipients {
+  font-size: 8.5pt !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  background: #ffffff !important;
+  padding: 3px !important;
+}
+
+/* Verification lines */
+.drops-verification-group {
+  margin-top: 10px !important;
+  margin-bottom: 6px !important;
+  font-size: 8.5pt !important;
+  line-height: 1.7 !important;
+}
+.drops-verification-line {
+  display: flex !important;
+  align-items: center !important;
+}
+.drops-verification-lbl {
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+}
+
+/* Signature Grid */
+.drops-sig-grid {
+  width: 100% !important;
+  border: 1px solid #000000 !important;
+  border-collapse: collapse !important;
+  margin-top: 4px !important;
+  margin-bottom: 4px !important;
+  table-layout: fixed !important;
+}
+.drops-sig-grid th {
+  border: 1px solid #000000 !important;
+  padding: 2.5px 3px !important;
+  font-size: 7.5pt !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  line-height: 1.2 !important;
+}
+.drops-sig-grid td {
+  border: 1px solid #000000 !important;
+  padding: 2.5px 3px !important;
+  font-size: 7.5pt !important;
+  height: 20px !important;
+  vertical-align: middle !important;
+}
+.drops-sig-lbl-col {
+  width: 15% !important;
+  font-weight: 700 !important;
+}
+
+/* Footer row */
+.drops-footer-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  font-size: 8pt !important;
+  font-weight: 700 !important;
+  padding-top: 2px !important;
+  border-top: none !important;
+}
+
+/* ==========================================================================
+   ATTACHMENT 3: BULK RELEASE SLIP
+   ========================================================================== */
+.drops-att3-table {
+  width: 100% !important;
+  border: 1.5px solid #000000 !important;
+  border-collapse: collapse !important;
+}
+.drops-att3-table td,
+.drops-att3-table th {
+  border: 1px solid #000000 !important;
+  padding: 3.5px 6px !important;
+  font-size: 9pt !important;
+  vertical-align: middle !important;
+}
+
+/* ==========================================================================
+   ATTACHMENT 2: TEST REQUEST (BULK) - 2 COPIES ON 1 A4 PAGE
+   ========================================================================== */
+.drops-att2-copy {
+  border: 1px solid #000000 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  background: #ffffff !important;
+}
+.drops-att2-table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  table-layout: fixed !important;
+}
+.drops-att2-table td {
+  border: 1px solid #000000 !important;
+  padding: 1.8px 3px !important;
+  font-size: 7.5pt !important;
+  vertical-align: middle !important;
+  line-height: 1.2 !important;
+}
+.drops-att2-gap {
+  height: 4px !important;
+  background-color: #f7f2e7 !important;
+  border-top: 1px dashed #d1c7b7 !important;
+  border-bottom: 1px dashed #d1c7b7 !important;
+  margin: 3px 0 !important;
+}
+
+/* ==========================================================================
+   PRINT MEDIA RULES
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+  body, html {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+  .no-print,
+  .no-print * {
+    display: none !important;
+  }
+  .drops-slip-page {
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  .drops-input-screen {
+    border-bottom: none !important;
+  }
+}

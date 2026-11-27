@@ -18,6 +18,8 @@ import SyrupTestRequestBulkSlip, { getInitialSyrupTestRequestBulkData } from '..
 import SyrupBulkReleaseSlip, { getInitialSyrupBulkReleaseData } from '../../quality/slips/SyrupBulkReleaseSlip'
 import OilTestRequestBulkSlip, { getInitialOilTestRequestBulkData } from '../../quality/slips/OilTestRequestBulkSlip'
 import OilBulkReleaseSlip, { getInitialOilBulkReleaseData } from '../../quality/slips/OilBulkReleaseSlip'
+import DropsTestRequestBulkSlip, { getInitialDropsTestRequestBulkData } from '../../quality/slips/DropsTestRequestBulkSlip'
+import DropsBulkReleaseSlip, { getInitialDropsBulkReleaseData } from '../../quality/slips/DropsBulkReleaseSlip'
 import QcPlaceholderSlip from '../../quality/slips/QcPlaceholderSlip'
 import { normalizeProductTypeKey, getProductTypeDisplayName } from '../../production/bmrTemplates/index.js'
 
@@ -114,32 +116,38 @@ export const SLIP_REGISTRY = {
     department: 'PRODUCTION ( ORAL LIQUID DEPARTMENT)',
     rm: {
       title: 'Drops RM Requisition Slip (Attachment - 1 Master Format)',
-      subtitle: 'Exact replica of Drops RM Requistion ATTACHMENT 1 MASTER FORMAT.docx.pdf',
+      subtitle: 'Exact replica of Drops RM Requistion ATTACHMENT 1 MASTER FORMAT.docx',
       Component: DropsRmSlip,
       getInitialData: getInitialDropsRmData,
       isPlaceholder: false,
     },
     pm: {
       title: 'Packing Material Requirement Slip (Attachment - 4 Master Format)',
-      subtitle: 'Exact replica of ATTACHMENT 4.docx (1).pdf',
+      subtitle: 'Exact replica of ATTACHMENT 4.docx',
       Component: DropsPmSlip,
       getInitialData: getInitialDropsPmData,
       isPlaceholder: false,
     },
     testRequestBulk: {
       title: 'Attachment-2 : TEST REQUEST (BULK )',
-      Component: QcPlaceholderSlip,
-      isPlaceholder: true,
+      code: 'SOP/QA/04/F-03/00',
+      Component: DropsTestRequestBulkSlip,
+      getInitialData: getInitialDropsTestRequestBulkData,
+      isPlaceholder: false,
     },
     bulkRelease: {
-      title: 'Attachment-3 : BULK RELEASE SLIP',
-      Component: QcPlaceholderSlip,
-      isPlaceholder: true,
+      title: 'Bulk Release Slip (Attachment-3)',
+      code: 'SOP/QC/03/F-02',
+      Component: DropsBulkReleaseSlip,
+      getInitialData: getInitialDropsBulkReleaseData,
+      isPlaceholder: false,
     },
     testRequestFp: {
       title: 'Attachment-5 : TEST REQUEST (MT/FP )',
+      code: 'SOP/QA/04/F-03/00',
       Component: QcPlaceholderSlip,
       isPlaceholder: true,
+      customMessage: 'Attachment-5 (Test Request MT/FP) for Drops will be attached soon.',
     },
   },
   oil: {

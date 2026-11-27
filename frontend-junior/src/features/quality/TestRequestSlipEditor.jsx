@@ -12,11 +12,12 @@ import { resolveQcSlip } from '../formulas/slips/slipRegistry'
 import TabletTestRequestBulkSlip, { getInitialTabletTestRequestBulkData } from './slips/TabletTestRequestBulkSlip'
 import TabletTestRequestFpSlip, { getInitialTabletTestRequestFpData } from './slips/TabletTestRequestFpSlip'
 import SyrupTestRequestBulkSlip, { getInitialSyrupTestRequestBulkData } from './slips/SyrupTestRequestBulkSlip'
+import DropsTestRequestBulkSlip, { getInitialDropsTestRequestBulkData } from './slips/DropsTestRequestBulkSlip'
 import OilTestRequestBulkSlip, { getInitialOilTestRequestBulkData } from './slips/OilTestRequestBulkSlip'
 import MotherTinctureTestRequestBeforeFilterSlip, { getInitialMotherTinctureTrBeforeFilterData } from './slips/MotherTinctureTestRequestBeforeFilterSlip'
 import MotherTinctureTestRequestAfterFilterSlip, { getInitialMotherTinctureTrAfterFilterData } from './slips/MotherTinctureTestRequestAfterFilterSlip'
 import QcPlaceholderSlip from './slips/QcPlaceholderSlip'
-import { triggerSlipPrint, downloadSlipPdf } from '../../utils/slipPrintService'
+import { triggerSlipPrint } from '../../utils/slipPrintService'
 import './TestRequestSlip.css'
 import './slips/TabletQcSlip.css'
 
@@ -220,10 +221,22 @@ export default function TestRequestSlipEditor({
   productType = 'tablet',
   onSaved = null,
   readOnly = false,
+  initialVariant = 'bulk',
 }) {
   const branding = getCompanyBranding(initialData)
 
-  const [variant, setVariant] = useState('bulk')
+  const defaultVariant = useMemo(() => {
+    if (initialVariant === 'fp' || initialVariant === 'after_filter') return 'fp'
+    const st = initialData?.sub_type || initialData?.subType || ''
+    if (st === 'fp' || st === 'after_filter' || initialData?.doc_type === 'ATTACHMENT_5') return 'fp'
+    return 'bulk'
+  }, [initialVariant, initialData])
+
+  const [variant, setVariant] = useState(defaultVariant)
+
+  useEffect(() => {
+    setVariant(defaultVariant)
+  }, [defaultVariant])
 
   const slipKind = variant === 'fp' ? 'testRequestFp' : 'testRequestBulk'
   const resolved = useMemo(() => resolveQcSlip(slipKind, productType), [slipKind, productType])
@@ -260,6 +273,19 @@ export default function TestRequestSlipEditor({
       }
     } catch {}
     return getInitialTabletTestRequestFpData(initialData || {})
+  }
+
+  // Load saved Drops Bulk data
+  const loadDropsBulkData = () => {
+    try {
+      const specificKey = `cmhp_qc_slip_v1_test_request_bulk_drops_${batchKey}`
+      const saved = localStorage.getItem(specificKey)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed?.data) return parsed.data
+      }
+    } catch {}
+    return getInitialDropsTestRequestBulkData(initialData || {})
   }
 
   // Load saved Syrup Bulk data
@@ -335,6 +361,7 @@ export default function TestRequestSlipEditor({
 
   const [tabletBulkData, setTabletBulkData] = useState(loadTabletBulkData)
   const [tabletFpData, setTabletFpData] = useState(loadTabletFpData)
+  const [dropsBulkData, setDropsBulkData] = useState(loadDropsBulkData)
   const [syrupBulkData, setSyrupBulkData] = useState(loadSyrupBulkData)
   const [oilBulkData, setOilBulkData] = useState(loadOilBulkData)
   const [mtBeforeData, setMtBeforeData] = useState(loadMtBeforeData)
@@ -342,7 +369,6 @@ export default function TestRequestSlipEditor({
   const [genericData, setGenericData] = useState(loadGenericData)
 
   const [saving, setSaving] = useState(false)
-  const [downloading, setDownloading] = useState(false)
   const [feedback, setFeedback] = useState('')
   const sheetRef = useRef(null)
 
@@ -350,6 +376,7 @@ export default function TestRequestSlipEditor({
   useEffect(() => {
     setTabletBulkData(loadTabletBulkData())
     setTabletFpData(loadTabletFpData())
+    setDropsBulkData(loadDropsBulkData())
     setSyrupBulkData(loadSyrupBulkData())
     setOilBulkData(loadOilBulkData())
     setMtBeforeData(loadMtBeforeData())
@@ -360,7 +387,9 @@ export default function TestRequestSlipEditor({
   const updateGeneric = (field, val) => setGenericData((prev) => ({ ...prev, [field]: val }))
 
   const activeBatchNo =
-    typeKey === 'syrup'
+    typeKey === 'drops'
+      ? dropsBulkData.batch_no
+      : typeKey === 'syrup'
       ? syrupBulkData.batch_no
       : typeKey === 'tablet'
       ? variant === 'bulk'
@@ -378,7 +407,24 @@ export default function TestRequestSlipEditor({
     if (isPlaceholder) return
     setSaving(true)
     try {
-      if (typeKey === 'syrup') {
+      if (typeKey === 'drops') {
+        if (variant === 'bulk') {
+          const envelope = {
+            version: 1,
+            layoutId: 'drops-att2-v1',
+            productType: 'drops',
+            slipType: 'test_request_bulk',
+            batchNo: dropsBulkData.batch_no || '',
+            product: dropsBulkData.product || '',
+            savedAt: new Date().toISOString(),
+            data: dropsBulkData,
+          }
+          const storeKey = `cmhp_qc_slip_v1_test_request_bulk_drops_${dropsBulkData.batch_no || batchKey}`
+          localStorage.setItem(storeKey, JSON.stringify(envelope))
+          setFeedback('✅ Drops Test Request (Bulk) saved!')
+          if (onSaved) onSaved(envelope)
+        }
+      } else if (typeKey === 'syrup') {
         if (variant === 'bulk') {
           const envelope = {
             version: 1,
@@ -512,7 +558,11 @@ export default function TestRequestSlipEditor({
   const handleReset = () => {
     if (isPlaceholder) return
     if (window.confirm('Reset all fields to blank?')) {
-      if (typeKey === 'syrup') {
+      if (typeKey === 'drops') {
+        if (variant === 'bulk') {
+          setDropsBulkData(getInitialDropsTestRequestBulkData({}))
+        }
+      } else if (typeKey === 'syrup') {
         if (variant === 'bulk') {
           setSyrupBulkData(getInitialSyrupTestRequestBulkData({}))
         }
@@ -543,30 +593,6 @@ export default function TestRequestSlipEditor({
   const handlePrint = async () => {
     if (isPlaceholder) return
     await triggerSlipPrint()
-  }
-
-  const handleDownloadPdf = async () => {
-    if (!sheetRef.current || isPlaceholder || downloading) return
-    setDownloading(true)
-    try {
-      const attPrefix =
-        typeKey === 'mother-tincture'
-          ? variant === 'fp'
-            ? 'Attachment4_TestRequest_AfterFilter'
-            : 'Attachment2_TestRequest_BeforeFilter'
-          : variant === 'fp'
-          ? 'Attachment5_TestRequest_FP'
-          : 'Attachment2_TestRequest_Bulk'
-      const fileName = `${attPrefix}_${(activeBatchNo || 'slip').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`
-      await downloadSlipPdf(sheetRef.current, fileName)
-      setFeedback(`⬇️ PDF downloaded: ${fileName}`)
-      setTimeout(() => setFeedback(''), 4000)
-    } catch (err) {
-      console.error(err)
-      alert('Could not generate PDF. Please try Print -> Save as PDF.')
-    } finally {
-      setDownloading(false)
-    }
   }
 
   const slipTitle =
@@ -652,9 +678,6 @@ export default function TestRequestSlipEditor({
           <Button size="sm" variant="secondary" onClick={handlePrint} disabled={isPlaceholder}>
             🖨️ Print
           </Button>
-          <Button size="sm" variant="secondary" onClick={handleDownloadPdf} disabled={isPlaceholder || downloading}>
-            {downloading ? '⏳ Generating…' : '⬇️ Download PDF'}
-          </Button>
           <Button size="sm" variant="primary" onClick={handleSave} disabled={isPlaceholder || saving || readOnly}>
             {saving ? '⏳ Saving…' : '💾 Save Slip'}
           </Button>
@@ -668,6 +691,23 @@ export default function TestRequestSlipEditor({
           slipType={variant === 'fp' ? 'attachment_5' : 'attachment_2'}
           customMessage={resolved?.config?.customMessage || ''}
         />
+      ) : typeKey === 'drops' ? (
+        <div ref={sheetRef} style={{ width: '100%' }}>
+          {variant === 'bulk' ? (
+            <DropsTestRequestBulkSlip
+              data={dropsBulkData}
+              onChange={setDropsBulkData}
+              branding={branding}
+              readOnly={readOnly}
+            />
+          ) : (
+            <QcPlaceholderSlip
+              productType={displayName}
+              slipType="attachment_5"
+              customMessage="Attachment-5 (Test Request MT/FP) for Drops will be attached soon."
+            />
+          )}
+        </div>
       ) : typeKey === 'mother-tincture' ? (
         <div ref={sheetRef} style={{ width: '100%' }}>
           {variant === 'bulk' ? (

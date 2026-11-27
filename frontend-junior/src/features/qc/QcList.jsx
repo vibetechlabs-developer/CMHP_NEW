@@ -73,7 +73,17 @@ export default function QcList({ onSelectOrder, companyId }) {
           qa_remark,
         }
       })
-      .filter((order) => (order.bmr_status || '').toUpperCase() === 'YES')
+      .filter((order) => {
+        if ((order.bmr_status || '').toUpperCase() !== 'YES') return false
+        const inRec =
+          order.in_records === true ||
+          order.in_records === 'true' ||
+          order.status === 'IN_RECORDS' ||
+          (order.dispatch_status || '').toUpperCase() === 'YES' ||
+          order.is_dispatched === true
+        if (inRec && !order.coa_returned) return false
+        return true
+      })
   }, [reduxOrders, qaStatusOverrides])
 
   // Handle highlight on redirect from Production's QC button (2-second clean highlight)

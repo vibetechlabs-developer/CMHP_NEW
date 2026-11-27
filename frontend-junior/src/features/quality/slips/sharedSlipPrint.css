@@ -74,8 +74,36 @@
     z-index: 999999 !important;
   }
 
+  /* Flatten modal containers so they don't clip or trap print output */
+  .records-modal-overlay,
+  .records-modal-content,
+  .bmr-modal-backdrop,
+  .bmr-modal-container,
+  .bmr-modal-content,
+  .modal-overlay,
+  .modal-container,
+  .modal-backdrop {
+    position: static !important;
+    inset: auto !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    max-height: none !important;
+    max-width: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    width: auto !important;
+    height: auto !important;
+  }
+
   /* Specific padding per slip category inside 210x297mm */
   .cmhp-printable-slip.tablet-slip-sheet {
+    padding: 8mm 12mm 6mm 12mm !important;
+  }
+
+  .cmhp-printable-slip.att6-slip-sheet {
     padding: 8mm 12mm 6mm 12mm !important;
   }
 

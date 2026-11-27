@@ -77,7 +77,7 @@ describe('Dispatch Page & Records Page Mode Verification', () => {
     expect(screen.getByText('Current Stage & Lifecycle Status')).toBeTruthy()
     expect(screen.getByText('Dispatch Details')).toBeTruthy()
     expect(screen.getByText('📦 Packed & Ready for Dispatch')).toBeTruthy()
-    expect(screen.getByText('BMR')).toBeTruthy() // Stepper
+    expect(screen.getByText('Production')).toBeTruthy() // Stepper
     expect(screen.getByText('QC Testing')).toBeTruthy() // Stepper
     expect(screen.getByText('Packaging')).toBeTruthy() // Stepper
   })

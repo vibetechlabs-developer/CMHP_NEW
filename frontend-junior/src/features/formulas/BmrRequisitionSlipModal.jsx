@@ -3,13 +3,14 @@ import Button from '../../components/Button'
 import { exportFormulaExcel } from '../../utils/formulaExport'
 import { getCompanyBranding, isTejBiocare } from '../../utils/companyBranding.js'
 import { resolveSlipConfig } from './slips/slipRegistry'
-import { exportTabletRmExcel, exportTabletPmExcel, exportOilRmExcel, exportOilPmExcel, exportMotherTinctureRmExcel, exportSyrupRmExcel, exportSyrupPmExcel } from './slips/tabletExcelExport'
+import { exportTabletRmExcel, exportTabletPmExcel, exportOilRmExcel, exportOilPmExcel, exportMotherTinctureRmExcel, exportSyrupRmExcel, exportSyrupPmExcel, exportDropsRmExcel, exportDropsPmExcel } from './slips/tabletExcelExport'
 import { getFormulaSlip, saveFormulaSlip } from './formulasService'
-import { triggerSlipPrint, downloadSlipPdf } from '../../utils/slipPrintService'
+import { triggerSlipPrint } from '../../utils/slipPrintService'
 import './BmrRequisitionSlipModal.css'
 import './slips/TabletSlip.css'
 import './slips/MotherTinctureSlip.css'
 import './slips/SyrupSlip.css'
+import './slips/DropsSlip.css'
 
 export default function BmrRequisitionSlipModal({
   isOpen,
@@ -30,7 +31,6 @@ export default function BmrRequisitionSlipModal({
       setActiveTab(initialTab)
     }
   }, [isOpen, initialTab])
-  const [downloading, setDownloading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveFeedback, setSaveFeedback] = useState('')
   const [isDirty, setIsDirty] = useState(false)
@@ -158,76 +158,6 @@ export default function BmrRequisitionSlipModal({
     await triggerSlipPrint()
   }
 
-  const handleDownloadPdf = async () => {
-    if (downloading || isPlaceholder) return
-    const container = slipRef.current
-    if (!container) return
-
-    setDownloading(true)
-
-    try {
-      const sanitizedProdName = (product?.name || 'PRODUCT').replace(/[^a-zA-Z0-9]/g, '_')
-      const revNo = String(revision?.revision_number || '01').padStart(2, '0')
-
-      if (typeKey === 'tablet' || typeKey === 'oil' || typeKey === 'mother-tincture' || typeKey === 'syrup') {
-        const typePrefix = typeKey === 'oil' ? 'Oil' : typeKey === 'mother-tincture' ? 'Mother_Tincture' : typeKey === 'syrup' ? 'Syrup' : 'Tablet'
-        const filename = activeTab === 'RM'
-          ? `${typePrefix}_RM_Attachment_1_${sanitizedProdName}_Rev${revNo}.pdf`
-          : `${typePrefix}_PM_Attachment_4_${sanitizedProdName}_Rev${revNo}.pdf`
-
-        await downloadSlipPdf(container, filename)
-      } else {
-        // Drops 2-page PDF capture
-        const page1El = container.querySelector('.bmr-exact-page-1')
-        const page2El = container.querySelector('.bmr-exact-page-2')
-        if (!page1El) return
-
-        const filename = activeTab === 'RM'
-          ? `BMR_RM_Attachment_1_${sanitizedProdName}_Rev${revNo}.pdf`
-          : `BMR_PM_Attachment_4_${sanitizedProdName}_Rev${revNo}.pdf`
-
-        container.classList.add('bmr-pdf-export-mode')
-
-        const captureOptions = {
-          scale: 2.5,
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: '#ffffff',
-          logging: false,
-        }
-
-        const canvas1 = await html2canvas(page1El, captureOptions)
-        const pdf = new jsPDF({
-          orientation: 'portrait',
-          unit: 'mm',
-          format: 'a4',
-          compress: true,
-        })
-
-        const imgData1 = canvas1.toDataURL('image/png')
-        const imgWidth = 210
-        const imgHeight1 = Math.min((canvas1.height * imgWidth) / canvas1.width, 297)
-        pdf.addImage(imgData1, 'PNG', 0, 0, imgWidth, imgHeight1, undefined, 'FAST')
-
-        if (page2El) {
-          const canvas2 = await html2canvas(page2El, captureOptions)
-          const imgData2 = canvas2.toDataURL('image/png')
-          const imgHeight2 = Math.min((canvas2.height * imgWidth) / canvas2.width, 297)
-          pdf.addPage('a4', 'portrait')
-          pdf.addImage(imgData2, 'PNG', 0, 0, imgWidth, imgHeight2, undefined, 'FAST')
-        }
-
-        pdf.save(filename)
-      }
-    } catch (err) {
-      console.error('Failed to generate PDF:', err)
-      window.print()
-    } finally {
-      container.classList.remove('bmr-pdf-export-mode')
-      setDownloading(false)
-    }
-  }
-
   const handleExcel = () => {
     if (isPlaceholder) return
 
@@ -297,6 +227,27 @@ export default function BmrRequisitionSlipModal({
         })
       } else {
         exportSyrupPmExcel({
+          slipData: slipData || {},
+          product,
+          formula,
+          revision,
+          company,
+        })
+      }
+      return
+    }
+
+    if (typeKey === 'drops') {
+      if (activeTab === 'RM') {
+        exportDropsRmExcel({
+          slipData: slipData || {},
+          product,
+          formula,
+          revision,
+          company,
+        })
+      } else {
+        exportDropsPmExcel({
           slipData: slipData || {},
           product,
           formula,
@@ -672,14 +623,6 @@ export default function BmrRequisitionSlipModal({
 
             <Button
               type="button"
-              onClick={handleDownloadPdf}
-              disabled={downloading || isPlaceholder}
-              title={isPlaceholder ? 'Slip not available yet for this product type' : 'Download PDF'}
-            >
-              {downloading ? '⏳ Generating PDF...' : '⬇️ Download PDF'}
-            </Button>
-            <Button
-              type="button"
               variant="secondary"
               onClick={handlePrint}
               disabled={isPlaceholder}
@@ -716,7 +659,7 @@ export default function BmrRequisitionSlipModal({
                 tabType={activeTab}
                 customMessage={activeSlipConfig.customMessage}
               />
-            ) : (typeKey === 'tablet' || typeKey === 'oil' || typeKey === 'mother-tincture' || typeKey === 'syrup') ? (
+            ) : (typeKey === 'tablet' || typeKey === 'oil' || typeKey === 'mother-tincture' || typeKey === 'syrup' || typeKey === 'drops') ? (
               <ActiveComponent
                 data={slipData || {}}
                 onChange={handleSlipDataChange}

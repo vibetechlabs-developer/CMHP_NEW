@@ -191,33 +191,6 @@ export default function QcSyrupView({
     setTimeout(() => setSaveFeedback(''), 2200)
   }, [dispatch, storageKey, orderId, data])
 
-  const handleDownloadPdf = useCallback(() => {
-    if (orderId) {
-      dispatch(saveOrderQc({ orderId: storageKey, qcData: data }))
-    }
-    const element = document.querySelector('.qc-print-only-container') || document.querySelector('.qc-syrup-sheet')
-    if (!element || typeof window === 'undefined') {
-      window.print()
-      return
-    }
-    import('html2pdf.js')
-      .then((module) => {
-        const html2pdf = module.default || module
-        const opt = {
-          margin: [0, 0, 0, 0],
-          filename: `COA_SYRUP_${data.batch_no || 'Document'}.pdf`,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true, logging: false },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        }
-        html2pdf().set(opt).from(element).save()
-      })
-      .catch((err) => {
-        console.warn('html2pdf fallback to print:', err)
-        window.print()
-      })
-  }, [dispatch, storageKey, orderId, data])
-
   const handlePrintFull = useCallback(() => {
     if (orderId) {
       dispatch(saveOrderQc({ orderId: storageKey, qcData: data }))
@@ -646,15 +619,6 @@ export default function QcSyrupView({
             title="Print 1 Page Certificate of Analysis"
           >
             🖨️ Print CoA
-          </button>
-
-          <button
-            type="button"
-            className="qc-btn-secondary"
-            onClick={handleDownloadPdf}
-            title="Download PDF Certificate of Analysis"
-          >
-            📥 Download PDF
           </button>
         </div>
       </div>
