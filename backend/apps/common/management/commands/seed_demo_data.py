@@ -333,7 +333,7 @@ class Command(BaseCommand):
         store, _ = self._get_or_create_checked(
             SharedStore,
             lookup={"code": STORE_CODE},
-            defaults={"name": "Demo Shared Warehouse", "description": DEMO_MARKER},
+            defaults={"name": "Central Warehouse", "description": DEMO_MARKER},
             check_fields=["name", "description"],
             label="SharedStore",
         )
