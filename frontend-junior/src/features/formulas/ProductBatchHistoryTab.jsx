@@ -92,17 +92,17 @@ export default function ProductBatchHistoryTab({ companyId, productId, product, 
 
         // Normalize Backend Plans
         backendPlans.forEach((p) => {
-          const bNo = p.allocated_batch_number || p.batch_number || `PLAN-${p.id}`
+          const bNo = p.official_batch_number || p.allocated_batch_number || p.batch_number || `PLAN-${p.id}`
           mapByBatchNo.set(bNo, {
             id: `plan-${p.id}`,
             batchNo: bNo,
             orderRef: p.sales_order_reference || p.order_reference || 'Production Plan',
             customer: p.customer_name || 'Internal Production',
             mfgDate: p.planned_manufacturing_date || p.created_at?.slice(0, 10) || '—',
-            quantity: p.target_output_quantity ? `${p.target_output_quantity} ${p.packing_content_uom || ''}`.trim() : '—',
+            quantity: p.target_output_quantity ? `${p.target_output_quantity} ${p.packing_content_uom_code || p.packing_content_uom || ''}`.trim() : '—',
             packInfo: p.packing_size_note || (p.planned_pack_quantity ? `${p.planned_pack_quantity} Packs` : '—'),
             revisionNo: p.formula_revision_number ? `Rev ${p.formula_revision_number}` : '—',
-            status: p.allocated_batch_number ? 'Batch Allocated' : 'Planned',
+            status: (p.official_batch_number || p.allocated_batch_number) ? 'Batch Allocated' : 'Planned',
             qaStatus: p.qa_status || 'Pending QA',
             hasBmr: false,
             bmrType: null,
@@ -157,7 +157,14 @@ export default function ProductBatchHistoryTab({ companyId, productId, product, 
         })
 
         if (isMounted) {
-          setBatches(Array.from(mapByBatchNo.values()))
+          // Sort: batches with official batch numbers first, then by batchNo descending
+          const sorted = Array.from(mapByBatchNo.values()).sort((a, b) => {
+            const aIsOfficial = !a.batchNo.startsWith('PLAN-')
+            const bIsOfficial = !b.batchNo.startsWith('PLAN-')
+            if (aIsOfficial !== bIsOfficial) return aIsOfficial ? -1 : 1
+            return b.batchNo.localeCompare(a.batchNo)
+          })
+          setBatches(sorted)
         }
       } catch (err) {
         if (isMounted) {

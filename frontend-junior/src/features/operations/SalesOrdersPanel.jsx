@@ -139,6 +139,9 @@ export default function SalesOrdersPanel() {
     if (ref && !ref.startsWith('SO-')) {
       return ref
     }
+    if (order.reference && !order.reference.match(/^SO-\d{8}-/)) {
+      return order.reference
+    }
     return `ORD-2026-${String(order.id || index + 1).padStart(4, '0')}`
   }
 
@@ -186,12 +189,78 @@ export default function SalesOrdersPanel() {
     return 'so-sb-draft'
   }
 
-  // Batch number: {company code}-{year}-{sequence of that company's orders that year}
-  const getBatchNumber = (order) => {
-    if (order.batch_number) return order.batch_number
-    const year = order.order_date ? String(order.order_date).slice(0, 4) : String(new Date().getFullYear())
-    const code = (order.customer_code || companyCode || 'XX').toUpperCase()
-    return `${code}-${year}-0001`
+  // 4. Dynamic batch numbers: ensures each order has a unique, sequential batch number
+  // Format: {customer code}-{year}-{sequence} e.g. GER-2026-0001, GER-2026-0002...
+  const batchNumberMap = useMemo(() => {
+    const list = data.results || []
+    if (list.length === 0) return {}
+
+    // Check if backend already sent valid, distinct batch numbers for each order
+    const rawBatchNumbers = list.map((o) => o.batch_number).filter(Boolean)
+    const uniqueRawNumbers = new Set(rawBatchNumbers)
+    const hasDistinctBackendNumbers =
+      rawBatchNumbers.length === list.length &&
+      uniqueRawNumbers.size === list.length &&
+      !(rawBatchNumbers.length > 1 && rawBatchNumbers.every((n) => n.endsWith('-0001')))
+
+    if (hasDistinctBackendNumbers) {
+      const map = {}
+      list.forEach((o) => {
+        map[o.id] = o.batch_number
+      })
+      return map
+    }
+
+    // Otherwise, generate sequential numbers across orders sorted chronologically (earliest first)
+    const sorted = [...list].sort((a, b) => {
+      const dateA = a.order_date || a.created_at || ''
+      const dateB = b.order_date || b.created_at || ''
+      if (dateA !== dateB) return dateA.localeCompare(dateB)
+      return (Number(a.id) || 0) - (Number(b.id) || 0)
+    })
+
+    const seqCounters = {}
+    const map = {}
+
+    sorted.forEach((order) => {
+      if (
+        order.batch_number &&
+        uniqueRawNumbers.size > 1 &&
+        !order.batch_number.endsWith('-0001')
+      ) {
+        map[order.id] = order.batch_number
+        return
+      }
+
+      const year = order.order_date
+        ? String(order.order_date).slice(0, 4)
+        : String(new Date().getFullYear())
+      const rawCode = order.customer_code || companyCode || 'XX'
+      const code = rawCode.toUpperCase().replace(/[^A-Z0-9]/g, '') || 'XX'
+      const groupKey = `${code}-${year}`
+
+      seqCounters[groupKey] = (seqCounters[groupKey] || 0) + 1
+      const seq = seqCounters[groupKey]
+      map[order.id] = `${code}-${year}-${String(seq).padStart(4, '0')}`
+    })
+
+    return map
+  }, [data.results, companyCode])
+
+  const getBatchNumber = (order, idx = 0) => {
+    if (order?.id && batchNumberMap[order.id]) {
+      return batchNumberMap[order.id]
+    }
+    if (order?.batch_number && !order.batch_number.endsWith('-0001')) {
+      return order.batch_number
+    }
+    const year = order?.order_date
+      ? String(order.order_date).slice(0, 4)
+      : String(new Date().getFullYear())
+    const rawCode = order?.customer_code || companyCode || 'XX'
+    const code = rawCode.toUpperCase().replace(/[^A-Z0-9]/g, '') || 'XX'
+    const seq = order?.id || idx + 1
+    return `${code}-${year}-${String(seq).padStart(4, '0')}`
   }
 
   // 5. 6 KPI Summary Cards Calculation
@@ -509,7 +578,7 @@ export default function SalesOrdersPanel() {
                 const stage = displayStage(order)
                 const statusBadgeClass = getStatusBadgeClass(stage)
                 const isUpdating = !!updatingStatus[order.id]
-                const batchNumber = getBatchNumber(order)
+                const batchNumber = getBatchNumber(order, idx)
                 const productName = firstLine?.product_name || firstLine?.product_code || 'Pharmaceutical Medicine'
                 const bmrUrl = firstLine?.product_id
                   ? `/production/bmr?productId=${firstLine.product_id}&productCode=${encodeURIComponent(firstLine.product_code || '')}&productName=${encodeURIComponent(productName)}&bmrNo=${encodeURIComponent(firstLine.bmr_no || '')}&productType=${encodeURIComponent(firstLine.product_type_snapshot || '')}&packSize=${encodeURIComponent(firstLine.pack_size || '')}&orderId=${encodeURIComponent(order.id || '')}&returnTo=/orders`

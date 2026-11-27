@@ -42,7 +42,7 @@ export async function listMyCompanies() {
 // same as "zero stock", and this filter never implies that it is.
 export async function listMaterials({
   search = '', kind = '', isActive = '', category = '', supplier = '',
-  receiptFrom = '', receiptTo = '', page = 1, pageSize = 20,
+  receiptFrom = '', receiptTo = '', hasAlcohol = '', page = 1, pageSize = 20,
 } = {}) {
   const params = { page, page_size: pageSize }
   if (search.trim()) params.search = search.trim()
@@ -52,6 +52,7 @@ export async function listMaterials({
   if (supplier) params.supplier = supplier
   if (receiptFrom) params.receipt_from = receiptFrom
   if (receiptTo) params.receipt_to = receiptTo
+  if (hasAlcohol !== '') params.has_alcohol = hasAlcohol
   const response = await api.get('/v1/materials/', { params })
   return { count: response.data.count || 0, results: rows(response.data) }
 }

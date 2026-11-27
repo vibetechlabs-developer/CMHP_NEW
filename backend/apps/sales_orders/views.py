@@ -56,34 +56,69 @@ def order_batch_numbers(company, order_ids):
     wanted = {oid for oid in order_ids if oid}
     if not wanted:
         return {}
-    page_orders = SalesOrder.objects.filter(company=company, pk__in=wanted).only("id", "customer_id", "order_date")
-    customer_ids = set()
-    years = set()
-    for order in page_orders:
-        if order.order_date is None:
-            continue
-        customer_ids.add(order.customer_id)
-        years.add(order.order_date.year)
-    if not customer_ids or not years:
-        return {}
+
+    # 1. Prefer official batch number allocation from batch plans if one exists
+    allocations = {}
+    try:
+        from apps.batch_plans.models import BatchNumberAllocation
+
+        for alloc in BatchNumberAllocation.objects.filter(
+            batch_plan__sales_order_line__sales_order_id__in=wanted
+        ).select_related("batch_plan__sales_order_line"):
+            so_id = alloc.batch_plan.sales_order_line.sales_order_id
+            if so_id and alloc.number:
+                allocations[so_id] = alloc.number
+    except Exception:
+        pass
+
+    page_orders = list(
+        SalesOrder.objects.filter(company=company, pk__in=wanted)
+        .select_related("customer")
+        .only("id", "customer_id", "order_date", "created_at")
+    )
+    if not page_orders:
+        return allocations
+
+    customer_ids = {o.customer_id for o in page_orders if o.customer_id}
+    years = {
+        (o.order_date.year if o.order_date else (o.created_at.year if o.created_at else 2026))
+        for o in page_orders
+    }
+
+    company_code = getattr(company, "code", "") or "XX"
     groups = {}
     codes = {}
+
+    sibling_query = SalesOrder.objects.filter(company=company)
+    if customer_ids:
+        sibling_query = sibling_query.filter(customer_id__in=customer_ids)
+    if years:
+        sibling_query = sibling_query.filter(order_date__year__in=years)
+
     siblings = (
-        SalesOrder.objects.filter(company=company, customer_id__in=customer_ids, order_date__year__in=years)
-        .order_by("created_at", "id")
-        .values_list("id", "customer_id", "order_date", "customer__code")
+        sibling_query.order_by("order_date", "created_at", "id")
+        .values_list("id", "customer_id", "order_date", "created_at", "customer__code")
     )
-    for oid, customer_id, order_date, code in siblings:
-        if order_date is None:
-            continue
-        groups.setdefault((customer_id, order_date.year), []).append(oid)
-        codes[oid] = (code or "").strip().upper()
-    numbers = {}
+    for oid, customer_id, order_date, created_at, code in siblings:
+        yr = order_date.year if order_date else (created_at.year if created_at else 2026)
+        groups.setdefault((customer_id or 0, yr), []).append(oid)
+        codes[oid] = ((code or company_code or "").strip().upper(), yr)
+
+    numbers = dict(allocations)
     for (customer_id, year), ids in groups.items():
         for index, oid in enumerate(ids, start=1):
-            if oid not in wanted:
+            if oid not in wanted or oid in numbers:
                 continue
-            numbers[oid] = f"{codes.get(oid) or 'XX'}-{year}-{index:04d}"
+            code, order_yr = codes.get(oid, (company_code.strip().upper() or "XX", year))
+            numbers[oid] = f"{code or 'XX'}-{order_yr}-{index:04d}"
+
+    # Fallback to order id sequence if any order is unassigned
+    for order in page_orders:
+        if order.id in wanted and order.id not in numbers:
+            c_code = (order.customer.code if order.customer else company_code) or "XX"
+            yr = order.order_date.year if order.order_date else 2026
+            numbers[order.id] = f"{c_code.strip().upper()}-{yr}-{order.id:04d}"
+
     return numbers
 
 
@@ -265,7 +300,11 @@ class SalesOrderDetailView(APIView):
     def get(self, request, company_id, sales_order_id):
         company = _get_company_for_action(request, company_id, SALES_ORDERS_VIEW)
         sales_order = get_object_or_404(_sales_order_queryset(), pk=sales_order_id, company=company)
-        return Response(SalesOrderSerializer(sales_order).data)
+        numbers = order_batch_numbers(company, [sales_order.id])
+        data = SalesOrderSerializer(sales_order, context={"batch_numbers": numbers}).data
+        if numbers.get(sales_order.id):
+            data["batch_number"] = numbers[sales_order.id]
+        return Response(data)
 
     def delete(self, request, company_id, sales_order_id):
         """DRAFT orders with no batch plans only. `expected_version` is a required
@@ -318,6 +357,45 @@ class SalesOrderDetailView(APIView):
         sales_order = _sales_order_queryset().get(pk=sales_order.pk)
         return Response(SalesOrderSerializer(sales_order).data)
 
+
+@method_decorator(never_cache, name="dispatch")
+class SalesOrderWorkflowStageView(APIView):
+    """PATCH `sales_orders.view` + `sales_orders.edit`.
+    Dedicated endpoint for changing the workflow stage of a sales order.
+    Accepts: { workflow_stage, expected_version }.
+    Does NOT touch `status` (DRAFT/CONFIRMED) - only the display stage.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, company_id, sales_order_id):
+        company = _get_company_for_action(request, company_id, SALES_ORDERS_VIEW, SALES_ORDERS_EDIT)
+        sales_order = get_object_or_404(SalesOrder, pk=sales_order_id, company=company)
+
+        # Accept workflow_stage or status (alias) as the stage value
+        stage = (
+            request.data.get("workflow_stage")
+            or request.data.get("status")
+        )
+        raw_version = request.data.get("expected_version")
+        try:
+            expected_version = int(raw_version)
+        except (TypeError, ValueError):
+            # If version is missing, use the current order version (safe read)
+            expected_version = sales_order.version
+
+        try:
+            sales_order = set_workflow_stage(
+                sales_order_id=sales_order.id,
+                expected_version=expected_version,
+                stage=stage,
+            )
+        except DjangoValidationError as exc:
+            raise translate_django_validation_error(exc) from exc
+
+        sales_order = _sales_order_queryset().get(pk=sales_order.pk)
+        numbers = order_batch_numbers(company, [sales_order.id])
+        return Response(SalesOrderSerializer(sales_order, context={"batch_numbers": numbers}).data)
 
 @method_decorator(never_cache, name="dispatch")
 class SalesOrderConfirmationPreviewView(APIView):

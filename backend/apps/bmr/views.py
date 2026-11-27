@@ -33,6 +33,7 @@ from apps.bmr.serializers import (
 )
 from apps.bmr.services import create_bmr, update_bmr_line
 from apps.common.errors import translate_django_validation_error
+from apps.companies.models import Company
 from apps.companies.services import active_companies_for_user
 from apps.permissions.services import user_has_permission
 from apps.quality.models import BatchQualityCase, BatchQualityDecision, QcSlipRecord, COADocumentAttachment
@@ -52,12 +53,14 @@ BATCH_QUALITY_VIEW = "batch_quality.view"
 def _get_company_for_action_any(request, company_id, *permitted_codes):
     """Unknown/inactive company or no active membership -> 404;
     membership present but none of the permitted codes held -> 403 naming them.
-    Superusers holding company membership are permitted.
+    Superusers holding company membership or active staff are permitted.
     """
     user = request.user
     if not user or not user.is_authenticated:
         raise exceptions.NotAuthenticated("Authentication credentials were not provided.")
     company = active_companies_for_user(user).filter(pk=company_id).first()
+    if company is None and (user.is_superuser or user.is_staff):
+        company = Company.objects.filter(pk=company_id, is_active=True).first()
     if company is None:
         raise exceptions.NotFound("Company not found.")
     if user.is_superuser:
@@ -821,11 +824,28 @@ class RecordsOrderListView(APIView):
         user = request.user
         cid = company_id or request.query_params.get("company_id")
         if cid:
-            company = _get_company_for_action_any(request, cid, BMR_VIEW, BATCH_PLANS_VIEW)
-            comp_filter = models.Q(company=company)
+            try:
+                company = _get_company_for_action_any(
+                    request,
+                    cid,
+                    BMR_VIEW,
+                    BATCH_PLANS_VIEW,
+                    "sales_orders.view",
+                    "batch_quality.view",
+                )
+                comp_filter = models.Q(company=company)
+            except (exceptions.NotFound, exceptions.PermissionDenied):
+                user_companies = active_companies_for_user(user)
+                if user.is_superuser and not user_companies.exists():
+                    comp_filter = models.Q()
+                else:
+                    comp_filter = models.Q(company__in=user_companies)
         else:
             user_companies = active_companies_for_user(user)
-            comp_filter = models.Q(company__in=user_companies)
+            if user.is_superuser and not user_companies.exists():
+                comp_filter = models.Q()
+            else:
+                comp_filter = models.Q(company__in=user_companies)
 
         # Base queryset: orders in records
         qs = ProductionOrderStatus.objects.filter(
@@ -846,8 +866,8 @@ class RecordsOrderListView(APIView):
         date_from = request.query_params.get("date_from") or request.query_params.get("from_date") or request.query_params.get("dateFrom")
         date_to = request.query_params.get("date_to") or request.query_params.get("to_date") or request.query_params.get("dateTo")
 
-        if coa_status_filter == "coa_returned":
-            qs = qs.filter(coa_returned=True)
+            if coa_status_filter == "coa_returned":
+                qs = qs.filter(coa_returned=True)
 
         if date_from:
             qs = qs.filter(
@@ -860,84 +880,90 @@ class RecordsOrderListView(APIView):
                 models.Q(dispatched_at__lte=f"{date_to} 23:59:59")
             )
 
-        # Materialize orders list to merge with SalesOrders and documents
-        pos_list = list(qs)
+            # Materialize orders list to merge with SalesOrders and documents
+            pos_list = list(qs)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).exception("Failed to query dispatched ProductionOrderStatus: %s", e)
+            return Response({"count": 0, "results": []})
         if not pos_list:
             return Response({"count": 0, "results": []})
 
-        order_ids = [p.order_id for p in pos_list]
+        try:
+            order_ids = [p.order_id for p in pos_list]
 
-        # Prefetch SalesOrders for order details
-        int_ids = [int(oid) for oid in order_ids if oid.isdigit()]
-        so_by_id = {}
-        so_by_ref = {}
-        if int_ids:
-            for so in SalesOrder.objects.filter(id__in=int_ids).select_related("customer", "company").prefetch_related("lines__product"):
-                so_by_id[str(so.id)] = so
-                if so.reference:
-                    so_by_ref[so.reference] = so
+            # Prefetch SalesOrders for order details
+            int_ids = [int(oid) for oid in order_ids if oid.isdigit()]
+            so_by_id = {}
+            so_by_ref = {}
+            if int_ids:
+                for so in SalesOrder.objects.filter(id__in=int_ids).select_related("customer", "company").prefetch_related("lines__product"):
+                    so_by_id[str(so.id)] = so
+                    if so.reference:
+                        so_by_ref[so.reference] = so
 
-        # Prefetch OrderDocumentRecord metadata
-        docs_by_order = {}
-        for doc in OrderDocumentRecord.objects.filter(order_id__in=order_ids).only(
-            "id", "order_id", "doc_type", "sub_type", "title", "status", "is_locked"
-        ):
-            docs_by_order.setdefault(doc.order_id, []).append(doc)
+            # Prefetch OrderDocumentRecord metadata
+            docs_by_order = {}
+            for doc in OrderDocumentRecord.objects.filter(order_id__in=order_ids).only(
+                "id", "order_id", "doc_type", "sub_type", "title", "status", "is_locked"
+            ):
+                docs_by_order.setdefault(doc.order_id, []).append(doc)
 
-        # Prefetch QcSlipRecord metadata
-        qc_slips_by_order = {}
-        for slip in QcSlipRecord.objects.filter(order_id__in=order_ids).only(
-            "id", "order_id", "slip_kind", "sub_kind", "status"
-        ):
-            qc_slips_by_order.setdefault(slip.order_id, []).append(slip)
+            # Prefetch QcSlipRecord metadata
+            qc_slips_by_order = {}
+            for slip in QcSlipRecord.objects.filter(order_id__in=order_ids).only(
+                "id", "order_id", "slip_kind", "sub_kind", "status"
+            ):
+                qc_slips_by_order.setdefault(slip.order_id, []).append(slip)
 
-        # Prefetch BMRDocument metadata
-        bmr_by_order = {}
-        for bmr in BMRDocument.objects.filter(order_id__in=order_ids).only(
-            "id", "order_id", "batch_no", "bmr_type", "is_draft"
-        ):
-            bmr_by_order[bmr.order_id] = bmr
+            # Prefetch BMRDocument metadata
+            bmr_by_order = {}
+            for bmr in BMRDocument.objects.filter(order_id__in=order_ids).only(
+                "id", "order_id", "batch_no", "bmr_type", "is_draft"
+            ):
+                bmr_by_order[bmr.order_id] = bmr
 
-        results = []
-        for p in pos_list:
-            so = so_by_id.get(p.order_id) or so_by_ref.get(p.order_reference)
-            first_line = so.lines.first() if so and so.lines.exists() else None
+            results = []
+            for p in pos_list:
+                so = so_by_id.get(p.order_id) or so_by_ref.get(p.order_reference)
+                lines = list(so.lines.all()) if so else []
+                first_line = lines[0] if lines else None
 
-            # Product info
-            product_name = first_line.product_name_snapshot if first_line and first_line.product_name_snapshot else (first_line.product.name if first_line and first_line.product else "Standard Pharmaceutical")
-            product_code = first_line.product_code_snapshot if first_line and first_line.product_code_snapshot else (first_line.product.code if first_line and first_line.product else "")
-            product_type = first_line.product_type_snapshot if first_line and first_line.product_type_snapshot else "tablet"
-            batch_size = f"{first_line.quantity} {getattr(first_line, 'sales_uom_name_snapshot', '') or getattr(first_line, 'sales_uom_code_snapshot', '') or ''}".strip() if first_line else "1000 Units"
-            company_name = getattr(p.company, 'display_name', getattr(p.company, 'name', getattr(p.company, 'code', 'CMHP'))) if p.company else (getattr(so.company, 'display_name', getattr(so.company, 'name', getattr(so.company, 'code', 'CMHP'))) if so and so.company else "CMHP")
+                # Product info
+                product_name = first_line.product_name_snapshot if first_line and first_line.product_name_snapshot else (first_line.product.name if first_line and first_line.product else "Standard Pharmaceutical")
+                product_code = first_line.product_code_snapshot if first_line and first_line.product_code_snapshot else (first_line.product.code if first_line and first_line.product else "")
+                product_type = first_line.product_type_snapshot if first_line and first_line.product_type_snapshot else "tablet"
+                batch_size = f"{first_line.quantity} {getattr(first_line, 'sales_uom_name_snapshot', '') or getattr(first_line, 'sales_uom_code_snapshot', '') or ''}".strip() if first_line else "1000 Units"
+                company_name = getattr(p.company, 'display_name', getattr(p.company, 'name', getattr(p.company, 'code', 'CMHP'))) if p.company else (getattr(so.company, 'display_name', getattr(so.company, 'name', getattr(so.company, 'code', 'CMHP'))) if so and so.company else "CMHP")
 
-            norm_type = product_type.lower().replace("-", "").replace(" ", "")
-            norm_filter = product_type_filter.replace("-", "").replace(" ", "")
-            if product_type_filter != "all" and norm_filter not in norm_type:
-                continue
-
-            if search:
-                text = f"{p.order_reference} {p.order_id} {product_name} {product_code} {p.batch_no}".lower()
-                if search not in text:
+                norm_type = product_type.lower().replace("-", "").replace(" ", "")
+                norm_filter = product_type_filter.replace("-", "").replace(" ", "")
+                if product_type_filter != "all" and norm_filter not in norm_type:
                     continue
 
-            # Determine documents presence
-            order_docs = docs_by_order.get(p.order_id, [])
-            order_qc_slips = qc_slips_by_order.get(p.order_id, [])
-            bmr_doc = bmr_by_order.get(p.order_id)
+                if search:
+                    text = f"{p.order_reference} {p.order_id} {product_name} {product_code} {p.batch_no}".lower()
+                    if search not in text:
+                        continue
 
-            # Attachment 1 (RM Requisition Slip)
-            att1 = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_1), None)
-            att1_data = {
-                "exists": bool(att1) or True,  # Available for all products with formula
-                "id": att1.id if att1 else None,
-                "title": att1.title if att1 and att1.title else "RM Requisition Slip",
-                "doc_type": "ATTACHMENT_1",
-            }
+                # Determine documents presence
+                order_docs = docs_by_order.get(p.order_id, [])
+                order_qc_slips = qc_slips_by_order.get(p.order_id, [])
+                bmr_doc = bmr_by_order.get(p.order_id)
 
-            # Attachment 2 (Test Request / Receipt)
-            # Checks both OrderDocumentRecord and QcSlipRecord
-            att2_docs = [d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_2]
-            att2_slips = [s for s in order_qc_slips if s.slip_kind == "test_request" and s.sub_kind in ("bulk", "before_filter", "")]
+                # Attachment 1 (RM Requisition Slip)
+                att1 = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_1), None)
+                att1_data = {
+                    "exists": bool(att1) or True,  # Available for all products with formula
+                    "id": att1.id if att1 else None,
+                    "title": att1.title if att1 and att1.title else "RM Requisition Slip",
+                    "doc_type": "ATTACHMENT_1",
+                }
+
+                # Attachment 2 (Test Request / Receipt)
+                # Checks both OrderDocumentRecord and QcSlipRecord
+                att2_docs = [d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_2]
+                att2_slips = [s for s in order_qc_slips if s.slip_kind == "test_request" and s.sub_kind in ("bulk", "before_filter", "")]
 
             is_mt = "mothertincture" in norm_type or "mt" in norm_type
             if is_mt:
@@ -973,73 +999,73 @@ class RecordsOrderListView(APIView):
                 "doc_type": "ATTACHMENT_3",
             }
 
-            # Attachment 4 (PM Requisition Slip)
-            att4 = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_4), None)
-            att4_data = {
-                "exists": bool(att4) or ("tablet" in norm_type or "syrup" in norm_type or "drops" in norm_type or "oil" in norm_type),
-                "id": att4.id if att4 else None,
-                "title": att4.title if att4 and att4.title else "PM Requisition Slip",
-                "doc_type": "ATTACHMENT_4",
-            }
-
-            # Attachment 5 (After Test / FP Slip)
-            att5_doc = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_5), None)
-            att5_slip = next((s for s in order_qc_slips if s.slip_kind == "test_request" and s.sub_kind in ("fp", "after_filter")), None)
-            att5_exists = bool(att5_doc) or bool(att5_slip) or ("tablet" in norm_type or is_mt)
-            att5_data = {
-                "exists": att5_exists,
-                "id": att5_doc.id if att5_doc else (att5_slip.id if att5_slip else None),
-                "title": "Test Request (MT/FP)" if not is_mt else "Test Request (After Filter)",
-                "doc_type": "ATTACHMENT_5",
-                "sub_type": "fp" if not is_mt else "after_filter",
-            }
-
-            # Attachment 6 (Finish Product Transfer Slip)
-            att6 = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_6), None)
-            att6_data = {
-                "exists": bool(att6),
-                "id": att6.id if att6 else None,
-                "title": "Finish Product Transfer Slip",
-                "doc_type": "ATTACHMENT_6",
-            }
-
-            # BMR
-            has_bmr_type = not any(k in norm_type for k in ["kit", "pill", "capsule"])
-            bmr_data = {
-                "exists": bool(bmr_doc) or (p.bmr_status == ProductionOrderStatus.BmrStatus.YES),
-                "has_bmr": has_bmr_type,
-                "id": bmr_doc.id if bmr_doc else None,
-                "title": "Batch Manufacturing Record",
-                "doc_type": "BMR",
-            }
-
-            # COA
-            coa_doc = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.COA), None)
-            if p.coa_returned:
-                coa_data = {
-                    "exists": False,
-                    "coa_returned": True,
-                    "title": "Certificate of Analysis",
-                    "badge": "COA returned to QC",
-                    "doc_type": "COA",
-                }
-            else:
-                coa_data = {
-                    "exists": bool(coa_doc) or True,
-                    "coa_returned": False,
-                    "id": coa_doc.id if coa_doc else None,
-                    "title": "Certificate of Analysis",
-                    "doc_type": "COA",
+                # Attachment 4 (PM Requisition Slip)
+                att4 = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_4), None)
+                att4_data = {
+                    "exists": bool(att4) or ("tablet" in norm_type or "syrup" in norm_type or "drops" in norm_type or "oil" in norm_type),
+                    "id": att4.id if att4 else None,
+                    "title": att4.title if att4 and att4.title else "PM Requisition Slip",
+                    "doc_type": "ATTACHMENT_4",
                 }
 
-            # Invoice
-            inv_doc = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.INVOICE), None)
-            invoice_data = {
-                "exists": bool(inv_doc),
-                "id": inv_doc.id if inv_doc else None,
-                "title": "Tax Invoice",
-                "doc_type": "INVOICE",
-            }
+                # Attachment 5 (After Test / FP Slip)
+                att5_doc = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_5), None)
+                att5_slip = next((s for s in order_qc_slips if s.slip_kind == "test_request" and s.sub_kind in ("fp", "after_filter")), None)
+                att5_exists = bool(att5_doc) or bool(att5_slip) or ("tablet" in norm_type or is_mt)
+                att5_data = {
+                    "exists": att5_exists,
+                    "id": att5_doc.id if att5_doc else (att5_slip.id if att5_slip else None),
+                    "title": "Test Request (MT/FP)" if not is_mt else "Test Request (After Filter)",
+                    "doc_type": "ATTACHMENT_5",
+                    "sub_type": "fp" if not is_mt else "after_filter",
+                }
+
+                # Attachment 6 (Finish Product Transfer Slip)
+                att6 = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_6), None)
+                att6_data = {
+                    "exists": bool(att6),
+                    "id": att6.id if att6 else None,
+                    "title": "Finish Product Transfer Slip",
+                    "doc_type": "ATTACHMENT_6",
+                }
+
+                # BMR
+                has_bmr_type = not any(k in norm_type for k in ["kit", "pill", "capsule"])
+                bmr_data = {
+                    "exists": bool(bmr_doc) or (p.bmr_status == ProductionOrderStatus.BmrStatus.YES),
+                    "has_bmr": has_bmr_type,
+                    "id": bmr_doc.id if bmr_doc else None,
+                    "title": "Batch Manufacturing Record",
+                    "doc_type": "BMR",
+                }
+
+                # COA
+                coa_doc = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.COA), None)
+                if p.coa_returned:
+                    coa_data = {
+                        "exists": False,
+                        "coa_returned": True,
+                        "title": "Certificate of Analysis",
+                        "badge": "COA returned to QC",
+                        "doc_type": "COA",
+                    }
+                else:
+                    coa_data = {
+                        "exists": bool(coa_doc) or True,
+                        "coa_returned": False,
+                        "id": coa_doc.id if coa_doc else None,
+                        "title": "Certificate of Analysis",
+                        "doc_type": "COA",
+                    }
+
+                # Invoice
+                inv_doc = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.INVOICE), None)
+                invoice_data = {
+                    "exists": bool(inv_doc),
+                    "id": inv_doc.id if inv_doc else None,
+                    "title": "Tax Invoice",
+                    "doc_type": "INVOICE",
+                }
 
             results.append({
                 "id": p.order_id,
@@ -1075,27 +1101,31 @@ class RecordsOrderListView(APIView):
                 },
             })
 
-        # Pagination
-        try:
-            page = max(1, int(request.query_params.get("page", 1)))
-        except (ValueError, TypeError):
-            page = 1
-        try:
-            page_size = max(1, min(100, int(request.query_params.get("page_size", 10))))
-        except (ValueError, TypeError):
-            page_size = 10
+            # Pagination
+            try:
+                page = max(1, int(request.query_params.get("page", 1)))
+            except (ValueError, TypeError):
+                page = 1
+            try:
+                page_size = max(1, min(100, int(request.query_params.get("page_size", 10))))
+            except (ValueError, TypeError):
+                page_size = 10
 
-        total = len(results)
-        start = (page - 1) * page_size
-        end = start + page_size
-        paginated_results = results[start:end]
+            total = len(results)
+            start = (page - 1) * page_size
+            end = start + page_size
+            paginated_results = results[start:end]
 
-        return Response({
-            "count": total,
-            "page": page,
-            "page_size": page_size,
-            "results": paginated_results,
-        })
+            return Response({
+                "count": total,
+                "page": page,
+                "page_size": page_size,
+                "results": paginated_results,
+            })
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).exception("Failed to build records list: %s", e)
+            return Response({"count": 0, "results": []})
 
 
 @method_decorator(never_cache, name="dispatch")

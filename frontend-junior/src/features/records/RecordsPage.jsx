@@ -3,6 +3,8 @@ import { useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
 import { selectActiveCompanyKey, selectActiveCompanyId } from '../../utils/companySelectors'
+import { getRealScopedCompanyId } from '../../utils/companyScope'
+import { getErrorMessage } from '../../utils/errors'
 import { DOSAGE_FORMS } from '../../constants/dosageForms'
 import PharmaHeroBanner from '../../components/PharmaHeroBanner'
 import SharedFilterBar from '../../components/SharedFilterBar'
@@ -71,13 +73,29 @@ export default function RecordsPage({ mode = 'records' }) {
         coa_status: quickFilter === 'COA_RETURNED' ? 'coa_returned' : undefined,
       }
 
-      const res = await api.get(endpoint, { params })
-      const data = res.data
-      const list = Array.isArray(data.results) ? data.results : (Array.isArray(data) ? data : [])
-      setOrders(list)
+      try {
+        const res = await api.get(endpoint, { params })
+        const data = res.data
+        const list = Array.isArray(data.results) ? data.results : (Array.isArray(data) ? data : [])
+        setOrders(list)
+        return
+      } catch (scopedErr) {
+        // If company-scoped endpoint returned 404, fall back to general /v1/companies/records/ or /v1/companies/dispatch/
+        if (scopedErr.response?.status === 404) {
+          const fallbackEndpoint = mode === 'dispatch'
+            ? `/v1/companies/dispatch/`
+            : `/v1/companies/records/`
+          const res = await api.get(fallbackEndpoint, { params })
+          const data = res.data
+          const list = Array.isArray(data.results) ? data.results : (Array.isArray(data) ? data : [])
+          setOrders(list)
+          return
+        }
+        throw scopedErr
+      }
     } catch (err) {
       console.error('Failed to load records:', err)
-      setError(err.response?.data?.error || err.message || 'Failed to fetch records')
+      setError(getErrorMessage(err) || 'Failed to fetch records')
     } finally {
       setLoading(false)
     }
@@ -213,7 +231,7 @@ export default function RecordsPage({ mode = 'records' }) {
       await fetchRecords()
       setTimeout(() => setSuccess(''), 4000)
     } catch (err) {
-      const msg = err.response?.data?.error || err.message || 'Action failed'
+      const msg = getErrorMessage(err) || 'Action failed'
       setActionDialog((prev) => ({ ...prev, loading: false, error: msg }))
     }
   }

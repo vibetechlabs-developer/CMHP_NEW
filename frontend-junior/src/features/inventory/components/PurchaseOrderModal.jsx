@@ -540,62 +540,44 @@ export default function PurchaseOrderModal({
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {/* Row 1: Receiving Store & Supplier */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          <div>
-            <label className="ci-label" style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>
-              Receiving Shared Store <span style={{ color: '#0284c7' }}>(Destination)</span>
-            </label>
-            <input
-              type="text"
-              className="ci-input"
-              style={{ width: '100%', background: '#f8fafc', color: '#0f172a', fontWeight: 500 }}
-              value={resolvedStoreTitle}
-              disabled
-            />
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>
-              Physical raw &amp; packaging materials arrive into this common inventory store.
+        {/* Row 1: Authorized Supplier */}
+        <div>
+          <label className="ci-label" style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>
+            Authorized Supplier <span style={{ color: '#ef4444' }}>*</span>
+          </label>
+          <select
+            className="ci-select"
+            style={{
+              width: '100%',
+              borderColor: fieldErrors.supplier_id ? '#ef4444' : undefined,
+              background: fieldErrors.supplier_id ? '#fff5f5' : undefined,
+            }}
+            value={supplierId}
+            onChange={(e) => {
+              setSupplierId(e.target.value)
+              if (fieldErrors.supplier_id) {
+                setFieldErrors((prev) => ({ ...prev, supplier_id: undefined }))
+                if (error === fieldErrors.supplier_id) setError('')
+              }
+            }}
+            disabled={busy || isReadOnly}
+          >
+            <option value="">-- Select Active Supplier (Required) --</option>
+            {suppliers.map((s) => {
+              const isInactive = s.is_active === false
+              return (
+                <option key={s.id} value={s.id} disabled={isInactive}>
+                  {s.code ? `${s.code} — ` : ''}{s.name || s.display_name || s.legal_name}
+                  {isInactive ? ' (⚠️ Inactive)' : ''}
+                </option>
+              )
+            })}
+          </select>
+          {fieldErrors.supplier_id && (
+            <div style={{ color: '#ef4444', fontSize: 12, marginTop: 4, fontWeight: 500 }}>
+              ⚠️ {fieldErrors.supplier_id}
             </div>
-          </div>
-
-          <div>
-            <label className="ci-label" style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>
-              Authorized Supplier <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <select
-              className="ci-select"
-              style={{
-                width: '100%',
-                borderColor: fieldErrors.supplier_id ? '#ef4444' : undefined,
-                background: fieldErrors.supplier_id ? '#fff5f5' : undefined,
-              }}
-              value={supplierId}
-              onChange={(e) => {
-                setSupplierId(e.target.value)
-                if (fieldErrors.supplier_id) {
-                  setFieldErrors((prev) => ({ ...prev, supplier_id: undefined }))
-                  if (error === fieldErrors.supplier_id) setError('')
-                }
-              }}
-              disabled={busy || isReadOnly}
-            >
-              <option value="">-- Select Active Supplier (Required) --</option>
-              {suppliers.map((s) => {
-                const isInactive = s.is_active === false
-                return (
-                  <option key={s.id} value={s.id} disabled={isInactive}>
-                    {s.code ? `${s.code} — ` : ''}{s.name || s.display_name || s.legal_name}
-                    {isInactive ? ' (⚠️ Inactive)' : ''}
-                  </option>
-                )
-              })}
-            </select>
-            {fieldErrors.supplier_id && (
-              <div style={{ color: '#ef4444', fontSize: 12, marginTop: 4, fontWeight: 500 }}>
-                ⚠️ {fieldErrors.supplier_id}
-              </div>
-            )}
-          </div>
+          )}
         </div>
 
         {/* Row 2: Legal/Billing Entity & Currency */}
