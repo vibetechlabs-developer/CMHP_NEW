@@ -848,37 +848,38 @@ class RecordsOrderListView(APIView):
                 comp_filter = models.Q(company__in=user_companies)
 
         # Base queryset: orders in records
-        qs = ProductionOrderStatus.objects.filter(
-            comp_filter,
-        ).filter(
-            models.Q(in_records=True) | models.Q(dispatch_status=ProductionOrderStatus.DispatchStatus.YES)
-        ).select_related("company", "dispatched_by", "sent_to_records_by").order_by(
-            models.F("sent_to_records_at").desc(nulls_last=True),
-            models.F("dispatched_at").desc(nulls_last=True),
-            models.F("updated_at").desc(),
-            "-id",
-        )
+        try:
+            qs = ProductionOrderStatus.objects.filter(
+                comp_filter,
+            ).filter(
+                models.Q(in_records=True) | models.Q(dispatch_status=ProductionOrderStatus.DispatchStatus.YES)
+            ).select_related("company", "dispatched_by", "sent_to_records_by").order_by(
+                models.F("sent_to_records_at").desc(nulls_last=True),
+                models.F("dispatched_at").desc(nulls_last=True),
+                models.F("updated_at").desc(),
+                "-id",
+            )
 
-        # Query Filters
-        search = (request.query_params.get("search") or "").strip().lower()
-        product_type_filter = (request.query_params.get("product_type") or request.query_params.get("type") or "ALL").strip().lower()
-        coa_status_filter = (request.query_params.get("coa_status") or "").strip()
-        date_from = request.query_params.get("date_from") or request.query_params.get("from_date") or request.query_params.get("dateFrom")
-        date_to = request.query_params.get("date_to") or request.query_params.get("to_date") or request.query_params.get("dateTo")
+            # Query Filters
+            search = (request.query_params.get("search") or "").strip().lower()
+            product_type_filter = (request.query_params.get("product_type") or request.query_params.get("type") or "ALL").strip().lower()
+            coa_status_filter = (request.query_params.get("coa_status") or "").strip()
+            date_from = request.query_params.get("date_from") or request.query_params.get("from_date") or request.query_params.get("dateFrom")
+            date_to = request.query_params.get("date_to") or request.query_params.get("to_date") or request.query_params.get("dateTo")
 
             if coa_status_filter == "coa_returned":
                 qs = qs.filter(coa_returned=True)
 
-        if date_from:
-            qs = qs.filter(
-                models.Q(sent_to_records_at__gte=f"{date_from} 00:00:00") |
-                models.Q(dispatched_at__gte=f"{date_from} 00:00:00")
-            )
-        if date_to:
-            qs = qs.filter(
-                models.Q(sent_to_records_at__lte=f"{date_to} 23:59:59") |
-                models.Q(dispatched_at__lte=f"{date_to} 23:59:59")
-            )
+            if date_from:
+                qs = qs.filter(
+                    models.Q(sent_to_records_at__gte=f"{date_from} 00:00:00") |
+                    models.Q(dispatched_at__gte=f"{date_from} 00:00:00")
+                )
+            if date_to:
+                qs = qs.filter(
+                    models.Q(sent_to_records_at__lte=f"{date_to} 23:59:59") |
+                    models.Q(dispatched_at__lte=f"{date_to} 23:59:59")
+                )
 
             # Materialize orders list to merge with SalesOrders and documents
             pos_list = list(qs)
@@ -999,73 +1000,73 @@ class RecordsOrderListView(APIView):
                 "doc_type": "ATTACHMENT_3",
             }
 
-                # Attachment 4 (PM Requisition Slip)
-                att4 = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_4), None)
-                att4_data = {
-                    "exists": bool(att4) or ("tablet" in norm_type or "syrup" in norm_type or "drops" in norm_type or "oil" in norm_type),
-                    "id": att4.id if att4 else None,
-                    "title": att4.title if att4 and att4.title else "PM Requisition Slip",
-                    "doc_type": "ATTACHMENT_4",
+            # Attachment 4 (PM Requisition Slip)
+            att4 = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_4), None)
+            att4_data = {
+                "exists": bool(att4) or ("tablet" in norm_type or "syrup" in norm_type or "drops" in norm_type or "oil" in norm_type),
+                "id": att4.id if att4 else None,
+                "title": att4.title if att4 and att4.title else "PM Requisition Slip",
+                "doc_type": "ATTACHMENT_4",
+            }
+
+            # Attachment 5 (After Test / FP Slip)
+            att5_doc = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_5), None)
+            att5_slip = next((s for s in order_qc_slips if s.slip_kind == "test_request" and s.sub_kind in ("fp", "after_filter")), None)
+            att5_exists = bool(att5_doc) or bool(att5_slip) or ("tablet" in norm_type or is_mt)
+            att5_data = {
+                "exists": att5_exists,
+                "id": att5_doc.id if att5_doc else (att5_slip.id if att5_slip else None),
+                "title": "Test Request (MT/FP)" if not is_mt else "Test Request (After Filter)",
+                "doc_type": "ATTACHMENT_5",
+                "sub_type": "fp" if not is_mt else "after_filter",
+            }
+
+            # Attachment 6 (Finish Product Transfer Slip)
+            att6 = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_6), None)
+            att6_data = {
+                "exists": bool(att6),
+                "id": att6.id if att6 else None,
+                "title": "Finish Product Transfer Slip",
+                "doc_type": "ATTACHMENT_6",
+            }
+
+            # BMR
+            has_bmr_type = not any(k in norm_type for k in ["kit", "pill", "capsule"])
+            bmr_data = {
+                "exists": bool(bmr_doc) or (p.bmr_status == ProductionOrderStatus.BmrStatus.YES),
+                "has_bmr": has_bmr_type,
+                "id": bmr_doc.id if bmr_doc else None,
+                "title": "Batch Manufacturing Record",
+                "doc_type": "BMR",
+            }
+
+            # COA
+            coa_doc = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.COA), None)
+            if p.coa_returned:
+                coa_data = {
+                    "exists": False,
+                    "coa_returned": True,
+                    "title": "Certificate of Analysis",
+                    "badge": "COA returned to QC",
+                    "doc_type": "COA",
+                }
+            else:
+                coa_data = {
+                    "exists": bool(coa_doc) or True,
+                    "coa_returned": False,
+                    "id": coa_doc.id if coa_doc else None,
+                    "title": "Certificate of Analysis",
+                    "doc_type": "COA",
                 }
 
-                # Attachment 5 (After Test / FP Slip)
-                att5_doc = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_5), None)
-                att5_slip = next((s for s in order_qc_slips if s.slip_kind == "test_request" and s.sub_kind in ("fp", "after_filter")), None)
-                att5_exists = bool(att5_doc) or bool(att5_slip) or ("tablet" in norm_type or is_mt)
-                att5_data = {
-                    "exists": att5_exists,
-                    "id": att5_doc.id if att5_doc else (att5_slip.id if att5_slip else None),
-                    "title": "Test Request (MT/FP)" if not is_mt else "Test Request (After Filter)",
-                    "doc_type": "ATTACHMENT_5",
-                    "sub_type": "fp" if not is_mt else "after_filter",
-                }
-
-                # Attachment 6 (Finish Product Transfer Slip)
-                att6 = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_6), None)
-                att6_data = {
-                    "exists": bool(att6),
-                    "id": att6.id if att6 else None,
-                    "title": "Finish Product Transfer Slip",
-                    "doc_type": "ATTACHMENT_6",
-                }
-
-                # BMR
-                has_bmr_type = not any(k in norm_type for k in ["kit", "pill", "capsule"])
-                bmr_data = {
-                    "exists": bool(bmr_doc) or (p.bmr_status == ProductionOrderStatus.BmrStatus.YES),
-                    "has_bmr": has_bmr_type,
-                    "id": bmr_doc.id if bmr_doc else None,
-                    "title": "Batch Manufacturing Record",
-                    "doc_type": "BMR",
-                }
-
-                # COA
-                coa_doc = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.COA), None)
-                if p.coa_returned:
-                    coa_data = {
-                        "exists": False,
-                        "coa_returned": True,
-                        "title": "Certificate of Analysis",
-                        "badge": "COA returned to QC",
-                        "doc_type": "COA",
-                    }
-                else:
-                    coa_data = {
-                        "exists": bool(coa_doc) or True,
-                        "coa_returned": False,
-                        "id": coa_doc.id if coa_doc else None,
-                        "title": "Certificate of Analysis",
-                        "doc_type": "COA",
-                    }
-
-                # Invoice
-                inv_doc = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.INVOICE), None)
-                invoice_data = {
-                    "exists": bool(inv_doc),
-                    "id": inv_doc.id if inv_doc else None,
-                    "title": "Tax Invoice",
-                    "doc_type": "INVOICE",
-                }
+            # Invoice
+            inv_doc = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.INVOICE), None)
+            invoice_data = {
+                "exists": bool(inv_doc),
+                "id": inv_doc.id if inv_doc else None,
+                "title": "Tax Invoice",
+                "doc_type": "INVOICE",
+            }
 
             results.append({
                 "id": p.order_id,
