@@ -300,6 +300,8 @@ export default function Inventory() {
             {activeSection === 'materials' && !materialDetailMatch && (
                 <CommonMaterialsTab
                     role={role}
+                    storeId={storeId}
+                    storeName={stores.list.find((store) => Number(store.id) === Number(storeId))?.name}
                 />
             )}
 

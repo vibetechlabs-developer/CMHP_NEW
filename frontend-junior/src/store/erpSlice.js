@@ -2439,20 +2439,24 @@ const erpSlice = createSlice({
         const merged = { ...incoming }
         PROD_FIELDS.forEach((f) => {
           // Keep the locally-held value if it's more specific than the default
-          const localVal = existingInCompany?.[f] ?? existingGlobal?.[f]
+          const localVal = existingInCompany?.number === incoming.number ? existingInCompany?.[f] : undefined
           if (localVal !== undefined && localVal !== null) {
             merged[f] = localVal
           }
         })
 
-        if (existingInCompany) {
+        if (existingInCompany && existingInCompany.number === incoming.number) {
           Object.assign(existingInCompany, merged)
+        } else if (existingInCompany) {
+          state.byCompany[key].orders[state.byCompany[key].orders.indexOf(existingInCompany)] = { ...merged }
         } else {
           state.byCompany[key].orders.push(merged)
         }
 
-        if (existingGlobal) {
+        if (existingGlobal && existingGlobal.number === incoming.number) {
           Object.assign(existingGlobal, merged)
+        } else if (existingGlobal) {
+          state.orders[state.orders.indexOf(existingGlobal)] = { ...merged }
         } else {
           state.orders.push(merged)
         }

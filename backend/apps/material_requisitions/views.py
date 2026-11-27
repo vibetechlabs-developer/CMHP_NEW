@@ -1,4 +1,5 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
@@ -46,7 +47,7 @@ MATERIAL_REQUISITIONS_REVISE = "material_requisitions.revise"
 BATCH_PLANS_VIEW = "batch_plans.view"
 FORMULAS_VIEW = "formulas.view"
 
-ALLOWED_LIST_PARAMS = {"page", "page_size", "batch_plan"}
+ALLOWED_LIST_PARAMS = {"page", "page_size", "batch_plan", "status", "search"}
 
 
 def _get_store_for_action(request, store_id, *required_permissions):
@@ -156,6 +157,24 @@ class MaterialRequisitionListCreateView(generics.ListCreateAPIView):
             except ValueError:
                 raise exceptions.ValidationError({"batch_plan": "Must be a valid integer id."})
             queryset = queryset.filter(batch_plan_id=batch_plan_id)
+
+        status = params.get("status", "").strip().upper()
+        if status:
+            if status not in MaterialRequisition.Status.values:
+                raise exceptions.ValidationError({"status": "Unknown requisition status."})
+            queryset = queryset.filter(status=status)
+
+        search = params.get("search", "").strip()
+        if search:
+            match = (
+                Q(product_code_snapshot__icontains=search)
+                | Q(product_name_snapshot__icontains=search)
+                | Q(batch_plan__number_allocation__number__icontains=search)
+            )
+            requisition_id = search.upper().removeprefix("REQ-").lstrip("#")
+            if requisition_id.isascii() and requisition_id.isdecimal() and len(requisition_id) <= 18:
+                match |= Q(pk=int(requisition_id)) | Q(batch_plan_id=int(requisition_id))
+            queryset = queryset.filter(match)
 
         return queryset.order_by("-created_at", "-id")
 

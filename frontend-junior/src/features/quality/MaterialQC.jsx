@@ -3,20 +3,20 @@
  * Flow: Purchase Order received → QC Check → Approve / Reject → Goes to Store
  *
  * This page shows all inward goods receipts (GRN) pending QC check,
- * allows QC chemist to fill test parameters, give decision (Approve/Reject),
- * and generate Attachment 3 (Bulk Release Note PDF).
+ * allows the QC chemist to enter test results,
+ * and records the decision for the inward lot.
  */
-import { useCallback, useEffect, useState, useMemo } from 'react'
+import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import PageHeader from '../../components/PageHeader'
 import HeroBanner from '../../components/HeroBanner'
 import Button from '../../components/Button'
+import { confirmAction } from '../../components/ConfirmProvider'
 import Modal from '../inventory/components/Modal'
 import Alert from '../../components/Alert'
 import StatusPill from '../../components/StatusPill'
 import { getErrorMessage } from '../../utils/errors'
 import { getCurrentWorkspaceObject } from '../../utils/workspace'
 import useAuth from '../../hooks/useAuth'
-import { printBulkReleaseNote } from './bulkReleasePrint'
 import BulkReleaseSlipEditor from './BulkReleaseSlipEditor'
 import TestRequestSlipEditor from './TestRequestSlipEditor'
 import CoaDocumentTab from './CoaDocumentTab'
@@ -34,7 +34,6 @@ import { qcSlipService } from './qcSlipService'
 import QcOrderSlipList from './QcOrderSlipList'
 
 /* ─── QC Status helpers ─── */
-const QC_STATUSES = ['ALL', 'PENDING', 'APPROVED', 'REJECTED']
 const QC_STORAGE_KEY = 'cmhp_material_qc_records_v1'
 
 function loadQcRecords() {
@@ -62,12 +61,9 @@ const DEFAULT_TESTS = [
 ]
 
 function mapApiQcStatus(movement) {
-  const raw = String(movement.quality_status || movement.release_status || '').toUpperCase()
+  const raw = String(movement.quality_status || '').toUpperCase()
   if (raw === 'APPROVED') return 'APPROVED'
   if (raw === 'REJECTED') return 'REJECTED'
-  if (raw === 'ON_HOLD' || raw === 'UNDER_TEST') return 'PENDING'
-  // Lots with no QC row have NOT been inspected — treat as PENDING, never APPROVED.
-  if (!raw || raw === 'NOT TRACKED') return 'PENDING'
   return 'PENDING'
 }
 
@@ -79,13 +75,14 @@ function movementToRecord(movement, storeId, overlay = {}) {
     movementId: movement.id,
     grn_no: movement.source_goods_receipt_reference || `GR-#${movement.source_goods_receipt_id || movement.id}`,
     material_name: movement.material_name_snapshot || 'Material',
+    material_kind: movement.material_kind,
     material_code: movement.material_code_snapshot || '',
     batch_no: movement.lot_reference || overlayRow.batch_no || '—',
     batch_size: String(movement.quantity || ''),
     batch_unit: movement.unit_code_snapshot || '',
     mfg_date: overlayRow.mfg_date || '',
     expiry_date: overlayRow.expiry_date || '',
-    ar_no: overlayRow.ar_no || movement.quality_ar_no || '',
+    ar_no: movement.quality_ar_no || overlayRow.ar_no || '',
     test_date: overlayRow.test_date || '',
     supplier: movement.supplier_name || '',
     received_date: (movement.source_goods_receipt_arrived_at || movement.posted_at || '').slice(0, 10),
@@ -128,6 +125,9 @@ export default function MaterialQC() {
   // Task 3: Order-wise, type-wise QC slip state
   const [qcOrders, setQcOrders] = useState([])
   const [qcOrdersLoading, setQcOrdersLoading] = useState(false)
+  const [coaRefresh, setCoaRefresh] = useState(0)
+  const [qcOrdersError, setQcOrdersError] = useState('')
+  const qcRequest = useRef(0)
   const [activeOrder, setActiveOrder] = useState(null)
   const [orderReadOnly, setOrderReadOnly] = useState(false)
   const [slipFilters, setSlipFilters] = useState({
@@ -139,14 +139,17 @@ export default function MaterialQC() {
   })
 
   const loadQcOrders = useCallback(async (kind) => {
+    const request = ++qcRequest.current
     setQcOrdersLoading(true)
+    setQcOrders([])
+    setQcOrdersError('')
     try {
-      const ords = await qcSlipService.getOrdersForQc(effectiveCompanyId, kind)
-      setQcOrders(ords)
+      const orders = await qcSlipService.getOrdersForQc(effectiveCompanyId, kind)
+      if (request === qcRequest.current) setQcOrders(orders)
     } catch (err) {
-      console.warn('[MaterialQC] Error loading QC orders:', err)
+      if (request === qcRequest.current) setQcOrdersError(getErrorMessage(err))
     } finally {
-      setQcOrdersLoading(false)
+      if (request === qcRequest.current) setQcOrdersLoading(false)
     }
   }, [effectiveCompanyId])
 
@@ -156,6 +159,7 @@ export default function MaterialQC() {
     } else if (activeTab === 'test_request') {
       loadQcOrders('test_request')
     }
+    return () => { qcRequest.current += 1 }
   }, [activeTab, loadQcOrders])
 
   const handleOpenOrderSlip = (order, isCompleted = false) => {
@@ -221,8 +225,12 @@ export default function MaterialQC() {
   }
 
   const handleMarkComplete = async (order) => {
-    const confirmMsg = `Are you sure you want to mark the QC slip for Order #${order.orderNumber} (${order.productName}, Batch ${order.batchNo}) as Complete?\n\nThis will move the slip to the Completed tab as read-only.`
-    if (!window.confirm(confirmMsg)) return
+    const batch = order.batchNo ? ` · Batch ${order.batchNo}` : ''
+    const confirmed = await confirmAction(
+      `Order ${order.orderNumber} · ${order.productName}${batch}. This slip will move to Completed Slips and become read-only.`,
+      { title: 'Complete QC slip', confirmLabel: 'Mark Complete' }
+    )
+    if (!confirmed) return
 
     const kind = activeTab === 'bulk_slip' ? 'bulk_release' : 'test_request'
     try {
@@ -245,8 +253,12 @@ export default function MaterialQC() {
   }
 
   const handleReturnToPending = async (order) => {
-    const confirmMsg = `Return Order #${order.orderNumber} (${order.productName}, Batch ${order.batchNo}) back to Pending status?\n\nThis will allow editing the slip again.`
-    if (!window.confirm(confirmMsg)) return
+    const batch = order.batchNo ? ` · Batch ${order.batchNo}` : ''
+    const confirmed = await confirmAction(
+      `Order ${order.orderNumber} · ${order.productName}${batch}. This slip will move to Pending and can be edited again.`,
+      { title: 'Return QC slip to Pending', confirmLabel: 'Return to Pending' }
+    )
+    if (!confirmed) return
 
     const kind = activeTab === 'bulk_slip' ? 'bulk_release' : 'test_request'
     try {
@@ -294,92 +306,6 @@ export default function MaterialQC() {
   useEffect(() => {
     loadIncomingLots()
   }, [loadIncomingLots])
-
-  const openSlipEditorForRecord = (rec) => {
-    const rawType = rec.dosage_form || rec.product_type || rec.material_name || ''
-    const detected = normalizeProductTypeKey(rawType)
-    if (detected) setProductType(detected)
-    setSlipInitialData({
-      id: rec.id,
-      to_department: 'PRODUCTION',
-      product: rec.material_name || '',
-      tr_no: rec.ar_no || '',
-      batch_no: rec.batch_no || '',
-      mfg_date: rec.mfg_date || '',
-      exp_years: rec.expiry_date || '5',
-      batch_size: rec.batch_size ? `${rec.batch_size} ${rec.batch_unit || ''}`.trim() : '',
-      no_of_bottles: '',
-      appearance_obs: rec.tests?.[0]?.observed || '',
-      odor_obs: rec.tests?.[1]?.observed || '',
-      wt_ml_obs: rec.tests?.[2]?.observed || '',
-      viscosity_obs: rec.tests?.[3]?.observed || '',
-      acid_value_obs: rec.tests?.[4]?.observed || '',
-      peroxide_value_obs: rec.tests?.[5]?.observed || '',
-      iodine_value_obs: rec.tests?.[6]?.observed || '',
-      saponification_obs: rec.tests?.[7]?.observed || '',
-      sign_qc: rec.chemist_name || '',
-      received_qa: rec.qc_head_name || '',
-      sign_qa: rec.qa_name || '',
-      received_production: '',
-    })
-    setActiveOrder({
-      id: rec.id,
-      orderNumber: rec.grn_no || `LOT-${rec.id}`,
-      productName: rec.material_name || 'Material',
-      batchNo: rec.batch_no || '—',
-      productType: detected || 'tablet',
-      productTypeDisplay: detected ? detected.toUpperCase() : 'TABLET',
-      fromInwardLot: true,
-    })
-    setOrderReadOnly(false)
-    setActiveTab('bulk_slip')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
-  const openTestReqForRecord = (rec) => {
-    const rawType = rec.dosage_form || rec.product_type || rec.material_name || ''
-    const detected = normalizeProductTypeKey(rawType)
-    if (detected) setProductType(detected)
-    setTestReqInitialData({
-      id: rec.id,
-      to_department: 'QUALITY CONTROL',
-      product: rec.material_name || '',
-      product_code: rec.material_code || '',
-      batch_no: rec.batch_no || '',
-      batch_size: rec.batch_size ? `${rec.batch_size} ${rec.batch_unit || ''}`.trim() : '',
-      sampled_qty: '',
-      mfg_date: rec.mfg_date || '',
-      exp_best_before: rec.expiry_date || '5',
-      exp_years: rec.expiry_date || '5',
-      date: new Date().toISOString().split('T')[0],
-      tr_no: rec.ar_no || '',
-      sign_production: rec.chemist_name || '',
-      received_qa: rec.qc_head_name || '',
-      received_qc: '',
-      sampled_qa: '',
-      department: detected === 'mother-tincture' ? 'MOTHER TINCTURE' : (detected === 'syrup' ? 'SYRUP' : 'TABLET'),
-      test_appearance: true,
-      test_odor: true,
-      test_wt_ml: true,
-      test_viscosity: true,
-      test_acid_value: true,
-      test_peroxide_value: true,
-      test_iodine_value: true,
-      test_saponification: true,
-    })
-    setActiveOrder({
-      id: rec.id,
-      orderNumber: rec.grn_no || `LOT-${rec.id}`,
-      productName: rec.material_name || 'Material',
-      batchNo: rec.batch_no || '—',
-      productType: detected || 'tablet',
-      productTypeDisplay: detected ? detected.toUpperCase() : 'TABLET',
-      fromInwardLot: true,
-    })
-    setOrderReadOnly(false)
-    setActiveTab('test_request')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
 
   // Add new QC record form state
   const [newForm, setNewForm] = useState({
@@ -460,7 +386,7 @@ export default function MaterialQC() {
     setError('')
     try {
       const apiStatus = decision === 'APPROVED' ? 'APPROVED' : 'REJECTED'
-      await setLotQualityStatus(selectedRecord.storeId, selectedRecord.movementId, {
+      const saved = await setLotQualityStatus(selectedRecord.storeId, selectedRecord.movementId, {
         status: apiStatus,
         arNo: selectedRecord.ar_no || '',
         chemist: selectedRecord.chemist_name || '',
@@ -469,6 +395,7 @@ export default function MaterialQC() {
       const updated = {
         ...selectedRecord,
         decision,
+        ar_no: saved?.ar_no ?? selectedRecord.ar_no,
         status: decision,
         release_date: decision === 'APPROVED' ? new Date().toISOString().split('T')[0] : '',
       }
@@ -496,80 +423,6 @@ export default function MaterialQC() {
     setSelectedRecord(null)
     setSuccess('QC data saved as draft.')
     setTimeout(() => setSuccess(''), 3000)
-  }
-
-  /* Print Attachment 3 */
-  const buildAtt3Data = (rec) => ({
-    to_department: 'PRODUCTION',
-    product_name: rec.material_name || '',
-    tr_no: rec.ar_no || '',
-    batch_no: rec.batch_no || '',
-    mfg_date: rec.mfg_date || '',
-    exp_date: '',
-    exp_years: rec.expiry_date || '',
-    batch_size: rec.batch_size ? `${rec.batch_size} ${rec.batch_unit || ''}`.trim() : '',
-    no_of_bottles: '',
-    // Map tests by index to the fixed fields
-    appearance: {
-      observed: rec.tests[0]?.observed || '',
-      limit_low: rec.tests[0]?.spec ? rec.tests[0].spec.split(/[-–to]+/)[0]?.trim() : '',
-      limit_high: rec.tests[0]?.spec ? rec.tests[0].spec.split(/[-–to]+/)[1]?.trim() : '',
-      unit: '',
-    },
-    odor: {
-      observed: rec.tests[1]?.observed || '',
-      limit_low: rec.tests[1]?.spec ? rec.tests[1].spec.split(/[-–to]+/)[0]?.trim() : '',
-      limit_high: '',
-      unit: '',
-    },
-    wt_ml: {
-      observed: rec.tests[2]?.observed || '',
-      limit_low: rec.tests[2]?.spec ? rec.tests[2].spec.split(/[-–to]+/)[0]?.trim() : '',
-      limit_high: rec.tests[2]?.spec ? rec.tests[2].spec.split(/[-–to]+/)[1]?.trim() : '',
-      unit: 'gm/ml',
-    },
-    viscosity: {
-      observed: rec.tests[3]?.observed || '',
-      limit_low: rec.tests[3]?.spec ? rec.tests[3].spec.split(/[-–to]+/)[0]?.trim() : '',
-      limit_high: rec.tests[3]?.spec ? rec.tests[3].spec.split(/[-–to]+/)[1]?.trim() : '',
-      unit: 'mPa.S',
-    },
-    acid_value: {
-      observed: rec.tests[4]?.observed || '',
-      limit_low: rec.tests[4]?.spec ? rec.tests[4].spec.split(/[-–to]+/)[0]?.trim() : '',
-      limit_high: rec.tests[4]?.spec ? rec.tests[4].spec.split(/[-–to]+/)[1]?.trim() : '',
-      unit: '',
-    },
-    peroxide: {
-      observed: rec.tests[5]?.observed || '',
-      limit_low: rec.tests[5]?.spec ? rec.tests[5].spec.split(/[-–to]+/)[0]?.trim() : '',
-      limit_high: rec.tests[5]?.spec ? rec.tests[5].spec.split(/[-–to]+/)[1]?.trim() : '',
-      unit: '',
-    },
-    iodine: {
-      observed: rec.tests[6]?.observed || '',
-      limit_low: rec.tests[6]?.spec ? rec.tests[6].spec.split(/[-–to]+/)[0]?.trim() : '',
-      limit_high: rec.tests[6]?.spec ? rec.tests[6].spec.split(/[-–to]+/)[1]?.trim() : '',
-      unit: '',
-    },
-    saponification: {
-      observed: rec.tests[7]?.observed || '',
-      limit_low: rec.tests[7]?.spec ? rec.tests[7].spec.split(/[-–to]+/)[0]?.trim() : '',
-      limit_high: rec.tests[7]?.spec ? rec.tests[7].spec.split(/[-–to]+/)[1]?.trim() : '',
-      unit: '',
-    },
-    sign_qc: rec.chemist_name || '',
-    date_qc: rec.test_date || '',
-    received_qa: rec.qc_head_name || '',
-    date_qa_recv: '',
-    sign_qa: rec.qa_name || '',
-    date_qa: rec.release_date || '',
-    received_production: '',
-    date_production: '',
-  })
-
-  const printAtt3 = async (rec) => {
-    printBulkReleaseNote(buildAtt3Data(rec))
   }
 
   /* Add new QC record */
@@ -616,7 +469,13 @@ export default function MaterialQC() {
           title="Material Quality Control"
           subtitle="Purchase → GRN posted (quarantine) → QC Check → Approved → Store issue-eligible"
           pill="Incoming QC Gate"
-          primaryAction={{ label: '🔄 Refresh', onClick: () => { loadIncomingLots(); setError('') } }}
+          primaryAction={{ label: '🔄 Refresh', onClick: () => {
+            setError('')
+            if (activeTab === 'bulk_slip') loadQcOrders('bulk_release')
+            else if (activeTab === 'test_request') loadQcOrders('test_request')
+            else if (activeTab === 'coa_documents') setCoaRefresh((value) => value + 1)
+            else loadIncomingLots()
+          } }}
         />
       </div>
 
@@ -738,12 +597,14 @@ export default function MaterialQC() {
       {activeTab === 'coa_documents' ? (
         <div style={{ marginTop: 10 }}>
           <CoaDocumentTab
+            refreshVersion={coaRefresh}
             companyId={effectiveCompanyId}
           />
         </div>
       ) : activeTab === 'bulk_slip' ? (
         <div style={{ marginTop: 10 }}>
-          {!activeOrder ? (
+          {qcOrdersError && <Alert type="error">{qcOrdersError}</Alert>}
+          {qcOrdersError && !activeOrder ? null : !activeOrder ? (
             <QcOrderSlipList
               slipKind="bulk_release"
               orders={qcOrders}
@@ -778,14 +639,9 @@ export default function MaterialQC() {
                     type="button"
                     className="btn btn-secondary"
                     style={{ fontSize: 13, padding: '6px 14px', fontWeight: 600 }}
-                    onClick={() => {
-                      if (activeOrder?.fromInwardLot) {
-                        setActiveTab('inward_qc')
-                      }
-                      setActiveOrder(null)
-                    }}
+                    onClick={() => setActiveOrder(null)}
                   >
-                    {activeOrder?.fromInwardLot ? '← Back to Inward QC List' : '← Back to Orders List'}
+                    ← Back to Orders List
                   </button>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -851,7 +707,8 @@ export default function MaterialQC() {
         </div>
       ) : activeTab === 'test_request' ? (
         <div style={{ marginTop: 10 }}>
-          {!activeOrder ? (
+          {qcOrdersError && <Alert type="error">{qcOrdersError}</Alert>}
+          {qcOrdersError && !activeOrder ? null : !activeOrder ? (
             <QcOrderSlipList
               slipKind="test_request"
               orders={qcOrders}
@@ -886,14 +743,9 @@ export default function MaterialQC() {
                     type="button"
                     className="btn btn-secondary"
                     style={{ fontSize: 13, padding: '6px 14px', fontWeight: 600 }}
-                    onClick={() => {
-                      if (activeOrder?.fromInwardLot) {
-                        setActiveTab('inward_qc')
-                      }
-                      setActiveOrder(null)
-                    }}
+                    onClick={() => setActiveOrder(null)}
                   >
-                    {activeOrder?.fromInwardLot ? '← Back to Inward QC List' : '← Back to Orders List'}
+                    ← Back to Orders List
                   </button>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -960,121 +812,111 @@ export default function MaterialQC() {
       ) : (
         <>
 
-      {/* Flow diagram */}
-      <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '12px 20px', margin: '0 0 18px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 13, fontWeight: 600, color: '#166534' }}>
-        <span>📦 Purchase Order</span>
-        <span style={{ color: '#94a3b8' }}>→</span>
-        <span>🚚 GRN / Goods Receipt</span>
-        <span style={{ color: '#94a3b8' }}>→</span>
-        <span style={{ color: '#7c3aed' }}>🔬 QC Check (this page)</span>
-        <span style={{ color: '#94a3b8' }}>→</span>
-        <span>✅ Approved → Store</span>
-        <span style={{ color: '#94a3b8' }}>|</span>
-        <span style={{ color: '#dc2626' }}>❌ Rejected → Quarantine</span>
-      </div>
+      <section className="material-qc-register" aria-label="Incoming material QC">
+        {error && !selectedRecord && <Alert type="error">{error}</Alert>}
+        {success && <Alert type="success">{success}</Alert>}
 
-      {error && <Alert type="error">{error}</Alert>}
-      {success && <Alert type="success">{success}</Alert>}
-      {loading && <p style={{ color: '#64748b', fontSize: 13 }}>Loading posted inward lots…</p>}
-
-      {/* KPI Cards */}
-      <div className="ci-summary-grid" style={{ marginBottom: 18 }}>
-        {[
-          { label: 'Total Records', value: kpi.total, icon: '📋', color: '#2563eb', bg: '#eff6ff' },
-          { label: 'Pending QC', value: kpi.pending, icon: '⏳', color: '#ca8a04', bg: '#fefce8' },
-          { label: 'Approved', value: kpi.approved, icon: '✅', color: '#16a34a', bg: '#f0fdf4' },
-          { label: 'Rejected', value: kpi.rejected, icon: '❌', color: '#dc2626', bg: '#fef2f2' },
-        ].map((k) => (
-          <div className="ci-card" key={k.label}>
-            <div className="ci-card-icon" style={{ background: k.bg, color: k.color }}>{k.icon}</div>
-            <div className="ci-card-info">
-              <span className="ci-card-label">{k.label}</span>
-              <span className="ci-card-value" style={{ color: k.color }}>{k.value}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-        <input
-          className="company-input"
-          style={{ maxWidth: 260 }}
-          placeholder="Search material, GRN, batch…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <div className="qc-filter-group">
-          {QC_STATUSES.map((s) => (
+        <div className="material-qc-metrics" role="group" aria-label="Filter by QC status">
+          {[
+            { status: 'ALL', label: 'Total records', count: kpi.total },
+            { status: 'PENDING', label: 'Pending QC', count: kpi.pending },
+            { status: 'APPROVED', label: 'Released to Store', count: kpi.approved },
+            { status: 'REJECTED', label: 'Rejected', count: kpi.rejected },
+          ].map(({ status, label, count }) => (
             <button
-              key={s}
-              className={`qc-filter${statusFilter === s ? ' active' : ''}`}
-              onClick={() => setStatusFilter(s)}
+              type="button"
+              className="material-qc-metric"
+              data-status={status.toLowerCase()}
+              aria-pressed={statusFilter === status}
+              key={status}
+              onClick={() => setStatusFilter(status)}
             >
-              {s}
+              <span>{label}</span>
+              <strong>{count}</strong>
             </button>
           ))}
         </div>
-      </div>
 
-      {/* Records Table */}
-      <div className="ci-table-wrap">
-        <table className="ci-table">
-          <thead>
-            <tr>
-              <th>GRN No.</th>
-              <th>Material</th>
-              <th>Code</th>
-              <th>Batch No.</th>
-              <th>Supplier</th>
-              <th>Received</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredRecords.length === 0 ? (
-              <tr>
-                <td colSpan={8} style={{ textAlign: 'center', color: '#94a3b8', padding: 32 }}>
-                  {loading ? 'Loading…' : 'No posted inward lots found. Post a GRN first — it will appear here as Pending QC.'}
-                </td>
-              </tr>
-            ) : filteredRecords.map((rec) => (
-              <tr key={rec.id}>
-                <td style={{ fontWeight: 700, fontSize: 12 }}>{rec.grn_no || '—'}</td>
-                <td style={{ fontWeight: 600 }}>{rec.material_name}</td>
-                <td style={{ fontSize: 11, color: '#64748b' }}>{rec.material_code}</td>
-                <td style={{ fontSize: 12 }}>{rec.batch_no}</td>
-                <td style={{ fontSize: 12 }}>{rec.supplier || '—'}</td>
-                <td style={{ fontSize: 12 }}>{rec.received_date || '—'}</td>
-                <td><StatusPill tone={statusTone(rec.status)}>{rec.status}</StatusPill></td>
-                <td>
-                  <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                    <Button size="xs" variant="primary" onClick={() => openQcModal(rec)}>
-                      🔬 QC Check
-                    </Button>
-                    <Button size="xs" variant="secondary" onClick={() => openSlipEditorForRecord(rec)}>
-                      📝 Edit Slip (Att-3)
-                    </Button>
-                    <Button size="xs" variant="secondary" onClick={() => openTestReqForRecord(rec)}>
-                      🧪 Test Req (Att-2)
-                    </Button>
-                    <Button size="xs" variant="secondary" onClick={() => printAtt3(rec)}>
-                      🖨 Print ATT-3
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+        <div className="ci-table-wrap material-qc-panel">
+          <div className="material-qc-toolbar">
+            <div>
+              <h3>Incoming material lots</h3>
+              <span role="status">
+                {loading ? 'Loading posted lots…' : `${filteredRecords.length} of ${kpi.total} lots`}
+              </span>
+            </div>
+            <input
+              type="search"
+              className="company-input"
+              aria-label="Search material lots"
+              placeholder="Search material, GRN, batch…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="material-qc-scroll">
+            <table className="ci-table material-qc-table">
+              <thead>
+                <tr>
+                  <th scope="col">Material</th>
+                  <th scope="col">Receipt (GRN)</th>
+                  <th scope="col">Supplier</th>
+                  <th scope="col">Received</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRecords.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="material-qc-empty">
+                      {loading ? 'Loading…' : search.trim() || statusFilter !== 'ALL'
+                        ? 'No lots match your filters.'
+                        : 'No posted inward lots yet.'}
+                    </td>
+                  </tr>
+                ) : filteredRecords.map((rec) => (
+                  <tr key={rec.id}>
+                    <td>
+                      <strong>{rec.material_name}</strong>
+                      <span className="material-qc-code">{rec.material_code}</span>
+                    </td>
+                    <td className="material-qc-reference">{rec.grn_no || '—'}</td>
+                    <td>{rec.supplier || '—'}</td>
+                    <td className="material-qc-date">{rec.received_date || '—'}</td>
+                    <td>
+                      <StatusPill tone={statusTone(rec.status)}>
+                        {rec.status === 'APPROVED' ? 'Released to Store' : rec.status === 'REJECTED' ? 'Rejected' : 'Pending QC'}
+                      </StatusPill>
+                      {rec.status !== 'PENDING' && rec.ar_no && (
+                        <div className="material-qc-ar-number">{rec.ar_no}</div>
+                      )}
+                    </td>
+                    <td>
+                      <div className="material-qc-actions">
+                        <Button size="xs" variant={rec.status === 'PENDING' ? 'primary' : 'secondary'} onClick={() => openQcModal(rec)}>
+                          {rec.status === 'PENDING' ? 'QC Check' : 'Review QC'}
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
         </>
       )}
 
       {/* ── QC Check Modal ── */}
       {selectedRecord && (
-        <Modal title={`QC Check — ${selectedRecord.material_name}`} onClose={() => setSelectedRecord(null)} size="lg">
+        <Modal title={`QC Check — ${selectedRecord.material_name}`} onClose={() => {
+          if (!busy) {
+            setSelectedRecord(null)
+            setError('')
+          }
+        }} size="lg">
           <div style={{ padding: '0 2px' }}>
             {/* Material Info */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
@@ -1103,6 +945,8 @@ export default function MaterialQC() {
               <div>
                 <label className="inv-modal-field-label">AR No.</label>
                 <input className="company-input" value={selectedRecord.ar_no || ''}
+                  readOnly={['RAW_MATERIAL', 'PACKAGING_MATERIAL'].includes(selectedRecord.material_kind)}
+                  placeholder={['RAW_MATERIAL', 'PACKAGING_MATERIAL'].includes(selectedRecord.material_kind) ? 'Assigned when QC decision is saved' : undefined}
                   onChange={(e) => setSelectedRecord((p) => ({ ...p, ar_no: e.target.value }))} />
               </div>
             </div>
@@ -1171,10 +1015,10 @@ export default function MaterialQC() {
               ))}
             </div>
 
+            {error && <Alert type="error">{error}</Alert>}
             {/* Action Buttons */}
             <div style={{ display: 'flex', gap: 10, marginTop: 20, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <Button variant="secondary" onClick={saveDraft} disabled={busy}>💾 Save Draft</Button>
-              <Button variant="secondary" onClick={() => printAtt3(selectedRecord)} disabled={busy}>🖨 Print ATT-3</Button>
               <Button
                 variant="danger"
                 onClick={() => saveDecision('REJECTED')}

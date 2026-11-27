@@ -7,6 +7,9 @@ import Modal from '../inventory/components/Modal'
 import { getErrorMessage } from '../../utils/errors'
 import { operationsService } from '../operations/operationsService'
 import { qualityService } from './qualityService'
+import { formulaQaStatus } from './formulaQaStatus'
+import { isQaDemoRecord } from './qaDemoRecords'
+import { listCompletedProductionOrders } from '../operations/salesOrdersService'
 import useAuth from '../../hooks/useAuth'
 import PageHeader from '../../components/PageHeader'
 import HeroBanner from '../../components/HeroBanner'
@@ -17,12 +20,6 @@ import {
   selectActiveCompanyKey,
 } from '../../utils/companySelectors'
 import { decideFormulaApproval } from '../../store/erpSlice'
-import BmrRequisitionDocument from '../../components/BmrRequisitionDocument'
-import {
-  exportFormulaPrint,
-  exportFormulaExcel,
-  exportFormulaCsv,
-} from '../../utils/formulaExport'
 import useSelectedCompany from '../../hooks/useSelectedCompany'
 import { approveRevision, rejectRevision, listFormulas, getRevision } from '../formulas/formulasService'
 import BulkReleaseSlipEditor from './BulkReleaseSlipEditor'
@@ -77,7 +74,7 @@ const ORDER_QC_FILTERS = ['ALL', 'PENDING', 'PASSED', 'PARTIAL', 'FAILED']
 const ORDER_QA_FILTERS = ['ALL', 'PENDING', 'APPROVED', 'REJECTED']
 
 const listData = (response) =>
-  Array.isArray(response.data) ? response.data : response.data?.results || []
+  Array.isArray(response) ? response : Array.isArray(response?.data) ? response.data : response?.data?.results || response?.results || []
 
 function qcTone(status) {
   if (status === 'APPROVED' || status === 'PASSED') return 'success'
@@ -195,9 +192,29 @@ export default function Quality() {
         qualityService.getQcRecords(),
         qualityService.getQaRecords(),
       ])
-      setBatches(Array.isArray(batchRes) ? batchRes : listData(batchRes))
-      setOrderQcRecords(listData(qcRes))
-      setOrderQaRecords(listData(qaRes))
+      setBatches(listData(batchRes).filter((batch) => batch.quality_case_id && !isQaDemoRecord({
+        productName: batch.product_name,
+        productCode: batch.product_code,
+        orderReference: batch.order_number,
+      })))
+
+      const qcRecords = listData(qcRes)
+      const qaRecords = listData(qaRes)
+      setOrderQcRecords([])
+      setOrderQaRecords([])
+      if (qcRecords.length || qaRecords.length) {
+        const orders = await listCompletedProductionOrders(effectiveCompanyId)
+        const references = new Set(orders.filter((order) =>
+          !isQaDemoRecord({ orderReference: order.reference }) &&
+          !(order.lines || []).some((line) => isQaDemoRecord({
+            productName: line.product_name,
+            productCode: line.product_code,
+          }))
+        ).map((order) => String(order.reference || '')).filter(Boolean))
+        const hasRealOrder = (record) => references.has(String(record.order_number || ''))
+        setOrderQcRecords(qcRecords.filter(hasRealOrder))
+        setOrderQaRecords(qaRecords.filter(hasRealOrder))
+      }
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
@@ -243,7 +260,11 @@ export default function Quality() {
             const rows = Array.isArray(data) ? data : data?.results || []
             rows.forEach((r) => {
               map[r.id] = s.id
-              if (String(r.state || r.status || '').toUpperCase() === 'SUBMITTED') {
+              if (String(r.state || r.status || '').toUpperCase() === 'SUBMITTED' && !isQaDemoRecord({
+                  productName: r.product_name_snapshot,
+                  productCode: r.product_code_snapshot,
+                  orderReference: r.source_order_reference_snapshot,
+                })) {
                 allSubmitted.push({ ...r, _storeId: s.id, _storeName: s.name })
               }
             })
@@ -346,40 +367,20 @@ export default function Quality() {
     const compId = effectiveCompanyId
     try {
       setLoadingFormulaApprovals(true)
-      const data = await listFormulas(compId, { pageSize: 100 })
-      const formulasList = Array.isArray(data) ? data : data?.results || []
+      const formulasList = []
+      for (let page = 1; ; page += 1) {
+        const data = await listFormulas(compId, { page, pageSize: 100 })
+        formulasList.push(...listData(data))
+        if (!data?.next) break
+      }
 
       const mapped = []
       for (const formula of formulasList) {
-        const revisions = formula.revisions || []
-        const sortedRevisions = [...revisions].sort((a, b) => b.revision_number - a.revision_number)
-
-        // Find submitted revision (if any)
-        const submittedRev = sortedRevisions.find((r) => r.status === 'SUBMITTED')
-        // Find latest approved revision (if any)
-        const approvedRev = sortedRevisions.find((r) => r.status === 'APPROVED')
-        // Find latest rejected/declined revision (if any)
-        const declinedRev = sortedRevisions.find(
-          (r) => r.status === 'REJECTED' || (r.status === 'DRAFT' && Boolean(r.last_rejection_reason))
-        )
-
-        const targetRevisions = []
-        if (submittedRev) {
-          targetRevisions.push(submittedRev)
-        }
-        if (approvedRev && (!submittedRev || approvedRev.id !== submittedRev.id)) {
-          targetRevisions.push(approvedRev)
-        }
-        if (declinedRev && !submittedRev && !approvedRev) {
-          targetRevisions.push(declinedRev)
-        }
-
-        for (const rev of targetRevisions) {
-          const isSubmitted = rev.status === 'SUBMITTED'
-          const isApproved = rev.status === 'APPROVED'
-          const isDeclined = rev.status === 'REJECTED' || Boolean(rev.last_rejection_reason && rev.status === 'DRAFT')
-
-          const status = isSubmitted ? 'PENDING' : isApproved ? 'APPROVED' : 'DECLINED'
+        for (const rev of formula.revisions || []) {
+          const status = formulaQaStatus(rev)
+          if (!status) continue
+          const isApproved = status === 'APPROVED'
+          const isDeclined = status === 'DECLINED'
 
           mapped.push({
             id: `FA-2026-${String(rev.id).padStart(3, '0')}`,
@@ -390,6 +391,7 @@ export default function Quality() {
             revisionNumber: rev.revision_number,
             revisionVersion: rev.version,
             productName: formula.product_name || formula.name,
+            productId: formula.product_id,
             productCode: formula.product_code || formula.code,
             productBmrNo: formula.product_bmr_no || null,
             formulaCode: formula.code || null,
@@ -451,8 +453,8 @@ export default function Quality() {
     () => allFormulaApprovals.filter((a) => a.status === 'PENDING').length,
     [allFormulaApprovals]
   )
-  const approvedFormulaApprovals = useMemo(
-    () => allFormulaApprovals.filter((a) => a.status === 'APPROVED').length,
+  const approvedProductCount = useMemo(
+    () => new Set(allFormulaApprovals.filter((a) => a.status === 'APPROVED').map((a) => a.productId || a.productCode)).size,
     [allFormulaApprovals]
   )
   const declinedFormulaApprovals = useMemo(
@@ -485,14 +487,12 @@ export default function Quality() {
       })
   }, [allFormulaApprovals, formulaStatusFilter, formulaSearch])
 
-  const [reviewModalLoading, setReviewModalLoading] = useState(false)
-
   const handleOpenReviewModal = async (req) => {
     // Always fetch the full revision from the API to guarantee ALL lines are loaded.
     // The list API uses FormulaRevisionSummarySerializer which has no `lines` field.
     if (req.realRevision && req.formulaId && req.revisionId) {
-      setReviewModalLoading(true)
-      setReviewFormulaModal({ ...req, materials: [] }) // open immediately with spinner
+      const pendingReview = { ...req, materials: [], loading: true, loadError: '' }
+      setReviewFormulaModal(pendingReview)
       try {
         const fullRev = await getRevision(req.company || activeCompanyId || 2, req.formulaId, req.revisionId)
         const mappedMaterials = (fullRev?.lines || []).map((line, idx) => ({
@@ -510,16 +510,19 @@ export default function Quality() {
           arNo: line.ar_no || '—',
           notes: line.notes || '',
         }))
-        setReviewFormulaModal((prev) => ({
+        setReviewFormulaModal((prev) => prev === pendingReview ? {
           ...prev,
+          loading: false,
           materials: mappedMaterials,
           ingredientsCount: mappedMaterials.length,
-          revisionVersion: fullRev?.version ?? prev?.revisionVersion,
-        }))
+          revisionVersion: fullRev?.version ?? prev.revisionVersion,
+        } : prev)
       } catch (err) {
-        console.warn('Failed to load revision lines:', err)
-      } finally {
-        setReviewModalLoading(false)
+        setReviewFormulaModal((prev) => prev === pendingReview ? {
+          ...prev,
+          loading: false,
+          loadError: getErrorMessage(err),
+        } : prev)
       }
       return
     }
@@ -851,7 +854,7 @@ export default function Quality() {
       <HeroBanner
         eyebrow="GMP Compliance &amp; Laboratory"
         title="Quality Assurance &amp; QA Release"
-        subtitle="Full QA pipeline: Formula ? Requisition ? Bulk Release (QC?QA) ? COA ? Packaging — plus order QC/QA and batch traceability."
+        subtitle="Full QA pipeline: Formula → Requisition → Bulk Release (QC to QA) → CoA → Packaging — plus order QC/QA and batch traceability."
       />
 
       <PageHeader
@@ -871,7 +874,6 @@ export default function Quality() {
       {/* Summary KPI Cards */}
       <div className="ci-summary-grid" style={{ marginBottom: 18 }}>
         <div className="ci-card">
-          <div className="ci-card-icon" style={{ background: '#eff6ff', color: '#2563eb' }}>??</div>
           <div className="ci-card-info">
             <span className="ci-card-label">Total Inspections</span>
             <span className="ci-card-value">{totalInspections}</span>
@@ -879,7 +881,6 @@ export default function Quality() {
           </div>
         </div>
         <div className="ci-card">
-          <div className="ci-card-icon" style={{ background: '#fefce8', color: '#ca8a04' }}>?</div>
           <div className="ci-card-info">
             <span className="ci-card-label">Pending Review</span>
             <span className="ci-card-value" style={{ color: '#ca8a04' }}>{pendingCount}</span>
@@ -887,7 +888,6 @@ export default function Quality() {
           </div>
         </div>
         <div className="ci-card">
-          <div className="ci-card-icon" style={{ background: '#f0fdf4', color: '#16a34a' }}>?</div>
           <div className="ci-card-info">
             <span className="ci-card-label">Passed &amp; Approved</span>
             <span className="ci-card-value" style={{ color: '#16a34a' }}>{passedCount}</span>
@@ -895,7 +895,6 @@ export default function Quality() {
           </div>
         </div>
         <div className="ci-card">
-          <div className="ci-card-icon" style={{ background: '#fef2f2', color: '#dc2626' }}>?</div>
           <div className="ci-card-info">
             <span className="ci-card-label">Rejections / Discrepancies</span>
             <span className="ci-card-value" style={{ color: '#dc2626' }}>{rejectedCount}</span>
@@ -903,7 +902,6 @@ export default function Quality() {
           </div>
         </div>
         <div className="ci-card">
-          <div className="ci-card-icon" style={{ background: '#f5f3ff', color: '#7c3aed' }}>??</div>
           <div className="ci-card-info">
             <span className="ci-card-label">QA Released</span>
             <span className="ci-card-value" style={{ color: '#7c3aed' }}>{qaReleasedCount}</span>
@@ -1468,7 +1466,7 @@ export default function Quality() {
         <div className="inv-panel">
           <div className="inv-toolbar" style={{ flexWrap: 'wrap', gap: 12 }}>
             <div>
-              <h3 style={{ margin: '0 0 4px 0' }}>COA — QC ? QA Pipeline</h3>
+              <h3 style={{ margin: '0 0 4px 0' }}>CoA QC and QA Pipeline</h3>
               <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>
                 Same QC then QA process as bulk release. Stages open as placeholders until the COA document is available.
               </p>
@@ -1865,7 +1863,7 @@ export default function Quality() {
                 onClick={loadApiFormulaApprovals}
                 style={{ padding: '6px 14px', fontSize: '13px' }}
               >
-                ?? Refresh Live Data
+                Refresh Live Data
               </Button>
             </div>
           </div>
@@ -1873,7 +1871,6 @@ export default function Quality() {
           {/* KPI Summary Cards */}
           <div className="qc-formula-kpi-grid">
             <div className="qc-kpi-card">
-              <div className="kpi-icon" style={{ background: '#f0f9ff', color: '#0369a1' }}>??</div>
               <div className="kpi-content">
                 <span className="kpi-label">Total Requests</span>
                 <span className="kpi-value" style={{ color: '#0369a1' }}>{totalFormulaRequests}</span>
@@ -1882,7 +1879,6 @@ export default function Quality() {
             </div>
 
             <div className="qc-kpi-card">
-              <div className="kpi-icon" style={{ background: '#fef3c7', color: '#b45309' }}>?</div>
               <div className="kpi-content">
                 <span className="kpi-label">Pending QC Review</span>
                 <span className="kpi-value" style={{ color: '#b45309' }}>{pendingFormulaApprovals}</span>
@@ -1891,16 +1887,14 @@ export default function Quality() {
             </div>
 
             <div className="qc-kpi-card">
-              <div className="kpi-icon" style={{ background: '#dcfce7', color: '#15803d' }}>?</div>
               <div className="kpi-content">
-                <span className="kpi-label">Approved Formulas</span>
-                <span className="kpi-value" style={{ color: '#15803d' }}>{approvedFormulaApprovals}</span>
+                <span className="kpi-label">Approved Products</span>
+                <span className="kpi-value" style={{ color: '#15803d' }}>{approvedProductCount}</span>
                 <span className="kpi-sub">BMR Certified</span>
               </div>
             </div>
 
             <div className="qc-kpi-card">
-              <div className="kpi-icon" style={{ background: '#fee2e2', color: '#b91c1c' }}>?</div>
               <div className="kpi-content">
                 <span className="kpi-label">Declined Formulations</span>
                 <span className="kpi-value" style={{ color: '#b91c1c' }}>{declinedFormulaApprovals}</span>
@@ -1969,7 +1963,7 @@ export default function Quality() {
                 {filteredFormulaRequests.length === 0 ? (
                   <tr>
                     <td colSpan="8" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
-                      <div style={{ fontSize: '32px', marginBottom: '8px' }}>??</div>
+
                       <div style={{ fontWeight: 600, color: '#123f61', fontSize: '15px' }}>
                         No Formula Approval Requests Found
                       </div>
@@ -2019,11 +2013,11 @@ export default function Quality() {
                       </td>
                       <td>
                         {req.status === 'APPROVED' ? (
-                          <span className="qc-status-pill pill-approved">? Approved</span>
+                          <span className="qc-status-pill pill-approved">Approved</span>
                         ) : req.status === 'PENDING' ? (
-                          <span className="qc-status-pill pill-pending">? Pending QC</span>
+                          <span className="qc-status-pill pill-pending">Pending QC</span>
                         ) : req.status === 'DECLINED' ? (
-                          <span className="qc-status-pill pill-declined">? Declined</span>
+                          <span className="qc-status-pill pill-declined">Declined</span>
                         ) : (
                           <span className="qc-status-pill pill-neutral">{req.status}</span>
                         )}
@@ -2034,7 +2028,7 @@ export default function Quality() {
                           onClick={() => handleOpenReviewModal(req)}
                           style={{ padding: '6px 12px', fontSize: '12px' }}
                         >
-                          Review Formula ?
+                          Review Formula
                         </Button>
                       </td>
                     </tr>
@@ -2078,20 +2072,20 @@ export default function Quality() {
                   onClick={() => submitOrderQc('FAIL')}
                   style={{ color: '#dc2626', borderColor: '#fca5a5' }}
                 >
-                  ? Fail Inspection
+                  Fail Inspection
                 </Button>
                 <Button
                   variant="secondary"
                   loading={saving}
                   onClick={() => submitOrderQc('PARTIAL')}
                 >
-                  ?? Partial Pass
+                  Partial Pass
                 </Button>
                 <Button
                   loading={saving}
                   onClick={() => submitOrderQc('PASS')}
                 >
-                  ? Pass Inspection
+                  Pass Inspection
                 </Button>
               </div>
             </div>
@@ -2230,13 +2224,13 @@ export default function Quality() {
                   onClick={() => submitOrderQa('REJECT')}
                   style={{ color: '#dc2626', borderColor: '#fca5a5' }}
                 >
-                  ? Reject Release
+                  Reject Release
                 </Button>
                 <Button
                   loading={saving}
                   onClick={() => submitOrderQa('APPROVE')}
                 >
-                  ? Authorize QA Release (Make Billable)
+                  Authorize QA Release (Make Billable)
                 </Button>
               </div>
             </div>
@@ -2520,109 +2514,97 @@ export default function Quality() {
         </Modal>
       )}
 
-      {/* ========================================================
-          MODAL: FORMULA APPROVAL REVIEW (BMR DOCUMENT SLIP)
-          ======================================================== */}
-      {reviewFormulaModal && (
+      {reviewFormulaModal && !approveDialogModal && !declineDialogModal && (
         <Modal
-          title={`Formula Stoichiometric Audit Review — ${reviewFormulaModal.id}`}
+          title={`Review Formula — ${reviewFormulaModal.id}`}
+          size="lg"
           onClose={() => setReviewFormulaModal(null)}
           footer={
-            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <Button
-                  variant="secondary"
-                  onClick={() =>
-                    exportFormulaExcel({
-                      product: {
-                        name: reviewFormulaModal.productName,
-                        code: reviewFormulaModal.productCode,
-                      },
-                      formula: {
-                        name: reviewFormulaModal.formulaName,
-                        base_quantity: reviewFormulaModal.formulaBaseQuantity,
-                        base_unit: reviewFormulaModal.formulaBaseUnit,
-                      },
-                      revision: { name: reviewFormulaModal.revisionName },
-                      materials: reviewFormulaModal.materials || [],
-                      batchQty: reviewFormulaModal.batchQuantity,
-                      batchUnit: reviewFormulaModal.batchUnit,
-                      scaleFactor: reviewFormulaModal.scaleFactor,
-                      approval: reviewFormulaModal,
-                      companyName: activeCompanyId === 3 ? 'TEJ BIOCARE HEALTHCARE PVT. LTD.' : 'CMHP PHARMACEUTICALS PVT. LTD.',
-                    })
-                  }
-                >
-                  ?? Export Excel (.xls)
-                </Button>
-                <Button variant="secondary" onClick={() => exportFormulaPrint()}>
-                  ??? Print / Save PDF
-                </Button>
-              </div>
-
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                <Button variant="secondary" onClick={() => setReviewFormulaModal(null)}>
-                  Close
-                </Button>
-
-                {reviewFormulaModal.status === 'PENDING' && (
+            <>
+              <Button variant="secondary" onClick={() => setReviewFormulaModal(null)}>
+                Close
+              </Button>
+              {reviewFormulaModal.status === 'PENDING' &&
+                !reviewFormulaModal.loading && !reviewFormulaModal.loadError &&
+                reviewFormulaModal.materials?.length > 0 && (
                   <>
-                    <Button
-                      variant="danger"
-                      onClick={() => handleOpenDeclineModal(reviewFormulaModal)}
-                    >
-                      ? Decline Formulation
+                    <Button variant="danger" onClick={() => handleOpenDeclineModal(reviewFormulaModal)}>
+                      Reject
                     </Button>
-                    <Button
-                      variant="primary"
-                      onClick={() => handleOpenApproveModal(reviewFormulaModal)}
-                    >
-                      ? Approve Formulation
+                    <Button onClick={() => handleOpenApproveModal(reviewFormulaModal)}>
+                      Approve
                     </Button>
                   </>
                 )}
-              </div>
-            </div>
+            </>
           }
         >
-          <div style={{ maxHeight: '72vh', overflowY: 'auto', padding: '10px 4px' }}>
-            {reviewModalLoading ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', gap: 16 }}>
-                <div style={{ width: 44, height: 44, border: '4px solid #e2e8f0', borderTopColor: '#0ea5e9', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                <div style={{ color: '#475569', fontWeight: 600, fontSize: 15 }}>Loading formula materials…</div>
-                <div style={{ color: '#94a3b8', fontSize: 13 }}>Fetching all ingredient lines from server</div>
-              </div>
-            ) : (
-              <BmrRequisitionDocument
-                product={{
-                  name: reviewFormulaModal.productName,
-                  code: reviewFormulaModal.productCode,
-                  bmr_no: reviewFormulaModal.productBmrNo,
-                  dosage_form: reviewFormulaModal.dosageForm,
-                }}
-                formula={{
-                  name: reviewFormulaModal.formulaName,
-                  code: reviewFormulaModal.formulaCode,
-                  base_quantity: reviewFormulaModal.formulaBaseQuantity,
-                  base_unit: reviewFormulaModal.formulaBaseUnit,
-                }}
-                revision={{ name: reviewFormulaModal.revisionName }}
-                materials={reviewFormulaModal.materials || []}
-                batchQty={reviewFormulaModal.batchQuantity}
-                batchUnit={reviewFormulaModal.batchUnit}
-                scaleFactor={reviewFormulaModal.scaleFactor}
-                approval={reviewFormulaModal}
-                company={activeCompanyId === 3 ? { id: 3, name: 'Tej Biocare' } : { id: 2, name: 'CMHP' }}
-                companyName={activeCompanyId === 3 ? 'TEJ BIOCARE HEALTHCARE PVT. LTD.' : 'CMHP PHARMACEUTICALS PVT. LTD.'}
-                companyCode={activeCompanyId === 3 ? 'TEJ' : 'CMHP'}
-                department={
-                  reviewFormulaModal.dosageForm === 'Syrups' || reviewFormulaModal.dosageForm === 'Suspension'
-                    ? 'PRODUCTION ( ORAL LIQUID DEPARTMENT )'
-                    : 'PRODUCTION ( ORAL SOLID DOSAGE DEPARTMENT )'
-                }
-              />
-            )}
-          </div>
+          <dl className="qc-formula-review-details">
+            <div>
+              <dt>Product</dt>
+              <dd>{reviewFormulaModal.productName} ({reviewFormulaModal.productCode})</dd>
+            </div>
+            <div>
+              <dt>Formula</dt>
+              <dd>{reviewFormulaModal.formulaName}</dd>
+            </div>
+            <div>
+              <dt>Revision</dt>
+              <dd>{reviewFormulaModal.revisionName}</dd>
+            </div>
+            <div>
+              <dt>Formula base</dt>
+              <dd>{reviewFormulaModal.formulaBaseQuantity} {reviewFormulaModal.formulaBaseUnit}</dd>
+            </div>
+            <div>
+              <dt>Batch size</dt>
+              <dd>{reviewFormulaModal.batchQuantity} {reviewFormulaModal.batchUnit}</dd>
+            </div>
+            <div>
+              <dt>Scale factor</dt>
+              <dd>{reviewFormulaModal.scaleFactor ?? 1}×</dd>
+            </div>
+          </dl>
+          {reviewFormulaModal.loading ? (
+            <p role="status">Loading formula materials…</p>
+          ) : reviewFormulaModal.loadError ? (
+            <>
+              <Alert type="error">{reviewFormulaModal.loadError}</Alert>
+              <Button variant="secondary" onClick={() => handleOpenReviewModal(reviewFormulaModal)}>
+                Retry
+              </Button>
+            </>
+          ) : reviewFormulaModal.materials?.length ? (
+            <div className="qc-formula-review-table">
+              <table className="inv-table" aria-label="Formula materials">
+                <thead>
+                  <tr>
+                    <th scope="col">Code</th>
+                    <th scope="col">Material</th>
+                    <th scope="col">Label claim / spec</th>
+                    <th scope="col">Base quantity</th>
+                    <th scope="col">Required quantity</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reviewFormulaModal.materials.map((material, index) => (
+                    <tr key={material.id ?? index}>
+                      <td>{material.rmCode || '—'}</td>
+                      <td>{material.name}</td>
+                      <td>{material.labelClaim || material.label_claim || '—'}</td>
+                      <td>{material.baseQuantity ?? material.base_quantity ?? '—'} {material.baseUnit || material.unit}</td>
+                      <td>
+                        {material.scaledQuantity ?? material.requiredQuantity ?? '—'}{' '}
+                        {material.scaledUnit || material.unit || material.baseUnit}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p>No materials are available for this revision.</p>
+          )}
         </Modal>
       )}
 
@@ -2761,7 +2743,7 @@ export default function Quality() {
                 Cancel
               </Button>
               <Button variant="danger" onClick={handleConfirmDecline}>
-                ? Confirm Decline &amp; Log Finding
+                Confirm Decline &amp; Log Finding
               </Button>
             </div>
           }

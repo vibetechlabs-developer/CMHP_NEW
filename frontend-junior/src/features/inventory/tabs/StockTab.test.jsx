@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import StockTab from './StockTab'
+import { finishedGoodsService } from '../finishedGoodsService'
 import {
   getMyStores,
   listStockBalances,
@@ -13,10 +14,15 @@ import { getAvailableToIssue } from '../../store/materialIssueService'
 
 vi.mock('../../store/storeService', () => ({
   getMyStores: vi.fn(),
+  listMyCompanies: vi.fn(async () => [{ id: 2, code: 'CMHP' }]),
   listStockBalances: vi.fn(),
   listStockMovements: vi.fn(),
   listMaterials: vi.fn(),
   listMaterialSuppliers: vi.fn(),
+}))
+
+vi.mock('../finishedGoodsService', () => ({
+  finishedGoodsService: { listStock: vi.fn(), updateWarehouseBay: vi.fn() },
 }))
 
 vi.mock('../../store/materialIssueService', () => ({
@@ -49,6 +55,7 @@ const MOCK_MATERIALS = [
 const MOCK_BALANCES = [
   {
     material_id: 101,
+    material_kind: 'RAW_MATERIAL',
     material_code: 'RM-PAR-01',
     material_name: 'Paracetamol Powder IP',
     unit_id: 1,
@@ -61,6 +68,7 @@ const MOCK_BALANCES = [
   },
   {
     material_id: 102,
+    material_kind: 'PACKAGING_MATERIAL',
     material_code: 'PM-BOT-01',
     material_name: 'Amber Glass Bottle 100ml',
     unit_id: 2,
@@ -102,6 +110,8 @@ const MOCK_MOVEMENTS = [
     unit_price: '450.00',
     pricing_unit_code: 'KG',
     currency_code: 'INR',
+    quality_status: 'APPROVED',
+    quality_ar_no: 'AR|RM|0001',
     release_status: 'Not tracked',
     posted_by_id: 1,
     posted_at: '2026-10-14T10:00:00Z',
@@ -150,7 +160,10 @@ describe('StockTab (Stock & Lots Module)', () => {
     listMaterialSuppliers.mockResolvedValue([
       { id: 301, code: 'SUP-ACME', name: 'Acme Chemicals Ltd' },
     ])
-    listStockBalances.mockResolvedValue(MOCK_BALANCES)
+    listStockBalances.mockImplementation(async (_storeId, { materialKind }) => {
+      const results = MOCK_BALANCES.filter((row) => !materialKind || row.material_kind === materialKind)
+      return { results, count: results.length }
+    })
     listStockMovements.mockResolvedValue({
       results: MOCK_MOVEMENTS,
       count: 2,
@@ -186,7 +199,7 @@ describe('StockTab (Stock & Lots Module)', () => {
     cleanup()
   })
 
-  it('renders page header and Tab 1 (Material Stock Summary) with closing book and available quantities', async () => {
+  it('renders page header and Material Stock Summary with recorded receipts and available quantities', async () => {
     await act(async () => {
       render(
         <MemoryRouter>
@@ -199,15 +212,15 @@ describe('StockTab (Stock & Lots Module)', () => {
     expect(screen.getByText('View material stock, receipt sources, and lot traceability.')).toBeTruthy()
 
     // KPI cards rendered
-    expect(screen.getByText('Active Stock Groups')).toBeTruthy()
+    expect(screen.getByText('Stock Groups')).toBeTruthy()
     expect(screen.getByText('Recorded Receipt Lots')).toBeTruthy()
 
     // Table rows rendered
-    expect(screen.getByText('RM-PAR-01')).toBeTruthy()
+    expect(await screen.findByText('RM-PAR-01')).toBeTruthy()
     expect(screen.getByText('Paracetamol Powder IP')).toBeTruthy()
     expect(screen.getByText('Raw Material')).toBeTruthy()
     expect(screen.getByText('150.000')).toBeTruthy()
-    expect(screen.getByText('120.000')).toBeTruthy()
+    expect(await screen.findByText('120.000')).toBeTruthy()
     expect(screen.getByText('PM-BOT-01')).toBeTruthy()
   })
 
@@ -225,12 +238,52 @@ describe('StockTab (Stock & Lots Module)', () => {
       fireEvent.click(tab2Btn)
     })
 
-    expect(screen.getByText('SM-#501')).toBeTruthy()
-    expect(screen.getByText('LOT-PARA-2026-A')).toBeTruthy()
+    expect(await screen.findByText('SM-#501')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Released', exact: true })).toBeTruthy()
+    expect(screen.getByText('AR|RM|0001')).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: 'AR No.' })).toBeTruthy()
+    expect(screen.getByText('1 Released')).toBeTruthy()
     expect(screen.getByText('GR-20261014-001')).toBeTruthy()
     expect(screen.getAllByText('Acme Chemicals Ltd').length).toBeGreaterThan(0)
     expect(screen.getByText('100.000')).toBeTruthy()
-    expect(screen.getAllByText('Not recorded').length).toBeGreaterThan(0)
+  })
+
+  it('clears the receipt search when returning to the stock summary', async () => {
+    await act(async () => {
+      render(<MemoryRouter><StockTab storeId={10} /></MemoryRouter>)
+    })
+
+    fireEvent.click(screen.getByText(/Tab 2: Lots & Receipt Sources/i))
+    fireEvent.change(screen.getByLabelText('Search stock'), { target: { value: 'LOT-PARA' } })
+    expect(screen.getByLabelText('Search stock').value).toBe('LOT-PARA')
+
+    fireEvent.click(screen.getByText(/Tab 1: Material Stock Summary/i))
+    expect(screen.getByLabelText('Search stock').value).toBe('')
+    expect(screen.queryByRole('button', { name: 'Clear Filters' })).toBeNull()
+    expect(await screen.findByText('PM-BOT-01')).toBeTruthy()
+  })
+
+  it('saves the warehouse bay on the server and displays allocation history', async () => {
+    const batch = {
+      id: 51, batchNo: 'AH2602', productName: 'Flexicare Drops', unitCode: 'BTL',
+      postedQty: '30', availableBufferQty: '20', allocatedQty: '10', warehouseStore: 'Rack 1',
+      allocatedOrders: [{ id: 1, orderRef: 'SO-123', customer: 'Test Customer', qty: '10', actor: 'Warehouse User', date: '2026-11-27T10:00:00Z' }],
+    }
+    finishedGoodsService.listStock
+      .mockResolvedValueOnce({ count: 1, results: [batch] })
+      .mockResolvedValueOnce({ count: 1, results: [{ ...batch, warehouseStore: 'Rack 12' }] })
+    finishedGoodsService.updateWarehouseBay.mockResolvedValueOnce(undefined)
+    render(<MemoryRouter><StockTab storeId={10} /></MemoryRouter>)
+    fireEvent.click(screen.getByText(/Finished Goods Buffer Stock/i))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit bay for batch AH2602' }))
+    fireEvent.change(screen.getByLabelText('Warehouse bay or rack'), { target: { value: 'Rack 12' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Bay' }))
+
+    expect(await screen.findByText('Rack 12')).toBeTruthy()
+    expect(finishedGoodsService.updateWarehouseBay).toHaveBeenCalledWith(2, 51, 'Rack 12')
+    fireEvent.click(screen.getByRole('button', { name: 'Allocation History' }))
+    expect(screen.getByText('SO-123')).toBeTruthy()
+    expect(screen.getByText('Warehouse User')).toBeTruthy()
   })
 
   it('filters by Material Type (Packaging Material)', async () => {
@@ -242,7 +295,7 @@ describe('StockTab (Stock & Lots Module)', () => {
       )
     })
 
-    expect(screen.getByText('RM-PAR-01')).toBeTruthy()
+    expect(await screen.findByText('RM-PAR-01')).toBeTruthy()
 
     // Filter by Packaging Materials
     const typeSelect = screen.getByDisplayValue('All Material Types')
@@ -250,8 +303,9 @@ describe('StockTab (Stock & Lots Module)', () => {
       fireEvent.change(typeSelect, { target: { value: 'PACKAGING_MATERIAL' } })
     })
 
-    expect(screen.queryByText('RM-PAR-01')).toBeNull()
-    expect(screen.getByText('PM-BOT-01')).toBeTruthy()
+    await waitFor(() => expect(screen.queryByText('RM-PAR-01')).toBeNull())
+    expect(await screen.findByText('PM-BOT-01')).toBeTruthy()
+    expect(listStockBalances).toHaveBeenLastCalledWith(10, expect.objectContaining({ page: 1, pageSize: 20, materialKind: 'PACKAGING_MATERIAL' }))
   })
 
   it('opens Lot/Source details drawer with all 6 provenance sections and honest disclosures', async () => {

@@ -691,11 +691,11 @@ function Register({ material, materialId, storeId, stores, onSelectStore }) {
                       ⚠️ Below Reorder Level ({material.reorder_level} {unitCode})
                     </span>
                   )}
-                  <span className="stock-item-tag" title="Opening book stock">
-                    📦 Opening: {state.opening.length === 0 ? <span>—</span> : <span>{state.opening.map(r => `${r.recorded_receipt_quantity} ${r.unit_code} (${r.source_company_code})`).join(', ')}</span>}
+                  <span className="stock-item-tag" title="Recorded receipts before the selected period">
+                    Prior receipts: {state.opening.length === 0 ? <span>—</span> : <span>{state.opening.map(r => `${r.recorded_receipt_quantity} ${r.unit_code} (${r.source_company_code})`).join(', ')}</span>}
                   </span>
-                  <span className="stock-item-tag" title="Closing book stock">
-                    🏁 Closing: {state.closing.length === 0 ? <span>—</span> : <span>{state.closing.map(r => `${r.recorded_receipt_quantity} ${r.unit_code} (${r.source_company_code})`).join(', ')}</span>}
+                  <span className="stock-item-tag" title="Recorded receipts through the end of the selected period">
+                    Cumulative receipts: {state.closing.length === 0 ? <span>—</span> : <span>{state.closing.map(r => `${r.recorded_receipt_quantity} ${r.unit_code} (${r.source_company_code})`).join(', ')}</span>}
                   </span>
                 </div>
               </div>

@@ -7,7 +7,7 @@ import api from '../../api/axios'
 
 const basePath = (companyId) => `/v1/companies/${companyId}/sales-orders`
 
-export async function listSalesOrders(companyId, { page, pageSize, search, customerId, orderDateFrom, orderDateTo } = {}) {
+export async function listSalesOrders(companyId, { page, pageSize, search, customerId, orderDateFrom, orderDateTo, productType, workflowStage, deadline, activeOnly, productionCompleted } = {}) {
   const params = {}
   if (page) params.page = page
   if (pageSize) params.page_size = pageSize
@@ -15,8 +15,49 @@ export async function listSalesOrders(companyId, { page, pageSize, search, custo
   if (customerId) params.customer = customerId
   if (orderDateFrom) params.order_date_from = orderDateFrom
   if (orderDateTo) params.order_date_to = orderDateTo
+  if (productType) params.product_type = productType
+  if (workflowStage) params.workflow_stage = workflowStage
+  if (deadline) params.deadline = deadline
+  if (activeOnly) params.active_only = true
+  if (productionCompleted) params.production_completed = true
   const response = await api.get(`${basePath(companyId)}/`, { params })
   return response.data // {count, next, previous, results}
+}
+
+async function readSalesOrderPages(companyId, productionCompleted) {
+  const orders = []
+  for (let page = 1; ; page += 1) {
+    const data = await listSalesOrders(companyId, { page, pageSize: 50, productionCompleted })
+    if (!Array.isArray(data?.results)) throw new Error('The sales orders API returned an unexpected response.')
+    orders.push(...data.results)
+    if (!data.next) return orders
+  }
+}
+
+const isProductionCompleted = (status) =>
+  String(status?.production_status || '').trim().toLowerCase() === 'completed'
+
+export async function listCompletedProductionOrders(companyId) {
+  if (!companyId) return []
+  try {
+    const orders = await readSalesOrderPages(companyId, true)
+    if (orders.every((order) => isProductionCompleted(order.production))) return orders
+  } catch (err) {
+    if (!(err?.response?.status >= 500)) throw err
+  }
+
+  // Older or temporarily failing completed-order feeds can be rebuilt from
+  // the same company's persisted production statuses and sales orders.
+  const { data: statuses } = await api.get(`/v1/companies/${companyId}/production-statuses/`)
+  if (!Array.isArray(statuses)) throw new Error('The production statuses API returned an unexpected response.')
+  const completed = new Map(statuses.filter(isProductionCompleted).map((row) => [String(row.order_id), row]))
+  if (completed.size === 0) return []
+
+  const orders = await readSalesOrderPages(companyId, false)
+  return orders.flatMap((order) => {
+    const production = completed.get(String(order.id))
+    return production ? [{ ...order, production, production_batch_no: production.batch_no || '' }] : []
+  })
 }
 
 export async function getSalesOrder(companyId, orderId) {

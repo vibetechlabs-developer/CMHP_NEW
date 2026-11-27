@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect } from 'react'
+import BatchPlanSearchSelect from '../manufacturing/BatchPlanSearchSelect'
 import './IssueToProductionModal.css'
 
 export default function IssueToProductionModal({
@@ -16,8 +17,8 @@ export default function IssueToProductionModal({
   progress = { current: 0, total: 0, currentItem: '' },
   results = null,
   // Batch plan / sales order binding (required by backend GMP rules)
-  batchPlans = [],
-  selectedBatchPlanId = '',
+  companyId,
+  selectedBatchPlan = null,
   onBatchPlanChange = null,
   salesOrderId = null,
   isAlreadyIssued = false,
@@ -54,7 +55,7 @@ export default function IssueToProductionModal({
     !isIssuing &&
     !hasShortage &&
     !isAlreadyIssued &&
-    !(batchPlans.length > 0 && !selectedBatchPlanId && !salesOrderId)
+    Boolean(selectedBatchPlan || salesOrderId)
 
   const pct =
     progress.total > 0
@@ -134,60 +135,14 @@ export default function IssueToProductionModal({
               <div style={{ fontSize: 12, fontWeight: 700, color: '#0369a1', marginBottom: 6 }}>
                 🏷️ Batch Plan / Sales Order Link (Required for GMP Compliance)
               </div>
-              {batchPlans.length > 0 ? (
-                <div>
-                  <select
-                    value={selectedBatchPlanId}
-                    onChange={(e) => onBatchPlanChange && onBatchPlanChange(e.target.value)}
-                    disabled={isIssuing}
-                    style={{
-                      width: '100%',
-                      height: 36,
-                      borderRadius: 6,
-                      border: `1.5px solid ${selectedBatchPlanId ? '#22c55e' : '#f59e0b'}`,
-                      padding: '0 10px',
-                      fontSize: 13,
-                      background: selectedBatchPlanId ? '#f0fdf4' : '#fffbeb',
-                      color: '#1e293b',
-                      outline: 'none',
-                    }}
-                  >
-                    <option value="">-- Select Batch Plan to link this issue --</option>
-                    {batchPlans.map((bp) => {
-                      const label = bp.official_batch_number || `Plan #${bp.id}`
-                      const prod = bp.product_name || bp.product_code || ''
-                      return (
-                        <option key={bp.id} value={String(bp.id)}>
-                          {label}{prod ? ` — ${prod}` : ''}
-                        </option>
-                      )
-                    })}
-                  </select>
-                  {!selectedBatchPlanId && (
-                    <div style={{ fontSize: 11, color: '#d97706', marginTop: 4 }}>
-                      ⚠️ Select a batch plan before confirming. Required by GMP/pharma compliance rules.
-                    </div>
-                  )}
-                  {selectedBatchPlanId && (
-                    <div style={{ fontSize: 11, color: '#16a34a', marginTop: 4 }}>
-                      ✅ Materials will be linked to the selected batch plan in the inventory ledger.
-                    </div>
-                  )}
-                </div>
-              ) : salesOrderId ? (
-                <div style={{ fontSize: 12, color: '#16a34a' }}>
-                  ✅ Linked to Sales Order #{salesOrderId}
-                </div>
-              ) : (
-                <div>
-                  <div style={{ fontSize: 12, color: '#dc2626', marginBottom: 6 }}>
-                    ⚠️ No batch plans found for this company. Create a Batch Plan first, or enter a batch reference manually.
-                  </div>
-                  <div style={{ fontSize: 11, color: '#64748b' }}>
-                    Go to <strong>Batch Planning</strong> in the inventory module to create one for this product, then come back and try again.
-                  </div>
-                </div>
-              )}
+              <BatchPlanSearchSelect
+                companyId={companyId}
+                value={selectedBatchPlan?.id || ''}
+                selected={selectedBatchPlan}
+                onChange={onBatchPlanChange}
+                disabled={isIssuing}
+              />
+              {!selectedBatchPlan && salesOrderId && <small>Linked to Sales Order #{salesOrderId}</small>}
             </div>
           )}
 
@@ -207,7 +162,7 @@ export default function IssueToProductionModal({
               <div>
                 <strong style={{ color: '#065f46', fontSize: 13 }}>Batch Materials Already Issued</strong>
                 <p style={{ margin: '3px 0 0', fontSize: 12, color: '#047857' }}>
-                  Materials for Batch <strong>#{batchNo || selectedBatchPlanId || '—'}</strong> have already been deducted from {cleanStoreName} and posted to the ledger. Duplicate deduction is blocked to protect inventory accuracy.
+                  Materials for Batch <strong>#{batchNo || selectedBatchPlan?.id || '—'}</strong> have already been deducted from {cleanStoreName} and posted to the ledger. Duplicate deduction is blocked to protect inventory accuracy.
                 </p>
               </div>
             </div>
@@ -421,7 +376,7 @@ export default function IssueToProductionModal({
                     ? 'Materials already issued for this batch plan'
                     : hasShortage
                     ? 'Cannot issue: resolve stock shortages first'
-                    : batchPlans.length > 0 && !selectedBatchPlanId && !salesOrderId
+                    : !selectedBatchPlan && !salesOrderId
                     ? 'Select a batch plan before issuing'
                     : undefined
                 }

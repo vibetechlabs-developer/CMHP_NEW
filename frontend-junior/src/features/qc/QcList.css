@@ -369,3 +369,52 @@
   color: #0f172a;
   padding: 0 4px;
 }
+
+.coa-register .qc-kpi-grid {
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+
+.coa-register .qc-kpi-card {
+  padding: 10px 14px;
+}
+
+.coa-register .qc-toolbar {
+  padding: 12px 16px;
+  background: #fff;
+}
+
+.coa-register .qc-toolbar-controls {
+  flex: 1 1 540px;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.coa-register .qc-search-wrap {
+  flex: 1 1 220px;
+  min-width: 0;
+  max-width: 330px;
+}
+
+.coa-register .qc-type-filter {
+  width: auto;
+  max-width: 100%;
+}
+
+.coa-history-label {
+  display: block;
+  margin-top: 4px;
+  color: #52677b;
+  font-size: 0.75rem;
+}
+
+@media (max-width: 600px) {
+  .coa-register .qc-kpi-grid {
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  }
+
+  .coa-register .qc-toolbar-controls {
+    justify-content: flex-start;
+  }
+}

@@ -13,9 +13,11 @@ import api from '../../api/axios'
 
 const base = (storeId) => `/v1/stores/${storeId}/material-requisitions`
 
-export async function listMaterialRequisitions(storeId, { batchPlanId, page, pageSize } = {}) {
+export async function listMaterialRequisitions(storeId, { batchPlanId, page, pageSize, search, status } = {}) {
   const params = {}
   if (batchPlanId) params.batch_plan = batchPlanId
+  if (search) params.search = search
+  if (status) params.status = status
   if (page) params.page = page
   if (pageSize) params.page_size = pageSize
   const response = await api.get(`${base(storeId)}/`, { params })

@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { productionService, resolveOrderDosageForm } from './productionService'
+import { isQaDemoRecord } from '../quality/qaDemoRecords'
 import { productionApiService } from './productionApiService'
 import Button from '../../components/Button'
 import StatusPill from '../../components/StatusPill'
@@ -45,7 +46,11 @@ export default function Production() {
   ])
 
   const activeCompId = useSelector(selectActiveCompanyId)
-  const [loading, setLoading] = useState(false)
+  const [verifiedOrders, setVerifiedOrders] = useState(null)
+  const syncRequest = useRef(0)
+  const [loadError, setLoadError] = useState('')
+  const verified = verifiedOrders?.companyId === activeCompId ? verifiedOrders : null
+  const loading = !verified && !loadError
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [lastSynced, setLastSynced] = useState(null)
@@ -109,27 +114,43 @@ export default function Production() {
 
   // Live API fetch — runs on mount and refreshes every 30s
   const syncFromApi = useCallback(async (showSpinner = false) => {
-    if (showSpinner) setSyncing(true)
-    try {
-      await productionApiService.fetchAndSyncOrders()
-      setLastSynced(new Date())
-    } catch {
-      // silent — Redux already has seed/cached data
-    } finally {
-      if (showSpinner) setSyncing(false)
+    const request = ++syncRequest.current
+    if (showSpinner) {
+      setSyncing(true)
+      setLoadError('')
     }
-  }, [])
+    try {
+      const live = await productionApiService.fetchAndSyncOrders({ companyId: activeCompId, throwOnError: true })
+      if (request !== syncRequest.current) return
+      const identities = new Map(live.filter((order) =>
+        order.number && !isQaDemoRecord({ orderReference: order.number }) &&
+        !(order.lines || []).some((line) => isQaDemoRecord({
+          productName: line.product_name,
+          productCode: line.product_code,
+        }))
+      ).map((order) => [String(order.id), order.number]))
+      setVerifiedOrders({ companyId: activeCompId, identities })
+      setLoadError('')
+      setLastSynced(new Date())
+    } catch (err) {
+      if (request === syncRequest.current) setLoadError(getErrorMessage(err))
+    } finally {
+      if (request === syncRequest.current) setSyncing(false)
+    }
+  }, [activeCompId])
 
   useEffect(() => {
-    syncFromApi(true) // initial load with spinner
-    const interval = setInterval(() => syncFromApi(false), 30000) // 30s poll
-    return () => clearInterval(interval)
+    syncFromApi(true)
+    const interval = setInterval(() => syncFromApi(false), 30000)
+    return () => {
+      syncRequest.current += 1
+      clearInterval(interval)
+    }
   }, [syncFromApi])
-
 
   // Derive live orders directly from Redux so QA and Production changes reflect immediately
   const orders = useMemo(() => {
-    return (reduxOrders || []).map((order) => {
+    return reduxOrders.filter((order) => order.number && verified?.identities.get(String(order.id)) === order.number).map((order) => {
       const dosage_form = resolveOrderDosageForm(order)
       const cust = reduxCustomers.find((c) => String(c.id) === String(order.customer))
       return {
@@ -147,7 +168,7 @@ export default function Production() {
         supply_by_date: order.supply_by_date || order.planned_mfg_date || order.delivery_deadline || '—',
       }
     })
-  }, [reduxOrders, reduxCustomers])
+  }, [reduxOrders, reduxCustomers, verified])
 
   // Search & Filters in a single row
   const [search, setSearch] = useState('')
@@ -366,6 +387,7 @@ export default function Production() {
         String(order.number || '').toLowerCase().includes(term) ||
         String(order.product_name || '').toLowerCase().includes(term) ||
         String(order.batch_no || '').toLowerCase().includes(term) ||
+        order.official_batch_numbers?.some((number) => number.toLowerCase().includes(term)) ||
         String(order.customer_name || '').toLowerCase().includes(term)
 
       const orderType = String(order.dosage_form || order.dosageForm || order.product_type || order.type || 'Liquid').toLowerCase()
@@ -604,6 +626,8 @@ export default function Production() {
           <div style={{ textAlign: 'center', padding: 50, color: '#64748b' }}>
             Loading production orders...
           </div>
+        ) : loadError && !verified ? (
+          <div className="prod-empty-state" role="alert">{loadError}</div>
         ) : filteredOrders.length === 0 ? (
           <div className="prod-empty-state">
             <h3>No production orders found</h3>
@@ -671,7 +695,9 @@ export default function Production() {
                       {/* 3. Batch No */}
                       <td>
                         <span style={{ fontWeight: 700, background: '#f1f5f9', padding: '3px 8px', borderRadius: 4 }}>
-                          {order.batch_no || '—'}
+                          {order.official_batch_numbers?.length
+                            ? order.official_batch_numbers.join(', ')
+                            : order.batch_no || (order.has_batch_plan ? 'Not allocated' : 'No batch plan')}
                         </span>
                       </td>
 

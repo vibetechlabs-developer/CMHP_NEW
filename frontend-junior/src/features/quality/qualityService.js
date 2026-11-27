@@ -35,7 +35,7 @@ function hydrateQcRecord(qc, state) {
   const company = state.companies.find((c) => Number(c.id) === Number(qc.company || order?.company))
   return {
     ...qc,
-    order_number: order?.number || qc.order_number || '—',
+    order_number: qc.order_number || order?.number || '—',
     customer_name: customer?.name || '—',
     company_name: company?.name || '—',
     order,
@@ -50,7 +50,7 @@ function hydrateQaRecord(qa, state) {
   return {
     ...qa,
     qc_number: qc?.number || qa.qc_number || '—',
-    order_number: order?.number || qa.order_number || '—',
+    order_number: qa.order_number || qc?.order_number || order?.number || '—',
     customer_name: customer?.name || '—',
     company_name: company?.name || '—',
     order,
@@ -73,14 +73,15 @@ export const qualityService = {
         mapped = mapped.map((batch) => {
           const matchingCase = cases.find(
             (c) =>
-              Number(c.batch_plan_id) === Number(batch.id) ||
-              Number(c.id) === Number(batch.id) ||
+              (batch.batch_plan_id && Number(c.batch_plan_id) === Number(batch.batch_plan_id)) ||
               (batch.number && c.batch_number_snapshot === batch.number)
           )
           if (matchingCase) {
             matchedCaseIds.add(matchingCase.id)
             return {
               ...batch,
+              product_name: matchingCase.product_name_snapshot || batch.product_name,
+              product_code: matchingCase.product_code_snapshot || batch.product_code,
               qc_status: matchingCase.qc_status,
               qa_status: matchingCase.qa_release_status,
               stage_status: matchingCase.stage_status,

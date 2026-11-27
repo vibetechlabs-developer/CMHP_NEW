@@ -332,7 +332,21 @@ class EligiblePurchaseOrdersView(generics.ListAPIView):
 
     def get_queryset(self):
         _get_store_for_action(self.request, self.kwargs["store_id"], RECEIVING_VIEW)
-        return eligible_purchase_orders_for_receiving(self.request.user)
+        queryset = eligible_purchase_orders_for_receiving(self.request.user)
+        search = self.request.query_params.get("search", "").strip()
+        if search:
+            queryset = queryset.filter(
+                Q(reference__icontains=search) | Q(supplier__code__icontains=search)
+            )
+        material_code = self.request.query_params.get("material_code", "").strip()
+        if material_code:
+            queryset = queryset.filter(issue_snapshot__lines__material_code_snapshot__iexact=material_code).distinct()
+        order_id = self.request.query_params.get("order_id")
+        if order_id is not None:
+            if not order_id.isascii() or not order_id.isdecimal() or len(order_id) > 18:
+                raise exceptions.ValidationError({"order_id": "Must be a valid integer id."})
+            queryset = queryset.filter(pk=int(order_id))
+        return queryset.order_by("-issued_at", "-id")
 
 
 # ---------------------------------------------------------------------------

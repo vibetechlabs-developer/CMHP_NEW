@@ -12,8 +12,8 @@ import {
   updatePurchaseOrder,
   listStorePurchasingSuppliers,
   listPurchasingSuppliers,
-  listActiveMaterials,
 } from '../purchasingService'
+import MaterialSearchSelect from '../../store/MaterialSearchSelect'
 import { listUnits } from '../../store/storeService'
 
 export default function PurchaseOrderModal({
@@ -73,7 +73,6 @@ export default function PurchaseOrderModal({
   const isReadOnly = isEdit && currentStatus && currentStatus !== 'DRAFT'
 
   const [suppliers, setSuppliers] = useState([])
-  const [materials, setMaterials] = useState([])
   const [units, setUnits] = useState([])
   const [loadingLookups, setLoadingLookups] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -142,7 +141,7 @@ export default function PurchaseOrderModal({
     }
   }, [isOpen, isEdit, order?.id])
 
-  // Load suppliers, materials, and units
+  // Load suppliers and units
   useEffect(() => {
     if (!isOpen) return
     setLoadingLookups(true)
@@ -153,12 +152,10 @@ export default function PurchaseOrderModal({
 
     Promise.all([
       fetchSuppliers,
-      listActiveMaterials(),
       listUnits({ isActive: true }).catch(() => []),
     ])
-      .then(([supplierList, materialList, unitList]) => {
+      .then(([supplierList, unitList]) => {
         setSuppliers(supplierList || [])
-        setMaterials(materialList || [])
         setUnits(unitList || [])
       })
       .catch((err) => {
@@ -235,12 +232,15 @@ export default function PurchaseOrderModal({
     setLines((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const handleLineChange = (index, field, value) => {
+  const handleLineChange = (index, field, value, material) => {
     setLines((prev) => {
       const updated = [...prev]
       updated[index] = { ...updated[index], [field]: value }
       if (field === 'material_id') {
-        const mat = materials.find((m) => String(m.id) === String(value))
+        const mat = material
+        if (!mat) {
+          Object.assign(updated[index], { material_name: '', material_code: '', material_kind: 'RAW', unit_code: '', unit_id: null, unit_is_inactive: false })
+        }
         if (mat) {
           updated[index].material_name = mat.name
           updated[index].material_code = mat.code
@@ -752,28 +752,13 @@ export default function PurchaseOrderModal({
                           </div>
                         ) : (
                           <div>
-                            <select
-                              className="ci-select"
-                              style={{
-                                width: '100%',
-                                height: 36,
-                                minHeight: 36,
-                                padding: '0 28px 0 10px',
-                                fontSize: 12.5,
-                                borderColor: matError ? '#ef4444' : '#cbd5e1',
-                                background: matError ? '#fff5f5' : '#ffffff',
-                              }}
+                            <MaterialSearchSelect
+                              id={`po-material-${idx}`}
                               value={line.material_id}
-                              onChange={(e) => handleLineChange(idx, 'material_id', e.target.value)}
+                              selected={{ id: line.material_id, code: line.material_code, name: line.material_name }}
+                              onChange={(material) => handleLineChange(idx, 'material_id', material?.id || '', material)}
                               disabled={busy}
-                            >
-                              <option value="">-- Select Material --</option>
-                              {materials.map((m) => (
-                                <option key={m.id} value={m.id}>
-                                  {m.code} &mdash; {m.name} ({m.base_unit?.code || m.base_unit_code || 'UOM'})
-                                </option>
-                              ))}
-                            </select>
+                            />
                             {matError && <div style={{ color: '#ef4444', fontSize: 11, marginTop: 2 }}>{matError}</div>}
                           </div>
                         )}

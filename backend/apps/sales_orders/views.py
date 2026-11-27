@@ -1,8 +1,10 @@
 import datetime
 
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Prefetch, Q
+from django.db.models import CharField, Exists, OuterRef, Prefetch, Q, Value
+from django.db.models.functions import Cast, Coalesce, NullIf
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
 from rest_framework import exceptions, generics
@@ -10,12 +12,14 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.bmr.models import ProductionOrderStatus
+from apps.batch_plans.models import BatchNumberAllocation
 from apps.common.errors import translate_django_validation_error
 from apps.common.pagination import BoundedPageNumberPagination
 from apps.common.validation import parse_int_filter
 from apps.companies.services import active_companies_for_user
 from apps.permissions.services import user_has_permission
-from apps.sales_orders.models import SalesOrder, SalesOrderLine
+from apps.sales_orders.models import WORKFLOW_STAGES, SalesOrder, SalesOrderLine
 from apps.sales_orders.serializers import (
     ConfirmationPolicyUpdateSerializer,
     SalesOrderConfirmSerializer,
@@ -45,7 +49,18 @@ SALES_ORDERS_CREATE = "sales_orders.create"
 SALES_ORDERS_EDIT = "sales_orders.edit"
 
 
-def order_batch_numbers(company, order_ids):
+def official_order_batch_numbers(company, order_ids):
+    numbers = {}
+    for order_id, number in BatchNumberAllocation.objects.filter(
+        batch_plan__company=company,
+        batch_plan__sales_order_line__sales_order_id__in=order_ids,
+    ).order_by("number", "id").values_list("batch_plan__sales_order_line__sales_order_id", "number"):
+        if number:
+            numbers.setdefault(order_id, []).append(number)
+    return numbers
+
+
+def order_batch_numbers(company, order_ids, *, official_numbers=None):
     """Batch number for each order: `{customer code}-{order year}-{sequence}`.
 
     The sequence is how many orders that same customer (the ordering
@@ -57,19 +72,9 @@ def order_batch_numbers(company, order_ids):
     if not wanted:
         return {}
 
-    # 1. Prefer official batch number allocation from batch plans if one exists
-    allocations = {}
-    try:
-        from apps.batch_plans.models import BatchNumberAllocation
-
-        for alloc in BatchNumberAllocation.objects.filter(
-            batch_plan__sales_order_line__sales_order_id__in=wanted
-        ).select_related("batch_plan__sales_order_line"):
-            so_id = alloc.batch_plan.sales_order_line.sales_order_id
-            if so_id and alloc.number:
-                allocations[so_id] = alloc.number
-    except Exception:
-        pass
+    if official_numbers is None:
+        official_numbers = official_order_batch_numbers(company, wanted)
+    allocations = {order_id: numbers[0] for order_id, numbers in official_numbers.items()}
 
     page_orders = list(
         SalesOrder.objects.filter(company=company, pk__in=wanted)
@@ -219,10 +224,31 @@ class SalesOrderListCreateView(generics.ListCreateAPIView):
         if not results:
             return response
         order_ids = [row.get("id") for row in results if row.get("id")]
-        numbers = order_batch_numbers(company, order_ids)
+        allocated = official_order_batch_numbers(company, order_ids)
+        if request.query_params.get("production_completed") == "true":
+            completed = {
+                status["order_id"]: status
+                for status in ProductionOrderStatus.objects.filter(
+                    company=company, order_id__in=[str(oid) for oid in order_ids]
+                ).values(
+                    "order_id", "batch_no", "bmr_status", "production_status",
+                    "qa_status", "qa_remark", "in_records", "dispatch_status", "coa_returned",
+                )
+            }
+            for row in results:
+                production = completed.get(str(row["id"]), {})
+                row["production"] = production
+                official = allocated.get(row["id"], [])
+                row["production_batch_no"] = (
+                    official[0] if len(official) == 1 else production.get("batch_no", "")
+                )
+            return response
+
+        numbers = order_batch_numbers(company, order_ids, official_numbers=allocated)
         section_flags = order_section_flags(order_ids)
         for row in results:
             row["batch_number"] = numbers.get(row.get("id"))
+            row["official_batch_numbers"] = allocated.get(row["id"], [])
             flags = section_flags.get(row.get("id"), {})
             row["has_batch_plan"] = flags.get("has_batch_plan", False)
             row["has_store_prep"] = flags.get("has_store_prep", False)
@@ -251,12 +277,21 @@ class SalesOrderListCreateView(generics.ListCreateAPIView):
         company = _get_company_for_action(self.request, self.kwargs["company_id"], SALES_ORDERS_VIEW)
         params = self.request.query_params
         queryset = _sales_order_queryset().filter(company=company)
+        if params.get("production_completed") == "true":
+            completed = ProductionOrderStatus.objects.filter(
+                company=company,
+                order_id=Cast(OuterRef("pk"), output_field=CharField()),
+                production_status__iexact="Completed",
+            )
+            queryset = queryset.filter(Exists(completed))
+
 
         search = params.get("search", "").strip()
         if search:
             queryset = queryset.filter(
                 Q(reference__icontains=search)
                 | Q(customer__name__icontains=search)
+                | Q(customer__code__icontains=search)
                 | Q(customer_order_reference__icontains=search)
             )
 
@@ -274,6 +309,41 @@ class SalesOrderListCreateView(generics.ListCreateAPIView):
             queryset = queryset.filter(order_date__gte=parsed_from)
         if parsed_to:
             queryset = queryset.filter(order_date__lte=parsed_to)
+
+        if params.get("active_only") == "true":
+            queryset = queryset.exclude(workflow_stage__in=("DISPATCHED", "IN_RECORDS"))
+
+        product_type = params.get("product_type", "").strip()
+        if product_type:
+            matching_lines = SalesOrderLine.objects.filter(
+                Q(product_type_snapshot__icontains=product_type)
+                | Q(product_name_snapshot__icontains=product_type)
+            ).values("sales_order_id")
+            queryset = queryset.filter(pk__in=matching_lines)
+
+        stage = params.get("workflow_stage", "").strip().upper()
+        deadline = params.get("deadline", "").strip().upper()
+        if stage or deadline == "OVERDUE":
+            queryset = queryset.alias(effective_stage=Coalesce(NullIf("workflow_stage", Value("")), "status"))
+        if stage:
+            if stage not in WORKFLOW_STAGES:
+                raise exceptions.ValidationError({"workflow_stage": "Unknown order stage."})
+            queryset = queryset.filter(effective_stage=stage)
+
+        if deadline:
+            today = timezone.localdate()
+            due_window_end = today + datetime.timedelta(days=7)
+            queryset = queryset.alias(
+                due_date=Coalesce("requested_delivery_date", "planned_manufacturing_date", "order_date")
+            )
+            if deadline == "DUE_SOON":
+                queryset = queryset.filter(due_date__range=(today, due_window_end))
+            elif deadline == "OVERDUE":
+                queryset = queryset.filter(due_date__lt=today).exclude(effective_stage="COMPLETED")
+            elif deadline == "ON_TIME":
+                queryset = queryset.filter(due_date__gt=due_window_end)
+            else:
+                raise exceptions.ValidationError({"deadline": "Unknown deadline filter."})
 
         return queryset.order_by("-created_at", "-id")
 

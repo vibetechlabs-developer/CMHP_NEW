@@ -4,25 +4,48 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import PageHeader from '../../components/PageHeader'
 import StatusPill from '../../components/StatusPill'
 import Button from '../../components/Button'
-import { selectActiveCompanyKey } from '../../utils/companySelectors'
-import { resolveOrderDosageForm } from '../production/productionService'
+import Alert from '../../components/Alert'
+import { getErrorMessage } from '../../utils/errors'
+import { selectActiveCompanyId } from '../../utils/companySelectors'
+import { listCompletedProductionOrders } from '../operations/salesOrdersService'
+import { normalizeOrder } from '../production/productionApiService'
 import { DOSAGE_FORMS } from '../../constants/dosageForms'
-import { getQcTemplate, VERIFIED_QC_ORDERS } from './qcTemplates'
+import { getQcTemplate } from './qcTemplates'
 import './QcList.css'
 
-export default function QcList({ onSelectOrder, companyId }) {
+export default function QcList({ onSelectOrder, companyId, refreshVersion = 0 }) {
   const navigate = useNavigate()
   const location = useLocation()
 
-  const activeCompKey = useSelector(selectActiveCompanyKey)
-  const compKey = companyId === 2 || companyId === '2' ? 'cmhp' : (companyId === 3 || companyId === '3' ? 'tej' : activeCompKey)
-  const rawReduxOrders = useSelector((state) => state.erp.byCompany?.[compKey]?.orders || state.erp.orders || [])
-  // Merge VERIFIED_QC_ORDERS as guaranteed fallback so COA tab always shows orders
-  const verifiedForComp = VERIFIED_QC_ORDERS.filter((o) => o.companyId === compKey)
-  const reduxOrders = [
-    ...rawReduxOrders,
-    ...verifiedForComp.filter((v) => !rawReduxOrders.some((r) => String(r.id) === String(v.id))),
-  ]
+  const activeCompanyId = useSelector(selectActiveCompanyId)
+  const effectiveCompanyId = companyId || activeCompanyId
+  const [loaded, setLoaded] = useState(null)
+  const [retry, setRetry] = useState(0)
+  const current = loaded?.companyId === effectiveCompanyId ? loaded : null
+  const loading = !current
+  const orders = current?.orders
+
+  useEffect(() => {
+    let cancelled = false
+    setLoaded(null)
+    listCompletedProductionOrders(effectiveCompanyId)
+      .then((rows) => {
+        if (cancelled) return
+        const orders = rows.map((row) => ({
+          ...normalizeOrder(row, { [row.id]: row.production }),
+          batch_no: row.production_batch_no || '',
+          coa_returned: Boolean(row.production?.coa_returned),
+        }))
+        setLoaded({ companyId: effectiveCompanyId, orders })
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setLoaded({ companyId: effectiveCompanyId, orders: [], error: getErrorMessage(err), httpStatus: err?.response?.status })
+        }
+      })
+    return () => { cancelled = true }
+  }, [effectiveCompanyId, refreshVersion, retry])
+
   const reduxDosageForms = useSelector((state) => state.erp.dosageForms || [])
   const dosageForms = reduxDosageForms.length ? reduxDosageForms : DOSAGE_FORMS
 
@@ -46,11 +69,10 @@ export default function QcList({ onSelectOrder, companyId }) {
     } catch {}
   }
 
-  // Filter only orders whose BMR is complete ("BMR complete" condition: bmr_status === 'YES')
-  const bmrCompleteOrders = useMemo(() => {
-    return reduxOrders
+  const eligibleOrders = useMemo(() => {
+    return (orders || [])
       .map((order) => {
-        const dosage_form = resolveOrderDosageForm(order)
+        const dosage_form = order.dosage_form
         let qa_status = order.qa_status || 'Pending'
         let qa_remark = order.qa_remark || ''
         try {
@@ -71,20 +93,15 @@ export default function QcList({ onSelectOrder, companyId }) {
           bmr_status: order.bmr_status || 'NO',
           qa_status,
           qa_remark,
+          inHistory: !order.coa_returned && (
+            order.in_records === true || String(order.in_records) === 'true' ||
+            order.status === 'IN_RECORDS' ||
+            String(order.dispatch_status || '').toUpperCase() === 'YES' ||
+            order.is_dispatched === true
+          ),
         }
       })
-      .filter((order) => {
-        if ((order.bmr_status || '').toUpperCase() !== 'YES') return false
-        const inRec =
-          order.in_records === true ||
-          order.in_records === 'true' ||
-          order.status === 'IN_RECORDS' ||
-          (order.dispatch_status || '').toUpperCase() === 'YES' ||
-          order.is_dispatched === true
-        if (inRec && !order.coa_returned) return false
-        return true
-      })
-  }, [reduxOrders, qaStatusOverrides])
+  }, [orders, qaStatusOverrides])
 
   // Handle highlight on redirect from Production's QC button (2-second clean highlight)
   useEffect(() => {
@@ -116,7 +133,7 @@ export default function QcList({ onSelectOrder, companyId }) {
   // Filters (search + Type + QA Status)
   const filteredOrders = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return bmrCompleteOrders.filter((order) => {
+    return eligibleOrders.filter((order) => {
       // Type filter
       if (typeFilter !== 'ALL') {
         const orderType = (order.dosage_form || order.dosageForm || order.product_type || order.type || '').toLowerCase()
@@ -149,7 +166,7 @@ export default function QcList({ onSelectOrder, companyId }) {
 
       return true
     })
-  }, [bmrCompleteOrders, search, typeFilter, qaStatusFilter])
+  }, [eligibleOrders, search, typeFilter, qaStatusFilter])
 
   // Pagination
   const totalPages = Math.ceil(filteredOrders.length / pageSize) || 1
@@ -160,10 +177,10 @@ export default function QcList({ onSelectOrder, companyId }) {
 
   // Summary Metrics
   const oilCount = useMemo(() => {
-    return bmrCompleteOrders.filter((o) => (o.dosage_form || '').toLowerCase() === 'oil').length
-  }, [bmrCompleteOrders])
+    return eligibleOrders.filter((o) => (o.dosage_form || '').toLowerCase() === 'oil').length
+  }, [eligibleOrders])
 
-  const otherCount = bmrCompleteOrders.length - oilCount
+  const otherCount = eligibleOrders.length - oilCount
   const isFiltered = Boolean(search || typeFilter !== 'ALL' || qaStatusFilter !== 'ALL')
 
   const resetFilters = () => {
@@ -173,16 +190,16 @@ export default function QcList({ onSelectOrder, companyId }) {
     setCurrentPage(1)
   }
 
-  const handleOpenView = (orderId) => {
+  const handleOpenView = (order) => {
     if (onSelectOrder) {
-      onSelectOrder(orderId)
+      onSelectOrder(order)
     } else {
-      navigate(`/qc/view/${orderId}`)
+      navigate(`/qc/view/${order.id}`, { state: { coaOrder: order } })
     }
   }
 
   return (
-    <div className="qc-page-container">
+    <div className="qc-page-container coa-register">
       {!onSelectOrder && (
         <PageHeader
           title="Quality Control (QC)"
@@ -190,40 +207,19 @@ export default function QcList({ onSelectOrder, companyId }) {
         />
       )}
 
-      {/* KPI METRICS CARDS */}
       <div className="qc-kpi-grid">
-        <div className="qc-kpi-card">
-          <div className="qc-kpi-icon" style={{ background: '#f0fdf4', color: '#16a34a' }}>
-            🔬
+        {[
+          ['Production completed', eligibleOrders.length],
+          ['Oil products', oilCount],
+          ['Other dosage forms', otherCount],
+        ].map(([label, count]) => (
+          <div className="qc-kpi-card" key={label}>
+            <div className="qc-kpi-info">
+              <span className="qc-kpi-label">{label}</span>
+              <strong className="qc-kpi-value">{loading || current?.error ? '—' : count}</strong>
+            </div>
           </div>
-          <div className="qc-kpi-info">
-            <span className="qc-kpi-label">BMR Completed Orders</span>
-            <span className="qc-kpi-value">{bmrCompleteOrders.length}</span>
-            <span className="qc-kpi-subtext">Eligible for Certificate of Analysis</span>
-          </div>
-        </div>
-
-        <div className="qc-kpi-card">
-          <div className="qc-kpi-icon" style={{ background: '#ecfdf5', color: '#0d9488' }}>
-            📜
-          </div>
-          <div className="qc-kpi-info">
-            <span className="qc-kpi-label">Finished Product Oil (CoA Ready)</span>
-            <span className="qc-kpi-value" style={{ color: '#0d9488' }}>{oilCount}</span>
-            <span className="qc-kpi-subtext">SOP/QC/11/F-05/00 format</span>
-          </div>
-        </div>
-
-        <div className="qc-kpi-card">
-          <div className="qc-kpi-icon" style={{ background: '#eff6ff', color: '#2563eb' }}>
-            📋
-          </div>
-          <div className="qc-kpi-info">
-            <span className="qc-kpi-label">Other Dosage Forms</span>
-            <span className="qc-kpi-value" style={{ color: '#2563eb' }}>{otherCount}</span>
-            <span className="qc-kpi-subtext">Standardized testing pipeline</span>
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* MAIN REGISTER PANEL */}
@@ -251,6 +247,7 @@ export default function QcList({ onSelectOrder, companyId }) {
               <input
                 type="text"
                 className="qc-search-input"
+                aria-label="Search CoA orders"
                 placeholder="Search order #, customer, product, batch..."
                 value={search}
                 onChange={(e) => {
@@ -272,6 +269,7 @@ export default function QcList({ onSelectOrder, companyId }) {
 
             <select
               className="qc-type-filter"
+              aria-label="Product type"
               value={typeFilter}
               onChange={(e) => {
                 setTypeFilter(e.target.value)
@@ -288,12 +286,12 @@ export default function QcList({ onSelectOrder, companyId }) {
 
             <select
               className="qc-type-filter"
+              aria-label="QA status"
               value={qaStatusFilter}
               onChange={(e) => {
                 setQaStatusFilter(e.target.value)
                 setCurrentPage(1)
               }}
-              style={{ minWidth: 150 }}
             >
               <option value="ALL">All QA Statuses</option>
               <option value="Pending">⏳ Pending QA</option>
@@ -316,13 +314,28 @@ export default function QcList({ onSelectOrder, companyId }) {
 
         {/* ORDERS TABLE */}
         <div className="qc-table-scroll">
-          {filteredOrders.length === 0 ? (
+          {current?.error ? (
+            <div className="qc-empty-state">
+              <h3>Unable to load CoA orders</h3>
+              <Alert type="error">
+                {current.error}{current.httpStatus ? ` (HTTP ${current.httpStatus})` : ''}
+              </Alert>
+              <Button type="button" variant="secondary" onClick={() => {
+                setLoaded(null)
+                setRetry((attempt) => attempt + 1)
+              }}>
+                Retry
+              </Button>
+            </div>
+          ) : loading ? (
+            <div className="qc-empty-state" role="status">Loading completed production orders…</div>
+          ) : filteredOrders.length === 0 ? (
             <div className="qc-empty-state">
               <h3>No QC Orders Found</h3>
               <p>
-                {bmrCompleteOrders.length === 0
-                  ? 'No orders with completed BMRs found for this company. Once a manufacturing BMR is completed in Production, the order will appear here for Quality Control (CoA) release.'
-                  : 'No orders match your current search and type filters.'}
+                {eligibleOrders.length === 0
+                  ? 'No production-completed orders are available for CoA.'
+                  : 'No orders match your current filters.'}
               </p>
             </div>
           ) : (
@@ -350,7 +363,7 @@ export default function QcList({ onSelectOrder, companyId }) {
                       key={order.id}
                       id={`qc-row-${order.id}`}
                       className={`qc-row ${String(highlightedId) === String(order.id) ? 'qc-row-highlight' : ''}`}
-                      onClick={() => handleOpenView(order.id)}
+                      onClick={() => handleOpenView(order)}
                     >
                       <td className="cell-strong">
                         <span className="qc-order-link">
@@ -386,14 +399,15 @@ export default function QcList({ onSelectOrder, companyId }) {
                       </td>
 
                       <td>
-                        <StatusPill tone="success">
-                          Completed
+                        <StatusPill tone={order.bmr_status === 'YES' ? 'success' : 'warning'}>
+                          {order.bmr_status === 'YES' ? 'Completed' : 'Pending'}
                         </StatusPill>
                       </td>
 
                       <td onClick={(e) => e.stopPropagation()}>
                         <select
                           className="qc-status-select"
+                          disabled={order.inHistory}
                           value={order.qa_status || 'Pending'}
                           onChange={(e) => handleQaStatusChange(order.id, e.target.value)}
                           style={{
@@ -413,6 +427,11 @@ export default function QcList({ onSelectOrder, companyId }) {
                           <option value="Approved">Approved</option>
                           <option value="Rejected">Rejected</option>
                         </select>
+                        {order.inHistory && (
+                          <span className="coa-history-label">
+                            {order.dispatch_status === 'YES' || order.is_dispatched ? 'Dispatched' : 'In Records'}
+                          </span>
+                        )}
                         {order.qa_remark && (
                           <div style={{ fontSize: 10.5, color: '#b91c1c', marginTop: 2 }} title={order.qa_remark}>
                             ⚠️ {order.qa_remark}
@@ -424,7 +443,7 @@ export default function QcList({ onSelectOrder, companyId }) {
                         <button
                           type="button"
                           className="qc-view-btn"
-                          onClick={() => handleOpenView(order.id)}
+                          onClick={() => handleOpenView(order)}
                           title="Open Certificate of Analysis (CoA)"
                         >
                           👁️ View CoA

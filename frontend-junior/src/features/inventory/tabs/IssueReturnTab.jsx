@@ -20,7 +20,7 @@ import Modal from '../components/Modal'
 import { useConfirmDialog } from '../components/ConfirmDialog'
 import { getErrorMessage } from '../../../utils/errors'
 import { getMyStores, listMyCompanies } from '../../store/storeService'
-import { listActiveMaterials } from '../purchasingService'
+import MaterialSearchSelect from '../../store/MaterialSearchSelect'
 import { getStorePermissionCodes } from '../../operations/storePreparationService'
 import {
   listMaterialIssues,
@@ -70,13 +70,13 @@ export default function IssueReturnTab({ storeId: propStoreId }) {
   const { confirm, prompt, ConfirmNode } = useConfirmDialog()
 
   const [codes, setCodes] = useState([])
-  const [materials, setMaterials] = useState([])
   const [companies, setCompanies] = useState([])
 
   // Issues state + filters
   const [issues, setIssues] = useState({ loading: true, results: [], count: 0, error: '' })
   const [issueSearch, setIssueSearch] = useState('')
-  const [issueMaterial, setIssueMaterial] = useState('')
+  const [issueMaterialOption, setIssueMaterial] = useState(null)
+  const issueMaterial = issueMaterialOption?.id || ''
   const [issueCompany, setIssueCompany] = useState('')
   const [issueKind, setIssueKind] = useState('')
   const [issueStatus, setIssueStatus] = useState('')
@@ -92,7 +92,8 @@ export default function IssueReturnTab({ storeId: propStoreId }) {
 
   // Returns state + filters
   const [returns, setReturns] = useState({ loading: false, results: [], count: 0, error: '' })
-  const [returnMaterial, setReturnMaterial] = useState('')
+  const [returnMaterialOption, setReturnMaterial] = useState(null)
+  const returnMaterial = returnMaterialOption?.id || ''
   const [returnType, setReturnType] = useState('')
   const [returnDisposition, setReturnDisposition] = useState('')
   const [returnPage, setReturnPage] = useState(1)
@@ -139,7 +140,6 @@ export default function IssueReturnTab({ storeId: propStoreId }) {
   }, [storeId])
 
   useEffect(() => {
-    listActiveMaterials().then(setMaterials).catch(() => setMaterials([]))
     listMyCompanies().then(setCompanies).catch(() => setCompanies([]))
   }, [])
 
@@ -257,7 +257,7 @@ export default function IssueReturnTab({ storeId: propStoreId }) {
 
   const handleClearIssueFilters = () => {
     setIssueSearch('')
-    setIssueMaterial('')
+    setIssueMaterial(null)
     setIssueCompany('')
     setIssueKind('')
     setIssueStatus('')
@@ -641,17 +641,13 @@ export default function IssueReturnTab({ storeId: propStoreId }) {
 
             {/* Row 2: Material + Product + Batch + Date Range + Actions */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', paddingTop: 8, borderTop: '1px solid #f1f5f9' }}>
-              <select
-                className="ci-select stocks-select-input"
+              <MaterialSearchSelect
                 value={issueMaterial}
-                onChange={(e) => { setIssueMaterial(e.target.value); setIssuePage(1) }}
-                style={{ minWidth: 160, padding: '6px 10px', fontSize: 13, borderRadius: 6, border: '1px solid #cbd5e1' }}
-              >
-                <option value="">All Materials</option>
-                {materials.map((m) => (
-                  <option key={m.id} value={m.id}>{m.code} — {m.name}</option>
-                ))}
-              </select>
+                selected={issueMaterialOption}
+                onChange={(material) => { setIssueMaterial(material); setIssuePage(1) }}
+                placeholder="All materials"
+                includeInactive
+              />
               <input
                 type="text"
                 className="ci-input"
@@ -1013,15 +1009,13 @@ export default function IssueReturnTab({ storeId: propStoreId }) {
               boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
             }}
           >
-            <select
-              className="ci-select stocks-select-input"
-              value={returnMaterial}
-              onChange={(e) => { setReturnMaterial(e.target.value); setReturnPage(1) }}
-              style={{ minWidth: 180, fontSize: 13, padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1' }}
-            >
-              <option value="">All Materials</option>
-              {materials.map((m) => (<option key={m.id} value={m.id}>{m.code} — {m.name}</option>))}
-            </select>
+            <MaterialSearchSelect
+                value={returnMaterial}
+                selected={returnMaterialOption}
+                onChange={(material) => { setReturnMaterial(material); setReturnPage(1) }}
+                placeholder="All materials"
+                includeInactive
+              />
             <select
               className="ci-select stocks-select-input"
               value={returnType}
@@ -1045,7 +1039,7 @@ export default function IssueReturnTab({ storeId: propStoreId }) {
             </select>
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
               {(returnMaterial || returnType || returnDisposition) && (
-                <Button size="sm" variant="secondary" onClick={() => { setReturnMaterial(''); setReturnType(''); setReturnDisposition(''); setReturnPage(1) }}>
+                <Button size="sm" variant="secondary" onClick={() => { setReturnMaterial(null); setReturnType(''); setReturnDisposition(''); setReturnPage(1) }}>
                   Clear Filters
                 </Button>
               )}

@@ -15,6 +15,7 @@ from apps.companies.services import active_companies_for_user
 from apps.catalog.models import Material, UnitOfMeasure
 from apps.permissions.services import user_has_permission
 from apps.stock_movements.models import (
+    AnalyticalReportSequence,
     CutoverStockDraft,
     LotQualityStatus,
     MaterialIssue,
@@ -132,7 +133,7 @@ def stock_movements_queryset(*, store, accessible_companies):
     )
 
 
-def compute_stock_balances(*, store, accessible_companies, material_id=None, material_ids=None, posted_from=None, posted_to=None, issue_eligible_only=False):
+def compute_stock_balances(*, store, accessible_companies, material_id=None, material_ids=None, posted_from=None, posted_to=None, issue_eligible_only=False, movement_filter=None):
     """Recorded-receipt totals, grouped by (material, unit, source_company)
     - NEVER just (material), so two lines for the same material recorded
     in different units are never summed together as if they were the
@@ -160,6 +161,8 @@ def compute_stock_balances(*, store, accessible_companies, material_id=None, mat
     from django.db.models import Q
 
     queryset = stock_movements_queryset(store=store, accessible_companies=accessible_companies)
+    if movement_filter is not None:
+        queryset = queryset.filter(movement_filter)
     if material_ids is not None:
         queryset = queryset.filter(material_id__in=material_ids)
     elif material_id is not None:
@@ -180,12 +183,12 @@ def compute_stock_balances(*, store, accessible_companies, material_id=None, mat
 
     return (
         queryset.values(
-            "material_id", "material_code_snapshot", "material_name_snapshot",
+            "material_id", "material_code_snapshot", "material_name_snapshot", "material__kind", "material__description",
             "unit_id", "unit_code_snapshot", "unit_name_snapshot",
             "source_company_id", "source_company__code",
         )
         .annotate(recorded_receipt_quantity=Sum("quantity"))
-        .order_by("material_code_snapshot", "unit_code_snapshot", "source_company__code")
+        .order_by("material_code_snapshot", "unit_code_snapshot", "source_company__code", "material_id", "unit_id", "source_company_id", "material_name_snapshot", "unit_name_snapshot")
     )
 
 
@@ -1320,13 +1323,33 @@ def set_lot_quality_status(*, actor, stock_movement_id, status, ar_no="", chemis
     """
     if status not in LotQualityStatus.Status.values:
         raise DjangoValidationError({"status": f"Must be one of {list(LotQualityStatus.Status.values)}."})
-    movement = get_object_or_404(StockMovement, pk=stock_movement_id)
+    movement = get_object_or_404(StockMovement.objects.select_for_update(), pk=stock_movement_id)
+    existing_number = LotQualityStatus.objects.filter(stock_movement=movement).values_list("ar_no", flat=True).first()
+    code = {
+        Material.Kind.RAW_MATERIAL: "RM",
+        Material.Kind.PACKAGING_MATERIAL: "PM",
+    }.get(movement.material.kind)
+    report_number = (ar_no or "").strip()
+    if code:
+        report_number = existing_number or ""
+        if not report_number and status in (LotQualityStatus.Status.APPROVED, LotQualityStatus.Status.REJECTED):
+            sequence, created = AnalyticalReportSequence.objects.select_for_update().get_or_create(code=code)
+            prefix = f"AR|{code}|"
+            if created:
+                existing_suffixes = (
+                    value.removeprefix(prefix)
+                    for value in LotQualityStatus.objects.filter(ar_no__startswith=prefix).values_list("ar_no", flat=True)
+                )
+                sequence.last_number = max((int(value) for value in existing_suffixes if value.isascii() and value.isdecimal()), default=0)
+            sequence.last_number += 1
+            sequence.save(update_fields=["last_number"])
+            report_number = f"{prefix}{sequence.last_number:04d}"
     now = timezone.now()
     obj, _created = LotQualityStatus.objects.update_or_create(
         stock_movement=movement,
         defaults={
             "status": status,
-            "ar_no": (ar_no or "").strip(),
+            "ar_no": report_number,
             "chemist": (chemist or "").strip(),
             "remarks": (remarks or "").strip(),
             "decided_by": actor,

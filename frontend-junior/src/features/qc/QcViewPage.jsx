@@ -1,9 +1,8 @@
 import React, { useMemo, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { selectActiveCompanyKey } from '../../utils/companySelectors'
 import { resolveOrderDosageForm } from '../production/productionService'
-import { VERIFIED_QC_ORDERS } from './qcTemplates'
 import {
   normalizeCoaDosageForm,
   getCoaComponent,
@@ -11,9 +10,11 @@ import {
 } from './qcRegistry'
 import './QcViewPage.css'
 
-export default function QcViewPage({ orderId: orderIdProp, onBack }) {
+export default function QcViewPage({ orderId: orderIdProp, order: orderProp, onBack }) {
   const params = useParams()
-  const orderId = orderIdProp || params.orderId
+  const routedOrder = useLocation().state?.coaOrder
+  const orderId = orderProp?.id || orderIdProp || params.orderId
+  const selectedOrder = orderProp || (String(routedOrder?.id) === String(orderId) ? routedOrder : null)
   const navigate = useNavigate()
 
   const compKey = useSelector(selectActiveCompanyKey)
@@ -34,15 +35,10 @@ export default function QcViewPage({ orderId: orderIdProp, onBack }) {
 
   // Find order
   const baseOrder = useMemo(() => {
-    return (
-      reduxOrders.find(
-        (o) => String(o.id) === String(orderId) || String(o.number) === String(orderId)
-      ) ||
-      VERIFIED_QC_ORDERS.find(
+    return selectedOrder || reduxOrders.find(
         (o) => String(o.id) === String(orderId) || String(o.number) === String(orderId)
       )
-    )
-  }, [reduxOrders, orderId])
+  }, [reduxOrders, orderId, selectedOrder])
 
   // Multi-product line support
   const [activeLineIdx, setActiveLineIdx] = useState(0)

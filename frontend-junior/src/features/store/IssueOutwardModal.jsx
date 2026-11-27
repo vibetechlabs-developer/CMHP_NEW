@@ -23,8 +23,8 @@ import {
   postMaterialIssue,
   updateMaterialIssue,
 } from './materialIssueService'
-import { listActiveMaterials } from '../inventory/purchasingService'
-import { listBatchPlans } from '../manufacturing/batchPlansService'
+import MaterialSearchSelect from './MaterialSearchSelect'
+import BatchPlanSearchSelect from '../manufacturing/BatchPlanSearchSelect'
 import '../inventory/tabs/StockLedger.css'
 import '../inventory/tabs/CommonInventory.css'
 
@@ -53,17 +53,16 @@ export default function IssueOutwardModal({
 }) {
   const { confirm, ConfirmNode } = useConfirmDialog()
   const [selectedMaterialId, setSelectedMaterialId] = useState(materialId ? String(materialId) : '')
-  const [materialList, setMaterialList] = useState([])
+  const [activeMaterial, setActiveMaterial] = useState(null)
   const [balances, setBalances] = useState({ loading: false, rows: [], error: '' })
   const [codes, setCodes] = useState([])
-  const [batchPlans, setBatchPlans] = useState([])
+  const [selectedBatchPlan, setSelectedBatchPlan] = useState(null)
   const [sourceCompanyId, setSourceCompanyId] = useState(initialCompanyId ? String(initialCompanyId) : '')
   const [issuedAt, setIssuedAt] = useState(() => toLocalDateTimeInput(new Date().toISOString()))
   const [issuedQuantity, setIssuedQuantity] = useState(initialQuantity ? String(initialQuantity) : '')
   const [batchReference, setBatchReference] = useState(initialBatchReference || '')
   const [selectedBatchPlanId, setSelectedBatchPlanId] = useState('')
   const [selectedSalesOrderId, setSelectedSalesOrderId] = useState('')
-  const [isCustomBatch, setIsCustomBatch] = useState(false)
   const [productReference, setProductReference] = useState(initialProductReference || '')
   const [remarks, setRemarks] = useState(initialRemarks || '')
   const [extraLines, setExtraLines] = useState([]) // additional materials for multi-line slip
@@ -77,23 +76,8 @@ export default function IssueOutwardModal({
   const idempotencyKeyRef = useRef(`${Date.now()}-${Math.random().toString(36).slice(2)}`)
 
   const effectiveMaterialId = selectedMaterialId || (materialId ? String(materialId) : '')
-  const activeMaterial = materialList.find((m) => String(m.id) === effectiveMaterialId)
   const effectiveCode = materialCode || activeMaterial?.code || (draft?.material_code_snapshot || '')
   const effectiveName = materialName || activeMaterial?.name || (draft?.material_name_snapshot || '')
-
-  // Load materials list if materialId not fixed
-  useEffect(() => {
-    if (!materialId) {
-      listActiveMaterials()
-        .then((mats) => {
-          setMaterialList(mats || [])
-          if (mats && mats.length > 0 && !selectedMaterialId) {
-            setSelectedMaterialId(String(mats[0].id))
-          }
-        })
-        .catch(() => setMaterialList([]))
-    }
-  }, [materialId])
 
   // Load existing issue when editing
   useEffect(() => {
@@ -107,6 +91,11 @@ export default function IssueOutwardModal({
         if (issue.issued_at) setIssuedAt(toLocalDateTimeInput(issue.issued_at))
         if (issue.issued_quantity) setIssuedQuantity(String(issue.issued_quantity))
         if (issue.batch_reference) setBatchReference(issue.batch_reference)
+        if (issue.batch_plan_id) {
+          setSelectedBatchPlan({ id: issue.batch_plan_id, official_batch_number: issue.batch_reference })
+          setSelectedBatchPlanId(String(issue.batch_plan_id))
+        }
+        if (issue.sales_order_id) setSelectedSalesOrderId(String(issue.sales_order_id))
         if (issue.product_reference) setProductReference(issue.product_reference)
         if (issue.remarks) setRemarks(issue.remarks)
         if (issue.material_id) setSelectedMaterialId(String(issue.material_id))
@@ -136,17 +125,6 @@ export default function IssueOutwardModal({
     getStorePermissionCodes(storeId).then(setCodes).catch(() => setCodes([]))
   }, [storeId])
 
-  // Fetch batch plans for company to derive product from batch
-  useEffect(() => {
-    if (!sourceCompanyId) {
-      setBatchPlans([])
-      return
-    }
-    listBatchPlans(Number(sourceCompanyId))
-      .then((data) => setBatchPlans(data.results || []))
-      .catch(() => setBatchPlans([]))
-  }, [sourceCompanyId])
-
   const canPost = codes.includes('stock_issue.post')
   const selectedBalance = balances.rows.find((r) => String(r.source_company_id) === String(sourceCompanyId))
   const netAvailable = selectedBalance ? Number(selectedBalance.net_quantity) : null
@@ -172,22 +150,13 @@ export default function IssueOutwardModal({
     onClose()
   }
 
-  // Handle batch selection: bind plan/order and derive product from the chosen batch plan
-  const handleBatchSelect = (batchRef) => {
-    setBatchReference(batchRef)
+  const handleBatchSelect = (plan) => {
+    setSelectedBatchPlan(plan)
+    setSelectedBatchPlanId(plan ? String(plan.id) : '')
+    setSelectedSalesOrderId(plan?.sales_order_id ? String(plan.sales_order_id) : '')
+    setBatchReference(plan?.official_batch_number || (plan ? `Plan #${plan.id}` : ''))
+    setProductReference(plan?.product_name || plan?.product_code || '')
     markDirty()
-    const matchedPlan = batchPlans.find(
-      (p) => (p.official_batch_number && p.official_batch_number === batchRef) || String(p.id) === batchRef
-    )
-    if (matchedPlan) {
-      setSelectedBatchPlanId(String(matchedPlan.id))
-      setSelectedSalesOrderId(matchedPlan.sales_order_id ? String(matchedPlan.sales_order_id) : '')
-      setProductReference(matchedPlan.product_name || matchedPlan.product_code || '')
-      if (matchedPlan.official_batch_number) setBatchReference(matchedPlan.official_batch_number)
-    } else {
-      setSelectedBatchPlanId('')
-      setSelectedSalesOrderId('')
-    }
   }
 
   const handleIssueAndPost = async () => {
@@ -390,25 +359,18 @@ export default function IssueOutwardModal({
           <label className="field-label" htmlFor="issue-material-select" style={{ marginBottom: 5, fontSize: 12, fontWeight: 700 }}>
             Select Material *
           </label>
-          <select
+          <MaterialSearchSelect
             id="issue-material-select"
-            className="company-input"
-            style={{ width: '100%', height: 40 }}
             value={effectiveMaterialId}
-            onChange={(e) => {
-              setSelectedMaterialId(e.target.value)
+            selected={activeMaterial || { id: effectiveMaterialId, code: effectiveCode, name: effectiveName }}
+            onChange={(material) => {
+              setActiveMaterial(material)
+              setSelectedMaterialId(material ? String(material.id) : '')
               setSourceCompanyId('')
-              markDirty()
+              handleBatchSelect(null)
             }}
             disabled={draft != null}
-          >
-            <option value="">-- Choose Material --</option>
-            {materialList.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.code} — {m.name} ({m.base_unit_code || m.base_unit?.code || 'UOM'})
-              </option>
-            ))}
-          </select>
+          />
         </div>
       )}
 
@@ -453,7 +415,7 @@ export default function IssueOutwardModal({
               className="company-input"
               style={{ width: '100%', height: 40 }}
               value={sourceCompanyId}
-              onChange={(e) => { setSourceCompanyId(e.target.value); markDirty() }}
+              onChange={(e) => { setSourceCompanyId(e.target.value); handleBatchSelect(null) }}
               disabled={draft != null}
             >
               <option value="">Choose company…</option>
@@ -512,67 +474,14 @@ export default function IssueOutwardModal({
               <label className="field-label" htmlFor="issue-batch" style={{ marginBottom: 5, fontSize: 12 }}>
                 Batch plan / production batch *
               </label>
-              {batchPlans.length > 0 && !isCustomBatch ? (
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <select
-                    id="issue-batch"
-                    aria-label="Batch plan / production batch (required)"
-                    className="company-input"
-                    value={selectedBatchPlanId ? (batchPlans.find((p) => String(p.id) === selectedBatchPlanId)?.official_batch_number || `Plan #${selectedBatchPlanId}`) : batchReference}
-                    onChange={(e) => {
-                      if (e.target.value === '__custom__') {
-                        setIsCustomBatch(true)
-                        setBatchReference('')
-                        setSelectedBatchPlanId('')
-                        markDirty()
-                      } else {
-                        handleBatchSelect(e.target.value)
-                      }
-                    }}
-                    disabled={draft?.status === 'POSTED'}
-                    style={{ width: '100%', height: 38 }}
-                    required
-                  >
-                    <option value="">-- Select Batch Plan --</option>
-                    {batchPlans.map((bp) => {
-                      const num = bp.official_batch_number || `Plan #${bp.id}`
-                      return (
-                        <option key={bp.id} value={num}>
-                          {num} {bp.product_name ? `— ${bp.product_name}` : ''}
-                        </option>
-                      )
-                    })}
-                  </select>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <input
-                    id="issue-batch"
-                    aria-label="Official production batch no (optional)"
-                    className="company-input"
-                    value={batchReference}
-                    onChange={(e) => { setBatchReference(e.target.value); markDirty() }}
-                    disabled={draft?.status === 'POSTED'}
-                    maxLength={100}
-                    placeholder="e.g. GH2609 or NA"
-                    style={{ width: '100%', height: 38 }}
-                  />
-                  {batchPlans.length > 0 && (
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      style={{ whiteSpace: 'nowrap', height: 38, fontSize: 12 }}
-                      onClick={() => {
-                        setIsCustomBatch(false)
-                        setBatchReference('')
-                      }}
-                      title="Choose from existing batch plans"
-                    >
-                      Pick list
-                    </button>
-                  )}
-                </div>
-              )}
+              <BatchPlanSearchSelect
+                id="issue-batch"
+                companyId={sourceCompanyId}
+                value={selectedBatchPlanId}
+                selected={selectedBatchPlan}
+                onChange={handleBatchSelect}
+                disabled={draft?.status === 'POSTED'}
+              />
             </div>
 
             <div>

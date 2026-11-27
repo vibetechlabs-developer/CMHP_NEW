@@ -36,6 +36,8 @@ export default function InwardStockModal({
   const { confirm, ConfirmNode } = useConfirmDialog()
   const [mode, setMode] = useState('po') // 'po' | 'direct'
   const [pos, setPos] = useState({ loading: true, results: [], error: '' })
+  const [poSearch, setPoSearch] = useState('')
+  const [poPage, setPoPage] = useState(1)
   const [showAllPos, setShowAllPos] = useState(false)
   const [selectedPo, setSelectedPo] = useState(null)
   const [selectedLineId, setSelectedLineId] = useState(null)
@@ -138,9 +140,6 @@ export default function InwardStockModal({
     onClose()
   }
 
-  const matchesMaterial = (po) =>
-    !materialCode || po.delivery_progress.some((line) => line.material_code_snapshot === materialCode)
-
   const selectPo = (po) => {
     setSelectedPo(po)
     markDirty()
@@ -242,29 +241,60 @@ export default function InwardStockModal({
     markDirty()
   }
 
+  const targetPoId = prefillPoId || prefillPo?.id || initialDraft?.source_purchase_order_id ||
+    (editReceiptId ? draft?.source_purchase_order_id : null)
+  const draftSourceId = initialDraft?.source_purchase_order_id || (editReceiptId ? draft?.source_purchase_order_id : null)
+
   useEffect(() => {
-    listEligiblePurchaseOrders(storeId, { pageSize: 50 })
+    if (!storeId || !targetPoId) return
+    let cancelled = false
+    listEligiblePurchaseOrders(storeId, { orderId: targetPoId, pageSize: 1 })
       .then((data) => {
-        setPos({ loading: false, results: data.results, error: '' })
-        const targetPoId = prefillPoId || prefillPo?.id || initialDraft?.source_purchase_order_id
-        if (targetPoId) {
-          const matched = data.results.find((p) => p.id === targetPoId)
-          if (matched) selectPo(matched)
-          else if (prefillPo) selectPo(prefillPo)
-        } else if (materialCode) {
-          const onlyMatch = data.results.filter(matchesMaterial)
-          if (onlyMatch.length === 1) selectPo(onlyMatch[0])
+        if (cancelled) return
+        const po = data.results.find((item) => String(item.id) === String(targetPoId)) || prefillPo
+        if (po?.delivery_progress) {
+          if (draftSourceId) setSelectedPo(po)
+          else selectPo(po)
         }
       })
       .catch((err) => {
-        setPos({
-          loading: false,
-          results: [],
-          error: `Could not load eligible purchase orders: ${getErrorMessage(err)}`,
-        })
+        if (!cancelled) setError(getErrorMessage(err))
       })
+    return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeId, prefillPoId, prefillPo, initialDraft])
+  }, [storeId, targetPoId, draftSourceId, prefillPo])
+
+  useEffect(() => {
+    if (!storeId || mode !== 'po') return
+    let cancelled = false
+    setPos({ loading: true, results: [], error: '' })
+    const search = poSearch.trim()
+    const timer = setTimeout(() => {
+      listEligiblePurchaseOrders(storeId, {
+        page: poPage,
+        pageSize: 20,
+        search,
+        materialCode: showAllPos ? undefined : materialCode,
+      })
+        .then((data) => {
+          if (cancelled) return
+          const results = data.results || []
+          setPos({ loading: false, results, next: data.next, error: '' })
+          if (!targetPoId && !selectedPo && materialCode && !showAllPos && !search &&
+              poPage === 1 && results.length === 1 && !data.next) {
+            selectPo(results[0])
+          }
+        })
+        .catch((err) => {
+          if (!cancelled) setPos({ loading: false, results: [], error: getErrorMessage(err) })
+        })
+    }, search ? 300 : 0)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, mode, poSearch, poPage, showAllPos, materialCode, targetPoId])
 
   useEffect(() => {
     if (initialDraft) {
@@ -297,8 +327,9 @@ export default function InwardStockModal({
     }
   }, [initialDraft])
 
-  const visiblePos = showAllPos || !materialCode ? pos.results : pos.results.filter(matchesMaterial)
-  const hiddenCount = pos.results.length - visiblePos.length
+  const visiblePos = selectedPo && !pos.results.some((po) => po.id === selectedPo.id)
+    ? [selectedPo, ...pos.results]
+    : pos.results
 
   const activeLine = selectedPo?.delivery_progress?.find(
     (l) => l.source_po_line_id === selectedLineId
@@ -830,7 +861,35 @@ export default function InwardStockModal({
       {/* PURCHASE ORDER MODE */}
       {mode === 'po' && (
         <>
-          {pos.loading ? (
+          {!draft && (
+            <div className="stock-form-full" style={{ marginBottom: 12 }}>
+              <input
+                type="search"
+                className="company-input"
+                aria-label="Search eligible purchase orders"
+                placeholder="Search PO reference or supplier code"
+                value={poSearch}
+                onChange={(e) => { setPoSearch(e.target.value); setPoPage(1) }}
+              />
+              {materialCode && (
+                <Button type="button" variant="secondary" onClick={() => {
+                  setShowAllPos(!showAllPos)
+                  setPoPage(1)
+                }}>
+                  {showAllPos ? 'Show orders for this material' : 'Show all orders'}
+                </Button>
+              )}
+              {(poPage > 1 || pos.next) && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
+                  <Button type="button" variant="secondary" disabled={poPage === 1 || pos.loading} onClick={() => setPoPage(poPage - 1)}>Previous</Button>
+                  <span>Page {poPage}</span>
+                  <Button type="button" variant="secondary" disabled={!pos.next || pos.loading} onClick={() => setPoPage(poPage + 1)}>Next</Button>
+                </div>
+              )}
+            </div>
+          )}
+          {pos.error && <Alert type="error">{pos.error}</Alert>}
+          {pos.loading && !selectedPo ? (
             <LoadingState label="Loading eligible purchase orders…" compact />
           ) : visiblePos.length === 0 ? (
             <div style={{ padding: '20px 16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, textAlign: 'center' }}>
@@ -839,7 +898,7 @@ export default function InwardStockModal({
                 No Matching Purchase Order
               </h4>
               <p style={{ margin: '0 0 16px', color: '#64748b', fontSize: 13, lineHeight: 1.5 }}>
-                There is currently no issued purchase order for <strong>{materialCode}</strong>.
+                No issued purchase orders match the current filters.
                 {allowDirectMode
                   ? ' You can record this inward delivery directly using the supplier\'s invoice or delivery challan.'
                   : ' Common Material Purchasing only accepts receipts against an issued purchase order. Issue a purchase order for this material first.'}
@@ -863,18 +922,6 @@ export default function InwardStockModal({
                   <label className="field-label" htmlFor="recv-po" style={{ margin: 0, fontWeight: 700, fontSize: 12 }}>
                     Purchase Order *
                   </label>
-                  {materialCode && hiddenCount > 0 && !showAllPos && (
-                    <button
-                      type="button"
-                      style={{
-                        background: 'none', border: 'none', color: '#1478c9', fontSize: 11.5,
-                        cursor: 'pointer', padding: 0, fontWeight: 600,
-                      }}
-                      onClick={() => setShowAllPos(true)}
-                    >
-                      Show all {pos.results.length} orders
-                    </button>
-                  )}
                 </div>
                 <select
                   id="recv-po"
@@ -882,7 +929,7 @@ export default function InwardStockModal({
                   style={{ width: '100%', height: 40 }}
                   value={selectedPo?.id || ''}
                   onChange={(e) => {
-                    const po = pos.results.find((p) => String(p.id) === e.target.value)
+                    const po = visiblePos.find((p) => String(p.id) === e.target.value)
                     if (po) selectPo(po)
                     else setSelectedPo(null)
                   }}
@@ -1331,39 +1378,6 @@ export default function InwardStockModal({
                         </div>
 
                         <div>
-                          <label className="field-label" htmlFor="recv-container" style={{ marginBottom: 5, fontSize: 12 }}>
-                            Container (optional)
-                          </label>
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <select
-                              id="recv-container"
-                              className="company-input"
-                              style={{ flex: 1, height: 38 }}
-                              value={containerTypeId}
-                              onChange={(e) => { setContainerTypeId(e.target.value); markDirty(); }}
-                              disabled={draft?.status === 'POSTED'}
-                            >
-                              <option value="">— Container type —</option>
-                              {containerTypes.map((ct) => (
-                                <option key={ct.id} value={ct.id}>{ct.name || ct.code}</option>
-                              ))}
-                            </select>
-                            <input
-                              id="recv-container-qty"
-                              className="company-input"
-                              type="number"
-                              step="1"
-                              min="1"
-                              style={{ width: 85, height: 38 }}
-                              placeholder="Count"
-                              value={containerQuantity}
-                              onChange={(e) => { setContainerQuantity(e.target.value); markDirty(); }}
-                              disabled={draft?.status === 'POSTED'}
-                            />
-                          </div>
-                        </div>
-
-                        <div>
                           <label className="field-label" style={{ marginBottom: 5, fontSize: 12 }}>
                             Authorized price (from order)
                           </label>
@@ -1401,7 +1415,6 @@ export default function InwardStockModal({
                           <span>Recorded as:</span>
                           <strong>
                             {receivedQuantity} {unitCode}
-                            {containerQuantity ? ` (${containerQuantity} container${containerQuantity > 1 ? 's' : ''})` : ''}
                           </strong>
                         </div>
                       )}

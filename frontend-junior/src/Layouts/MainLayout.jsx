@@ -84,6 +84,15 @@ const NAV_SECTIONS = [
       },
 
       {
+        label: 'Production',
+        path: '/production',
+        icon: FactoryIcon,
+        accent: '#f97316',
+        companyOnly: true,
+        roles: ['SUPER_ADMIN', 'MANAGEMENT', 'DEPARTMENT_MANAGER', 'STORES_MANAGER', 'HR_MANAGER', 'EMPLOYEE'],
+      },
+
+      {
         label: 'Quality Assurance',
         path: '/quality',
         icon: ShieldCheckIcon,
@@ -97,15 +106,6 @@ const NAV_SECTIONS = [
         icon: ShieldCheckIcon,
         accent: '#7c3aed',
         companyOnly: true,
-      },
-
-      {
-        label: 'Production',
-        path: '/production',
-        icon: FactoryIcon,
-        accent: '#f97316',
-        companyOnly: true,
-        roles: ['SUPER_ADMIN', 'MANAGEMENT', 'DEPARTMENT_MANAGER', 'STORES_MANAGER', 'HR_MANAGER', 'EMPLOYEE'],
       },
 
       {

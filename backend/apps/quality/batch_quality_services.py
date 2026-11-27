@@ -568,6 +568,8 @@ def reverse_finished_goods_stock(
 
     if stock.is_reversed:
         raise ValidationError({"detail": "This finished goods stock record has already been reversed."})
+    if stock.allocations.exists():
+        raise ValidationError({"detail": "Finished goods stock with sales order allocations cannot be reversed."})
 
     case = BatchQualityCase.objects.select_for_update().get(pk=stock.quality_case_id)
 

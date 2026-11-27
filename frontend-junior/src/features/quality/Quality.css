@@ -533,3 +533,161 @@
   color: #2563eb;
   font-weight: 500;
 }
+
+.qc-formula-review-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px 20px;
+  margin: 0 0 16px;
+}
+
+.qc-formula-review-details dt {
+  font-size: 0.8rem;
+  color: #475569;
+}
+
+.qc-formula-review-details dd {
+  margin: 4px 0 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.qc-formula-review-table {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.material-qc-register {
+  display: grid;
+  min-width: 0;
+  gap: 16px;
+}
+
+.material-qc-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.material-qc-metric {
+  --qc-accent: #176ab3;
+  --qc-tint: #edf6ff;
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  padding: 12px 16px;
+  background: #fff;
+  border: 1px solid #dbe6ef;
+  border-radius: 10px;
+  color: #455b70;
+  font: inherit;
+  cursor: pointer;
+}
+
+.material-qc-metric[data-status="pending"] { --qc-accent: #93570c; --qc-tint: #fff7e6; }
+.material-qc-metric[data-status="approved"] { --qc-accent: #08734c; --qc-tint: #ecf9f2; }
+.material-qc-metric[data-status="rejected"] { --qc-accent: #b72e44; --qc-tint: #fff0f2; }
+
+.material-qc-metric span {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.material-qc-metric strong {
+  color: var(--qc-accent);
+  font-size: 1.5rem;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.material-qc-metric:hover,
+.material-qc-metric[aria-pressed="true"] {
+  border-color: var(--qc-accent);
+  background: var(--qc-tint);
+}
+
+.material-qc-metric:focus-visible {
+  outline: 2px solid var(--qc-accent);
+  outline-offset: 2px;
+}
+
+.material-qc-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.material-qc-toolbar h3 {
+  margin: 0 0 3px;
+  font-size: 1rem;
+}
+
+.material-qc-toolbar span,
+.material-qc-code {
+  font-size: 0.78rem;
+  color: #52677b;
+}
+
+.material-qc-toolbar input {
+  width: min(100%, 300px);
+}
+
+.material-qc-scroll {
+  overflow-x: auto;
+}
+
+.material-qc-table {
+  min-width: 700px;
+}
+
+.material-qc-table thead th,
+.material-qc-table tbody td {
+  padding: 10px 12px;
+}
+
+.material-qc-code {
+  display: block;
+  margin-top: 3px;
+}
+
+.material-qc-reference,
+.material-qc-date {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+}
+
+.material-qc-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.material-qc-actions .btn {
+  padding: 5px 8px;
+  min-height: 32px;
+  font-size: 0.74rem;
+}
+
+.material-qc-table .material-qc-empty {
+  padding: 28px 12px;
+  text-align: center;
+  color: #52677b;
+}
+
+@media (max-width: 640px) {
+  .material-qc-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.material-qc-ar-number {
+  margin-top: 4px;
+  color: #475569;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}

@@ -26,6 +26,7 @@ import {
   listFormulas,
   listRevisions,
   rejectRevision,
+  searchMaterialPage,
   searchMaterials,
   submitActionState,
   submitRevision,
@@ -767,7 +768,7 @@ export default function FormulasPage({ companyId, productId, product, backTo = '
           companyId={companyId}
           productId={productId}
           product={product}
-          revisions={revisions}
+          canAllocateNumber={!permissionsLoading && hasPermission('batch_plans.allocate_number')}
         />
       )}
     </div>
@@ -1845,8 +1846,14 @@ function AddPackagingMaterialModal({ exclude = [], onAdd, onClose }) {
    ========================================================= */
 function GuidedAddMaterialModal({ kind, exclude, claimUnits, defaultPart = 1, onAdd, onClose }) {
   const [term, setTerm] = useState('')
-  const [options, setOptions] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [page, setPage] = useState(1)
+  const [searchResult, setSearchResult] = useState(null)
+  const search = term.trim()
+  const currentResult = searchResult?.search === search && searchResult.page === page &&
+    searchResult.kind === kind ? searchResult : null
+  const loading = !currentResult
+  const excludeSet = new Set(exclude)
+  const options = currentResult?.results?.filter((option) => !excludeSet.has(option.id)) || []
   const [selectedMaterial, setSelectedMaterial] = useState(null)
   const [calcBasis, setCalcBasis] = useState('AS_PER_FORMULA') // 'AS_PER_FORMULA' | 'AS_PER_LABEL_CLAIM' | 'EXCIPIENT_QS'
   const [quantity, setQuantity] = useState('22.5')
@@ -1855,18 +1862,23 @@ function GuidedAddMaterialModal({ kind, exclude, claimUnits, defaultPart = 1, on
   const [arNo, setArNo] = useState('')
   const [potency, setPotency] = useState('')
   const [error, setError] = useState('')
-  const excludeSet = new Set(exclude)
 
   useEffect(() => {
+    if (selectedMaterial) return
     let cancelled = false
-    setLoading(true)
-    searchMaterials(term, kind)
-      .then((rows) => !cancelled && setOptions(rows.filter((o) => !excludeSet.has(o.id))))
-      .catch(() => !cancelled && setOptions([]))
-      .finally(() => !cancelled && setLoading(false))
-    return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [term, kind])
+    const timer = setTimeout(async () => {
+      try {
+        const result = await searchMaterialPage(search, kind, page)
+        if (!cancelled) setSearchResult({ ...result, search, kind, page })
+      } catch (err) {
+        if (!cancelled) setSearchResult({ error: getErrorMessage(err), search, kind, page })
+      }
+    }, 300)
+    return () => {
+      clearTimeout(timer)
+      cancelled = true
+    }
+  }, [search, kind, page, selectedMaterial])
 
   const handlePick = (option) => {
     setSelectedMaterial(option)
@@ -1936,33 +1948,58 @@ function GuidedAddMaterialModal({ kind, exclude, claimUnits, defaultPart = 1, on
                 autoFocus
                 placeholder={kind === 'RAW_MATERIAL' ? 'Type ingredient name or code (e.g. AURUM, HYDRASTIS, LACTOSE)...' : 'Search packaging material...'}
                 value={term}
-                onChange={(e) => setTerm(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value
+                  if (value.trim() !== search) {
+                    setSearchResult(null)
+                    setPage(1)
+                  }
+                  setTerm(value)
+                }}
               />
               {loading && <div style={{ padding: '8px 0' }}><Spinner size="xs" tone="muted" label="Searching materials…" /></div>}
-              <div style={{ maxHeight: 160, overflowY: 'auto', marginTop: 6, border: '1px solid #e2e8f0', borderRadius: 8 }}>
-                {options.length === 0 && !loading && (
-                  <p style={{ fontSize: 12, color: '#64748b', padding: 12, margin: 0 }}>No matching materials found.</p>
-                )}
-                {options.map((opt) => (
-                  <div
-                    key={opt.id}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '8px 12px',
-                      borderBottom: '1px solid #f1f5f9',
-                      cursor: 'pointer',
-                      fontSize: 13,
-                    }}
-                    className="ci-subtab-btn"
-                    onClick={() => handlePick(opt)}
-                  >
-                    <span><strong>{opt.name}</strong> <span style={{ color: '#0284c7' }}>({opt.code})</span></span>
-                    <span style={{ fontSize: 11, color: '#64748b' }}>{opt.unitCode}</span>
-                  </div>
-                ))}
-              </div>
+              {currentResult?.error && <Alert type="error">{currentResult.error}</Alert>}
+              {!loading && !currentResult.error && (
+                <div style={{ maxHeight: 160, overflowY: 'auto', marginTop: 6, border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                  {options.length === 0 && (
+                    <p style={{ fontSize: 12, color: '#64748b', padding: 12, margin: 0 }}>
+                      No available materials on this page.
+                    </p>
+                  )}
+                  {options.map((opt) => (
+                    <button
+                      type="button"
+                      key={opt.id}
+                      className="ci-subtab-btn"
+                      style={{
+                        display: 'flex',
+                        width: '100%',
+                        justifyContent: 'space-between',
+                        gap: 8,
+                        textAlign: 'left',
+                        padding: '8px 12px',
+                        borderBottom: '1px solid #f1f5f9',
+                        fontSize: 13,
+                      }}
+                      onClick={() => handlePick(opt)}
+                    >
+                      <span><strong>{opt.name}</strong> <span style={{ color: '#0284c7' }}>({opt.code})</span></span>
+                      <span style={{ fontSize: 11, color: '#64748b' }}>{opt.unitCode}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {(page > 1 || currentResult?.hasNextPage) && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                  <Button type="button" variant="secondary" disabled={page === 1} onClick={() => setPage(page - 1)}>
+                    Previous
+                  </Button>
+                  <span>Page {page}</span>
+                  <Button type="button" variant="secondary" disabled={!currentResult?.hasNextPage} onClick={() => setPage(page + 1)}>
+                    Next
+                  </Button>
+                </div>
+              )}
             </div>
           ) : (
             <div>

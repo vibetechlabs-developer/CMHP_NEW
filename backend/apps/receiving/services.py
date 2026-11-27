@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
@@ -762,13 +762,14 @@ def delivery_progress_for_purchase_order(purchase_order):
         return []
 
     progress = []
-    for po_line in issue_snapshot.lines.order_by("line_number", "id"):
-        received = (
-            GoodsReceiptLine.objects.filter(
-                source_po_line=po_line, goods_receipt__status=GoodsReceipt.Status.POSTED
-            ).aggregate(total=Sum("received_quantity"))["total"]
-            or Decimal("0")
+    lines = issue_snapshot.lines.annotate(
+        posted_received=Sum(
+            "goods_receipt_lines__received_quantity",
+            filter=Q(goods_receipt_lines__goods_receipt__status=GoodsReceipt.Status.POSTED),
         )
+    ).order_by("line_number", "id")
+    for po_line in lines:
+        received = po_line.posted_received or Decimal("0")
         ordered = po_line.quantity_snapshot
         remaining = max(ordered - received, Decimal("0"))
         progress.append(

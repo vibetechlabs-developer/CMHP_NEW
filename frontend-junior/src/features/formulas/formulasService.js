@@ -123,11 +123,16 @@ const MATERIAL_KIND_LABEL = {
 
 // `kind` limits the results to material kinds. When searching raw materials, also search mother tinctures.
 export async function searchMaterials(term, kind, pageSize = 100) {
+  const { results } = await searchMaterialPage(term, kind, 1, pageSize)
+  return results
+}
+
+export async function searchMaterialPage(term, kind, page = 1, pageSize = 20) {
   const queryKind = kind === 'RAW_MATERIAL' ? 'RAW_MATERIAL,MOTHER_TINCTURE' : kind || undefined
   const response = await api.get('/v1/materials/', {
-    params: { search: term || undefined, kind: queryKind, is_active: true, page_size: pageSize },
+    params: { search: term?.trim() || undefined, kind: queryKind, is_active: true, page, page_size: pageSize },
   })
-  return (response.data.results || []).map((material) => ({
+  const results = (response.data.results || []).map((material) => ({
     id: material.id,
     label: `${material.name} (${material.code})`,
     meta: [MATERIAL_KIND_LABEL[material.kind] || material.kind, material.base_unit_code].filter(Boolean).join(' · '),
@@ -137,6 +142,7 @@ export async function searchMaterials(term, kind, pageSize = 100) {
     unitCode: material.base_unit_code,
     alcoholPercentage: material.alcohol_percentage != null ? Number(material.alcohol_percentage) : 0,
   }))
+  return { results, hasNextPage: Boolean(response.data.next) }
 }
 
 // Builds the FULL final line list for the revision PATCH. Lines of the other

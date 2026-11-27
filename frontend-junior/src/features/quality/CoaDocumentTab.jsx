@@ -8,19 +8,19 @@ import QcViewPage from '../qc/QcViewPage'
  * dosage-form analytical sheets (Syrup, Drops, Mother Tincture, Tablet, Oil/Liquid).
  *
  * Provides:
- * 1. Certificate of Analysis Register table with BMR completed orders
+ * 1. Certificate of Analysis Register table with production-completed orders
  * 2. Dedicated interactive COA forms with Save Draft, Print CoA, and Download PDF (via html2pdf.js)
  * 3. Dynamic company branding for CMHP and Tej Biocare
  */
-export default function CoaDocumentTab({ companyId }) {
-  const [selectedOrderId, setSelectedOrderId] = useState(null)
+export default function CoaDocumentTab({ companyId, refreshVersion }) {
+  const [selectedOrder, setSelectedOrder] = useState(null)
 
-  if (selectedOrderId) {
+  if (selectedOrder) {
     return (
       <div className="coa-interactive-workspace" style={{ marginTop: 8 }}>
         <QcViewPage
-          orderId={selectedOrderId}
-          onBack={() => setSelectedOrderId(null)}
+          order={selectedOrder}
+          onBack={() => setSelectedOrder(null)}
         />
       </div>
     )
@@ -30,7 +30,8 @@ export default function CoaDocumentTab({ companyId }) {
     <div className="coa-register-workspace" style={{ marginTop: 8 }}>
       <QcList
         companyId={companyId}
-        onSelectOrder={(orderId) => setSelectedOrderId(orderId)}
+        refreshVersion={refreshVersion}
+        onSelectOrder={setSelectedOrder}
       />
     </div>
   )

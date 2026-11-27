@@ -1,96 +1,39 @@
-/**
- * QC Release Gate for warehouse receipt lots.
- * Display still uses a local cache for snappy UI; updates also persist to
- * /api/v1/stores/:id/stock-movements/:movementId/quality-status/ so issue
- * posting excludes quarantine / on-hold / rejected lots.
- */
 import { setLotQualityStatus } from '../store/materialIssueService'
 
-const QC_STORAGE_KEY = 'cmhp_qc_lot_statuses_v1'
-
-function getStoredQcMap() {
-  try {
-    const raw = localStorage.getItem(QC_STORAGE_KEY)
-    if (!raw) return {}
-    return JSON.parse(raw) || {}
-  } catch {
-    return {}
-  }
-}
-
-function saveStoredQcMap(map) {
-  try {
-    localStorage.setItem(QC_STORAGE_KEY, JSON.stringify(map))
-  } catch (e) {
-    console.warn('[qualityStatusService] Failed to persist QC statuses:', e)
-  }
+const STATUS_LABELS = {
+  APPROVED: 'Released',
+  REJECTED: 'Rejected',
+  ON_HOLD: 'On Hold',
+  UNDER_TEST: 'Quarantine',
 }
 
 export const qualityStatusService = {
-  getLotStatus: (movementId, defaultIfUnset = null) => {
-    const map = getStoredQcMap()
-    const idKey = String(movementId)
-    if (map[idKey]) return map[idKey]
-    if (defaultIfUnset) return defaultIfUnset
-    // Default: UNDER_TEST until an explicit QC decision is recorded.
-    // Never default to APPROVED — uninspected lots must NOT be issue-eligible.
+  getLotStatus(movement) {
+    const status = movement.quality_status || 'UNDER_TEST'
     return {
-      status: 'UNDER_TEST',
-      arNo: '',
-      chemist: '',
-      releasedAt: null,
-      remarks: 'Awaiting incoming material QC inspection.',
+      status,
+      label: STATUS_LABELS[status] || STATUS_LABELS.UNDER_TEST,
+      arNo: movement.quality_ar_no || '',
+      chemist: movement.quality_chemist || '',
+      remarks: movement.quality_remarks || '',
     }
   },
 
-  updateLotStatus: async (movementId, { status, arNo, chemist, remarks, storeId } = {}) => {
-    const map = getStoredQcMap()
-    const idKey = String(movementId)
-    const existing = map[idKey] || {}
-    const updated = {
-      ...existing,
-      status: status || existing.status || 'UNDER_TEST',
-      arNo: arNo !== undefined ? arNo : (existing.arNo || ''),
-      chemist: chemist || existing.chemist || 'QC Chemist In-Charge',
-      remarks: remarks || existing.remarks || '',
-      updatedAt: new Date().toISOString(),
-      releasedAt: status === 'APPROVED' ? new Date().toISOString().split('T')[0] : null,
-    }
-    map[idKey] = updated
-    saveStoredQcMap(map)
-
-    if (storeId) {
-      await setLotQualityStatus(storeId, movementId, {
-        status: updated.status,
-        arNo: updated.arNo,
-        chemist: updated.chemist,
-        remarks: updated.remarks,
-      })
-    }
-    return updated
-  },
-
-  computeQualityMetrics: (movementsList = []) => {
-    let approved = 0
-    let underTest = 0
-    let rejected = 0
-    let onHold = 0
-
-    movementsList.forEach((mov) => {
-      const q = qualityStatusService.getLotStatus(mov.id)
-      if (q.status === 'APPROVED') approved++
-      else if (q.status === 'UNDER_TEST') underTest++
-      else if (q.status === 'REJECTED') rejected++
-      else if (q.status === 'ON_HOLD') onHold++
-      else underTest++   // unknown status → treat as UNDER_TEST, never as approved
+  computeQualityMetrics(movements) {
+    const counts = { APPROVED: 0, REJECTED: 0, ON_HOLD: 0, UNDER_TEST: 0 }
+    movements.forEach((movement) => {
+      const { status } = qualityStatusService.getLotStatus(movement)
+      if (Object.hasOwn(counts, status)) counts[status]++
     })
-
     return {
-      approved,
-      underTest,
-      rejected,
-      onHold,
-      totalTracked: movementsList.length,
+      approved: counts.APPROVED,
+      rejected: counts.REJECTED,
+      onHold: counts.ON_HOLD,
+      underTest: counts.UNDER_TEST,
     }
+  },
+
+  updateLotStatus(movementId, { storeId, ...decision }) {
+    return setLotQualityStatus(storeId, movementId, decision)
   },
 }

@@ -46,7 +46,7 @@ afterEach(() => {
 describe('eligible PO loading and auto-select', () => {
   it('auto-selects the single eligible PO that has a line for this material', async () => {
     render(<InwardStockModal storeId={3} materialCode="SYNTH-9" materialName="Synthetic" onClose={vi.fn()} onCreated={vi.fn()} />)
-    await waitFor(() => expect(listEligiblePurchaseOrders).toHaveBeenCalledWith(3, { pageSize: 50 }))
+    await waitFor(() => expect(listEligiblePurchaseOrders).toHaveBeenCalledWith(3, { page: 1, pageSize: 20, search: '', materialCode: 'SYNTH-9' }))
     await waitFor(() => expect(screen.getByText(/PO-0007/)).toBeTruthy())
   })
 })

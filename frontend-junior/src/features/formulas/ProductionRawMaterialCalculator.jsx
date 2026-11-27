@@ -13,12 +13,16 @@ import { getMyStores } from '../store/storeService'
 import { getAvailableToIssue, createMaterialIssue, postMaterialIssue, listMaterialIssues } from '../store/materialIssueService'
 import api from '../../api/axios'
 import { listPurchaseOrders } from '../inventory/purchasingService'
-import { listBatchPlans } from '../manufacturing/batchPlansService'
 import { controlSamplesService } from '../inventory/controlSamplesService'
 import { finishedGoodsService } from '../inventory/finishedGoodsService'
 import { getErrorMessage } from '../../utils/errors'
 import './ProductionRawMaterialCalculator.css'
 import { getCompanyBranding, isTejBiocare } from '../../utils/companyBranding.js'
+
+function getPersistedLineId(id) {
+  const lineId = typeof id === 'string' ? Number(id) : id
+  return Number.isSafeInteger(lineId) && lineId > 0 ? lineId : null
+}
 
 // Robust unit conversion utility between volumetric and mass units
 export function convertQuantity(value, fromUnit, toUnit) {
@@ -158,8 +162,8 @@ export default function ProductionRawMaterialCalculator({
 
   // Themed Issue to Production Confirmation Modal
   const [confirmIssueModalOpen, setConfirmIssueModalOpen] = useState(false)
-  const [issueBatchPlanId, setIssueBatchPlanId] = useState('') // batch plan selected in issue modal
-  const [availableBatchPlans, setAvailableBatchPlans] = useState([]) // batch plans for this company
+  const [issueBatchPlan, setIssueBatchPlan] = useState(null)
+  const issueBatchPlanId = String(issueBatchPlan?.id || '')
 
   // Helper to extract active raw materials from revision lines
   const extractRawLines = useCallback((lines) => {
@@ -560,12 +564,15 @@ export default function ProductionRawMaterialCalculator({
           const updated = { ...pkg, [field]: value }
           if (field === 'name') {
             const matched = catalogPkgMaterials.find(
-              (m) => (m.name || '').toLowerCase().trim() === String(value).toLowerCase().trim()
+              (m) => [m.name, m.code].some((entry) => entry?.toLowerCase() === String(value).toLowerCase().trim())
             )
             if (matched) {
               updated.materialId = matched.id
               updated.materialCode = matched.code || ''
-              if (matched.unit_code) updated.unit = matched.unit_code
+              if (matched.unitCode) updated.unit = matched.unitCode
+            } else {
+              updated.materialId = null
+              updated.materialCode = ''
             }
           }
           return updated
@@ -596,17 +603,8 @@ export default function ProductionRawMaterialCalculator({
     }
   }, [])
 
-  // Load batch plans for the active company (needed to link material issues to a batch plan)
   useEffect(() => {
-    if (!companyId) return
-    let cancelled = false
-    listBatchPlans(Number(companyId), { page_size: 100 })
-      .then((data) => {
-        if (cancelled) return
-        setAvailableBatchPlans(data.results || [])
-      })
-      .catch(() => {})
-    return () => { cancelled = true }
+    setIssueBatchPlan(null)
   }, [companyId])
 
   const formulaStorageKey = useMemo(() => {
@@ -700,17 +698,40 @@ export default function ProductionRawMaterialCalculator({
     }
   }, [selectedStoreId, batchNo, issueBatchPlanId, companyId])
 
-  // Load active catalog materials for fuzzy name matching and autocompletion
   const [catalogMaterials, setCatalogMaterials] = useState([])
   const [catalogPkgMaterials, setCatalogPkgMaterials] = useState([])
+  const [catalogSearch, setCatalogSearch] = useState('')
+  const [packagingSearch, setPackagingSearch] = useState('')
+
   useEffect(() => {
-    searchMaterials('', 'RAW_MATERIAL', 300)
-      .then((rows) => setCatalogMaterials(rows || []))
-      .catch(() => {})
-    searchMaterials('', 'PACKAGING_MATERIAL', 300)
-      .then((rows) => setCatalogPkgMaterials(rows || []))
-      .catch(() => {})
-  }, [])
+    const term = catalogSearch.trim()
+    let cancelled = false
+    const timer = setTimeout(() => {
+      if (!term) return
+      searchMaterials(term, 'RAW_MATERIAL', 20)
+        .then((rows) => { if (!cancelled) setCatalogMaterials(rows) })
+        .catch(() => { if (!cancelled) setCatalogMaterials([]) })
+    }, 300)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [catalogSearch])
+
+  useEffect(() => {
+    const term = packagingSearch.trim()
+    let cancelled = false
+    const timer = setTimeout(() => {
+      if (!term) return
+      searchMaterials(term, 'PACKAGING_MATERIAL', 20)
+        .then((rows) => { if (!cancelled) setCatalogPkgMaterials(rows) })
+        .catch(() => { if (!cancelled) setCatalogPkgMaterials([]) })
+    }, 300)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [packagingSearch])
 
   const resolveMaterialId = (item) => {
     if (!item) return null
@@ -1393,8 +1414,8 @@ export default function ProductionRawMaterialCalculator({
     setRevisionError('')
     try {
       // 1. Build raw lines array matching formula lines structure
-      const rawRows = compositions.map((c, idx) => ({
-        id: c.id?.startsWith('c-') ? null : c.id,
+      const rawRows = compositions.map((c) => ({
+        id: getPersistedLineId(c.id),
         material: c.materialId ? { id: c.materialId } : { id: 1, name: c.name, code: c.code },
         material_type: 'RAW_MATERIAL',
         quantity: String(c.baseQty),
@@ -1404,8 +1425,8 @@ export default function ProductionRawMaterialCalculator({
         ar_no: c.ar_no || '',
       }))
 
-      const excRows = preservatives.map((p, idx) => ({
-        id: p.id?.startsWith('p-') ? null : p.id,
+      const excRows = preservatives.map((p) => ({
+        id: getPersistedLineId(p.id),
         material: p.materialId ? { id: p.materialId } : { id: 2, name: p.name, code: p.code },
         material_type: 'RAW_MATERIAL',
         quantity: String(p.baseQty),
@@ -1625,28 +1646,19 @@ export default function ProductionRawMaterialCalculator({
     }
   }
 
-  // Inward free buffer bottles into Finished Goods Warehouse Store
+  // Post the verified packed quantity from the batch's approved BMR.
   const handleInwardBufferToFgWarehouse = async () => {
-    if (bufferStockNum <= 0) return
+    if (!batchNo?.trim()) {
+      setRevisionError('Select the official batch number before posting finished goods.')
+      return
+    }
+    setRevisionError('')
     try {
-      await finishedGoodsService.inwardBufferStock({
-        batchNo: batchNo || 'AH2602',
-        productCode: productCode || '',
-        productName: productName || 'Finished Medicine',
-        packSize: `${packSizeMl} ml`,
-        batchVolumeLtr: targetVolumeLtr,
-        grossProducedBottles: totalBottles,
-        sampleDeductedBottles: totalSamplesNum,
-        netCommercialBottles,
-        bufferQty: bufferStockNum,
-        initialOrderAllocatedQty: orderAllocatedNum,
-        linkedSalesOrder,
-        warehouseStore: 'FG Warehouse Store - General Buffer Bay',
-      })
-      setActionSuccess(`✓ ${bufferStockNum.toLocaleString()} bottles successfully inwarded to Finished Goods Warehouse Store!`)
+      await finishedGoodsService.inwardBufferStock(companyId, batchNo)
+      setActionSuccess(`Finished goods posted to the warehouse for batch ${batchNo}.`)
       setTimeout(() => setActionSuccess(''), 8000)
     } catch (e) {
-      setRevisionError(e?.message || 'Failed to inward buffer stock')
+      setRevisionError(getErrorMessage(e))
     }
   }
 
@@ -2824,7 +2836,7 @@ export default function ProductionRawMaterialCalculator({
                             className="prc-cell-input"
                             list="catalog-raw-materials"
                             value={row.name}
-                            onChange={(e) => updateComp(row.id, 'name', e.target.value)}
+                            onChange={(e) => { updateComp(row.id, 'name', e.target.value); setCatalogSearch(e.target.value) }}
                             placeholder="Type or select material from catalog..."
                           />
                           {isTwoPart && (
@@ -3057,7 +3069,7 @@ export default function ProductionRawMaterialCalculator({
                           className="prc-cell-input"
                           list="catalog-raw-materials"
                           value={row.name}
-                          onChange={(e) => updatePres(row.id, 'name', e.target.value)}
+                          onChange={(e) => { updatePres(row.id, 'name', e.target.value); setCatalogSearch(e.target.value) }}
                           placeholder="Type or select excipient from catalog..."
                         />
                       </td>
@@ -3230,8 +3242,9 @@ export default function ProductionRawMaterialCalculator({
                           type="text"
                           className="prc-input"
                           value={pkg.name}
+                          list="catalog-packaging-materials"
                           placeholder="e.g. 30ml Dropper Bottles, Cartons, Shippers..."
-                          onChange={(e) => handleUpdatePackagingLine(pkg.id, 'name', e.target.value)}
+                          onChange={(e) => { handleUpdatePackagingLine(pkg.id, 'name', e.target.value); setPackagingSearch(e.target.value) }}
                           style={{ width: '100%', fontWeight: 600, padding: '4px 8px', fontSize: 13 }}
                         />
                       </td>
@@ -3590,7 +3603,7 @@ export default function ProductionRawMaterialCalculator({
                       boxShadow: '0 2px 4px rgba(22, 163, 74, 0.2)',
                     }}
                   >
-                    🏭 Inward {bufferStockNum.toLocaleString()} Bottles to FG Warehouse Store
+                    Post Verified Batch to Finished Goods
                   </button>
                 </>
               )}
@@ -3817,9 +3830,9 @@ export default function ProductionRawMaterialCalculator({
         isIssuing={issuingToProduction}
         progress={issueProgress}
         results={issueResults}
-        batchPlans={availableBatchPlans}
-        selectedBatchPlanId={issueBatchPlanId}
-        onBatchPlanChange={(id) => setIssueBatchPlanId(id)}
+        companyId={companyId}
+        selectedBatchPlan={issueBatchPlan}
+        onBatchPlanChange={setIssueBatchPlan}
         isAlreadyIssued={Boolean(isCurrentBatchIssued)}
       />
 
@@ -3847,10 +3860,15 @@ export default function ProductionRawMaterialCalculator({
 
       {/* CATALOG MATERIALS DATALIST FOR EASY AUTO-BINDING */}
       <datalist id="catalog-raw-materials">
-        {[...catalogMaterials, ...catalogPkgMaterials].map((cm) => (
+        {catalogMaterials.map((cm) => (
           <option key={cm.id} value={cm.name}>
             {cm.code ? `${cm.code} — ` : ''}{cm.name} {cm.unitCode ? `(${cm.unitCode})` : ''}
           </option>
+        ))}
+      </datalist>
+      <datalist id="catalog-packaging-materials">
+        {catalogPkgMaterials.map((material) => (
+          <option key={material.id} value={material.name}>{material.code} {material.unitCode}</option>
         ))}
       </datalist>
 

@@ -9,18 +9,14 @@ import {
   cancelMaterialIssue,
 } from '../../store/materialIssueService'
 import { getMyStores, listMyCompanies } from '../../store/storeService'
-import { listActiveMaterials } from '../purchasingService'
 import { getStorePermissionCodes } from '../../operations/storePreparationService'
 
 vi.mock('../../store/storeService', () => ({
   getMyStores: vi.fn(),
   listMyCompanies: vi.fn(),
+  listMaterials: vi.fn(async () => ({ results: [] })),
   listContainerTypes: vi.fn(async () => []),
   listMaterialSuppliers: vi.fn(async () => []),
-}))
-
-vi.mock('../purchasingService', () => ({
-  listActiveMaterials: vi.fn(async () => []),
 }))
 
 vi.mock('../../operations/storePreparationService', () => ({
@@ -122,7 +118,6 @@ describe('IssueReturnTab', () => {
     getMyStores.mockResolvedValue([{ id: 1, name: 'Main Warehouse' }])
     listMyCompanies.mockResolvedValue([{ id: 2, code: 'CMHP', name: 'CMHP Lifesciences' }])
     getStorePermissionCodes.mockResolvedValue(['stock_issue.view', 'stock_issue.create', 'stock_issue.post'])
-    listActiveMaterials.mockResolvedValue([{ id: 9, code: 'RM-PARA', name: 'Paracetamol Powder', kind: 'RAW_MATERIAL' }])
     listMaterialIssues.mockResolvedValue({ count: 1, results: MOCK_ISSUES })
     listProductionCustodies.mockResolvedValue(MOCK_CUSTODIES)
     listMaterialReturns.mockResolvedValue({ count: 1, results: MOCK_RETURNS })
@@ -142,7 +137,7 @@ describe('IssueReturnTab', () => {
     expect(screen.getByText(/Returns/)).toBeTruthy()
     expect(screen.getByText(/Consumption & Disposition History/)).toBeTruthy()
     expect(screen.getByText('MI-20260101-ABCDE')).toBeTruthy()
-    expect(screen.getByText('Issue & Return')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Material Issue to Production' })).toBeTruthy()
   })
 
   it('switches to Production Custody tab and shows the real balance equation columns', async () => {

@@ -39,7 +39,7 @@ export default function SalesOrdersPanel() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
 
-  const requestIdRef = useRef(0)
+  const [refreshVersion, setRefreshVersion] = useState(0)
 
   const canView = hasPermission('sales_orders.view')
   const canCreate = hasPermission('sales_orders.create')
@@ -55,21 +55,37 @@ export default function SalesOrdersPanel() {
       setData({ count: 0, results: [] })
       return
     }
-    const thisRequestId = ++requestIdRef.current
+    let cancelled = false
     setListLoading(true)
     setListError('')
-    listSalesOrders(realCompanyId, { page, pageSize, search, orderDateFrom: startDate || undefined, orderDateTo: endDate || undefined })
-      .then((result) => {
-        if (requestIdRef.current !== thisRequestId) return
-        setData(result)
-        setListLoading(false)
+    const timer = setTimeout(() => {
+      listSalesOrders(realCompanyId, {
+        page,
+        pageSize,
+        search: search.trim(),
+        orderDateFrom: startDate || undefined,
+        orderDateTo: endDate || undefined,
+        productType: typeFilter === 'ALL' ? undefined : typeFilter,
+        workflowStage: statusFilter === 'ALL' ? undefined : statusFilter,
+        deadline: deadlineFilter === 'ALL' ? undefined : deadlineFilter,
+        activeOnly: true,
       })
-      .catch((error) => {
-        if (requestIdRef.current !== thisRequestId) return
-        setListError(getErrorMessage(error))
-        setListLoading(false)
-      })
-  }, [permissionsLoading, realCompanyId, canView, page, pageSize, search, startDate, endDate])
+        .then((result) => {
+          if (!cancelled) setData(result)
+        })
+        .catch((error) => {
+          if (!cancelled) setListError(getErrorMessage(error))
+        })
+        .finally(() => {
+          if (!cancelled) setListLoading(false)
+        })
+    }, search ? 300 : 0)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [permissionsLoading, realCompanyId, canView, page, pageSize, search, startDate, endDate,
+    typeFilter, statusFilter, deadlineFilter, refreshVersion])
 
   const confirmDelete = async () => {
     const order = pendingDelete
@@ -90,19 +106,7 @@ export default function SalesOrdersPanel() {
     }
   }
 
-  const refreshList = () => {
-    if (!realCompanyId) return
-    setListLoading(true)
-    listSalesOrders(realCompanyId, { page, pageSize, search, orderDateFrom: startDate || undefined, orderDateTo: endDate || undefined })
-      .then((result) => {
-        setData(result)
-        setListLoading(false)
-      })
-      .catch((error) => {
-        setListError(getErrorMessage(error))
-        setListLoading(false)
-      })
-  }
+  const refreshList = () => setRefreshVersion((version) => version + 1)
 
   const displayStage = (order) => order?.workflow_stage || order?.status || 'DRAFT'
 
@@ -125,6 +129,7 @@ export default function SalesOrdersPanel() {
             : o
         ),
       }))
+      refreshList()
     } catch (error) {
       setListError(`Could not update status: ${getErrorMessage(error)}`)
       refreshList()
@@ -301,60 +306,7 @@ export default function SalesOrdersPanel() {
     }
   }, [data])
 
-  // Filtered rows for client-side filter options
-  const displayRows = useMemo(() => {
-    let rows = data.results || []
-
-    // Exclude dispatched/records orders from active Sales Orders list (Task 3.2 e)
-    rows = rows.filter((order) => {
-      const s = String(order.status || '').toUpperCase()
-      const d = String(order.dispatch_status || '').toUpperCase()
-      const inRec = order.in_records === true || order.in_records === 'true'
-      return s !== 'DISPATCHED' && s !== 'IN_RECORDS' && d !== 'YES' && !order.is_dispatched && !inRec
-    })
-
-    if (typeFilter !== 'ALL') {
-      rows = rows.filter((order) => {
-        const typeStr = (order.lines || [])
-          .map((l) => `${l.product_type_snapshot || ''} ${l.product_name || ''}`)
-          .join(' ')
-          .toLowerCase()
-        return typeStr.includes(typeFilter.toLowerCase())
-      })
-    }
-
-    if (statusFilter !== 'ALL') {
-      rows = rows.filter((order) => {
-        const s = String(order.status || '').toUpperCase()
-        return s === statusFilter.toUpperCase()
-      })
-    }
-
-    if (deadlineFilter !== 'ALL') {
-      const now = new Date()
-      const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
-
-      rows = rows.filter((order) => {
-        const dateStr = order.requested_delivery_date || order.planned_manufacturing_date || order.order_date
-        if (!dateStr) return true
-        const d = new Date(dateStr)
-        if (isNaN(d.getTime())) return true
-
-        if (deadlineFilter === 'DUE_SOON') {
-          return d <= in7Days && d >= now
-        }
-        if (deadlineFilter === 'OVERDUE') {
-          return d < now && order.status !== 'COMPLETED'
-        }
-        if (deadlineFilter === 'ON_TIME') {
-          return d > in7Days
-        }
-        return true
-      })
-    }
-
-    return rows
-  }, [data.results, typeFilter, statusFilter, deadlineFilter])
+  const displayRows = data.results || []
 
   if (permissionsLoading) {
     return (
@@ -486,10 +438,9 @@ export default function SalesOrdersPanel() {
           <option value="DRAFT">DRAFT</option>
           <option value="CONFIRMED">CONFIRMED</option>
           <option value="PACKAGING">PACKAGING</option>
-          <option value="Ready to Invoice">Ready to Invoice</option>
+          <option value="READY_TO_INVOICE">Ready to Invoice</option>
           <option value="PACKED">PACKED</option>
-          <option value="Dispatched">Dispatched</option>
-          <option value="QC Pending">QC Pending</option>
+          <option value="QC_PENDING">QC Pending</option>
           <option value="COMPLETED">COMPLETED</option>
         </select>
 
@@ -581,7 +532,7 @@ export default function SalesOrdersPanel() {
                 const batchNumber = getBatchNumber(order, idx)
                 const productName = firstLine?.product_name || firstLine?.product_code || 'Pharmaceutical Medicine'
                 const bmrUrl = firstLine?.product_id
-                  ? `/production/bmr?productId=${firstLine.product_id}&productCode=${encodeURIComponent(firstLine.product_code || '')}&productName=${encodeURIComponent(productName)}&bmrNo=${encodeURIComponent(firstLine.bmr_no || '')}&productType=${encodeURIComponent(firstLine.product_type_snapshot || '')}&packSize=${encodeURIComponent(firstLine.pack_size || '')}&orderId=${encodeURIComponent(order.id || '')}&returnTo=/orders`
+                  ? `/production/bmr?productId=${firstLine.product_id}&productCode=${encodeURIComponent(firstLine.product_code || '')}&productName=${encodeURIComponent(productName)}&bmrNo=${encodeURIComponent(firstLine.bmr_no || '')}&productType=${encodeURIComponent(firstLine.product_type_snapshot || '')}&packSize=${encodeURIComponent(firstLine.pack_size || '')}&orderId=${encodeURIComponent(order.id || '')}&orderLineId=${encodeURIComponent(firstLine.id || '')}&returnTo=/orders`
                   : null
 
                 // Format sample & packaging quantities

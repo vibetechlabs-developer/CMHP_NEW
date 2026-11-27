@@ -395,7 +395,7 @@
 }
 
 /* =========================================================
-   PHYSICAL STOCK SUMMARY DOCK (YELLOW BLOCK REPLICATION)
+   MATERIAL REGISTER TOTALS
    ========================================================= */
 
 .stock-summary-dock {
@@ -403,10 +403,10 @@
   align-items: center;
   gap: 20px;
   padding: 10px 18px;
-  background: #fefce8;
-  border: 2px solid #fde047;
+  background: #fff;
+  border: 1px solid #d6e5ef;
   border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(202, 138, 4, 0.08);
+  flex-wrap: wrap;
 }
 
 .stock-summary-stat {
@@ -419,7 +419,7 @@
   font-size: 10px;
   font-weight: 800;
   text-transform: uppercase;
-  color: #854d0e;
+  color: #475569;
   letter-spacing: 0.5px;
 }
 
@@ -434,29 +434,28 @@
 .stock-summary-stat .sub {
   font-size: 11px;
   font-weight: 600;
-  color: #a16207;
+  color: #64748b;
 }
 
 .stock-summary-divider {
   width: 1px;
   height: 36px;
-  background: #fef08a;
+  background: #dce7ef;
 }
 
 /* =========================================================
-   SIDE-BY-SIDE DUAL LEDGER GRID (50% INWARD | 50% OUTWARD)
+   MATERIAL REGISTER LEDGERS
    ========================================================= */
 
 .stock-dual-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
-  align-items: stretch;
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 860px) {
   .stock-dual-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -469,8 +468,7 @@
   border: 1px solid #d6e5ef;
   display: flex;
   flex-direction: column;
-  min-height: 480px;
-  height: 100%;
+  min-width: 0;
 }
 
 /* INWARD PANEL - GREEN THEME */
@@ -553,7 +551,7 @@
   color: #475569;
   letter-spacing: 0.4px;
   border-bottom: 1px solid #e2e8f0;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .stock-card-inward .stock-ledger-table th {
@@ -573,7 +571,7 @@
   border-bottom: 1px solid #f1f5f9;
   color: #1e293b;
   vertical-align: middle;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   font-size: 12px;
 }
 

@@ -95,7 +95,6 @@ export default function AsyncSearchSelect({
     updateDropdownPosition()
     setOpen(true)
     setHighlightedIndex(0)
-    runSearch(search)
   }
 
   // The dropdown is a fixed-position portal anchored to the input's
@@ -128,6 +127,11 @@ export default function AsyncSearchSelect({
 
   const clearSelection = () => {
     onChange?.(null)
+    if (search) {
+      requestIdRef.current += 1
+      setOptions([])
+      setLoading(true)
+    }
     setSearch('')
     setSelectedLabel('')
     setOpen(true)
@@ -139,6 +143,11 @@ export default function AsyncSearchSelect({
 
   const handleChange = (event) => {
     const nextValue = event.target.value
+    if (nextValue !== search) {
+      requestIdRef.current += 1
+      setOptions([])
+      setLoading(true)
+    }
     setSearch(nextValue)
     setOpen(true)
     setHighlightedIndex(0)

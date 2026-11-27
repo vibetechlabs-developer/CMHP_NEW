@@ -18,6 +18,11 @@ export async function getMyStores() {
 }
 
 // Store-scoped summary for Common Inventory dashboard (materials, receipts, issues, requisitions, ledger, pending work, recent activity)
+export async function getMaterialStockSummary(storeId) {
+  const response = await api.get(`/v1/stores/${storeId}/material-stock-summary/`)
+  return response.data
+}
+
 export async function getStoreSummary(storeId, { dateFrom = '', dateTo = '' } = {}) {
   const params = {}
   if (dateFrom) params.date_from = dateFrom
@@ -203,8 +208,12 @@ export async function getMaterialRegister(storeId, materialId, { postedFrom = ''
 }
 
 // Real stock movements list - paginated receipt movements across all materials in this store
-export async function listStockMovements(storeId, { materialId = '', postedFrom = '', postedTo = '', page = 1, pageSize = 20 } = {}) {
+export async function listStockMovements(storeId, { materialId = '', postedFrom = '', postedTo = '', page = 1, pageSize = 20, search, materialKind, companyCode, supplier } = {}) {
   const params = { page, page_size: pageSize }
+  if (search) params.search = search
+  if (materialKind) params.material_kind = materialKind
+  if (companyCode) params.company_code = companyCode
+  if (supplier) params.supplier = supplier
   if (materialId) params.material = materialId
   if (postedFrom) params.posted_from = postedFrom
   if (postedTo) params.posted_to = postedTo
@@ -217,11 +226,14 @@ export async function listStockMovements(storeId, { materialId = '', postedFrom 
 }
 
 // Current recorded balances grouped by (material, unit, source_company)
-export async function listStockBalances(storeId, { materialId = '' } = {}) {
-  const params = {}
+export async function listStockBalances(storeId, { materialId, page = 1, pageSize = 20, search, materialKind, companyCode } = {}) {
+  const params = { page, page_size: pageSize }
   if (materialId) params.material = materialId
+  if (search) params.search = search
+  if (materialKind) params.material_kind = materialKind
+  if (companyCode) params.company_code = companyCode
   const response = await api.get(`/v1/stores/${storeId}/stock-balances/`, { params })
-  return rows(response.data)
+  return { results: rows(response.data), count: response.data?.count || 0 }
 }
 
 // Store-scoped reorder threshold for one material (apps.catalog.

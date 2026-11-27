@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { listMaterials } from '../../store/storeService'
 import PurchaseOrderModal from './PurchaseOrderModal'
 import {
   createPurchaseOrder,
@@ -7,7 +8,6 @@ import {
   updatePurchaseOrder,
   getStorePurchaseOrder,
   listPurchasingSuppliers,
-  listActiveMaterials,
 } from '../purchasingService'
 
 vi.mock('../purchasingService', () => ({
@@ -16,10 +16,10 @@ vi.mock('../purchasingService', () => ({
   updatePurchaseOrder: vi.fn(),
   getStorePurchaseOrder: vi.fn(),
   listPurchasingSuppliers: vi.fn(),
-  listActiveMaterials: vi.fn(),
 }))
 
 vi.mock('../../store/storeService', () => ({
+  listMaterials: vi.fn(),
   listUnits: vi.fn().mockResolvedValue([]),
 }))
 
@@ -41,7 +41,7 @@ describe('PurchaseOrderModal', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     listPurchasingSuppliers.mockResolvedValue(MOCK_SUPPLIERS)
-    listActiveMaterials.mockResolvedValue(MOCK_MATERIALS)
+    listMaterials.mockResolvedValue({ results: MOCK_MATERIALS })
   })
 
   afterEach(() => {
@@ -63,7 +63,10 @@ describe('PurchaseOrderModal', () => {
 
     expect(screen.getAllByText('Create Purchase Order').length).toBe(2)
     expect(screen.getByText(/Acme Chemical Co/)).toBeTruthy()
-    expect(screen.getByText(/Paracetamol IP/)).toBeTruthy()
+    expect(listMaterials).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByPlaceholderText('Search material code or name'), { target: { value: 'RM001' } })
+    expect(await screen.findByRole('button', { name: /Paracetamol IP/ })).toBeTruthy()
+    expect(listMaterials).toHaveBeenCalledWith({ search: 'RM001', isActive: true, pageSize: 20 })
   })
 
   it('validates required fields before submitting create', async () => {
@@ -112,12 +115,11 @@ describe('PurchaseOrderModal', () => {
     })
 
     const selects = screen.getAllByRole('combobox')
-    // selects: [supplierSelect, currencySelect, materialSelect]
     const supplierSelect = selects[0]
     fireEvent.change(supplierSelect, { target: { value: '10' } })
 
-    const materialSelect = selects[2]
-    fireEvent.change(materialSelect, { target: { value: '101' } })
+    fireEvent.focus(screen.getByPlaceholderText('Search material code or name'))
+    fireEvent.click(await screen.findByRole('button', { name: /Paracetamol IP/ }))
 
     const submitBtn = screen.getByRole('button', { name: 'Create Purchase Order' })
     await act(async () => {
@@ -239,11 +241,10 @@ describe('PurchaseOrderModal', () => {
     })
 
     const selects = screen.getAllByRole('combobox')
-    // selects: [supplierSelect, currencySelect, materialSelect, unitSelect]
-    expect(selects.length).toBe(4)
     fireEvent.change(selects[0], { target: { value: '10' } })
-    fireEvent.change(selects[2], { target: { value: '101' } })
-    fireEvent.change(selects[3], { target: { value: '6' } })
+    fireEvent.focus(screen.getByPlaceholderText('Search material code or name'))
+    fireEvent.click(await screen.findByRole('button', { name: /Paracetamol IP/ }))
+    fireEvent.change(screen.getAllByRole('combobox')[2], { target: { value: '6' } })
 
     const submitBtn = screen.getByRole('button', { name: 'Create Purchase Order' })
     await act(async () => {

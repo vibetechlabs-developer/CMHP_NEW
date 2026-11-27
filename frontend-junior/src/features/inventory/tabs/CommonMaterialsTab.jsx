@@ -1,13 +1,3 @@
-// Real shared material catalog - replaces the mock Redux-backed
-// (state.erp.commonRawMaterials) implementation with the tested real
-// backend integration already proven in frontend/src/features/store/
-// MaterialsTab.jsx. Presentation (hero/header card/summary cards/filters/
-// table styling, all ci-* classes) is this screen's own and is kept
-// unchanged; only the data source and the table's required columns
-// change. The catalog has no stock quantity, reorder level or unit cost
-// fields anywhere on the backend, so those four summary cards are shown
-// as an honest "Not tracked" instead of the old mock numbers - never a
-// fabricated zero.
 import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
@@ -24,6 +14,7 @@ import {
   deactivateMaterial,
   deleteMaterial,
   getMaterialReorderSetting,
+  getMaterialStockSummary,
   getMyStores,
   listContainerTypes,
   listMaterialCategories,
@@ -43,8 +34,6 @@ const KIND_LABEL = {
   MOTHER_TINCTURE: 'Mother Tincture',
 }
 const WRITE_DENIED = 'Only an administrator can change the material catalog. You can still search and view materials.'
-const STOCK_METRIC_UNAVAILABLE =
-  'Not tracked: this catalog has no stock quantity, reorder level or unit cost fields - only receipt history does, once the register is wired up.'
 const STOCK_STATUS_UNAVAILABLE_REASON =
   'Not available: stock status needs an authoritative balance and reorder level for ONE store - this list is the shared, store-independent catalog. Open a material’s register (a real store) to see its actual balance.'
 
@@ -54,7 +43,7 @@ function writeMessage(err) {
   return err?.response?.status === 403 ? WRITE_DENIED : getErrorMessage(err)
 }
 
-export default function CommonMaterialsTab() {
+export default function CommonMaterialsTab({ storeId, storeName } = {}) {
   const { user } = useAuth()
   const canManage = user?.capabilities?.can_manage_material_catalog === true
 
@@ -105,6 +94,38 @@ export default function CommonMaterialsTab() {
   const [suppliers, setSuppliers] = useState([])
   const [lookupError, setLookupError] = useState('')
   const requestRef = useRef(0)
+
+  const [stockSummary, setStockSummary] = useState(null)
+  const stock = stockSummary?.storeId === storeId ? stockSummary : null
+
+  useEffect(() => {
+    if (!storeId) return
+    let active = true
+    let pending = false
+    const refresh = async () => {
+      if (pending) return
+      pending = true
+      try {
+        const data = await getMaterialStockSummary(storeId)
+        if (active) setStockSummary({ storeId, data })
+      } catch {
+        if (active) setStockSummary({ storeId, failed: true })
+      } finally {
+        pending = false
+      }
+    }
+
+    refresh()
+    const interval = window.setInterval(refresh, 30000)
+    window.addEventListener('focus', refresh)
+    return () => {
+      active = false
+      window.clearInterval(interval)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [storeId, reloadKey])
+
+  const stockStatus = !storeId ? 'Select a store in Stock & Lots' : stock?.failed ? 'Unable to load stock' : !stock ? 'Loading stock…' : storeName || 'Selected store'
 
   // Themed confirmation dialog state (replaces window.confirm)
   const [confirmDialog, setConfirmDialog] = useState(null)
@@ -296,8 +317,6 @@ export default function CommonMaterialsTab() {
       )}
       {lookupError && <Alert type="error">Category/supplier filter options: {lookupError}</Alert>}
 
-      {/* 2. Summary Cards - only the total is real; the catalog has no
-          stock/reorder/cost fields, so those are honestly "Not tracked". */}
       <div className="ci-summary-grid">
         <div className="ci-card">
           <div className="ci-card-icon" style={{ background: '#eff6ff', color: '#2563eb' }}>🧪</div>
@@ -307,36 +326,36 @@ export default function CommonMaterialsTab() {
             <span className="ci-card-subtext">{hasActiveFilters ? 'Matching current filters' : 'In the shared catalog'}</span>
           </div>
         </div>
-        <div className="ci-card" title={STOCK_METRIC_UNAVAILABLE}>
+        <div className="ci-card" title="Active materials with a positive QC-released balance available to issue">
           <div className="ci-card-icon" style={{ background: '#f0fdf4', color: '#16a34a' }}>✓</div>
           <div className="ci-card-info">
             <span className="ci-card-label">In Stock</span>
-            <span className="ci-card-value">—</span>
-            <span className="ci-card-subtext">Not tracked</span>
+            <span className="ci-card-value">{stock?.data?.in_stock ?? '—'}</span>
+            <span className="ci-card-subtext">{stockStatus}</span>
           </div>
         </div>
-        <div className="ci-card" title={STOCK_METRIC_UNAVAILABLE}>
+        <div className="ci-card">
           <div className="ci-card-icon" style={{ background: '#fefce8', color: '#ca8a04' }}>⚠️</div>
           <div className="ci-card-info">
             <span className="ci-card-label">Low Stock</span>
-            <span className="ci-card-value">—</span>
-            <span className="ci-card-subtext">Not tracked</span>
+            <span className="ci-card-value">{stock?.data?.low_stock ?? '—'}</span>
+            <span className="ci-card-subtext">{stock?.data?.low_stock === null ? 'No reorder levels configured' : stockStatus}</span>
           </div>
         </div>
-        <div className="ci-card" title={STOCK_METRIC_UNAVAILABLE}>
+        <div className="ci-card">
           <div className="ci-card-icon" style={{ background: '#fef2f2', color: '#dc2626' }}>✕</div>
           <div className="ci-card-info">
             <span className="ci-card-label">Out of Stock</span>
-            <span className="ci-card-value">—</span>
-            <span className="ci-card-subtext">Not tracked</span>
+            <span className="ci-card-value">{stock?.data?.out_of_stock ?? '—'}</span>
+            <span className="ci-card-subtext">{stockStatus}</span>
           </div>
         </div>
-        <div className="ci-card" title={STOCK_METRIC_UNAVAILABLE}>
+        <div className="ci-card">
           <div className="ci-card-icon" style={{ background: '#f5f3ff', color: '#7c3aed' }}>₹</div>
           <div className="ci-card-info">
             <span className="ci-card-label">Total Stock Value</span>
             <span className="ci-card-value">—</span>
-            <span className="ci-card-subtext">Not tracked</span>
+            <span className="ci-card-subtext">Stock valuation unavailable</span>
           </div>
         </div>
       </div>

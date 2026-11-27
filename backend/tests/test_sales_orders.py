@@ -11,6 +11,7 @@ from django.test import Client, TestCase, TransactionTestCase
 from rest_framework_simplejwt.tokens import AccessToken
 
 from apps.audit.models import AuditLog
+from apps.bmr.models import ProductionOrderStatus
 from apps.catalog.models import UnitOfMeasure
 from apps.common.errors import Conflict
 from apps.companies.models import Company
@@ -697,6 +698,31 @@ class ListTests(SalesOrderBase):
         self.assertEqual(self.ids(), [self.q3["id"], self.q2["id"], self.q1["id"]])
         body = get_json(self.client_, sales_orders_url(self.company.id), self.token).json()
         self.assertEqual(body["count"], 3)
+
+    def test_production_completed_filter_uses_real_company_status_before_pagination(self):
+        ProductionOrderStatus.objects.bulk_create([
+            ProductionOrderStatus(
+                company=self.company, order_id=str(self.q1["id"]),
+                production_status="Completed", batch_no="BATCH-001",
+            ),
+            ProductionOrderStatus(
+                company=self.company, order_id=str(self.q2["id"]), production_status="In Process",
+            ),
+            ProductionOrderStatus(
+                company=self.other_company, order_id=str(self.q3["id"]), production_status="Completed",
+            ),
+            ProductionOrderStatus(
+                company=self.company, order_id="local-demo", production_status="Completed",
+            ),
+        ])
+        response = get_json(
+            self.client_, sales_orders_url(self.company.id) + "?production_completed=true&page_size=1", self.token,
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        body = response.json()
+        self.assertEqual(body["count"], 1)
+        self.assertEqual([row["id"] for row in body["results"]], [self.q1["id"]])
+        self.assertEqual(body["results"][0]["production_batch_no"], "BATCH-001")
 
     def test_search_reference_and_customer_name(self):
         self.assertEqual(self.ids(f"?search={self.q1['reference']}"), [self.q1["id"]])

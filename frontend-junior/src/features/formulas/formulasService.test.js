@@ -16,6 +16,8 @@ import {
   buildRevisionLinesPayload,
   createFormula,
   rejectRevision,
+  searchMaterialPage,
+  searchMaterials,
   submitActionState,
   submitRevision,
   updateRevision,
@@ -23,6 +25,34 @@ import {
 
 beforeEach(() => {
   vi.clearAllMocks()
+})
+
+describe('formula material search', () => {
+  it('fetches one page from the full active raw material and tincture catalog', async () => {
+    api.get.mockResolvedValueOnce({
+      data: {
+        count: 5200,
+        next: '/v1/materials/?page=252',
+        results: [{ id: 5021, code: 'RM-5021', name: 'Test material', base_unit_code: 'ML' }],
+      },
+    })
+
+    const result = await searchMaterialPage(' RM-50 ', 'RAW_MATERIAL', 251)
+
+    expect(api.get).toHaveBeenCalledWith('/v1/materials/', {
+      params: { search: 'RM-50', kind: 'RAW_MATERIAL,MOTHER_TINCTURE', is_active: true, page: 251, page_size: 20 },
+    })
+    expect(result.hasNextPage).toBe(true)
+    expect(result.results).toEqual([expect.objectContaining({ id: 5021, unitCode: 'ML' })])
+  })
+
+  it('keeps the existing array result and custom page size for other callers', async () => {
+    api.get.mockResolvedValueOnce({ data: { results: [] } })
+    await expect(searchMaterials('', 'PACKAGING_MATERIAL', 300)).resolves.toEqual([])
+    expect(api.get).toHaveBeenCalledWith('/v1/materials/', {
+      params: { search: undefined, kind: 'PACKAGING_MATERIAL', is_active: true, page: 1, page_size: 300 },
+    })
+  })
 })
 
 describe('createFormula / updateRevision', () => {

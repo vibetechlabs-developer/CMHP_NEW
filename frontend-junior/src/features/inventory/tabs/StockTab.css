@@ -137,6 +137,7 @@
 
 /* Filter Section */
 .stocks-filter-card {
+  margin-bottom: 16px;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 14px;
@@ -195,18 +196,40 @@
 }
 
 .stocks-inputs-row {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
 }
 
-.stocks-search-input {
-  flex: 1.5;
-  min-width: 220px;
+.stocks-inputs-row > .stocks-search-input {
+  flex: 2 1 280px;
+  width: auto;
+  min-width: 0;
+  min-height: 40px;
+  padding: 7px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
 }
 
-.stocks-select-input {
+.stocks-material-filter {
+  flex: 1 1 210px;
+  min-width: 0;
+}
+
+.stocks-container .stock-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  line-height: 1.4;
+}
+
+.stocks-inputs-row > .stocks-select-input {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 100%;
+  min-height: 40px;
   min-width: 150px;
 }
 

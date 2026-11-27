@@ -45,6 +45,8 @@ SALES_ORDERS_VIEW = "sales_orders.view"
 FORMULAS_VIEW = "formulas.view"
 
 ALLOWED_LIST_PARAMS = {
+    "order_line",
+    "product",
     "page",
     "page_size",
     "order",
@@ -136,6 +138,18 @@ class BatchPlanListCreateView(generics.ListCreateAPIView):
             except ValueError:
                 raise exceptions.ValidationError({"order": "Must be a valid integer order id."})
 
+        line_param = params.get("order_line")
+        if line_param:
+            if not line_param.isascii() or not line_param.isdecimal() or len(line_param) > 18:
+                raise exceptions.ValidationError({"order_line": "Must be a valid integer line id."})
+            queryset = queryset.filter(sales_order_line_id=int(line_param))
+
+        product_param = params.get("product")
+        if product_param:
+            if not product_param.isascii() or not product_param.isdecimal() or len(product_param) > 18:
+                raise exceptions.ValidationError({"product": "Must be a valid integer product id."})
+            queryset = queryset.filter(sales_order_line__product_id=int(product_param))
+
         date_param = params.get("planned_manufacturing_date") or params.get("planned_date")
         if date_param:
             field_name = "planned_manufacturing_date" if "planned_manufacturing_date" in params else "planned_date"
@@ -150,6 +164,7 @@ class BatchPlanListCreateView(generics.ListCreateAPIView):
                 | Q(product_code_snapshot__icontains=s)
                 | Q(product_name_snapshot__icontains=s)
                 | Q(formula_code_snapshot__icontains=s)
+                | Q(number_allocation__number__icontains=s)
                 | Q(notes__icontains=s)
             )
 

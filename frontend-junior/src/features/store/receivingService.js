@@ -62,8 +62,11 @@ export async function cancelGoodsReceipt(storeId, receiptId, expectedVersion, ca
 // orders the caller can see, with physical delivery progress per line
 // (never price/amount). See apps.receiving.services.
 // eligible_purchase_orders_for_receiving.
-export async function listEligiblePurchaseOrders(storeId, { page, pageSize } = {}) {
+export async function listEligiblePurchaseOrders(storeId, { page, pageSize, search, materialCode, orderId } = {}) {
   const params = {}
+  if (search) params.search = search
+  if (materialCode) params.material_code = materialCode
+  if (orderId) params.order_id = orderId
   if (page) params.page = page
   if (pageSize) params.page_size = pageSize
   const response = await api.get(`${basePath(storeId)}/eligible-purchase-orders/`, { params })

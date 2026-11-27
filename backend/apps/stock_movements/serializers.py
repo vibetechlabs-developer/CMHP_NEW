@@ -123,6 +123,8 @@ class StockMovementSerializer(serializers.ModelSerializer):
     quality_chemist = serializers.SerializerMethodField()
     quality_remarks = serializers.SerializerMethodField()
 
+    material_kind = serializers.CharField(source="material.kind", read_only=True)
+
     class Meta:
         model = StockMovement
         fields = [
@@ -141,6 +143,7 @@ class StockMovementSerializer(serializers.ModelSerializer):
             "supplier_code",
             "supplier_name",
             "material_id",
+            "material_kind",
             "material_code_snapshot",
             "material_name_snapshot",
             "unit_id",
@@ -264,6 +267,8 @@ class StockBalanceSerializer(serializers.Serializer):
     material_id = serializers.IntegerField()
     material_code = serializers.CharField(source="material_code_snapshot")
     material_name = serializers.CharField(source="material_name_snapshot")
+    material_kind = serializers.CharField(source="material__kind", read_only=True)
+    material_description = serializers.CharField(source="material__description", read_only=True)
     unit_id = serializers.IntegerField()
     unit_code = serializers.CharField(source="unit_code_snapshot")
     unit_name = serializers.CharField(source="unit_name_snapshot")

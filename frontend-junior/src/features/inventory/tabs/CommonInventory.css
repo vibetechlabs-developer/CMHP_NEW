@@ -959,3 +959,82 @@ textarea.ci-input {
   border-color: #cbd5e1;
   transform: translateX(3px);
 }
+.po-material-preview + .po-material-preview {
+  margin-top: 5px;
+}
+
+.po-material-preview small,
+.po-details-table small {
+  display: block;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.po-material-more {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #0369a1;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.inv-modal.po-details-modal .inv-modal-body {
+  overflow-x: hidden;
+}
+
+.po-details-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+.po-details-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 14px 20px;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid #dfe9ef;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.po-details-summary dt {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.po-details-summary dd {
+  margin: 3px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.po-details-remarks {
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.po-details-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid #dfe9ef;
+  border-radius: 10px;
+}
+
+.ci-table.po-details-table {
+  min-width: 690px;
+}
+
+.po-details-table thead th,
+.po-details-table tbody td {
+  padding: 10px 12px;
+}

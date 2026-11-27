@@ -6,7 +6,7 @@
 // - Honest disclosure of unreconciled historical source allocations.
 // - Real Inward and Outward integration with IssueOutwardModal.
 // - No mock Redux / localStorage state mutations.
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Button from '../../../components/Button'
 import Alert from '../../../components/Alert'
@@ -17,15 +17,24 @@ import {
   getMyStores,
   listStockBalances,
   listStockMovements,
-  listMaterials,
+  listMyCompanies,
   listMaterialSuppliers,
 } from '../../store/storeService'
 import { getAvailableToIssue } from '../../store/materialIssueService'
+import MaterialSearchSelect from '../../store/MaterialSearchSelect'
 import IssueOutwardModal from '../../store/IssueOutwardModal'
 import { qualityStatusService } from '../qualityStatusService'
 import { finishedGoodsService } from '../finishedGoodsService'
 import './StockTab.css'
 import './CommonInventory.css'
+
+function newAllocationRequestId() {
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  bytes[6] = (bytes[6] & 15) | 64
+  bytes[8] = (bytes[8] & 63) | 128
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
 
 export default function StockTab({ storeId: propStoreId, stores: propStores, onSelectStore }) {
   const navigate = useNavigate()
@@ -38,11 +47,14 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
   const [activeSubtab, setActiveSubtab] = useState('SUMMARY')
 
   // Shared Reference Data
-  const [materialsCatalog, setMaterialsCatalog] = useState([])
+  const [companies, setCompanies] = useState([])
   const [suppliersList, setSuppliersList] = useState([])
 
   // Tab 1: Material Stock Balances
-  const [balances, setBalances] = useState({ loading: true, rows: [], error: '' })
+  const [balances, setBalances] = useState({ loading: true, rows: [], count: 0, error: '' })
+  const [balancePage, setBalancePage] = useState(1)
+  const balanceRequest = useRef(0)
+  const movementRequest = useRef(0)
   const [availableToIssueMap, setAvailableToIssueMap] = useState({})
   const [availLoading, setAvailLoading] = useState(false)
 
@@ -60,7 +72,8 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
   // Filters
   const [search, setSearch] = useState('')
   const [materialTypeFilter, setMaterialTypeFilter] = useState('ALL') // 'ALL' | 'RAW_MATERIAL' | 'PACKAGING_MATERIAL' | 'MOTHER_TINCTURE'
-  const [selectedMaterialFilter, setSelectedMaterialFilter] = useState('')
+  const [selectedMaterial, setSelectedMaterial] = useState(null)
+  const selectedMaterialFilter = selectedMaterial?.id || ''
   const [supplierFilter, setSupplierFilter] = useState('')
   const [companyFilter, setCompanyFilter] = useState('ALL')
 
@@ -71,33 +84,49 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
 
   // QC Release Gate Modal State
   const [qcReleaseModalTarget, setQcReleaseModalTarget] = useState(null)
-  const [qcRefreshKey, setQcRefreshKey] = useState(0)
+  const [qcSaving, setQcSaving] = useState(false)
+  const [qcSaveError, setQcSaveError] = useState('')
 
   // Finished Goods (FG) Warehouse & Buffer Stock State
-  const [fgStockList, setFgStockList] = useState([])
   const [fgLoading, setFgLoading] = useState(false)
   const [allocateFgModalTarget, setAllocateFgModalTarget] = useState(null)
+  const [bayEdit, setBayEdit] = useState(null)
+  const [bayError, setBayError] = useState('')
   const [allocateOrderRef, setAllocateOrderRef] = useState('')
-  const [allocateCustomerName, setAllocateCustomerName] = useState('')
+  const [fgCompanySelection, setFgCompanySelection] = useState('')
+  const fgCompanyId = fgCompanySelection || companies[0]?.id
+  const [fgPage, setFgPage] = useState(1)
+  const [fgResult, setFgResult] = useState(null)
+  const [fgError, setFgError] = useState('')
+  const [fgHistory, setFgHistory] = useState(null)
+  const [fgSaving, setFgSaving] = useState(false)
+  const [allocateError, setAllocateError] = useState('')
+  const allocationRequest = useRef(null)
+  const fgRequest = useRef(0)
   const [allocateQtyInput, setAllocateQtyInput] = useState('')
   const [actionSuccessNotice, setActionSuccessNotice] = useState('')
 
-  // Load Finished Goods Buffer Stock
+  const fgStockList = fgResult && fgResult.companyId === fgCompanyId ? fgResult.results : []
+
   const loadFgStock = useCallback(async () => {
+    if (!fgCompanyId) return
+    const request = ++fgRequest.current
     setFgLoading(true)
+    setFgError('')
     try {
-      const data = await finishedGoodsService.listStock()
-      setFgStockList(data)
-    } catch {
-      setFgStockList([])
+      const data = await finishedGoodsService.listStock(fgCompanyId, fgPage)
+      if (request === fgRequest.current) setFgResult({ ...data, companyId: fgCompanyId })
+    } catch (error) {
+      if (request === fgRequest.current) setFgError(getErrorMessage(error))
     } finally {
-      setFgLoading(false)
+      if (request === fgRequest.current) setFgLoading(false)
     }
-  }, [])
+  }, [fgCompanyId, fgPage])
 
   useEffect(() => {
-    loadFgStock()
-  }, [loadFgStock])
+    if (activeSubtab === 'FG_BUFFER') loadFgStock()
+    return () => { fgRequest.current++ }
+  }, [activeSubtab, loadFgStock])
 
   // Load stores if not provided
   useEffect(() => {
@@ -122,83 +151,81 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
     }
   }, [propStores])
 
-  // Load materials catalog and suppliers reference data
   useEffect(() => {
-    listMaterials({ pageSize: 500 })
-      .then((res) => setMaterialsCatalog(res.results || []))
-      .catch(() => setMaterialsCatalog([]))
-
-    listMaterialSuppliers()
-      .then((sups) => setSuppliersList(sups || []))
-      .catch(() => setSuppliersList([]))
+    listMyCompanies().then(setCompanies).catch(() => setCompanies([]))
+    listMaterialSuppliers().then((suppliers) => setSuppliersList(suppliers || [])).catch(() => setSuppliersList([]))
   }, [])
 
-  // Create lookup dictionary for material metadata (kind, base_unit, etc.)
-  const materialsMap = useMemo(() => {
-    const map = new Map()
-    materialsCatalog.forEach((m) => {
-      map.set(m.id, m)
-    })
-    return map
-  }, [materialsCatalog])
-
-  // 1. Fetch Balances (Tab 1)
   const loadBalances = useCallback(() => {
     if (!storeId) return
+    const request = ++balanceRequest.current
     setBalances((prev) => ({ ...prev, loading: true, error: '' }))
     listStockBalances(storeId, {
-      materialId: selectedMaterialFilter ? Number(selectedMaterialFilter) : undefined,
+      materialId: selectedMaterialFilter || undefined,
+      page: balancePage,
+      pageSize,
+      search: search.trim(),
+      materialKind: materialTypeFilter === 'ALL' ? undefined : materialTypeFilter,
+      companyCode: companyFilter === 'ALL' ? undefined : companyFilter,
     })
-      .then((rows) => {
-        setBalances({ loading: false, rows: rows || [], error: '' })
+      .then(({ results, count }) => {
+        if (request === balanceRequest.current) setBalances({ loading: false, rows: results, count, error: '' })
       })
       .catch((err) => {
-        setBalances({ loading: false, rows: [], error: getErrorMessage(err) })
+        if (request === balanceRequest.current) {
+          setBalances({ loading: false, rows: [], count: 0, error: getErrorMessage(err) })
+        }
       })
-  }, [storeId, selectedMaterialFilter])
+  }, [storeId, selectedMaterialFilter, balancePage, search, materialTypeFilter, companyFilter])
 
-  // 2. Fetch Movements / Receipt Sources (Tab 2)
   const loadMovements = useCallback(() => {
     if (!storeId) return
+    const request = ++movementRequest.current
     setMovements((prev) => ({ ...prev, loading: true, error: '' }))
     listStockMovements(storeId, {
-      materialId: selectedMaterialFilter ? Number(selectedMaterialFilter) : undefined,
+      materialId: selectedMaterialFilter || undefined,
       page: movementsPage,
       pageSize,
+      search: search.trim(),
+      materialKind: materialTypeFilter === 'ALL' ? undefined : materialTypeFilter,
+      companyCode: companyFilter === 'ALL' ? undefined : companyFilter,
+      supplier: supplierFilter || undefined,
     })
       .then((res) => {
-        setMovements({
-          loading: false,
-          results: res.results || [],
-          count: res.count || 0,
-          coverage: res.coverage || null,
-          error: '',
-        })
+        if (request === movementRequest.current) setMovements({ ...res, loading: false, error: '' })
       })
       .catch((err) => {
-        setMovements({
-          loading: false,
-          results: [],
-          count: 0,
-          coverage: null,
-          error: getErrorMessage(err),
-        })
+        if (request === movementRequest.current) {
+          setMovements({ loading: false, results: [], count: 0, coverage: null, error: getErrorMessage(err) })
+        }
       })
-  }, [storeId, selectedMaterialFilter, movementsPage])
-
-  // Load data on store or page change
-  useEffect(() => {
-    loadBalances()
-  }, [loadBalances])
+  }, [storeId, selectedMaterialFilter, movementsPage, search, materialTypeFilter, companyFilter, supplierFilter])
 
   useEffect(() => {
-    loadMovements()
-  }, [loadMovements])
+    const timer = setTimeout(loadBalances, search ? 300 : 0)
+    return () => {
+      balanceRequest.current += 1
+      clearTimeout(timer)
+    }
+  }, [loadBalances, search])
+
+  useEffect(() => {
+    const timer = setTimeout(loadMovements, search ? 300 : 0)
+    return () => {
+      movementRequest.current += 1
+      clearTimeout(timer)
+    }
+  }, [loadMovements, search])
 
   // Fetch Available-to-Issue for materials present in balances
   useEffect(() => {
-    if (!storeId || balances.rows.length === 0) return
+    if (!storeId || balances.rows.length === 0) {
+      setAvailableToIssueMap({})
+      setAvailLoading(false)
+      return
+    }
     const uniqueMatIds = Array.from(new Set(balances.rows.map((r) => r.material_id)))
+    let cancelled = false
     setAvailLoading(true)
 
     Promise.all(
@@ -209,40 +236,49 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
       )
     )
       .then((results) => {
+        if (cancelled) return
         const nextMap = {}
         results.forEach(({ matId, data }) => {
           nextMap[matId] = data
         })
         setAvailableToIssueMap(nextMap)
       })
-      .finally(() => setAvailLoading(false))
+      .finally(() => { if (!cancelled) setAvailLoading(false) })
+    return () => { cancelled = true }
   }, [storeId, balances.rows])
 
   // Reset page when material filter changes
-  const handleMaterialFilterChange = (val) => {
-    setSelectedMaterialFilter(val)
+  const resetStockPages = () => {
+    setBalancePage(1)
     setMovementsPage(1)
+  }
+
+  const handleMaterialFilterChange = (material) => {
+    setSelectedMaterial(material)
+    resetStockPages()
   }
 
   // Clear all filters
   const handleClearFilters = () => {
     setSearch('')
     setMaterialTypeFilter('ALL')
-    setSelectedMaterialFilter('')
+    setSelectedMaterial(null)
     setSupplierFilter('')
     setCompanyFilter('ALL')
-    setMovementsPage(1)
+    resetStockPages()
   }
 
   // Refresh all data
   const handleRefresh = () => {
+    if (activeSubtab === 'FG_BUFFER') loadFgStock()
     loadBalances()
     loadMovements()
   }
 
   // Available owning companies derived from balances and movements
   const availableCompanies = useMemo(() => {
-    const set = new Set()
+    const set = new Set(companies.map((company) => company.code).filter(Boolean))
+    if (companyFilter !== 'ALL') set.add(companyFilter)
     balances.rows.forEach((r) => {
       if (r.source_company_code) set.add(r.source_company_code)
     })
@@ -250,84 +286,15 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
       if (r.source_company_code) set.add(r.source_company_code)
     })
     return Array.from(set).sort()
-  }, [balances.rows, movements.results])
+  }, [balances.rows, movements.results, companies, companyFilter])
 
   // Quality Status summary metrics across lots
   const qcMetrics = useMemo(() => {
     return qualityStatusService.computeQualityMetrics(movements.results)
-  }, [movements.results, qcRefreshKey])
+  }, [movements.results])
 
-  // TAB 1 FILTERED ROWS (Material Stock Summary)
-  const filteredBalances = useMemo(() => {
-    return balances.rows.filter((row) => {
-      const matMeta = materialsMap.get(row.material_id)
-
-      // Material Type Filter
-      if (materialTypeFilter !== 'ALL') {
-        const kind = matMeta?.kind || ''
-        if (kind !== materialTypeFilter) return false
-      }
-
-      // Owning Company Filter
-      if (companyFilter !== 'ALL' && row.source_company_code !== companyFilter) {
-        return false
-      }
-
-      // Search Filter
-      if (search.trim()) {
-        const q = search.trim().toLowerCase()
-        const matchCode = (row.material_code || '').toLowerCase().includes(q)
-        const matchName = (row.material_name || '').toLowerCase().includes(q)
-        const matchCompany = (row.source_company_code || '').toLowerCase().includes(q)
-        if (!matchCode && !matchName && !matchCompany) return false
-      }
-
-      return true
-    })
-  }, [balances.rows, materialsMap, materialTypeFilter, companyFilter, search])
-
-  // TAB 2 FILTERED ROWS (Lots / Receipt Sources)
-  const filteredMovements = useMemo(() => {
-    return movements.results.filter((row) => {
-      const matMeta = materialsMap.get(row.material_id)
-
-      // Material Type Filter
-      if (materialTypeFilter !== 'ALL') {
-        const kind = matMeta?.kind || ''
-        if (kind !== materialTypeFilter) return false
-      }
-
-      // Owning Company Filter
-      if (companyFilter !== 'ALL' && row.source_company_code !== companyFilter) {
-        return false
-      }
-
-      // Supplier Filter
-      if (supplierFilter) {
-        const matchSup = String(row.supplier_id || '') === String(supplierFilter) ||
-          (row.supplier_code || '') === supplierFilter ||
-          (row.supplier_name || '').toLowerCase().includes(supplierFilter.toLowerCase())
-        if (!matchSup) return false
-      }
-
-      // Search Filter
-      if (search.trim()) {
-        const q = search.trim().toLowerCase()
-        const matchCode = (row.material_code_snapshot || '').toLowerCase().includes(q)
-        const matchName = (row.material_name_snapshot || '').toLowerCase().includes(q)
-        const matchLot = (row.lot_reference || '').toLowerCase().includes(q)
-        const matchGr = (row.source_goods_receipt_reference || '').toLowerCase().includes(q)
-        const matchInvoice = (row.source_invoice_reference || '').toLowerCase().includes(q)
-        const matchDelivery = (row.source_delivery_note_reference || '').toLowerCase().includes(q)
-        const matchSup = (row.supplier_name || '').toLowerCase().includes(q) || (row.supplier_code || '').toLowerCase().includes(q)
-        if (!matchCode && !matchName && !matchLot && !matchGr && !matchInvoice && !matchDelivery && !matchSup) {
-          return false
-        }
-      }
-
-      return true
-    })
-  }, [movements.results, materialsMap, materialTypeFilter, companyFilter, supplierFilter, search])
+  const filteredBalances = balances.rows
+  const filteredMovements = movements.results
 
   // Safe CSV Value Escaping
   const escapeCsv = (val) => {
@@ -345,13 +312,12 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
         'Type',
         'Base Unit',
         'Owning Company',
-        'Closing Book Quantity',
+        'Recorded Receipt Quantity',
         'Held Quantity',
         'Available to Issue',
       ]
       const rows = filteredBalances.map((r) => {
-        const matMeta = materialsMap.get(r.material_id)
-        const kindLabel = matMeta?.kind === 'RAW_MATERIAL' ? 'Raw Material' : matMeta?.kind === 'PACKAGING_MATERIAL' ? 'Packaging Material' : matMeta?.kind === 'MOTHER_TINCTURE' ? 'Mother Tincture' : 'Material'
+        const kindLabel = r.material_kind === 'RAW_MATERIAL' ? 'Raw Material' : r.material_kind === 'PACKAGING_MATERIAL' ? 'Packaging Material' : r.material_kind === 'MOTHER_TINCTURE' ? 'Mother Tincture' : 'Material'
         const availRows = availableToIssueMap[r.material_id] || []
         const matchAvail = availRows.find((a) => a.unit_id === r.unit_id && a.source_company_id === r.source_company_id)
         const availQty = matchAvail ? matchAvail.net_quantity : r.recorded_receipt_quantity
@@ -379,10 +345,10 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
         'Material Code',
         'Material Name',
         'Internal Source Ref',
-        'Supplier Lot Ref',
         'Goods Receipt Ref',
         'Arrived Date',
         'Supplier',
+        'AR No.',
         'Owning Company',
         'Received Quantity',
         'Unit',
@@ -395,17 +361,17 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
         escapeCsv(r.material_code_snapshot),
         escapeCsv(r.material_name_snapshot),
         escapeCsv(`SM-#${r.id}`),
-        escapeCsv(r.lot_reference || 'Not recorded'),
         escapeCsv(r.source_goods_receipt_reference || `GR-#${r.source_goods_receipt_id}`),
         escapeCsv((r.source_goods_receipt_arrived_at || r.posted_at || '').slice(0, 10)),
         escapeCsv(r.supplier_name || r.supplier_code || 'Recorded on PO'),
+        escapeCsv(r.quality_ar_no),
         escapeCsv(r.source_company_code),
         escapeCsv(r.quantity),
         escapeCsv(r.unit_code_snapshot),
         escapeCsv(r.container_type_code || 'Standard'),
         escapeCsv(r.container_quantity || 1),
         escapeCsv('Unallocated per receipt (tracked at material level)'),
-        escapeCsv('Not tracked'),
+        escapeCsv(qualityStatusService.getLotStatus(r).label),
       ].join(','))
       const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows].join('\n')
       const encodedUri = encodeURI(csvContent)
@@ -436,10 +402,9 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
   }
 
   // Switch to Tab 2 and filter by material
-  const handleViewSourcesForMaterial = (matId) => {
-    setSelectedMaterialFilter(String(matId))
+  const handleViewSourcesForMaterial = (row) => {
+    handleMaterialFilterChange({ id: row.material_id, code: row.material_code, name: row.material_name })
     setActiveSubtab('SOURCES')
-    setMovementsPage(1)
   }
 
   return (
@@ -484,14 +449,14 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
             onClick={handleExportCsv}
             disabled={balances.loading && movements.loading}
           >
-            📥 Export CSV
+            📥 Export Page CSV
           </Button>
 
           <Button
             size="sm"
             variant="secondary"
             onClick={handleRefresh}
-            disabled={balances.loading || movements.loading}
+            disabled={balances.loading || movements.loading || fgLoading}
           >
             {balances.loading || movements.loading ? 'Refreshing...' : '🔄 Refresh'}
           </Button>
@@ -505,8 +470,8 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
             🧪
           </div>
           <div className="ci-card-info stocks-card-info">
-            <span className="ci-card-label stocks-card-label">Active Stock Groups</span>
-            <span className="ci-card-value stocks-card-value">{balances.rows.length}</span>
+            <span className="ci-card-label stocks-card-label">Stock Groups</span>
+            <span className="ci-card-value stocks-card-value">{balances.count}</span>
             <span className="ci-card-subtext stocks-card-subtext">Material &times; Unit &times; Company</span>
           </div>
         </div>
@@ -548,7 +513,7 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
               {qcMetrics.approved} Released
             </span>
             <span className="ci-card-subtext stocks-card-subtext" style={{ color: qcMetrics.underTest > 0 ? '#d97706' : '#15803d', fontWeight: 500 }}>
-              {qcMetrics.underTest > 0 ? `${qcMetrics.underTest} in quarantine hold` : 'All store lots QC verified'}
+              {qcMetrics.underTest} quarantine · {qcMetrics.onHold} on hold · {qcMetrics.rejected} rejected
             </span>
           </div>
         </div>
@@ -576,7 +541,10 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
       >
         <button
           type="button"
-          onClick={() => setActiveSubtab('SUMMARY')}
+          onClick={() => {
+            if (activeSubtab !== 'SUMMARY') handleClearFilters()
+            setActiveSubtab('SUMMARY')
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -604,7 +572,7 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
               borderRadius: 10,
             }}
           >
-            {filteredBalances.length}
+            {balances.count}
           </span>
         </button>
 
@@ -672,29 +640,14 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
               borderRadius: 10,
             }}
           >
-            {fgStockList.length}
+            {fgResult && fgResult.companyId === fgCompanyId ? fgResult.count : 0}
           </span>
         </button>
       </div>
 
       {/* 4. Filters Toolbar */}
-      <div
-        className="ci-filters stocks-filter-card"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          padding: '12px 16px',
-          background: '#ffffff',
-          borderRadius: 10,
-          border: '1px solid #e2e8f0',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-          marginBottom: 16,
-          flexWrap: 'wrap',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flex: 1 }}>
+      {activeSubtab !== 'FG_BUFFER' && <div className="stocks-filter-card">
+        <div className="stocks-inputs-row">
           {/* Search */}
           <input
             type="text"
@@ -705,15 +658,15 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
                 : 'Search material, internal lot, supplier lot, receipt ref, supplier...'
             }
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{ minWidth: 280, flex: 1.5, padding: '7px 12px', fontSize: 13, borderRadius: 6, border: '1px solid #cbd5e1' }}
+            onChange={(e) => { setSearch(e.target.value); resetStockPages() }}
+            aria-label="Search stock"
           />
 
           {/* Material Type: All / Raw Material / Packaging Material */}
           <select
             className="ci-select stocks-select-input"
             value={materialTypeFilter}
-            onChange={(e) => setMaterialTypeFilter(e.target.value)}
+            onChange={(e) => { setMaterialTypeFilter(e.target.value); resetStockPages() }}
             style={{ minWidth: 160, padding: '7px 10px', fontSize: 13, borderRadius: 6, border: '1px solid #cbd5e1' }}
           >
             <option value="ALL">All Material Types</option>
@@ -722,27 +675,22 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
             <option value="MOTHER_TINCTURE">Mother Tincture</option>
           </select>
 
-          {/* Specific Material */}
-          <select
-            className="ci-select stocks-select-input"
-            value={selectedMaterialFilter}
-            onChange={(e) => handleMaterialFilterChange(e.target.value)}
-            style={{ minWidth: 180, padding: '7px 10px', fontSize: 13, borderRadius: 6, border: '1px solid #cbd5e1' }}
-          >
-            <option value="">All Materials</option>
-            {materialsCatalog.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.code} - {m.name}
-              </option>
-            ))}
-          </select>
+          <div className="stocks-material-filter">
+            <MaterialSearchSelect
+              value={selectedMaterialFilter}
+              selected={selectedMaterial}
+              onChange={handleMaterialFilterChange}
+              placeholder="All materials"
+              includeInactive
+            />
+          </div>
 
           {/* Supplier Filter (Tab 2) */}
           {activeSubtab === 'SOURCES' && (
             <select
               className="ci-select stocks-select-input"
               value={supplierFilter}
-              onChange={(e) => setSupplierFilter(e.target.value)}
+              onChange={(e) => { setSupplierFilter(e.target.value); resetStockPages() }}
               style={{ minWidth: 160, padding: '7px 10px', fontSize: 13, borderRadius: 6, border: '1px solid #cbd5e1' }}
             >
               <option value="">All Suppliers</option>
@@ -759,7 +707,7 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
             <select
               className="ci-select stocks-select-input"
               value={companyFilter}
-              onChange={(e) => setCompanyFilter(e.target.value)}
+              onChange={(e) => { setCompanyFilter(e.target.value); resetStockPages() }}
               style={{ minWidth: 140, padding: '7px 10px', fontSize: 13, borderRadius: 6, border: '1px solid #cbd5e1' }}
             >
               <option value="ALL">All Companies</option>
@@ -784,7 +732,7 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
             Checking store issue availability...
           </span>
         )}
-      </div>
+      </div>}
 
       {/* ========================================================================= */}
       {/* TAB 1: MATERIAL STOCK SUMMARY                                              */}
@@ -824,20 +772,19 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
                     <th style={{ minWidth: 120 }}>Type</th>
                     <th style={{ minWidth: 80 }}>Base Unit</th>
                     <th style={{ minWidth: 100 }}>Billing Entity</th>
-                    <th style={{ minWidth: 130, textAlign: 'right' }}>Closing Book Qty</th>
+                    <th style={{ minWidth: 130, textAlign: 'right' }}>Recorded Receipts</th>
                     <th style={{ minWidth: 140, textAlign: 'right' }}>Available to Issue</th>
                     <th className="ci-actions-col" style={{ minWidth: 260, textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredBalances.map((row, idx) => {
-                    const matMeta = materialsMap.get(row.material_id)
                     const kindLabel =
-                      matMeta?.kind === 'RAW_MATERIAL'
+                      row.material_kind === 'RAW_MATERIAL'
                         ? 'Raw Material'
-                        : matMeta?.kind === 'PACKAGING_MATERIAL'
+                        : row.material_kind === 'PACKAGING_MATERIAL'
                         ? 'Packaging'
-                        : matMeta?.kind === 'MOTHER_TINCTURE'
+                        : row.material_kind === 'MOTHER_TINCTURE'
                         ? 'Mother Tincture'
                         : 'Material'
 
@@ -855,9 +802,9 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
                         </td>
                         <td>
                           <div style={{ fontWeight: 600, color: '#0f172a' }}>{row.material_name}</div>
-                          {matMeta?.description && (
+                          {row.material_description && (
                             <div style={{ fontSize: 11, color: '#64748b', maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {matMeta.description}
+                              {row.material_description}
                             </div>
                           )}
                         </td>
@@ -865,8 +812,8 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
                           <span
                             className="stock-badge"
                             style={{
-                              background: matMeta?.kind === 'RAW_MATERIAL' ? '#e0f2fe' : '#fef3c7',
-                              color: matMeta?.kind === 'RAW_MATERIAL' ? '#0369a1' : '#b45309',
+                              background: row.material_kind === 'RAW_MATERIAL' ? '#e0f2fe' : '#fef3c7',
+                              color: row.material_kind === 'RAW_MATERIAL' ? '#0369a1' : '#b45309',
                               border: 'none',
                             }}
                           >
@@ -903,7 +850,7 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
                             <Button
                               size="sm"
                               variant="secondary"
-                              onClick={() => handleViewSourcesForMaterial(row.material_id)}
+                              onClick={() => handleViewSourcesForMaterial(row)}
                               title="View individual receipt sources for this material"
                             >
                               🔍 View Sources
@@ -941,6 +888,13 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+          {balances.count > pageSize && (
+            <div className="ci-pagination">
+              <Button type="button" variant="secondary" disabled={balancePage <= 1 || balances.loading} onClick={() => setBalancePage(balancePage - 1)}>Previous</Button>
+              <span>Page {balancePage} of {Math.ceil(balances.count / pageSize)}</span>
+              <Button type="button" variant="secondary" disabled={balancePage * pageSize >= balances.count || balances.loading} onClick={() => setBalancePage(balancePage + 1)}>Next</Button>
             </div>
           )}
         </div>
@@ -982,11 +936,10 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
                     <tr>
                       <th style={{ minWidth: 140 }}>Chemical / Material</th>
                       <th style={{ minWidth: 110 }}>Source Ref</th>
-                      <th style={{ minWidth: 120 }}>Supplier Lot Ref</th>
                       <th style={{ minWidth: 130 }}>Goods Receipt</th>
                       <th style={{ minWidth: 95 }}>Receipt Date</th>
                       <th style={{ minWidth: 140 }}>Supplier</th>
-                      <th style={{ minWidth: 90 }}>Location</th>
+                      <th style={{ minWidth: 105 }}>AR No.</th>
                       <th style={{ minWidth: 110, textAlign: 'right' }}>Received Qty</th>
                       <th style={{ minWidth: 140, textAlign: 'right' }}>Remaining Store Qty</th>
                       <th style={{ minWidth: 100 }}>Quality Status</th>
@@ -1022,15 +975,6 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
                             </div>
                           </td>
                           <td>
-                            {row.lot_reference ? (
-                              <span className="stock-badge stock-badge-available">
-                                {row.lot_reference}
-                              </span>
-                            ) : (
-                              <span style={{ color: '#94a3b8', fontSize: 12 }}>Not recorded</span>
-                            )}
-                          </td>
-                          <td>
                             <div>
                               <strong>{row.source_goods_receipt_reference || `GR-#${row.source_goods_receipt_id}`}</strong>
                             </div>
@@ -1043,7 +987,7 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
                             <div style={{ fontSize: 12, fontWeight: 500 }}>{supplier}</div>
                           </td>
                           <td>
-                            <span style={{ color: '#94a3b8', fontSize: 12 }}>Not recorded</span>
+                            {row.quality_ar_no || '—'}
                           </td>
                           <td style={{ textAlign: 'right' }}>
                             <strong style={{ fontSize: 13 }}>{row.quantity}</strong>{' '}
@@ -1071,11 +1015,12 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
                           </td>
                           <td>
                             {(() => {
-                              const qc = qualityStatusService.getLotStatus(row.id)
+                              const qc = qualityStatusService.getLotStatus(row)
                               return (
+                                <div>
                                 <button
                                   type="button"
-                                  onClick={() => setQcReleaseModalTarget({ movementId: row.id, ...qc, lotRef: row.lot_reference || `SM-#${row.id}`, matName: row.material_name_snapshot })}
+                                  onClick={() => setQcReleaseModalTarget({ movementId: row.id, ...qc, autoAr: ['RAW_MATERIAL', 'PACKAGING_MATERIAL'].includes(row.material_kind), lotRef: row.lot_reference || `SM-#${row.id}`, matName: row.material_name_snapshot })}
                                   title="Click to change QC Release / Quarantine Status & AR No."
                                   style={{
                                     cursor: 'pointer',
@@ -1091,8 +1036,9 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
                                     gap: 3,
                                   }}
                                 >
-                                  {qc.status === 'APPROVED' ? '✓ Released' : qc.status === 'REJECTED' ? '✕ Rejected' : '⏳ Quarantine'}
+                                  {qc.label}
                                 </button>
+                                </div>
                               )
                             })()}
                           </td>
@@ -1186,23 +1132,22 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
       {/* ========================================================================= */}
       {activeSubtab === 'FG_BUFFER' && (
         <div>
-          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '12px 16px', borderRadius: 8, marginBottom: 14 }}>
-            <div style={{ fontWeight: 700, color: '#166534', fontSize: 13.5 }}>
-              📦 Finished Goods (FG) Commercial Inventory &amp; Free Buffer Stock
-            </div>
-            <div style={{ fontSize: 12, color: '#15803d', marginTop: 2 }}>
-              Tracks finished medicine units held in warehouse buffer storage. These commercial units can be directly allocated and dispatched to incoming sales orders without initiating new manufacturing cycles.
-            </div>
+          <div className="stocks-filter-card">
+            <label>
+              Company{' '}
+              <select className="ci-select" value={fgCompanyId || ''} onChange={(event) => {
+                setFgCompanySelection(event.target.value)
+                setFgPage(1)
+                setFgResult(null)
+              }}>
+                {companies.map((company) => <option key={company.id} value={company.id}>{company.display_name || company.name || company.code}</option>)}
+              </select>
+            </label>
           </div>
-
-          {fgLoading ? (
-            <div style={{ padding: 40, textAlign: 'center' }}>
-              <LoadingState label="Loading finished goods inventory..." />
-            </div>
+          {!fgCompanyId ? <p>No company available for finished goods.</p> : fgError ? <Alert type="error">{fgError}</Alert> : fgLoading ? (
+            <LoadingState label="Loading finished goods inventory..." />
           ) : fgStockList.length === 0 ? (
-            <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
-              No finished goods buffer stock currently recorded. Inward buffer stock from the Production Formula Calculator.
-            </div>
+            <p>No finished goods posted for this company.</p>
           ) : (
             <div className="ci-table-wrapper" style={{ overflowX: 'auto' }}>
               <table className="ci-table">
@@ -1210,12 +1155,10 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
                   <tr>
                     <th style={{ width: 110 }}>Batch No</th>
                     <th>Product &amp; Pack Size</th>
-                    <th style={{ width: 120, textAlign: 'right' }}>Gross Produced</th>
-                    <th style={{ width: 110, textAlign: 'right' }}>Samples Drawn</th>
+                    <th style={{ width: 120, textAlign: 'right' }}>Posted Quantity</th>
                     <th style={{ width: 140, textAlign: 'right' }}>Free Buffer Available</th>
                     <th style={{ width: 130, textAlign: 'right' }}>Allocated to Orders</th>
-                    <th style={{ width: 100 }}>Mfg Date</th>
-                    <th style={{ width: 100 }}>Expiry Date</th>
+                    <th style={{ width: 100 }}>Posted Date</th>
                     <th>Warehouse Bay</th>
                     <th className="ci-actions-col">Actions</th>
                   </tr>
@@ -1231,30 +1174,38 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
                         <div style={{ fontSize: 11.5, color: '#64748b' }}>{fg.productCode} · {fg.packSize}</div>
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        {fg.grossProducedBottles?.toLocaleString()} <span style={{ fontSize: 11, color: '#64748b' }}>BTL</span>
-                        <div style={{ fontSize: 10.5, color: '#94a3b8' }}>({fg.batchVolumeLtr}L)</div>
-                      </td>
-                      <td style={{ textAlign: 'right', color: '#7c3aed', fontWeight: 600 }}>
-                        -{fg.sampleDeductedBottles} BTL
+                        {fg.postedQty} {fg.unitCode}
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <span style={{ fontSize: 14, fontWeight: 800, color: fg.availableBufferQty > 0 ? '#16a34a' : '#64748b' }}>
                           {fg.availableBufferQty?.toLocaleString()}
                         </span>{' '}
-                        <span style={{ fontSize: 11, color: fg.availableBufferQty > 0 ? '#15803d' : '#94a3b8' }}>BTL</span>
+                        <span style={{ fontSize: 11, color: fg.availableBufferQty > 0 ? '#15803d' : '#94a3b8' }}>{fg.unitCode}</span>
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <span style={{ fontWeight: 600, color: '#0369a1' }}>{fg.allocatedQty?.toLocaleString()}</span>
-                        {fg.allocatedOrders && fg.allocatedOrders.length > 0 && (
-                          <div style={{ fontSize: 10, color: '#64748b' }} title={fg.allocatedOrders.map((o) => `${o.orderRef}: ${o.qty} btl`).join(', ')}>
-                            {fg.allocatedOrders.length} order(s)
-                          </div>
-                        )}
+                        <div>
+                          <Button size="sm" variant="secondary" onClick={() => setFgHistory(fg)}>
+                            Allocation History
+                          </Button>
+                        </div>
                       </td>
-                      <td>{fg.mfgDate}</td>
-                      <td>{fg.expDate}</td>
+                      <td>{fg.postedAt?.slice(0, 10)}</td>
                       <td>
-                        <span style={{ fontSize: 11.5, color: '#475569' }}>📍 {fg.warehouseStore}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                          <span style={{ fontSize: 11.5, color: '#475569' }}>{fg.warehouseStore || 'Unassigned'}</span>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            aria-label={`Edit bay for batch ${fg.batchNo}`}
+                            onClick={() => {
+                              setBayError('')
+                              setBayEdit({ id: fg.id, batchNo: fg.batchNo, value: fg.warehouseStore || '' })
+                            }}
+                          >
+                            Edit Bay
+                          </Button>
+                        </div>
                       </td>
                       <td className="ci-actions-col">
                         {fg.availableBufferQty > 0 ? (
@@ -1265,7 +1216,8 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
                               setAllocateFgModalTarget(fg)
                               setAllocateQtyInput(String(fg.availableBufferQty))
                               setAllocateOrderRef('')
-                              setAllocateCustomerName('')
+                              setAllocateError('')
+                              allocationRequest.current = null
                             }}
                           >
                             + Allocate to SO
@@ -1278,6 +1230,13 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+          {fgStockList.length > 0 && (fgResult.previous || fgResult.next) && (
+            <div className="stock-pagination">
+              <Button size="sm" variant="secondary" disabled={!fgResult.previous} onClick={() => setFgPage(fgPage - 1)}>Previous</Button>
+              <span>Page {fgPage}</span>
+              <Button size="sm" variant="secondary" disabled={!fgResult.next} onClick={() => setFgPage(fgPage + 1)}>Next</Button>
             </div>
           )}
         </div>
@@ -1303,7 +1262,7 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
                 <div><strong>Name:</strong> {selectedSource.material_name_snapshot}</div>
                 <div>
                   <strong>Category / Type:</strong>{' '}
-                  {materialsMap.get(selectedSource.material_id)?.kind === 'RAW_MATERIAL' ? 'Raw Material' : 'Packaging Material'}
+                  {selectedSource.material_kind === 'RAW_MATERIAL' ? 'Raw Material' : selectedSource.material_kind === 'MOTHER_TINCTURE' ? 'Mother Tincture' : selectedSource.material_kind === 'PACKAGING_MATERIAL' ? 'Packaging Material' : 'Material'}
                 </div>
                 <div><strong>Base Unit:</strong> {selectedSource.unit_code_snapshot}</div>
               </div>
@@ -1346,7 +1305,8 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 13 }}>
                 <div><strong>Physical Storage Location:</strong> <span style={{ color: '#94a3b8' }}>Not recorded</span></div>
-                <div><strong>Quality Release Status:</strong> <span style={{ color: '#94a3b8' }}>Not tracked</span></div>
+                <div><strong>Quality Release Status:</strong> {qualityStatusService.getLotStatus(selectedSource).label}</div>
+                {selectedSource.quality_ar_no && <div><strong>AR Number:</strong> {selectedSource.quality_ar_no}</div>}
                 <div><strong>Expiry / Retest Date:</strong> <span style={{ color: '#94a3b8' }}>Not recorded</span></div>
                 <div><strong>Inspection Protocol:</strong> Standard Physical Receiving</div>
               </div>
@@ -1450,7 +1410,12 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
       {qcReleaseModalTarget && (
         <Modal
           isOpen={true}
-          onClose={() => setQcReleaseModalTarget(null)}
+          onClose={() => {
+            if (!qcSaving) {
+              setQcReleaseModalTarget(null)
+              setQcSaveError('')
+            }
+          }}
           title={`QC Release & Analytical Inspection Gate — ${qcReleaseModalTarget.matName || `Movement #${qcReleaseModalTarget.movementId}`}`}
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1477,14 +1442,14 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
-                  Analytical Report (AR) No. *
+                  Analytical Report (AR) No.
                 </label>
                 <input
                   type="text"
-                  required
+                  readOnly={qcReleaseModalTarget.autoAr}
                   value={qcReleaseModalTarget.arNo || ''}
                   onChange={(e) => setQcReleaseModalTarget({ ...qcReleaseModalTarget, arNo: e.target.value })}
-                  placeholder="e.g. AR-2026-0812"
+                  placeholder={qcReleaseModalTarget.autoAr ? 'Assigned when QC decision is saved' : 'Enter AR number'}
                   style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
                 />
               </div>
@@ -1515,28 +1480,38 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
               />
             </div>
 
+            {qcSaveError && <Alert type="error">{qcSaveError}</Alert>}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
-              <Button variant="secondary" onClick={() => setQcReleaseModalTarget(null)}>
+              <Button variant="secondary" disabled={qcSaving} onClick={() => {
+                setQcReleaseModalTarget(null)
+                setQcSaveError('')
+              }}>
                 Cancel
               </Button>
               <Button
                 variant="primary"
+                disabled={qcSaving}
                 onClick={async () => {
+                  setQcSaving(true)
+                  setQcSaveError('')
                   try {
-                    await qualityStatusService.updateLotStatus(qcReleaseModalTarget.movementId, {
+                    const saved = await qualityStatusService.updateLotStatus(qcReleaseModalTarget.movementId, {
                       status: qcReleaseModalTarget.status,
                       arNo: qcReleaseModalTarget.arNo,
                       chemist: qcReleaseModalTarget.chemist,
                       remarks: qcReleaseModalTarget.remarks,
                       storeId,
                     })
-                    setQcRefreshKey((k) => k + 1)
-                    setActionSuccessNotice(`QC Release Status updated to ${qcReleaseModalTarget.status} (AR No: ${qcReleaseModalTarget.arNo})`)
+                    setActionSuccessNotice(`QC Release Status updated to ${qcReleaseModalTarget.status}${saved.ar_no ? ` (AR No: ${saved.ar_no})` : ''}`)
                     setQcReleaseModalTarget(null)
+                    loadBalances()
+                    loadMovements()
                     setTimeout(() => setActionSuccessNotice(''), 8000)
                   } catch (err) {
                     setActionSuccessNotice('')
-                    setBalances((prev) => ({ ...prev, error: getErrorMessage(err) }))
+                    setQcSaveError(getErrorMessage(err))
+                  } finally {
+                    setQcSaving(false)
                   }
                 }}
               >
@@ -1550,17 +1525,72 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
       {/* ========================================================================= */}
       {/* ALLOCATE FINISHED GOODS BUFFER TO SALES ORDER MODAL                       */}
       {/* ========================================================================= */}
+      {fgHistory && (
+        <Modal title={`Allocation History — ${fgHistory.batchNo}`} size="lg" onClose={() => setFgHistory(null)}>
+          {fgHistory.allocatedOrders.length === 0 ? <p>No sales order allocations yet.</p> : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="stock-ledger-table">
+                <thead><tr><th>Sales Order</th><th>Customer</th><th>Quantity</th><th>Allocated By</th><th>Date</th></tr></thead>
+                <tbody>
+                  {fgHistory.allocatedOrders.map((row) => (
+                    <tr key={row.id}>
+                      <td>{row.orderRef}</td><td>{row.customer}</td><td>{row.qty} {fgHistory.unitCode}</td>
+                      <td>{row.actor}</td><td>{new Date(row.date).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Modal>
+      )}
+
+      {bayEdit && (
+        <Modal title={`Edit Warehouse Bay — ${bayEdit.batchNo}`} onClose={() => { if (!fgSaving) setBayEdit(null) }}>
+          <form className="inv-modal-form" onSubmit={async (event) => {
+            event.preventDefault()
+            setFgSaving(true)
+            setBayError('')
+            try {
+              await finishedGoodsService.updateWarehouseBay(fgCompanyId, bayEdit.id, bayEdit.value)
+              setBayEdit(null)
+              setActionSuccessNotice(`Warehouse bay updated for batch ${bayEdit.batchNo}.`)
+              loadFgStock()
+            } catch (error) {
+              setBayError(getErrorMessage(error))
+            } finally {
+              setFgSaving(false)
+            }
+          }}>
+            <label className="inv-modal-field-label" htmlFor="fg-warehouse-bay">Warehouse bay or rack</label>
+            <input
+              id="fg-warehouse-bay"
+              className="company-input"
+              placeholder="e.g. FG Warehouse · Rack FG-02"
+              value={bayEdit.value}
+              onChange={(event) => setBayEdit({ ...bayEdit, value: event.target.value })}
+              required
+            />
+            {bayError && <Alert type="error">{bayError}</Alert>}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <Button type="button" variant="secondary" disabled={fgSaving} onClick={() => setBayEdit(null)}>Cancel</Button>
+              <Button type="submit" variant="primary" disabled={fgSaving}>Save Bay</Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
       {allocateFgModalTarget && (
         <Modal
           isOpen={true}
-          onClose={() => setAllocateFgModalTarget(null)}
+          onClose={() => { if (!fgSaving) setAllocateFgModalTarget(null) }}
           title={`Allocate Finished Goods Buffer Stock — Batch ${allocateFgModalTarget.batchNo}`}
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '10px 14px', borderRadius: 6, fontSize: 13 }}>
               <div><strong>Product:</strong> {allocateFgModalTarget.productName} ({allocateFgModalTarget.packSize})</div>
               <div><strong>Batch No:</strong> {allocateFgModalTarget.batchNo}</div>
-              <div><strong>Free Buffer Available:</strong> <span style={{ color: '#16a34a', fontWeight: 800 }}>{allocateFgModalTarget.availableBufferQty?.toLocaleString()} Bottles</span></div>
+              <div><strong>Free Buffer Available:</strong> <span style={{ color: '#16a34a', fontWeight: 800 }}>{allocateFgModalTarget.availableBufferQty?.toLocaleString()} {allocateFgModalTarget.unitCode}</span></div>
             </div>
 
             <div>
@@ -1570,7 +1600,7 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
               <input
                 type="text"
                 required
-                placeholder="e.g. SO-2026-1025 / Apollo Hospitals Bulk"
+                placeholder="Enter the confirmed Sales Order reference"
                 value={allocateOrderRef}
                 onChange={(e) => setAllocateOrderRef(e.target.value)}
                 style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
@@ -1579,57 +1609,54 @@ export default function StockTab({ storeId: propStoreId, stores: propStores, onS
 
             <div>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
-                Customer Name / Hospital
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Apollo Pharmacy Ltd."
-                value={allocateCustomerName}
-                onChange={(e) => setAllocateCustomerName(e.target.value)}
-                style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
-                Quantity to Allocate (Bottles) *
+                Quantity to Allocate ({allocateFgModalTarget.unitCode}) *
               </label>
               <input
                 type="number"
-                min="1"
+                min="0.001"
+                step="0.001"
                 max={allocateFgModalTarget.availableBufferQty}
                 value={allocateQtyInput}
                 onChange={(e) => setAllocateQtyInput(e.target.value)}
                 style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 700 }}
               />
               <span style={{ fontSize: 11, color: '#64748b', marginTop: 2, display: 'block' }}>
-                Remaining in buffer after this allocation: {Math.max(0, allocateFgModalTarget.availableBufferQty - (Number(allocateQtyInput) || 0))} bottles
+                Remaining in buffer after this allocation: {Math.max(0, allocateFgModalTarget.availableBufferQty - (Number(allocateQtyInput) || 0))} {allocateFgModalTarget.unitCode}
               </span>
             </div>
 
+            {allocateError && <Alert type="error">{allocateError}</Alert>}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
-              <Button variant="secondary" onClick={() => setAllocateFgModalTarget(null)}>
+              <Button variant="secondary" disabled={fgSaving} onClick={() => setAllocateFgModalTarget(null)}>
                 Cancel
               </Button>
               <Button
                 variant="primary"
+                disabled={fgSaving}
                 onClick={async () => {
-                  if (!allocateOrderRef) {
-                    alert('Please enter a Sales Order reference.')
+                  const orderRef = allocateOrderRef.trim()
+                  const allocateQty = allocateQtyInput.trim()
+                  if (!orderRef || !allocateQty) {
+                    setAllocateError('Enter the sales order reference and quantity.')
                     return
                   }
+                  const signature = JSON.stringify([orderRef, allocateQty])
+                  if (allocationRequest.current?.signature !== signature) {
+                    allocationRequest.current = { signature, id: newAllocationRequestId() }
+                  }
+                  setFgSaving(true)
+                  setAllocateError('')
                   try {
-                    await finishedGoodsService.allocateToSalesOrder(allocateFgModalTarget.id, {
-                      orderRef: allocateOrderRef,
-                      customerName: allocateCustomerName,
-                      allocateQty: Number(allocateQtyInput),
+                    const saved = await finishedGoodsService.allocateToSalesOrder(fgCompanyId, allocateFgModalTarget.id, {
+                      orderRef, allocateQty, requestId: allocationRequest.current.id,
                     })
-                    setActionSuccessNotice(`Successfully allocated ${allocateQtyInput} bottles from Batch ${allocateFgModalTarget.batchNo} to ${allocateOrderRef}!`)
+                    setActionSuccessNotice(`Allocated ${saved.qty} ${allocateFgModalTarget.unitCode} from batch ${allocateFgModalTarget.batchNo} to ${saved.orderRef}.`)
                     setAllocateFgModalTarget(null)
                     loadFgStock()
-                    setTimeout(() => setActionSuccessNotice(''), 8000)
-                  } catch (err) {
-                    alert(err?.message || 'Failed to allocate buffer stock.')
+                  } catch (error) {
+                    setAllocateError(getErrorMessage(error))
+                  } finally {
+                    setFgSaving(false)
                   }
                 }}
               >

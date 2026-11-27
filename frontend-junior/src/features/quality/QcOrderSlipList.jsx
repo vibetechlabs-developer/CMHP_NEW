@@ -164,7 +164,7 @@ export default function QcOrderSlipList({
         </div>
 
         <div style={{ fontSize: 12.5, color: '#64748b' }}>
-          Showing orders from Production BMR • {slipKindTitle}
+          Showing completed production orders • {slipKindTitle}
         </div>
       </div>
 
@@ -330,7 +330,7 @@ export default function QcOrderSlipList({
                   <div style={{ fontSize: 12, marginTop: 4, color: '#64748b' }}>
                     {viewMode === 'completed'
                       ? 'No completed slips yet. Mark a pending order as complete to see it here.'
-                      : 'No pending orders match your filters. Try clearing your filters.'}
+                      : 'No production-completed orders match your filters.'}
                   </div>
                 </td>
               </tr>
@@ -366,7 +366,7 @@ export default function QcOrderSlipList({
                     </td>
                     <td>
                       <span style={{ background: '#f1f5f9', color: '#334155', padding: '2px 8px', borderRadius: 4, fontSize: 12, fontWeight: 700 }}>
-                        {order.batchNo}
+                        {order.batchNo || '—'}
                       </span>
                     </td>
                     <td style={{ fontSize: 12 }}>{order.batchSize}</td>

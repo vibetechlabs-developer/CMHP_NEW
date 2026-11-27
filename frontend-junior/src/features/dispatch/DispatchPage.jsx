@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useSelector } from 'react-redux'
 import api from '../../api/axios'
-import { selectActiveCompanyKey, selectActiveCompanyId } from '../../utils/companySelectors'
+import { selectActiveCompanyId } from '../../utils/companySelectors'
 import PharmaHeroBanner from '../../components/PharmaHeroBanner'
 import SharedFilterBar from '../../components/SharedFilterBar'
 import './DispatchPage.css'
@@ -17,10 +17,11 @@ function formatDateDDMMYYYY(dateStr) {
 }
 
 export default function DispatchPage() {
-  const compKey = useSelector(selectActiveCompanyKey)
-  const activeCompId = useSelector(selectActiveCompanyId)
-  const companyId = activeCompId || (compKey === 'tej' ? 3 : 2)
+  const companyId = useSelector(selectActiveCompanyId)
+  return <CompanyDispatch key={companyId} companyId={companyId} />
+}
 
+function CompanyDispatch({ companyId }) {
   // Active Tab: 'live' | 'records'
   const [activeTab, setActiveTab] = useState('live')
 
@@ -39,7 +40,6 @@ export default function DispatchPage() {
   // Shared Filter states
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('ALL')
-  const [companyFilter, setCompanyFilter] = useState('ALL')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
 
@@ -59,13 +59,7 @@ export default function DispatchPage() {
     async (showSpinner = false) => {
       if (showSpinner) setRefreshing(true)
       try {
-        const params = {}
-        if (companyFilter !== 'ALL') {
-          params.company_id = companyFilter === 'cmhp' ? 2 : companyFilter === 'tej' ? 3 : companyFilter
-        } else if (companyId) {
-          // If company is selected, filter by it, or leave ALL
-          // params.company_id = companyId
-        }
+        const params = { company_id: companyId }
         if (search.trim()) params.search = search.trim()
         if (typeFilter !== 'ALL') params.product_type = typeFilter
         if (fromDate) {
@@ -90,7 +84,7 @@ export default function DispatchPage() {
         if (showSpinner) setRefreshing(false)
       }
     },
-    [companyFilter, companyId, search, typeFilter, fromDate, toDate]
+    [companyId, search, typeFilter, fromDate, toDate]
   )
 
   // 2. Fetch Dispatch Records from backend GET /api/dispatch/records/
@@ -98,10 +92,7 @@ export default function DispatchPage() {
     setRecordsLoading(true)
     setRecordsError('')
     try {
-      const params = {}
-      if (companyFilter !== 'ALL') {
-        params.company_id = companyFilter === 'cmhp' ? 2 : companyFilter === 'tej' ? 3 : companyFilter
-      }
+      const params = { company_id: companyId }
       if (search.trim()) params.search = search.trim()
       if (typeFilter !== 'ALL') params.product_type = typeFilter
       if (fromDate) {
@@ -122,7 +113,7 @@ export default function DispatchPage() {
     } finally {
       setRecordsLoading(false)
     }
-  }, [companyFilter, search, typeFilter, fromDate, toDate])
+  }, [companyId, search, typeFilter, fromDate, toDate])
 
   // Initial load and periodic auto-refresh (every 12 seconds)
   useEffect(() => {
@@ -153,7 +144,6 @@ export default function DispatchPage() {
   const handleFilterReset = () => {
     setSearch('')
     setTypeFilter('ALL')
-    setCompanyFilter('ALL')
     setFromDate('')
     setToDate('')
     setCurrentPage(1)
@@ -162,10 +152,7 @@ export default function DispatchPage() {
   // Filtered live tracking list (client-side safety check)
   const filteredLiveOrders = useMemo(() => {
     return trackingOrders.filter((order) => {
-      if (companyFilter !== 'ALL') {
-        const targetCid = companyFilter === 'cmhp' ? 2 : companyFilter === 'tej' ? 3 : Number(companyFilter)
-        if (Number(order.company_id) !== targetCid) return false
-      }
+      if (Number(order.company_id) !== companyId) return false
       if (typeFilter !== 'ALL') {
         const t = (order.product_type || '').toLowerCase()
         if (t !== typeFilter.toLowerCase()) return false
@@ -174,7 +161,7 @@ export default function DispatchPage() {
         const q = search.trim().toLowerCase()
         const orderNum = String(order.order_number || '').toLowerCase()
         const prod = String(order.product_name || '').toLowerCase()
-        const batch = String(order.batch_no || '').toLowerCase()
+        const batch = [order.batch_no, ...(order.finished_goods_batches || [])].join(' ').toLowerCase()
         const comp = String(order.company_name || '').toLowerCase()
         if (!orderNum.includes(q) && !prod.includes(q) && !batch.includes(q) && !comp.includes(q)) {
           return false
@@ -187,15 +174,12 @@ export default function DispatchPage() {
       }
       return true
     })
-  }, [trackingOrders, companyFilter, typeFilter, search, fromDate, toDate])
+  }, [trackingOrders, companyId, typeFilter, search, fromDate, toDate])
 
   // Filtered dispatch records
   const filteredRecords = useMemo(() => {
     return dispatchRecords.filter((rec) => {
-      if (companyFilter !== 'ALL') {
-        const targetCid = companyFilter === 'cmhp' ? 2 : companyFilter === 'tej' ? 3 : Number(companyFilter)
-        if (rec.company_id && Number(rec.company_id) !== targetCid) return false
-      }
+      if (Number(rec.company_id) !== companyId) return false
       if (typeFilter !== 'ALL') {
         const t = (rec.product_type || '').toLowerCase()
         if (t !== typeFilter.toLowerCase()) return false
@@ -216,7 +200,7 @@ export default function DispatchPage() {
       }
       return true
     })
-  }, [dispatchRecords, companyFilter, typeFilter, search, fromDate, toDate])
+  }, [dispatchRecords, companyId, typeFilter, search, fromDate, toDate])
 
   // Active paginated data
   const activeDataset = activeTab === 'live' ? filteredLiveOrders : filteredRecords
@@ -238,9 +222,8 @@ export default function DispatchPage() {
     setConfirming(true)
     setConfirmError('')
     try {
-      const cid = confirmModalOrder.company_id || companyId
       const orderId = confirmModalOrder.order_id
-      const res = await api.post(`/v1/companies/${cid}/orders/${orderId}/dispatch-confirm/`, {
+      const res = await api.post(`/v1/companies/${companyId}/orders/${orderId}/dispatch-confirm/`, {
         notes: dispatchNotes.trim() || 'Dispatched and physically verified',
       })
 
@@ -352,11 +335,7 @@ export default function DispatchPage() {
           setTypeFilter(val)
           setCurrentPage(1)
         }}
-        companyFilter={companyFilter}
-        onCompanyChange={(val) => {
-          setCompanyFilter(val)
-          setCurrentPage(1)
-        }}
+        showCompanyFilter={false}
         fromDate={fromDate}
         onFromDateChange={(val) => {
           setFromDate(val)
@@ -378,25 +357,6 @@ export default function DispatchPage() {
       {/* 4. TAB CONTENT: LIVE TRACKING */}
       {activeTab === 'live' && (
         <div className="disp-card">
-          {/* Tracker Legend Strip */}
-          <div className="disp-legend-bar">
-            <div className="disp-legend-item">
-              <span className="disp-legend-dot dot-green" />
-              <span className="disp-legend-label">Green: Stage Completed</span>
-            </div>
-            <div className="disp-legend-item">
-              <span className="disp-legend-dot dot-yellow" />
-              <span className="disp-legend-label">Yellow: Stage In Progress</span>
-            </div>
-            <div className="disp-legend-item">
-              <span className="disp-legend-dot dot-white" />
-              <span className="disp-legend-label">White: Pending / Not Started</span>
-            </div>
-            <div className="disp-legend-note">
-              ℹ️ Stages precede in order: <strong>Order Created → QA → Production (BMR) → QC → Invoice</strong>.
-            </div>
-          </div>
-
           {trackingError && (
             <div className="disp-error-banner">
               ⚠️ {trackingError}
@@ -425,7 +385,7 @@ export default function DispatchPage() {
                       <th style={{ minWidth: 180 }}>Product</th>
                       <th style={{ minWidth: 100 }}>Type</th>
                       <th style={{ minWidth: 110 }}>Order Date</th>
-                      <th style={{ minWidth: 420 }}>Progress Tracker (Stages 1–5)</th>
+                      <th style={{ minWidth: 420 }}>Order Progress</th>
                       <th style={{ minWidth: 150, textAlign: 'center' }}>Dispatch Action</th>
                     </tr>
                   </thead>
@@ -436,6 +396,7 @@ export default function DispatchPage() {
                       const totalStages = item.total_stages || 5
                       const canConfirm = Boolean(item.can_confirm_dispatch)
                       const blockingReason = item.blocking_stage || 'Complete all stages to confirm dispatch'
+                      const nextStage = stages.find(stage => stage.status !== 'green')
 
                       return (
                         <tr key={item.order_id}>
@@ -445,6 +406,9 @@ export default function DispatchPage() {
                               <span className="disp-order-number">#{item.order_number}</span>
                               {item.batch_no && (
                                 <span className="disp-order-batch">Batch: {item.batch_no}</span>
+                              )}
+                              {item.finished_goods_batches?.length > 0 && (
+                                <span className="disp-order-batch">FG batches: {item.finished_goods_batches.join(', ')}</span>
                               )}
                               {item.in_records && (
                                 <span className="disp-badge-records" title="This order has been sent to Records dossier">
@@ -479,33 +443,42 @@ export default function DispatchPage() {
                           {/* 6. Multi-Stage Progress Tracker */}
                           <td>
                             <div className="disp-tracker-container">
-                              <div className="disp-stages-row">
+                              <ol className="disp-timeline" aria-label="Order progress" role="list">
                                 {stages.map((stage, idx) => {
-                                  const colorClass = `stage-${stage.status || 'white'}`
+                                  const status = stage.status || 'white'
+                                  const isNext = stage === nextStage
+                                  const statusLabel = { green: 'Completed', yellow: 'In progress', white: isNext ? 'Up next' : 'Pending' }[status]
+                                  const connected = idx > 0 && stages[idx - 1].status === 'green' && status !== 'white'
+
                                   return (
-                                    <React.Fragment key={stage.key || idx}>
-                                      <div
-                                        className={`disp-stage-pill ${colorClass}`}
-                                        title={`${stage.label}: ${stage.status.toUpperCase()}`}
-                                      >
-                                        <span className="stage-indicator-dot" />
-                                        <span className="stage-name">{stage.label}</span>
-                                      </div>
-                                      {idx < stages.length - 1 && (
-                                        <span className="stage-connector">→</span>
-                                      )}
-                                    </React.Fragment>
+                                    <li
+                                      key={stage.key}
+                                      className={`disp-timeline-step stage-${status}${connected ? ' is-connected' : ''}${isNext ? ' is-next' : ''}`}
+                                      aria-current={isNext ? 'step' : undefined}
+                                    >
+                                      <span className="disp-timeline-marker" aria-hidden="true">
+                                        {status === 'green' ? '✓' : <span />}
+                                      </span>
+                                      <span className="disp-timeline-label" title={stage.label}>
+                                        {stage.key === 'production' ? 'Production' : stage.label}
+                                      </span>
+                                      <span className="disp-timeline-status">{statusLabel}</span>
+                                    </li>
                                   )
                                 })}
-                              </div>
+                              </ol>
 
                               <div className="disp-tracker-footer">
-                                <span className={`disp-progress-badge ${doneCount === 5 ? 'all-done' : ''}`}>
-                                  {doneCount}/{totalStages} Done
+                                <span className={`disp-progress-badge ${canConfirm ? 'all-done' : ''}`}>
+                                  {doneCount} of {totalStages} complete
                                 </span>
-                                {!canConfirm && item.blocking_stage && (
-                                  <span className="disp-blocking-hint" title={item.blocking_stage}>
-                                    ⚠️ {item.blocking_stage}
+                                {(canConfirm || nextStage || item.blocking_stage) && (
+                                  <span className="disp-tracker-summary" title={canConfirm ? undefined : blockingReason}>
+                                    {canConfirm
+                                      ? 'Ready to dispatch'
+                                      : nextStage
+                                        ? `${nextStage.status === 'yellow' ? 'In progress' : 'Up next'} · ${nextStage.label}`
+                                        : item.blocking_stage}
                                   </span>
                                 )}
                               </div>
@@ -607,6 +580,9 @@ export default function DispatchPage() {
                             </strong>
                             {rec.batch_no && (
                               <span className="disp-order-batch">Batch: {rec.batch_no}</span>
+                            )}
+                            {rec.finished_goods_batches?.length > 0 && (
+                              <span className="disp-order-batch">FG batches: {rec.finished_goods_batches.join(', ')}</span>
                             )}
                           </div>
                         </td>

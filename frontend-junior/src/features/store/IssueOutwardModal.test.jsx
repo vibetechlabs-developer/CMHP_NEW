@@ -5,6 +5,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import IssueOutwardModal from './IssueOutwardModal'
+import { listBatchPlans } from '../manufacturing/batchPlansService'
 import { createMaterialIssue, getAvailableToIssue, postMaterialIssue } from './materialIssueService'
 import { getStorePermissionCodes } from '../operations/storePreparationService'
 
@@ -23,9 +24,20 @@ vi.mock('../manufacturing/batchPlansService', () => ({
 
 const ONE_BALANCE = [{ source_company_id: 2, source_company_code: 'CMHP', unit_code: 'KG', net_quantity: '50.000', recorded_receipt_quantity: '60.000', recorded_issued_quantity: '10.000' }]
 
+const BATCH_PLAN = { id: 44, official_batch_number: 'GH2609', product_name: 'Paracetamol 500mg Tablets' }
+
+async function selectBatchPlan() {
+  const input = await screen.findByLabelText(/Batch plan \/ production batch/)
+  await waitFor(() => expect(input.disabled).toBe(false))
+  fireEvent.change(input, { target: { value: 'GH2609' } })
+  fireEvent.click(await screen.findByRole('button', { name: /GH2609/ }))
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   getAvailableToIssue.mockResolvedValue(ONE_BALANCE)
+  getStorePermissionCodes.mockResolvedValue([])
+  listBatchPlans.mockResolvedValue({ results: [BATCH_PLAN] })
 })
 
 afterEach(() => {
@@ -45,7 +57,7 @@ describe('draft create and post', () => {
   it('creates a draft with the real company/material ids and the entered quantity', async () => {
     createMaterialIssue.mockResolvedValue({ id: 1, reference: 'ISS-0001', status: 'DRAFT', version: 1 })
     render(<IssueOutwardModal storeId={3} materialId={9} materialCode="SYNTH-9" materialName="Synthetic" onClose={vi.fn()} />)
-    await waitFor(() => expect(screen.getByLabelText(/Issued quantity/)).toBeTruthy())
+    await selectBatchPlan()
 
     fireEvent.change(screen.getByLabelText(/Issued quantity/), { target: { value: '20' } })
     fireEvent.change(screen.getByLabelText(/Name of product/), { target: { value: 'Tablet X' } })
@@ -55,8 +67,8 @@ describe('draft create and post', () => {
     const [storeId, payload] = createMaterialIssue.mock.calls[0]
     expect(storeId).toBe(3)
     expect(payload.source_company_id).toBe(2)
-    expect(payload.material_id).toBe(9)
-    expect(payload.issued_quantity).toBe('20')
+    expect(payload.batch_plan_id).toBe(44)
+    expect(payload.lines).toEqual([{ material_id: 9, issued_quantity: '20' }])
     expect(payload.product_reference).toBe('Tablet X')
   })
 
@@ -64,7 +76,7 @@ describe('draft create and post', () => {
     createMaterialIssue.mockResolvedValue({ id: 1, reference: 'ISS-0001', status: 'DRAFT', version: 1 })
     getStorePermissionCodes.mockResolvedValue(['stock_issue.post'])
     render(<IssueOutwardModal storeId={3} materialId={9} materialCode="SYNTH-9" materialName="Synthetic" onClose={vi.fn()} />)
-    await waitFor(() => expect(screen.getByLabelText(/Issued quantity/)).toBeTruthy())
+    await selectBatchPlan()
 
     fireEvent.change(screen.getByLabelText(/Issued quantity/), { target: { value: '999' } })
     fireEvent.change(screen.getByLabelText(/Name of product/), { target: { value: 'Tablet X' } })
@@ -72,7 +84,7 @@ describe('draft create and post', () => {
 
     await waitFor(() => expect(screen.getByText('Post Issue')).toBeTruthy())
     expect(screen.getByText('Post Issue').disabled).toBe(true)
-    expect(screen.getByText(/Exceeds the recorded net balance of 50/)).toBeTruthy()
+    expect(screen.getByText('Post Issue').title).toMatch(/Exceeds the recorded net balance of 50/)
   })
 
   it('posts the draft with its id and version after confirmation, and surfaces onPosted', async () => {
@@ -81,7 +93,7 @@ describe('draft create and post', () => {
     getStorePermissionCodes.mockResolvedValue(['stock_issue.post'])
     const onPosted = vi.fn()
     render(<IssueOutwardModal storeId={3} materialId={9} materialCode="SYNTH-9" materialName="Synthetic" onClose={vi.fn()} onPosted={onPosted} />)
-    await waitFor(() => expect(screen.getByLabelText(/Issued quantity/)).toBeTruthy())
+    await selectBatchPlan()
 
     fireEvent.change(screen.getByLabelText(/Issued quantity/), { target: { value: '20' } })
     fireEvent.change(screen.getByLabelText(/Name of product/), { target: { value: 'Tablet X' } })
@@ -103,7 +115,7 @@ describe('draft create and post', () => {
     createMaterialIssue.mockResolvedValue({ id: 1, reference: 'ISS-0001', status: 'DRAFT', version: 1 })
     getStorePermissionCodes.mockResolvedValue(['stock_issue.post'])
     render(<IssueOutwardModal storeId={3} materialId={9} materialCode="SYNTH-9" materialName="Synthetic" onClose={vi.fn()} />)
-    await waitFor(() => expect(screen.getByLabelText(/Issued quantity/)).toBeTruthy())
+    await selectBatchPlan()
 
     fireEvent.change(screen.getByLabelText(/Issued quantity/), { target: { value: '20' } })
     fireEvent.change(screen.getByLabelText(/Name of product/), { target: { value: 'Tablet X' } })
@@ -125,7 +137,7 @@ describe('draft create and post', () => {
     postMaterialIssue.mockResolvedValue({ id: 1, reference: 'ISS-0001', status: 'POSTED', version: 2, issued_quantity: '15', product_reference: 'Syrup A' })
     const onPosted = vi.fn()
     render(<IssueOutwardModal storeId={3} materialId={9} materialCode="SYNTH-9" materialName="Synthetic" onClose={vi.fn()} onPosted={onPosted} />)
-    await waitFor(() => expect(screen.getByLabelText(/Issued quantity/)).toBeTruthy())
+    await selectBatchPlan()
 
     fireEvent.change(screen.getByLabelText(/Issued quantity/), { target: { value: '15' } })
     fireEvent.change(screen.getByLabelText(/Name of product/), { target: { value: 'Syrup A' } })
@@ -146,7 +158,7 @@ describe('error handling', () => {
   it('shows the server error on a failed draft save and allows retry', async () => {
     createMaterialIssue.mockRejectedValueOnce({ response: { status: 400 }, message: 'Invalid issue' })
     render(<IssueOutwardModal storeId={3} materialId={9} materialCode="SYNTH-9" materialName="Synthetic" onClose={vi.fn()} />)
-    await waitFor(() => expect(screen.getByLabelText(/Issued quantity/)).toBeTruthy())
+    await selectBatchPlan()
 
     fireEvent.change(screen.getByLabelText(/Issued quantity/), { target: { value: '20' } })
     fireEvent.change(screen.getByLabelText(/Name of product/), { target: { value: 'Tablet X' } })
@@ -164,7 +176,7 @@ describe('error handling', () => {
     postMaterialIssue.mockRejectedValueOnce({ response: { status: 409 }, message: 'Stale version' })
     getStorePermissionCodes.mockResolvedValue(['stock_issue.post'])
     render(<IssueOutwardModal storeId={3} materialId={9} materialCode="SYNTH-9" materialName="Synthetic" onClose={vi.fn()} />)
-    await waitFor(() => expect(screen.getByLabelText(/Issued quantity/)).toBeTruthy())
+    await selectBatchPlan()
 
     fireEvent.change(screen.getByLabelText(/Issued quantity/), { target: { value: '20' } })
     fireEvent.change(screen.getByLabelText(/Name of product/), { target: { value: 'Tablet X' } })
@@ -183,15 +195,10 @@ describe('error handling', () => {
   })
 
   it('derives product reference consistently when an existing batch is chosen', async () => {
-    const { listBatchPlans } = await import('../manufacturing/batchPlansService')
-    listBatchPlans.mockResolvedValueOnce({
-      results: [{ id: 44, official_batch_number: 'GH2609', product_name: 'Paracetamol 500mg Tablets' }],
-    })
     render(<IssueOutwardModal storeId={3} materialId={9} materialCode="SYNTH-9" materialName="Synthetic" onClose={vi.fn()} />)
-    await waitFor(() => expect(screen.getByLabelText(/batch no/i)).toBeTruthy())
-    await waitFor(() => expect(listBatchPlans).toHaveBeenCalled())
-
-    fireEvent.change(screen.getByLabelText(/batch no/i), { target: { value: 'GH2609' } })
+    expect(listBatchPlans).not.toHaveBeenCalled()
+    await selectBatchPlan()
+    expect(listBatchPlans).toHaveBeenCalledWith(2, { search: 'GH2609', page_size: 20 })
     await waitFor(() => expect(screen.getByLabelText(/Name of product/).value).toBe('Paracetamol 500mg Tablets'))
   })
 })

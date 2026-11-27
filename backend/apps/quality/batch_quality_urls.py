@@ -1,4 +1,5 @@
 from django.urls import path
+from apps.quality.finished_goods_views import FinishedGoodsAllocationView, FinishedGoodsBayView, FinishedGoodsListView
 
 from apps.quality.batch_quality_views import (
     BatchQualityCaseDetailView,
@@ -12,6 +13,9 @@ from apps.quality.batch_quality_views import (
 )
 
 urlpatterns = [
+    path("<int:company_id>/finished-goods/", FinishedGoodsListView.as_view(), name="finished-goods-list"),
+    path("<int:company_id>/finished-goods/<int:stock_id>/bay/", FinishedGoodsBayView.as_view(), name="finished-goods-bay"),
+    path("<int:company_id>/finished-goods/<int:stock_id>/allocations/", FinishedGoodsAllocationView.as_view(), name="finished-goods-allocate"),
     path(
         "<int:company_id>/batch-quality/",
         BatchQualityCaseListCreateView.as_view(),

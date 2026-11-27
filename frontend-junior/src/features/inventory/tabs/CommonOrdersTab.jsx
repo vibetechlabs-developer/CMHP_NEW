@@ -2,7 +2,7 @@
 // 1. Supplier Purchase Orders (shared store procurement)
 // 2. Inward Goods Receipts (goods delivery into common warehouse)
 // 3. Material Requests (production demand linked to batches)
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import Button from '../../../components/Button'
 import Alert from '../../../components/Alert'
 import { LoadingState } from '../../../components/Spinner'
@@ -78,6 +78,7 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
   // 1. Supplier Purchase Orders state
   const [pos, setPos] = useState({ loading: true, results: [], count: 0, error: '' })
   const [poSearch, setPoSearch] = useState('')
+  const [appliedPoSearch, setAppliedPoSearch] = useState('')
   const [poSupplier, setPoSupplier] = useState('')
   const [poStatus, setPoStatus] = useState('')
   const [poDateFrom, setPoDateFrom] = useState('')
@@ -88,6 +89,7 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
   // 2. Inward Goods Receipts state
   const [receipts, setReceipts] = useState({ loading: true, results: [], count: 0, error: '' })
   const [receiptSearch, setReceiptSearch] = useState('')
+  const [appliedReceiptSearch, setAppliedReceiptSearch] = useState('')
   const [receiptStatus, setReceiptStatus] = useState('')
   const [receiptPage, setReceiptPage] = useState(1)
   const [receiptSortField, setReceiptSortField] = useState('arrived_at')
@@ -109,9 +111,6 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
       } else if (receiptSortField === 'source_po') {
         valA = a.source_purchase_order_reference || String(a.source_purchase_order_id || '')
         valB = b.source_purchase_order_reference || String(b.source_purchase_order_id || '')
-      } else if (receiptSortField === 'supplier') {
-        valA = a.supplier_name || a.company_code || ''
-        valB = b.supplier_name || b.company_code || ''
       } else if (receiptSortField === 'status') {
         valA = a.status || ''
         valB = b.status || ''
@@ -138,6 +137,8 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
   // 3. Production Material Requests state
   const [reqs, setReqs] = useState({ loading: true, results: [], count: 0, error: '' })
   const [reqSearch, setReqSearch] = useState('')
+  const [appliedReqSearch, setAppliedReqSearch] = useState('')
+  const reqRequest = useRef(0)
   const [reqStatus, setReqStatus] = useState('')
   const [reqPage, setReqPage] = useState(1)
 
@@ -220,7 +221,7 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
           page: poPage,
           pageSize: 20,
           status: poStatus,
-          search: poSearch,
+          search: appliedPoSearch,
           supplierId: poSupplier,
           dateFrom: poDateFrom,
           dateTo: poDateTo,
@@ -229,7 +230,7 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
           page: poPage,
           pageSize: 20,
           status: poStatus,
-          search: poSearch,
+          search: appliedPoSearch,
         })
 
     fetcher
@@ -244,7 +245,7 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
       .catch((err) => {
         // Fallback to company-scoped PO list if store facade had an unexpected error
         if (storeId && companyId) {
-          listPurchaseOrders(companyId, { page: poPage, pageSize: 20, status: poStatus, search: poSearch })
+          listPurchaseOrders(companyId, { page: poPage, pageSize: 20, status: poStatus, search: appliedPoSearch })
             .then((data) => {
               setPos({
                 loading: false,
@@ -266,10 +267,11 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
     if (activeSubtab === 'PURCHASE_ORDERS') {
       loadPurchaseOrders()
     }
-  }, [storeId, poPage, poStatus, poSupplier, poDateFrom, poDateTo, activeSubtab])
+  }, [storeId, companyId, poPage, poStatus, appliedPoSearch, poSupplier, poDateFrom, poDateTo, activeSubtab])
 
   const handleClearPoFilters = () => {
     setPoSearch('')
+    setAppliedPoSearch('')
     setPoSupplier('')
     setPoStatus('')
     setPoDateFrom('')
@@ -283,7 +285,7 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
   const loadGoodsReceipts = () => {
     if (!storeId) return
     setReceipts((prev) => ({ ...prev, loading: true, error: '' }))
-    listGoodsReceipts(storeId, { status: receiptStatus, page: receiptPage, pageSize: 20, search: receiptSearch })
+    listGoodsReceipts(storeId, { status: receiptStatus, page: receiptPage, pageSize: 20, search: appliedReceiptSearch })
       .then((data) => {
         setReceipts({
           loading: false,
@@ -301,7 +303,7 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
     if (activeSubtab === 'INWARD_RECEIPTS') {
       loadGoodsReceipts()
     }
-  }, [storeId, receiptPage, receiptStatus, activeSubtab])
+  }, [storeId, receiptPage, receiptStatus, appliedReceiptSearch, activeSubtab])
 
   // -------------------------------------------------------------
   // TAB 3: FETCH MATERIAL REQUESTS
@@ -309,23 +311,11 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
   const loadRequisitions = () => {
     if (!storeId) return
     setReqs((prev) => ({ ...prev, loading: true, error: '' }))
-    listMaterialRequisitions(storeId, { page: reqPage, pageSize: 20 })
+    const request = ++reqRequest.current
+    listMaterialRequisitions(storeId, { page: reqPage, pageSize: 20, search: appliedReqSearch, status: reqStatus })
       .then((data) => {
-        let results = Array.isArray(data) ? data : data.results || []
-        if (reqStatus) {
-          results = results.filter((r) => String(r.status || '').toUpperCase() === reqStatus.toUpperCase())
-        }
-        if (reqSearch) {
-          const s = reqSearch.toLowerCase()
-          results = results.filter((r) => {
-            const ref = String(r.reference || `REQ-#${r.id}`).toLowerCase()
-            const prod = String(r.product_name_snapshot || r.product_code_snapshot || '').toLowerCase()
-            const batch = String(
-              r.current_plan_context?.official_batch_number || r.batch_plan_number || r.batch_plan || ''
-            ).toLowerCase()
-            return ref.includes(s) || prod.includes(s) || batch.includes(s)
-          })
-        }
+        if (request !== reqRequest.current) return
+        const results = Array.isArray(data) ? data : data.results || []
         setReqs({
           loading: false,
           results,
@@ -334,7 +324,9 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
         })
       })
       .catch((err) => {
-        setReqs({ loading: false, results: [], count: 0, error: getErrorMessage(err) })
+        if (request === reqRequest.current) {
+          setReqs({ loading: false, results: [], count: 0, error: getErrorMessage(err) })
+        }
       })
   }
 
@@ -342,7 +334,8 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
     if (activeSubtab === 'REQUISITIONS') {
       loadRequisitions()
     }
-  }, [storeId, reqPage, reqStatus, activeSubtab])
+    return () => { reqRequest.current += 1 }
+  }, [storeId, reqPage, reqStatus, appliedReqSearch, activeSubtab])
 
   // -------------------------------------------------------------
   // ACTIONS: PURCHASE ORDERS
@@ -828,7 +821,7 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     setPoPage(1)
-                    loadPurchaseOrders()
+                    setAppliedPoSearch(poSearch.trim())
                   }
                 }}
                 style={{ minWidth: 200, padding: '5px 8px', fontSize: 13 }}
@@ -838,8 +831,9 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
                 variant="secondary"
                 onClick={() => {
                   setPoPage(1)
-                  loadPurchaseOrders()
+                  setAppliedPoSearch(poSearch.trim())
                 }}
+                aria-label="Search purchase orders"
               >
                 🔍
               </Button>
@@ -907,7 +901,7 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
 
             {/* Clear & Refresh */}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-              {(poSearch || poSupplier || poStatus || poDateFrom || poDateTo) && (
+              {(poSearch || appliedPoSearch || poSupplier || poStatus || poDateFrom || poDateTo) && (
                 <Button size="sm" variant="secondary" onClick={handleClearPoFilters}>
                   Clear
                 </Button>
@@ -971,15 +965,26 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
                       const linesList = Array.isArray(po.lines) ? po.lines : []
                       const linesSummary = linesList.length > 0 ? (
                         <div style={{ fontSize: 12 }}>
-                          {linesList.slice(0, 2).map((l, idx) => (
-                            <div key={idx} style={{ color: '#334155' }}>
-                              <strong>{l.material_code || l.material_name || `Item #${l.material_id}`}</strong>: {l.ordered_quantity || l.quantity} {l.unit_code || ''}
+                          {linesList.slice(0, 2).map((l) => (
+                            <div key={l.id || l.line_number} className="po-material-preview">
+                              <strong>{l.material_name_snapshot || l.material_name || l.material_code || `Item #${l.material_id}`}</strong>
+                              <small>
+                                {(l.material_code_snapshot || l.material_code) && <>{l.material_code_snapshot || l.material_code} · </>}
+                                {l.ordered_quantity ?? l.quantity} {l.unit_code_snapshot || l.unit_code}
+                              </small>
                             </div>
                           ))}
                           {linesList.length > 2 && (
-                            <div style={{ color: '#64748b', fontSize: 11 }}>
-                              +{linesList.length - 2} more item(s)
-                            </div>
+                            <button
+                              type="button"
+                              className="po-material-more"
+                              onClick={() => {
+                                setSelectedPo(po)
+                                setPoDetailOpen(true)
+                              }}
+                            >
+                              View all {linesList.length} items
+                            </button>
                           )}
                           <div style={{ color: '#0369a1', fontSize: 11, fontWeight: 600, marginTop: 2 }}>
                             Total: {po.currency_code || '₹'} {po.subtotal || '-'}
@@ -1190,7 +1195,7 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     setReceiptPage(1)
-                    loadGoodsReceipts()
+                    setAppliedReceiptSearch(receiptSearch.trim())
                   }
                 }}
                 style={{ minWidth: 220, padding: '5px 8px', fontSize: 13 }}
@@ -1200,8 +1205,9 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
                 variant="secondary"
                 onClick={() => {
                   setReceiptPage(1)
-                  loadGoodsReceipts()
+                  setAppliedReceiptSearch(receiptSearch.trim())
                 }}
+                aria-label="Search inward receipts"
               >
                 🔍
               </Button>
@@ -1223,12 +1229,13 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
             </select>
 
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-              {(receiptSearch || receiptStatus) && (
+              {(receiptSearch || appliedReceiptSearch || receiptStatus) && (
                 <Button
                   size="sm"
                   variant="secondary"
                   onClick={() => {
                     setReceiptSearch('')
+                    setAppliedReceiptSearch('')
                     setReceiptStatus('')
                     setReceiptPage(1)
                   }}
@@ -1286,13 +1293,6 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
                       >
                         Source PO {receiptSortField === 'source_po' ? (receiptSortDir === 'asc' ? '▲' : '▼') : '↕'}
                       </th>
-                      <th
-                        style={{ minWidth: 140, cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleReceiptSort('supplier')}
-                        title="Click to sort"
-                      >
-                        Supplier / Buyer {receiptSortField === 'supplier' ? (receiptSortDir === 'asc' ? '▲' : '▼') : '↕'}
-                      </th>
                       <th style={{ minWidth: 220 }}>📦 Materials / Products</th>
                       <th style={{ minWidth: 110 }}>Store</th>
                       <th
@@ -1319,7 +1319,6 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
                       const st = String(r.status || '').toUpperCase()
                       const stStyle = STATUS_COLORS[st] || { bg: '#f1f5f9', color: '#475569' }
                       const poRef = r.source_purchase_order_reference || (r.source_purchase_order_id ? `PO #${r.source_purchase_order_id}` : 'Direct Entry')
-                      const supplier = r.supplier_name || r.company_code || '-'
                       const invoiceRef = r.supplier_invoice_reference || r.delivery_note_reference || '-'
                       const dateStr = r.arrived_at ? r.arrived_at.slice(0, 10) : (r.created_at || '').slice(0, 10)
 
@@ -1331,7 +1330,6 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
                           <td>
                             <strong>{poRef}</strong>
                           </td>
-                          <td>{supplier}</td>
                           <td style={{ minWidth: 200, maxWidth: 300, fontSize: 12.5 }}>
                             {(r.lines && r.lines.length > 0) ? (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -1497,7 +1495,7 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     setReqPage(1)
-                    loadRequisitions()
+                    setAppliedReqSearch(reqSearch.trim())
                   }
                 }}
                 style={{ minWidth: 220, padding: '5px 8px', fontSize: 13 }}
@@ -1507,8 +1505,9 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
                 variant="secondary"
                 onClick={() => {
                   setReqPage(1)
-                  loadRequisitions()
+                  setAppliedReqSearch(reqSearch.trim())
                 }}
+                aria-label="Search material requests"
               >
                 🔍
               </Button>
@@ -1531,12 +1530,13 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
             </select>
 
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-              {(reqSearch || reqStatus) && (
+              {(reqSearch || appliedReqSearch || reqStatus) && (
                 <Button
                   size="sm"
                   variant="secondary"
                   onClick={() => {
                     setReqSearch('')
+                    setAppliedReqSearch('')
                     setReqStatus('')
                     setReqPage(1)
                   }}
@@ -1751,104 +1751,10 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
           isOpen={true}
           onClose={() => setPoDetailOpen(false)}
           title={`Purchase Order: ${selectedPo.reference || `#${selectedPo.id}`}`}
-          maxWidth="880px"
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 13, background: '#f8fafc', padding: 12, borderRadius: 8 }}>
-              <div><strong>Status:</strong> {selectedPo.status}</div>
-              <div><strong>Supplier:</strong> {selectedPo.supplier_name || selectedPo.supplier_code || `Supplier #${selectedPo.supplier_id}`}</div>
-              <div><strong>Receiving Store:</strong> {storeDisplayName}</div>
-              <div><strong>Invoiced Entity:</strong> {selectedPo.company_code || 'Accounting Buyer'}</div>
-              <div><strong>Currency:</strong> {selectedPo.currency_code || 'INR'}</div>
-              <div><strong>Delivery Target:</strong> {selectedPo.expected_delivery_date || '-'}</div>
-              <div><strong>Created Date:</strong> {(selectedPo.created_at || '').slice(0, 10)}</div>
-              <div><strong>Pre-Tax Subtotal:</strong> {selectedPo.currency_code || '₹'} {selectedPo.subtotal || '-'}</div>
-            </div>
-
-            {selectedPo.notes && (
-              <div style={{ padding: 10, background: '#f1f5f9', borderRadius: 6, fontSize: 12 }}>
-                <strong>Terms &amp; Remarks:</strong> {selectedPo.notes}
-              </div>
-            )}
-
-            <div>
-              <h4 style={{ margin: '10px 0 6px', fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
-                Item Lines &amp; Receipt Progress:
-              </h4>
-              {Array.isArray(selectedPo.delivery_progress) && selectedPo.delivery_progress.length > 0 ? (
-                <table className="ci-table" style={{ fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ background: '#f8fafc' }}>
-                      <th style={{ width: 36 }}>#</th>
-                      <th>Material</th>
-                      <th style={{ textAlign: 'right' }}>Ordered</th>
-                      <th style={{ textAlign: 'right' }}>Posted Received</th>
-                      <th style={{ textAlign: 'right' }}>Pending Draft</th>
-                      <th style={{ textAlign: 'right' }}>Remaining</th>
-                      <th style={{ textAlign: 'center' }}>Delivery Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedPo.delivery_progress.map((dp) => {
-                      const st = dp.delivery_status || 'PENDING'
-                      const stStyle = STATUS_COLORS[st] || STATUS_COLORS.PENDING
-                      return (
-                        <tr key={dp.source_po_line_id || dp.line_number}>
-                          <td style={{ color: '#94a3b8' }}>{dp.line_number}</td>
-                          <td>
-                            <strong>{dp.material_code}</strong>
-                            {dp.material_name && <div style={{ fontSize: 11, color: '#64748b' }}>{dp.material_name}</div>}
-                          </td>
-                          <td style={{ textAlign: 'right', fontWeight: 600 }}>{dp.ordered_quantity} {dp.unit_code}</td>
-                          <td style={{ textAlign: 'right', color: '#15803d', fontWeight: 600 }}>{dp.received_quantity} {dp.unit_code}</td>
-                          <td style={{ textAlign: 'right', color: '#b45309' }}>{dp.pending_draft_quantity || '0.000'} {dp.unit_code}</td>
-                          <td style={{ textAlign: 'right', color: '#0369a1', fontWeight: 600 }}>{dp.remaining_quantity} {dp.unit_code}</td>
-                          <td style={{ textAlign: 'center' }}>
-                            <span
-                              className="stock-badge"
-                              style={{ background: stStyle.bg, color: stStyle.color, border: 'none' }}
-                            >
-                              {st}
-                            </span>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              ) : Array.isArray(selectedPo.lines) && selectedPo.lines.length > 0 ? (
-                <table className="ci-table" style={{ fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ background: '#f8fafc' }}>
-                      <th>Material</th>
-                      <th>Quantity</th>
-                      <th>Unit Price</th>
-                      <th style={{ textAlign: 'right' }}>Line Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedPo.lines.map((l) => (
-                      <tr key={l.id}>
-                        <td>{l.material_code || l.material_name || `Item #${l.material_id}`}</td>
-                        <td>{l.ordered_quantity || l.quantity} {l.unit_code}</td>
-                        <td>{l.unit_price ? `${l.currency_code || '₹'} ${l.unit_price}` : '-'}</td>
-                        <td style={{ textAlign: 'right' }}>
-                          {l.line_amount
-                            ? `${l.currency_code || '₹'} ${l.line_amount}`
-                            : l.quantity && l.unit_price
-                            ? `${l.currency_code || '₹'} ${(Number(l.quantity) * Number(l.unit_price)).toFixed(2)}`
-                            : '-'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <div style={{ color: '#64748b', fontSize: 12 }}>No line items recorded.</div>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+          size="xl"
+          className="po-details-modal"
+          footer={
+            <>
               {selectedPo.status === 'ISSUED' && (
                 <Button
                   variant="primary"
@@ -1864,6 +1770,107 @@ export default function CommonOrdersTab({ storeId: propStoreId }) {
               <Button variant="secondary" onClick={() => setPoDetailOpen(false)}>
                 Close
               </Button>
+            </>
+          }
+        >
+          <div className="po-details-content">
+            <dl className="po-details-summary">
+              <div><dt>Status</dt><dd>{selectedPo.status}</dd></div>
+              <div><dt>Supplier</dt><dd>{selectedPo.supplier_name || selectedPo.supplier_code || `Supplier #${selectedPo.supplier_id}`}</dd></div>
+              <div><dt>Receiving Store</dt><dd>{storeDisplayName}</dd></div>
+              <div><dt>Invoiced Entity</dt><dd>{selectedPo.company_code || 'Accounting Buyer'}</dd></div>
+              <div><dt>Currency</dt><dd>{selectedPo.currency_code || 'INR'}</dd></div>
+              <div><dt>Delivery Target</dt><dd>{selectedPo.expected_delivery_date || '-'}</dd></div>
+              <div><dt>Created Date</dt><dd>{(selectedPo.created_at || '').slice(0, 10)}</dd></div>
+              <div><dt>Pre-Tax Subtotal</dt><dd>{selectedPo.currency_code || '₹'} {selectedPo.subtotal || '-'}</dd></div>
+            </dl>
+
+            {selectedPo.notes && (
+              <div className="po-details-remarks">
+                <strong>Terms &amp; Remarks:</strong> {selectedPo.notes}
+              </div>
+            )}
+
+            <div>
+              <h4 style={{ margin: '10px 0 6px', fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
+                Item lines and receipt progress
+              </h4>
+              <div className="po-details-table-scroll" role="region" aria-label="Purchase order line items" tabIndex={0}>
+                {Array.isArray(selectedPo.delivery_progress) && selectedPo.delivery_progress.length > 0 ? (
+                  <table className="ci-table po-details-table">
+                    <thead>
+                      <tr style={{ background: '#f8fafc' }}>
+                        <th style={{ width: 36 }}>#</th>
+                        <th>Material</th>
+                        <th style={{ textAlign: 'right' }}>Ordered</th>
+                        <th style={{ textAlign: 'right' }}>Posted Received</th>
+                        <th style={{ textAlign: 'right' }}>Pending Draft</th>
+                        <th style={{ textAlign: 'right' }}>Remaining</th>
+                        <th style={{ textAlign: 'center' }}>Delivery Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedPo.delivery_progress.map((dp) => {
+                        const st = dp.delivery_status || 'PENDING'
+                        const stStyle = STATUS_COLORS[st] || STATUS_COLORS.PENDING
+                        return (
+                          <tr key={dp.source_po_line_id || dp.line_number}>
+                            <td style={{ color: '#94a3b8' }}>{dp.line_number}</td>
+                            <td>
+                              <strong>{dp.material_name || dp.material_code}</strong>
+                              {dp.material_name && dp.material_code && <small>{dp.material_code}</small>}
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: 600 }}>{dp.ordered_quantity} {dp.unit_code}</td>
+                            <td style={{ textAlign: 'right', color: '#15803d', fontWeight: 600 }}>{dp.received_quantity} {dp.unit_code}</td>
+                            <td style={{ textAlign: 'right', color: '#b45309' }}>{dp.pending_draft_quantity || '0.000'} {dp.unit_code}</td>
+                            <td style={{ textAlign: 'right', color: '#0369a1', fontWeight: 600 }}>{dp.remaining_quantity} {dp.unit_code}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              <span
+                                className="stock-badge"
+                                style={{ background: stStyle.bg, color: stStyle.color, border: 'none' }}
+                              >
+                                {st}
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                ) : Array.isArray(selectedPo.lines) && selectedPo.lines.length > 0 ? (
+                  <table className="ci-table po-details-table">
+                    <thead>
+                      <tr style={{ background: '#f8fafc' }}>
+                        <th>Material</th>
+                        <th>Quantity</th>
+                        <th>Unit Price</th>
+                        <th style={{ textAlign: 'right' }}>Line Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedPo.lines.map((l) => (
+                        <tr key={l.id}>
+                          <td>
+                            <strong>{l.material_name_snapshot || l.material_name || l.material_code || `Item #${l.material_id}`}</strong>
+                            <small>{l.material_code_snapshot || l.material_code}</small>
+                          </td>
+                          <td>{l.ordered_quantity || l.quantity} {l.unit_code}</td>
+                          <td>{l.unit_price ? `${l.currency_code || '₹'} ${l.unit_price}` : '-'}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            {l.line_amount
+                              ? `${l.currency_code || '₹'} ${l.line_amount}`
+                              : l.quantity && l.unit_price
+                              ? `${l.currency_code || '₹'} ${(Number(l.quantity) * Number(l.unit_price)).toFixed(2)}`
+                              : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div style={{ color: '#64748b', fontSize: 12 }}>No line items recorded.</div>
+                )}
+              </div>
             </div>
           </div>
         </Modal>

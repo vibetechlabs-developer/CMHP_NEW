@@ -10,7 +10,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.catalog.models import Material
+from apps.catalog.models import Material, MaterialReorderSetting
 from apps.common.errors import translate_django_validation_error
 from apps.companies.models import Company
 from apps.common.pagination import BoundedPageNumberPagination
@@ -45,6 +45,7 @@ from apps.stock_movements.serializers import (
     StockMovementSerializer,
 )
 from apps.stock_movements.services import (
+    batch_net_recorded_balances,
     cancel_material_issue,
     compute_issued_balances,
     compute_stock_balances,
@@ -78,6 +79,35 @@ STOCK_ISSUE_POST = "stock_issue.post"
 STOCK_ISSUE_CANCEL = "stock_issue.cancel"
 
 ALLOWED_LIST_PARAMS = {"page", "page_size", "material", "posted_from", "posted_to"}
+STOCK_FILTER_PARAMS = {"search", "material_kind", "company_code"}
+SUPPLIER_CODE = "source_goods_receipt__source_purchase_order__supplier__code"
+
+
+def _stock_list_filter(params, *, receipt_sources=False):
+    filters = Q()
+    if kind := params.get("material_kind"):
+        filters &= Q(material__kind=kind)
+    if company := params.get("company_code"):
+        filters &= Q(source_company__code=company)
+    if search := params.get("search", "").strip():
+        matches = Q(material_code_snapshot__icontains=search) | Q(material_name_snapshot__icontains=search)
+        if receipt_sources:
+            matches |= (
+                Q(lot_reference__icontains=search)
+                | Q(source_goods_receipt__reference__icontains=search)
+                | Q(source_goods_receipt__supplier_invoice_reference__icontains=search)
+                | Q(source_goods_receipt__delivery_note_reference__icontains=search)
+                | Q(source_goods_receipt__supplier_name__icontains=search)
+                | Q(source_goods_receipt__source_purchase_order__supplier__display_name__icontains=search)
+                | Q(**{f"{SUPPLIER_CODE}__icontains": search})
+            )
+        else:
+            matches |= Q(source_company__code__icontains=search)
+        filters &= matches
+    if receipt_sources and (supplier := params.get("supplier")):
+        filters &= Q(**{SUPPLIER_CODE: supplier})
+    return filters
+
 
 
 def _get_store_for_action(request, store_id, *required_permissions):
@@ -164,7 +194,7 @@ class StockMovementListView(generics.ListAPIView):
     def get_queryset(self):
         store = _get_store_for_action(self.request, self.kwargs["store_id"], STOCK_VIEW)
         params = self.request.query_params
-        unknown = sorted(set(params.keys()) - ALLOWED_LIST_PARAMS)
+        unknown = sorted(set(params.keys()) - ALLOWED_LIST_PARAMS - STOCK_FILTER_PARAMS - {"supplier"})
         if unknown:
             raise exceptions.ValidationError({param: "Unknown query parameter." for param in unknown})
 
@@ -181,7 +211,7 @@ class StockMovementListView(generics.ListAPIView):
         if date_to is not None:
             queryset = queryset.filter(posted_at__date__lte=date_to)
 
-        return queryset.order_by("-created_at", "-id")
+        return queryset.filter(_stock_list_filter(params, receipt_sources=True)).order_by("-created_at", "-id")
 
     def list(self, request, *args, **kwargs):
         date_from, date_to = _posted_date_range(request.query_params)
@@ -219,7 +249,7 @@ class StockBalanceListView(generics.ListAPIView):
     def get_queryset(self):
         store = _get_store_for_action(self.request, self.kwargs["store_id"], STOCK_VIEW)
         params = self.request.query_params
-        unknown = sorted(set(params.keys()) - ALLOWED_LIST_PARAMS)
+        unknown = sorted(set(params.keys()) - ALLOWED_LIST_PARAMS - STOCK_FILTER_PARAMS)
         if unknown:
             raise exceptions.ValidationError({param: "Unknown query parameter." for param in unknown})
 
@@ -228,7 +258,7 @@ class StockBalanceListView(generics.ListAPIView):
         date_from, date_to = _posted_date_range(params)
         return compute_stock_balances(
             store=store, accessible_companies=companies, material_id=material_id,
-            posted_from=date_from, posted_to=date_to,
+            posted_from=date_from, posted_to=date_to, movement_filter=_stock_list_filter(params),
         )
 
     def list(self, request, *args, **kwargs):
@@ -240,6 +270,37 @@ class StockBalanceListView(generics.ListAPIView):
             "posted_to": date_to.isoformat() if date_to else None,
         }
         return response
+
+
+@method_decorator(never_cache, name="dispatch")
+class MaterialStockSummaryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, store_id):
+        store = _get_store_for_action(request, store_id, STOCK_VIEW)
+        companies = companies_with_receipt_view_access(request.user)
+        active_materials = dict(Material.objects.filter(is_active=True).values_list("id", "base_unit_id"))
+        balances = batch_net_recorded_balances(
+            store=store, accessible_companies=companies, material_ids=list(active_materials),
+        )
+        quantities = {}
+        for (material_id, unit_id, _), row in balances.items():
+            if unit_id == active_materials[material_id]:
+                quantities[material_id] = quantities.get(material_id, 0) + row["net_quantity"]
+
+        reorder_levels = dict(MaterialReorderSetting.objects.filter(
+            store=store, material__is_active=True,
+        ).values_list("material_id", "reorder_level"))
+        in_stock = sum(quantity > 0 for quantity in quantities.values())
+        low_stock = sum(
+            0 < quantities.get(material_id, 0) <= level
+            for material_id, level in reorder_levels.items()
+        )
+        return Response({
+            "in_stock": in_stock,
+            "low_stock": low_stock if reorder_levels else None,
+            "out_of_stock": len(active_materials) - in_stock,
+        })
 
 
 REGISTER_ALLOWED_PARAMS = {"page", "page_size", "posted_from", "posted_to", "search", "supplier"}

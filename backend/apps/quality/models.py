@@ -1153,3 +1153,21 @@ class QcSlipRecord(models.Model):
 
 
 
+class FinishedGoodsPlacement(models.Model):
+    stock = models.OneToOneField(FinishedGoodsStock, on_delete=models.PROTECT, related_name="placement")
+    bay = models.CharField(max_length=255)
+
+
+class FinishedGoodsAllocation(models.Model):
+    stock = models.ForeignKey(FinishedGoodsStock, on_delete=models.PROTECT, related_name="allocations")
+    sales_order_line = models.ForeignKey("sales_orders.SalesOrderLine", on_delete=models.PROTECT, related_name="finished_goods_allocations")
+    quantity = models.DecimalField(max_digits=14, decimal_places=3)
+    allocated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    allocated_at = models.DateTimeField(auto_now_add=True)
+    request_id = models.UUIDField(unique=True)
+
+    class Meta:
+        ordering = ["-allocated_at", "-pk"]
+        constraints = [
+            models.CheckConstraint(condition=models.Q(quantity__gt=0), name="fg_allocation_quantity_positive"),
+        ]

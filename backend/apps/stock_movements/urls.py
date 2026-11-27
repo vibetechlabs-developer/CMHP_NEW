@@ -12,6 +12,7 @@ from apps.stock_movements.views import (
     MaterialRegisterView,
     MaterialReturnDispositionView,
     MaterialReturnListView,
+    MaterialStockSummaryView,
     PhysicalCountDraftListCreateView,
     ProductionCustodyClassifyDefectView,
     ProductionCustodyConsumeView,
@@ -24,6 +25,7 @@ from apps.stock_movements.views import (
 )
 
 urlpatterns = [
+    path("<int:store_id>/material-stock-summary/", MaterialStockSummaryView.as_view(), name="material-stock-summary"),
     path(
         "<int:store_id>/stock-movements/",
         StockMovementListView.as_view(),

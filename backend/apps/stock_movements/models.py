@@ -180,6 +180,11 @@ class LotQualityStatus(models.Model):
         return f"LotQualityStatus movement={self.stock_movement_id} {self.status}"
 
 
+class AnalyticalReportSequence(models.Model):
+    code = models.CharField(max_length=2, primary_key=True)
+    last_number = models.PositiveBigIntegerField(default=0)
+
+
 class MaterialIssue(models.Model):
     """A document recording material issued OUT of a shared store to a
     company's production, DRAFT -> POSTED -> CANCELLED - the same

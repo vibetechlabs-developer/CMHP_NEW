@@ -1,5 +1,5 @@
 import api from '../../api/axios'
-import { productionService } from '../production/productionService'
+import { listCompletedProductionOrders } from '../operations/salesOrdersService'
 import { normalizeProductTypeKey, getProductTypeDisplayName } from '../production/bmrTemplates/index.js'
 
 const QC_SLIP_STORAGE_PREFIX = 'cmhp_qc_slip_v1_'
@@ -22,13 +22,12 @@ export const qcSlipService = {
   },
 
   /**
-   * Fetch all production orders (from the exact same source as BMR)
-   * merged with their QC status for the given slipKind ('bulk_release' | 'test_request').
+   * Load persisted sales orders whose production status is completed.
    */
   getOrdersForQc: async (companyId, slipKind) => {
-    // 1. Get orders from productionService (exact same orders as BMR)
-    const ords = await productionService.getOrders()
-    const orderList = Array.isArray(ords?.data) ? ords.data : (Array.isArray(ords) ? ords : [])
+    if (!companyId) return []
+
+    const orderList = await listCompletedProductionOrders(companyId)
 
     // 2. Fetch backend QC slip records for this slipKind
     let slipRecords = []
@@ -49,7 +48,9 @@ export const qcSlipService = {
     // 3. Merge each order with its QC slip status
     return orderList.map((order) => {
       const orderIdStr = String(order.id)
-      const rawForm = order.dosage_form || order.dosageForm || order.product_type || order.category || 'Tablet'
+      const line = order.lines?.[0]
+      const batchNo = order.production_batch_no || ''
+      const rawForm = line?.product_type_snapshot || ''
       const normType = normalizeProductTypeKey(rawForm)
       const displayType = getProductTypeDisplayName(normType || rawForm)
 
@@ -59,7 +60,7 @@ export const qcSlipService = {
       // Also check localStorage for local drafts or fallback
       let localRec = null
       try {
-        const localKey = `${QC_SLIP_STORAGE_PREFIX}${slipKind}_${normType}_${order.batch_no || order.id}`
+        const localKey = `${QC_SLIP_STORAGE_PREFIX}${slipKind}_${normType}_${batchNo || order.id}`
         const rawLocal = localStorage.getItem(localKey)
         if (rawLocal) localRec = JSON.parse(rawLocal)
       } catch {}
@@ -85,12 +86,14 @@ export const qcSlipService = {
       return {
         ...order,
         orderId: order.id,
-        orderNumber: order.number || order.order_number || `ORD-${order.id}`,
-        productName: order.product_name || order.name || order.product || '—',
+        orderNumber: order.reference || `ORD-${order.id}`,
+        productName: line?.product_name || line?.product_code || '—',
         productType: normType,
         productTypeDisplay: displayType,
-        batchNo: order.batch_no || order.batch || '—',
-        batchSize: order.batch_size || (order.quantity != null ? `${order.quantity} Units` : '—'),
+        product_code: line?.product_code || '',
+        batchNo,
+        batchSize: line?.quantity != null ? [line.quantity, line.sales_uom_code].filter(Boolean).join(' ') : '—',
+        mfg_date: order.planned_manufacturing_date || '',
         orderDate,
         qcStatus, // 'PENDING' | 'SAVED' | 'COMPLETED'
         qcRecord: backendRec || localRec || null,

@@ -33,7 +33,7 @@ import {
   allocateBatchNumber,
   createBatchPlan,
   getBatchPlan,
-  listBatchPlansForOrder,
+  listBatchPlans,
   listEligibleRevisionsForProduct,
   listPlanningUnits,
 } from '../../manufacturing/batchPlansService'
@@ -77,11 +77,13 @@ export default function BatchPlanningPage() {
   const canCreateBmr = hasPermission('bmr.create')
   const canEditBmr = hasPermission('bmr.edit')
 
+  const [orderSearch, setOrderSearch] = useState('')
+  const [orderPage, setOrderPage] = useState(1)
   const [orders, setOrders] = useState({ loading: true, results: [], error: '' })
   const [orderId, setOrderId] = useState(null)
   const [order, setOrder] = useState({ loading: false, data: null, error: '' })
   const [lineId, setLineId] = useState(null)
-  const [existingPlans, setExistingPlans] = useState([])
+  const [linePlans, setLinePlans] = useState(null)
 
   const [plan, setPlan] = useState(null)
   const [planView, setPlanView] = useState('create') // 'create' | 'detail'
@@ -91,31 +93,50 @@ export default function BatchPlanningPage() {
     if (!companyId || permissionsLoading || !canViewPlans) return
     let cancelled = false
     setOrders({ loading: true, results: [], error: '' })
-    listSalesOrders(companyId, { pageSize: 50 })
-      .then((data) => !cancelled && setOrders({ loading: false, results: data.results || [], error: '' }))
-      .catch((err) => !cancelled && setOrders({ loading: false, results: [], error: getErrorMessage(err) }))
-    return () => { cancelled = true }
-  }, [companyId, permissionsLoading, canViewPlans])
+    const timer = setTimeout(() => {
+      listSalesOrders(companyId, { search: orderSearch.trim(), page: orderPage, pageSize: 20 })
+        .then((data) => !cancelled && setOrders({ loading: false, results: data.results || [], next: data.next, error: '' }))
+        .catch((err) => !cancelled && setOrders({ loading: false, results: [], error: getErrorMessage(err) }))
+    }, 300)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [companyId, permissionsLoading, canViewPlans, orderSearch, orderPage])
 
   useEffect(() => {
     setOrder({ loading: Boolean(orderId), data: null, error: '' })
     setLineId(null)
+    setLinePlans(null)
     setPlan(null)
     setPlanView('create')
     if (!orderId || !companyId) return
     let cancelled = false
-    Promise.all([getSalesOrder(companyId, orderId), listBatchPlansForOrder(companyId, orderId)])
-      .then(([data, plans]) => {
+    getSalesOrder(companyId, orderId)
+      .then((data) => {
         if (cancelled) return
         setOrder({ loading: false, data, error: '' })
-        setExistingPlans(plans.results || [])
       })
       .catch((err) => !cancelled && setOrder({ loading: false, data: null, error: getErrorMessage(err) }))
     return () => { cancelled = true }
   }, [orderId, companyId])
 
-  const selectedLine = order.data?.lines?.find((l) => l.id === lineId) || null
-  const existingPlanForLine = existingPlans.find((p) => p.sales_order_line_id === lineId || p.source_line_number === selectedLine?.line_number)
+  const selectedLine = order.data?.lines?.find((line) => line.id === lineId) || null
+  const currentLinePlans = linePlans?.lineId === lineId && linePlans.companyId === companyId ? linePlans : null
+  const existingPlanForLine = currentLinePlans?.plan
+
+  useEffect(() => {
+    if (!companyId || !lineId) return
+    let cancelled = false
+    listBatchPlans(companyId, { order_line: lineId, page_size: 1 })
+      .then((data) => {
+        if (!cancelled) setLinePlans({ lineId, companyId, plan: data.results?.[0] || null })
+      })
+      .catch((err) => {
+        if (!cancelled) setLinePlans({ lineId, companyId, error: getErrorMessage(err) })
+      })
+    return () => { cancelled = true }
+  }, [companyId, lineId])
 
   const openPlan = async (planId) => {
     const data = await getBatchPlan(companyId, planId)
@@ -134,7 +155,12 @@ export default function BatchPlanningPage() {
         </div>
         <div className="ci-header-actions">
           {companies.length > 1 && (
-            <select className="company-input" value={companyId ?? ''} onChange={(e) => setCompanyId(e.target.value ? Number(e.target.value) : null)} style={{ minWidth: 200 }}>
+            <select className="company-input" value={companyId ?? ''} onChange={(e) => {
+              setOrderId(null)
+              setOrderPage(1)
+              setOrderSearch('')
+              setCompanyId(e.target.value ? Number(e.target.value) : null)
+            }} style={{ minWidth: 200 }}>
               <option value="">Choose a company</option>
               {companies.map((c) => <option key={c.id} value={c.id}>{c.display_name || c.legal_name || c.code}</option>)}
             </select>
@@ -159,12 +185,34 @@ export default function BatchPlanningPage() {
                 <div className="stock-toolbar-left">
                   <div className="field" style={{ minWidth: 280, margin: 0 }}>
                     <label className="field-label" htmlFor="bp-order">Sales order</label>
+                    <input
+                      className="field-input"
+                      type="search"
+                      aria-label="Search sales orders"
+                      placeholder="Search order reference or customer"
+                      value={orderSearch}
+                      onChange={(e) => {
+                        setOrderSearch(e.target.value)
+                        setOrderPage(1)
+                      }}
+                    />
                     <select id="bp-order" className="field-input" value={orderId ?? ''} onChange={(e) => setOrderId(e.target.value ? Number(e.target.value) : null)}>
                       <option value="">Choose a sales order</option>
-                      {(orders.results || []).map((o) => (
+                      {orderId && !orders.results.some((o) => o.id === orderId) && (
+                        <option value={orderId}>{order.data?.reference || `Order #${orderId}`}</option>
+                      )}
+                      {orders.results.map((o) => (
                         <option key={o.id} value={o.id}>{o.reference} · {o.customer_code} · {o.order_date}</option>
                       ))}
                     </select>
+                    {!orders.loading && !orders.error && orders.results.length === 0 && <small>No matching orders.</small>}
+                    {(orderPage > 1 || orders.next) && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                        <Button type="button" variant="secondary" disabled={orderPage === 1 || orders.loading} onClick={() => setOrderPage(orderPage - 1)}>Previous</Button>
+                        <span>Page {orderPage}</span>
+                        <Button type="button" variant="secondary" disabled={!orders.next || orders.loading} onClick={() => setOrderPage(orderPage + 1)}>Next</Button>
+                      </div>
+                    )}
                   </div>
                   {orders.loading && <Spinner size="sm" tone="muted" label="Loading sales orders…" />}
                   {orders.error && <Alert type="error">{orders.error}</Alert>}
@@ -172,7 +220,7 @@ export default function BatchPlanningPage() {
                   {order.data && (
                     <div className="field" style={{ minWidth: 280, margin: 0 }}>
                       <label className="field-label" htmlFor="bp-line">Order line</label>
-                      <select id="bp-line" className="field-input" value={lineId ?? ''} onChange={(e) => setLineId(e.target.value ? Number(e.target.value) : null)}>
+                      <select id="bp-line" className="field-input" value={lineId ?? ''} onChange={(e) => { setLinePlans(null); setLineId(e.target.value ? Number(e.target.value) : null) }}>
                         <option value="">Choose a line</option>
                         {(order.data.lines || []).map((line) => (
                           <option key={line.id} value={line.id}>
@@ -191,7 +239,11 @@ export default function BatchPlanningPage() {
           )}
 
           {selectedLine && !plan && (
-            existingPlanForLine ? (
+            !currentLinePlans ? (
+              <LoadingState label="Checking existing batch plans…" compact />
+            ) : currentLinePlans.error ? (
+              <Alert type="error">{currentLinePlans.error}</Alert>
+            ) : existingPlanForLine ? (
               <div className="ci-empty-card">
                 <div className="ci-empty-title">A batch plan already exists for this line</div>
                 <p className="ci-empty-desc">{existingPlanForLine.official_batch_number || 'Not yet numbered'} · target {existingPlanForLine.target_output_quantity} {existingPlanForLine.output_uom_code}</p>
@@ -204,6 +256,7 @@ export default function BatchPlanningPage() {
                 canCreate={canCreatePlans}
                 canPrintingEdit={canPrintingEdit}
                 onCreated={(created) => {
+                  setLinePlans({ lineId, companyId, plan: created })
                   setPlan(created)
                   setPlanView('detail')
                   setNotice(`Batch plan created (draft, not numbered yet).`)

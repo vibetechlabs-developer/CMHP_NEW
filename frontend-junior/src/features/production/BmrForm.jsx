@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { formatDateDDMMYYYY, toIsoDate } from './bmrDateUtils'
 import { productionService } from './productionService'
+import { listBatchPlans } from '../manufacturing/batchPlansService'
 import {
   getBmrTemplate,
   normalizeProductTypeKey,
@@ -23,6 +24,7 @@ export default function BmrForm({ readOnly = false, initialOrderId = null, onBac
   const [searchParams] = useSearchParams()
 
   const queryOrderId = searchParams.get('orderId') || ''
+  const orderLineId = searchParams.get('orderLineId') || ''
   const queryType = searchParams.get('productType') || searchParams.get('dosageForm') || searchParams.get('type') || ''
   const productId = searchParams.get('productId') || ''
   const productCode = searchParams.get('productCode') || ''
@@ -87,7 +89,12 @@ export default function BmrForm({ readOnly = false, initialOrderId = null, onBac
   // Normalization
   const normalizeData = useMemo(() => {
     if (template?.normalizeData) {
-      return (raw, ord) => template.normalizeData(raw, ord)
+      return (raw, ord) => {
+        const normalized = template.normalizeData(raw, ord)
+        return ord?.official_batch_number
+          ? { ...normalized, header: { ...normalized.header, batch_no: ord.official_batch_number } }
+          : normalized
+      }
     }
     return (raw) => raw || {}
   }, [template])
@@ -234,6 +241,30 @@ export default function BmrForm({ readOnly = false, initialOrderId = null, onBac
           order = allOrders?.[0] || null
         }
 
+        const companyId = Number(order?.company_id || order?.company?.id || order?.company)
+        const salesOrderId = String(order?.id || '')
+        const targetProductId = Number(productId || order?.product_id)
+        if (companyId && /^[1-9][0-9]*$/.test(salesOrderId) &&
+            (!orderId || salesOrderId === String(orderId)) && (targetProductId || orderLineId)) {
+          try {
+            const plans = await listBatchPlans(companyId, {
+              order: salesOrderId,
+              ...(targetProductId ? { product: targetProductId } : {}),
+              ...(orderLineId ? { order_line: orderLineId } : {}),
+              page_size: 2,
+            })
+            const matches = plans.results || []
+            const plan = matches.length === 1
+              ? matches[0]
+              : matches.find((entry) => entry.official_batch_number && entry.official_batch_number === order.batch_no)
+            if (plan?.official_batch_number) {
+              order = { ...order, batch_no: plan.official_batch_number, official_batch_number: plan.official_batch_number }
+            }
+          } catch (err) {
+            console.warn('Could not load the official batch number:', err?.message)
+          }
+        }
+
         if (!isMounted) return
         setCurrentOrder(order)
 
@@ -243,6 +274,7 @@ export default function BmrForm({ readOnly = false, initialOrderId = null, onBac
           if (tmpl) {
             const bmrType = tmpl.bmrType
             const bmrRes = await productionService.getBmr(order.id, order.batch_no, bmrType)
+            if (!isMounted) return
             const existing = (bmrRes && bmrRes.data !== undefined) ? bmrRes.data : bmrRes
             const normalizer = tmpl.normalizeData
             const normalized = normalizer(existing, order)
@@ -265,7 +297,7 @@ export default function BmrForm({ readOnly = false, initialOrderId = null, onBac
     return () => {
       isMounted = false
     }
-  }, [orderId, productId, productCode, bmrNo, queryType, slugType, isTejActive])
+  }, [orderId, orderLineId, productId, productCode, bmrNo, queryType, slugType, isTejActive])
 
   // Explicit Save & Complete Actions
   const handleSaveDraft = async () => {
@@ -547,6 +579,7 @@ export default function BmrForm({ readOnly = false, initialOrderId = null, onBac
               <input
                 className="bmr-grid-input"
                 value={data.header?.batch_no || ''}
+                readOnly={readOnly || Boolean(currentOrder?.official_batch_number)}
                 onChange={(e) => updateHeader('batch_no', e.target.value)}
               />
             </div>
@@ -619,6 +652,7 @@ export default function BmrForm({ readOnly = false, initialOrderId = null, onBac
               <input
                 className="bmr-grid-input"
                 value={data.header?.batch_no || ''}
+                readOnly={readOnly || Boolean(currentOrder?.official_batch_number)}
                 onChange={(e) => updateHeader('batch_no', e.target.value)}
               />
             </div>
@@ -832,7 +866,7 @@ export default function BmrForm({ readOnly = false, initialOrderId = null, onBac
 
           {currentOrder && (
             <div className="bmr-order-pill">
-              Order #{currentOrder.number || currentOrder.id} • {currentOrder.product_name} (Batch: {currentOrder.batch_no || 'N/A'})
+              Order #{currentOrder.number || currentOrder.id} • {currentOrder.product_name} (Batch: {data.header?.batch_no || currentOrder.batch_no || 'N/A'})
             </div>
           )}
 

@@ -11,6 +11,7 @@
  */
 import api from '../../api/axios'
 import { recordAudit } from '../../utils/audit'
+import { isQaDemoRecord } from './qaDemoRecords'
 import { getScopedCompanyId } from '../../utils/companyScope'
 
 export const QA_STAGES = {
@@ -135,7 +136,9 @@ export const qaPipelineService = {
 
   async list(stage = null, companyId = getScopedCompanyId()) {
     const cid = companyId || getScopedCompanyId() || 1
-    const cases = await listCases(cid)
+    const cases = (await listCases(cid)).filter((item) => !isQaDemoRecord({
+      productName: item.product_name_snapshot, productCode: item.product_code_snapshot,
+    }))
 
     let items = []
     if (stage === QA_STAGES.COA) {
@@ -216,7 +219,9 @@ export const qaPipelineService = {
 
   async counts(companyId = getScopedCompanyId()) {
     const cid = companyId || getScopedCompanyId() || 1
-    const cases = await listCases(cid)
+    const cases = (await listCases(cid)).filter((item) => !isQaDemoRecord({
+      productName: item.product_name_snapshot, productCode: item.product_code_snapshot,
+    }))
     const bulkPending = cases.filter((c) => c.qc_status === 'APPROVED' && c.qa_release_status === 'PENDING').length
     const coaPending = cases.filter(
       (c) => c.coa_status === 'WAITING_DOCUMENT' || (c.qc_status === 'APPROVED' && c.coa_status === 'PENDING')

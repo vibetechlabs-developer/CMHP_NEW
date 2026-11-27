@@ -36,7 +36,7 @@ from apps.common.errors import translate_django_validation_error
 from apps.companies.models import Company
 from apps.companies.services import active_companies_for_user
 from apps.permissions.services import user_has_permission
-from apps.quality.models import BatchQualityCase, BatchQualityDecision, QcSlipRecord, COADocumentAttachment
+from apps.quality.models import BatchQualityCase, BatchQualityDecision, QcSlipRecord, COADocumentAttachment, FinishedGoodsAllocation
 from apps.sales_orders.models import SalesOrder
 from apps.formulas.models import ProductFormulaSlip, Product
 
@@ -893,48 +893,54 @@ class RecordsOrderListView(APIView):
         try:
             order_ids = [p.order_id for p in pos_list]
 
-            # Prefetch SalesOrders for order details
-            int_ids = [int(oid) for oid in order_ids if oid.isdigit()]
+            company_ids = {p.company_id for p in pos_list if p.company_id}
+            ids = [int(value) for value in order_ids if value.isascii() and value.isdecimal() and len(value) <= 18]
+            references = {p.order_reference for p in pos_list if p.order_reference}
+            sales_orders = SalesOrder.objects.filter(company_id__in=company_ids).filter(
+                models.Q(id__in=ids) | models.Q(reference__in=references)
+            ).select_related("company").prefetch_related("lines__product")
             so_by_id = {}
             so_by_ref = {}
-            if int_ids:
-                for so in SalesOrder.objects.filter(id__in=int_ids).select_related("customer", "company").prefetch_related("lines__product"):
-                    so_by_id[str(so.id)] = so
-                    if so.reference:
-                        so_by_ref[so.reference] = so
+            for so in sales_orders:
+                so_by_id[(so.company_id, str(so.id))] = so
+                so_by_ref[(so.company_id, so.reference)] = so
 
             # Prefetch OrderDocumentRecord metadata
             docs_by_order = {}
-            for doc in OrderDocumentRecord.objects.filter(order_id__in=order_ids).only(
-                "id", "order_id", "doc_type", "sub_type", "title", "status", "is_locked"
+            for doc in OrderDocumentRecord.objects.filter(company_id__in=company_ids, order_id__in=order_ids).only(
+                "id", "company_id", "order_id", "doc_type", "sub_type", "title", "status", "is_locked"
             ):
-                docs_by_order.setdefault(doc.order_id, []).append(doc)
+                docs_by_order.setdefault((doc.company_id, doc.order_id), []).append(doc)
 
             # Prefetch QcSlipRecord metadata
             qc_slips_by_order = {}
-            for slip in QcSlipRecord.objects.filter(order_id__in=order_ids).only(
-                "id", "order_id", "slip_kind", "sub_kind", "status"
+            for slip in QcSlipRecord.objects.filter(company_id__in=company_ids, order_id__in=order_ids).only(
+                "id", "company_id", "order_id", "slip_kind", "sub_kind", "status"
             ):
-                qc_slips_by_order.setdefault(slip.order_id, []).append(slip)
+                qc_slips_by_order.setdefault((slip.company_id, slip.order_id), []).append(slip)
 
             # Prefetch BMRDocument metadata
             bmr_by_order = {}
-            for bmr in BMRDocument.objects.filter(order_id__in=order_ids).only(
-                "id", "order_id", "batch_no", "bmr_type", "is_draft"
+            for bmr in BMRDocument.objects.filter(company_id__in=company_ids, order_id__in=order_ids).only(
+                "id", "company_id", "order_id", "batch_no", "bmr_type", "is_draft"
             ):
-                bmr_by_order[bmr.order_id] = bmr
+                bmr_by_order[(bmr.company_id, bmr.order_id)] = bmr
 
             results = []
             for p in pos_list:
-                so = so_by_id.get(p.order_id) or so_by_ref.get(p.order_reference)
-                lines = list(so.lines.all()) if so else []
+                so = so_by_ref.get((p.company_id, p.order_reference)) if p.order_reference else so_by_id.get((p.company_id, p.order_id))
+                if not so or so.reference.upper().startswith("SO-DEMO-"):
+                    continue
+                lines = list(so.lines.all())
+                if any(line.product_name_snapshot.strip().lower().startswith("demo ") for line in lines):
+                    continue
                 first_line = lines[0] if lines else None
 
                 # Product info
-                product_name = first_line.product_name_snapshot if first_line and first_line.product_name_snapshot else (first_line.product.name if first_line and first_line.product else "Standard Pharmaceutical")
+                product_name = first_line.product_name_snapshot if first_line and first_line.product_name_snapshot else (first_line.product.name if first_line and first_line.product else "—")
                 product_code = first_line.product_code_snapshot if first_line and first_line.product_code_snapshot else (first_line.product.code if first_line and first_line.product else "")
                 product_type = first_line.product_type_snapshot if first_line and first_line.product_type_snapshot else "tablet"
-                batch_size = f"{first_line.quantity} {getattr(first_line, 'sales_uom_name_snapshot', '') or getattr(first_line, 'sales_uom_code_snapshot', '') or ''}".strip() if first_line else "1000 Units"
+                batch_size = f"{first_line.quantity} {getattr(first_line, 'sales_uom_name_snapshot', '') or getattr(first_line, 'sales_uom_code_snapshot', '') or ''}".strip() if first_line else "—"
                 company_name = getattr(p.company, 'display_name', getattr(p.company, 'name', getattr(p.company, 'code', 'CMHP'))) if p.company else (getattr(so.company, 'display_name', getattr(so.company, 'name', getattr(so.company, 'code', 'CMHP'))) if so and so.company else "CMHP")
 
                 norm_type = product_type.lower().replace("-", "").replace(" ", "")
@@ -943,19 +949,19 @@ class RecordsOrderListView(APIView):
                     continue
 
                 if search:
-                    text = f"{p.order_reference} {p.order_id} {product_name} {product_code} {p.batch_no}".lower()
+                    text = f"{so.reference} {so.id} {product_name} {product_code} {p.batch_no}".lower()
                     if search not in text:
                         continue
 
                 # Determine documents presence
-                order_docs = docs_by_order.get(p.order_id, [])
-                order_qc_slips = qc_slips_by_order.get(p.order_id, [])
-                bmr_doc = bmr_by_order.get(p.order_id)
+                order_docs = docs_by_order.get((p.company_id, p.order_id), [])
+                order_qc_slips = qc_slips_by_order.get((p.company_id, p.order_id), [])
+                bmr_doc = bmr_by_order.get((p.company_id, p.order_id))
 
                 # Attachment 1 (RM Requisition Slip)
                 att1 = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_1), None)
                 att1_data = {
-                    "exists": bool(att1) or True,  # Available for all products with formula
+                    "exists": bool(att1),
                     "id": att1.id if att1 else None,
                     "title": att1.title if att1 and att1.title else "RM Requisition Slip",
                     "doc_type": "ATTACHMENT_1",
@@ -966,141 +972,126 @@ class RecordsOrderListView(APIView):
                 att2_docs = [d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_2]
                 att2_slips = [s for s in order_qc_slips if s.slip_kind == "test_request" and s.sub_kind in ("bulk", "before_filter", "")]
 
-            is_mt = "mothertincture" in norm_type or "mt" in norm_type
-            if is_mt:
-                # Mother Tincture has two variants: Before Filter and After Filter
-                items = [
-                    {"title": "Test Request (Before Filter)", "sub_type": "before_filter", "doc_type": "ATTACHMENT_2", "exists": True},
-                    {"title": "Test Request (After Filter)", "sub_type": "after_filter", "doc_type": "ATTACHMENT_5", "exists": True},
-                ]
                 att2_data = {
-                    "exists": True,
-                    "has_multiple": True,
-                    "items": items,
-                    "title": "Test Request (Before / After Filter)",
-                }
-            else:
-                att2_exists = bool(att2_docs) or bool(att2_slips) or ("tablet" in norm_type or "syrup" in norm_type or "oil" in norm_type or "drops" in norm_type)
-                att2_data = {
-                    "exists": att2_exists,
+                    "exists": bool(att2_docs or att2_slips),
                     "id": att2_docs[0].id if att2_docs else (att2_slips[0].id if att2_slips else None),
-                    "title": "Test Request (Bulk)",
+                    "title": "Test Request",
                     "doc_type": "ATTACHMENT_2",
-                    "sub_type": "bulk",
+                    "sub_type": att2_docs[0].sub_type if att2_docs else (att2_slips[0].sub_kind if att2_slips else ""),
                 }
 
-            # Attachment 3 (Bulk Release Slip)
-            att3_doc = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_3), None)
-            att3_slip = next((s for s in order_qc_slips if s.slip_kind == "bulk_release"), None)
-            att3_exists = bool(att3_doc) or bool(att3_slip) or ("tablet" in norm_type or "syrup" in norm_type or "oil" in norm_type or is_mt or "drops" in norm_type)
-            att3_data = {
-                "exists": att3_exists,
-                "id": att3_doc.id if att3_doc else (att3_slip.id if att3_slip else None),
-                "title": "Bulk Release Slip",
-                "doc_type": "ATTACHMENT_3",
-            }
-
-            # Attachment 4 (PM Requisition Slip)
-            att4 = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_4), None)
-            att4_data = {
-                "exists": bool(att4) or ("tablet" in norm_type or "syrup" in norm_type or "drops" in norm_type or "oil" in norm_type),
-                "id": att4.id if att4 else None,
-                "title": att4.title if att4 and att4.title else "PM Requisition Slip",
-                "doc_type": "ATTACHMENT_4",
-            }
-
-            # Attachment 5 (After Test / FP Slip)
-            att5_doc = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_5), None)
-            att5_slip = next((s for s in order_qc_slips if s.slip_kind == "test_request" and s.sub_kind in ("fp", "after_filter")), None)
-            att5_exists = bool(att5_doc) or bool(att5_slip) or ("tablet" in norm_type or is_mt)
-            att5_data = {
-                "exists": att5_exists,
-                "id": att5_doc.id if att5_doc else (att5_slip.id if att5_slip else None),
-                "title": "Test Request (MT/FP)" if not is_mt else "Test Request (After Filter)",
-                "doc_type": "ATTACHMENT_5",
-                "sub_type": "fp" if not is_mt else "after_filter",
-            }
-
-            # Attachment 6 (Finish Product Transfer Slip)
-            att6 = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_6), None)
-            att6_data = {
-                "exists": bool(att6),
-                "id": att6.id if att6 else None,
-                "title": "Finish Product Transfer Slip",
-                "doc_type": "ATTACHMENT_6",
-            }
-
-            # BMR
-            has_bmr_type = not any(k in norm_type for k in ["kit", "pill", "capsule"])
-            bmr_data = {
-                "exists": bool(bmr_doc) or (p.bmr_status == ProductionOrderStatus.BmrStatus.YES),
-                "has_bmr": has_bmr_type,
-                "id": bmr_doc.id if bmr_doc else None,
-                "title": "Batch Manufacturing Record",
-                "doc_type": "BMR",
-            }
-
-            # COA
-            coa_doc = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.COA), None)
-            if p.coa_returned:
-                coa_data = {
-                    "exists": False,
-                    "coa_returned": True,
-                    "title": "Certificate of Analysis",
-                    "badge": "COA returned to QC",
-                    "doc_type": "COA",
-                }
-            else:
-                coa_data = {
-                    "exists": bool(coa_doc) or True,
-                    "coa_returned": False,
-                    "id": coa_doc.id if coa_doc else None,
-                    "title": "Certificate of Analysis",
-                    "doc_type": "COA",
+                # Attachment 3 (Bulk Release Slip)
+                att3_doc = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_3), None)
+                att3_slip = next((s for s in order_qc_slips if s.slip_kind == "bulk_release"), None)
+                att3_exists = bool(att3_doc or att3_slip)
+                att3_data = {
+                    "exists": att3_exists,
+                    "id": att3_doc.id if att3_doc else (att3_slip.id if att3_slip else None),
+                    "title": "Bulk Release Slip",
+                    "doc_type": "ATTACHMENT_3",
                 }
 
-            # Invoice
-            inv_doc = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.INVOICE), None)
-            invoice_data = {
-                "exists": bool(inv_doc),
-                "id": inv_doc.id if inv_doc else None,
-                "title": "Tax Invoice",
-                "doc_type": "INVOICE",
-            }
+                # Attachment 4 (PM Requisition Slip)
+                att4 = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_4), None)
+                att4_data = {
+                    "exists": bool(att4),
+                    "id": att4.id if att4 else None,
+                    "title": att4.title if att4 and att4.title else "PM Requisition Slip",
+                    "doc_type": "ATTACHMENT_4",
+                }
 
-            results.append({
-                "id": p.order_id,
-                "order_id": p.order_id,
-                "order_number": p.order_reference or (so.reference if so else f"ORD-{p.order_id}"),
-                "company_id": p.company_id,
-                "company_name": company_name,
-                "product_name": product_name,
-                "product_code": product_code,
-                "product_type": product_type,
-                "product_type_display": product_type.title(),
-                "batch_no": p.batch_no or (getattr(so.lines.first(), 'batch_number_snapshot', getattr(so.lines.first(), 'batch_no', '')) if so and so.lines.exists() else "—") or "—",
-                "batch_size": batch_size,
-                "sent_to_records_at": p.sent_to_records_at.isoformat() if p.sent_to_records_at else (p.dispatched_at.isoformat() if p.dispatched_at else p.updated_at.isoformat()),
-                "sent_to_records_by": p.sent_to_records_by.username if p.sent_to_records_by else (p.dispatched_by.username if p.dispatched_by else "System"),
-                "in_records": bool(p.in_records),
-                "dispatched_at": p.dispatched_at.isoformat() if p.dispatched_at else p.updated_at.isoformat(),
-                "dispatched_by": p.dispatched_by.username if p.dispatched_by else "System",
-                "is_locked": p.is_locked,
-                "physically_dispatched": p.physically_dispatched,
-                "coa_returned": p.coa_returned,
-                "production_returned": p.production_returned,
-                "documents": {
-                    "attachment_1": att1_data,
-                    "attachment_2": att2_data,
-                    "attachment_3": att3_data,
-                    "attachment_4": att4_data,
-                    "attachment_5": att5_data,
-                    "attachment_6": att6_data,
-                    "bmr": bmr_data,
-                    "coa": coa_data,
-                    "invoice": invoice_data,
-                },
-            })
+                # Attachment 5 (After Test / FP Slip)
+                att5_doc = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_5), None)
+                att5_slip = next((s for s in order_qc_slips if s.slip_kind == "test_request" and s.sub_kind in ("fp", "after_filter")), None)
+                att5_exists = bool(att5_doc or att5_slip)
+                att5_data = {
+                    "exists": att5_exists,
+                    "id": att5_doc.id if att5_doc else (att5_slip.id if att5_slip else None),
+                    "title": "After Test Slip",
+                    "doc_type": "ATTACHMENT_5",
+                    "sub_type": att5_doc.sub_type if att5_doc else (att5_slip.sub_kind if att5_slip else ""),
+                }
+
+                # Attachment 6 (Finish Product Transfer Slip)
+                att6 = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.ATTACHMENT_6), None)
+                att6_data = {
+                    "exists": bool(att6),
+                    "id": att6.id if att6 else None,
+                    "title": "Finish Product Transfer Slip",
+                    "doc_type": "ATTACHMENT_6",
+                }
+
+                # BMR
+                has_bmr_type = not any(k in norm_type for k in ["kit", "pill", "capsule"])
+                bmr_data = {
+                    "exists": bool(bmr_doc),
+                    "has_bmr": has_bmr_type,
+                    "id": bmr_doc.id if bmr_doc else None,
+                    "title": "Batch Manufacturing Record",
+                    "doc_type": "BMR",
+                }
+
+                # COA
+                coa_doc = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.COA), None)
+                if p.coa_returned:
+                    coa_data = {
+                        "exists": False,
+                        "coa_returned": True,
+                        "title": "Certificate of Analysis",
+                        "badge": "COA returned to QC",
+                        "doc_type": "COA",
+                    }
+                else:
+                    coa_data = {
+                        "exists": bool(coa_doc),
+                        "coa_returned": False,
+                        "id": coa_doc.id if coa_doc else None,
+                        "title": "Certificate of Analysis",
+                        "doc_type": "COA",
+                    }
+
+                # Invoice
+                inv_doc = next((d for d in order_docs if d.doc_type == OrderDocumentRecord.DocType.INVOICE), None)
+                invoice_data = {
+                    "exists": bool(inv_doc),
+                    "id": inv_doc.id if inv_doc else None,
+                    "title": "Tax Invoice",
+                    "doc_type": "INVOICE",
+                }
+
+                results.append({
+                    "id": p.order_id,
+                    "order_id": p.order_id,
+                    "order_number": so.reference,
+                    "company_id": p.company_id,
+                    "company_name": company_name,
+                    "product_name": product_name,
+                    "product_code": product_code,
+                    "product_type": product_type,
+                    "product_type_display": product_type.title(),
+                    "batch_no": p.batch_no or (getattr(so.lines.first(), 'batch_number_snapshot', getattr(so.lines.first(), 'batch_no', '')) if so and so.lines.exists() else "—") or "—",
+                    "batch_size": batch_size,
+                    "sent_to_records_at": p.sent_to_records_at.isoformat() if p.sent_to_records_at else (p.dispatched_at.isoformat() if p.dispatched_at else p.updated_at.isoformat()),
+                    "sent_to_records_by": p.sent_to_records_by.username if p.sent_to_records_by else (p.dispatched_by.username if p.dispatched_by else "System"),
+                    "in_records": bool(p.in_records),
+                    "dispatched_at": p.dispatched_at.isoformat() if p.dispatched_at else p.updated_at.isoformat(),
+                    "dispatched_by": p.dispatched_by.username if p.dispatched_by else "System",
+                    "is_locked": p.is_locked,
+                    "physically_dispatched": p.physically_dispatched,
+                    "coa_returned": p.coa_returned,
+                    "production_returned": p.production_returned,
+                    "documents": {
+                        "attachment_1": att1_data,
+                        "attachment_2": att2_data,
+                        "attachment_3": att3_data,
+                        "attachment_4": att4_data,
+                        "attachment_5": att5_data,
+                        "attachment_6": att6_data,
+                        "bmr": bmr_data,
+                        "coa": coa_data,
+                        "invoice": invoice_data,
+                    },
+                })
 
             # Pagination
             try:
@@ -1375,6 +1366,17 @@ class OrderDocumentUploadView(APIView):
         }, status=200)
 
 
+def _dispatch_finished_goods_batches(order_ids):
+    batches = {}
+    rows = FinishedGoodsAllocation.objects.filter(
+        sales_order_line__sales_order_id__in=order_ids,
+        stock__is_reversed=False,
+    ).values_list("sales_order_line__sales_order_id", "stock__company_id", "stock__batch_number")
+    for order_id, company_id, batch_number in rows:
+        batches.setdefault((company_id, str(order_id)), set()).add(batch_number)
+    return batches
+
+
 @method_decorator(never_cache, name="dispatch")
 class DispatchTrackingListView(APIView):
     """GET: Real-time Live Order Tracking across manufacturing stages.
@@ -1397,7 +1399,13 @@ class DispatchTrackingListView(APIView):
         prod_running = bool(pos and pos.production_status in ("In Progress", "Completed")) or bool(pos and pos.in_records)
         so_advanced = bool(so and so.workflow_stage in ("PRODUCTION", "QC_PENDING", "PACKAGING", "READY_TO_INVOICE", "PACKED", "DISPATCHED", "COMPLETED"))
         qa_completed = qa_approved or has_bmr or prod_running or so_advanced
-        stage_qa = "green" if qa_completed else "yellow"
+        order_just_created = (
+            so
+            and so.status == SalesOrder.Status.DRAFT
+            and so.workflow_stage in ("", "DRAFT")
+            and not pos
+        )
+        stage_qa = "green" if qa_completed else ("white" if order_just_created else "yellow")
 
         # 3. Production (BMR) stage
         prod_completed = False
@@ -1491,15 +1499,15 @@ class DispatchTrackingListView(APIView):
         # Exclude confirmed dispatched orders from live tracking
         confirmed_order_ids = set(DispatchRecord.objects.filter(comp_filter).values_list("order_id", flat=True))
 
-        # Query SalesOrders
-        so_qs = SalesOrder.objects.filter(comp_filter).select_related("company", "customer").prefetch_related("lines__product").order_by("-order_date", "-id")
+        # Only persisted, non-demo sales orders belong in live dispatch tracking.
+        so_qs = SalesOrder.objects.filter(comp_filter).exclude(reference__istartswith="SO-DEMO-").select_related("company", "customer").prefetch_related("lines__product").order_by("-created_at", "-id")
         so_list = [so for so in so_qs if str(so.id) not in confirmed_order_ids and (not so.reference or so.reference not in confirmed_order_ids)]
 
         pos_qs = ProductionOrderStatus.objects.filter(comp_filter).exclude(is_dispatch_confirmed=True).select_related("company", "dispatched_by")
         pos_by_order_id = {p.order_id: p for p in pos_qs if not p.is_dispatch_confirmed and p.order_id not in confirmed_order_ids}
         pos_by_ref = {p.order_reference: p for p in pos_qs if p.order_reference and not p.is_dispatch_confirmed and p.order_reference not in confirmed_order_ids}
 
-        all_order_ids = set([str(so.id) for so in so_list] + list(pos_by_order_id.keys()))
+        all_order_ids = {str(so.id) for so in so_list}
         docs_by_order = {}
         for doc in OrderDocumentRecord.objects.filter(order_id__in=all_order_ids).only("id", "order_id", "doc_type", "sub_type", "status"):
             docs_by_order.setdefault(doc.order_id, []).append(doc)
@@ -1512,14 +1520,10 @@ class DispatchTrackingListView(APIView):
         for bmr in BMRDocument.objects.filter(order_id__in=all_order_ids).only("id", "order_id", "is_draft"):
             bmrs_by_order[bmr.order_id] = bmr
 
+        allocated_batches = _dispatch_finished_goods_batches(all_order_ids)
         items = []
-        seen_order_ids = set()
-
         for so in so_list:
             str_id = str(so.id)
-            seen_order_ids.add(str_id)
-            if so.reference:
-                seen_order_ids.add(so.reference)
 
             pos = pos_by_order_id.get(str_id) or pos_by_ref.get(so.reference)
             if pos and pos.is_dispatch_confirmed:
@@ -1542,38 +1546,10 @@ class DispatchTrackingListView(APIView):
                 "product_type": product_type,
                 "product_type_display": product_type.title(),
                 "batch_no": batch_no or "—",
+                "finished_goods_batches": sorted(allocated_batches.get((so.company_id, str_id), ())),
                 "order_date": so.order_date.strftime("%d-%m-%Y") if so.order_date else "—",
                 "raw_order_date": so.order_date.isoformat() if so.order_date else None,
                 "in_records": bool(pos and pos.in_records),
-                "stages": stages,
-                "done_count": done_count,
-                "total_stages": 5,
-                "can_confirm_dispatch": done_count == 5,
-                "blocking_stage": blocking_stage,
-            })
-
-        for order_id, pos in pos_by_order_id.items():
-            if order_id in seen_order_ids or pos.order_reference in seen_order_ids:
-                continue
-            if pos.is_dispatch_confirmed or order_id in confirmed_order_ids:
-                continue
-            seen_order_ids.add(order_id)
-
-            company_name = getattr(pos.company, 'display_name', getattr(pos.company, 'name', 'CMHP')) if pos.company else 'CMHP'
-            stages, done_count, blocking_stage = self._compute_stages(order_id, None, pos, docs_by_order.get(order_id, []), qc_slips_by_order.get(order_id, []), bmrs_by_order.get(order_id))
-
-            items.append({
-                "order_id": order_id,
-                "order_number": pos.order_reference or f"#{order_id}",
-                "company_id": pos.company_id or 2,
-                "company_name": company_name,
-                "product_name": "Pharmaceutical Formulation",
-                "product_type": "tablet",
-                "product_type_display": "Tablet",
-                "batch_no": pos.batch_no or "—",
-                "order_date": pos.created_at.strftime("%d-%m-%Y") if pos.created_at else "—",
-                "raw_order_date": pos.created_at.strftime("%Y-%m-%d") if pos.created_at else None,
-                "in_records": bool(pos.in_records),
                 "stages": stages,
                 "done_count": done_count,
                 "total_stages": 5,
@@ -1591,7 +1567,7 @@ class DispatchTrackingListView(APIView):
             if type_filter != "all" and type_filter not in it["product_type"].lower():
                 continue
             if search:
-                haystack = f"{it['order_number']} {it['order_id']} {it['product_name']} {it['batch_no']}".lower()
+                haystack = f"{it['order_number']} {it['order_id']} {it['product_name']} {it['batch_no']} {' '.join(it['finished_goods_batches'])}".lower()
                 if search not in haystack:
                     continue
             if date_from and it["raw_order_date"] and it["raw_order_date"] < date_from:
@@ -1766,8 +1742,12 @@ class DispatchRecordListView(APIView):
         if date_to:
             qs = qs.filter(dispatched_at__lte=f"{date_to} 23:59:59")
 
+        records = list(qs)
+        allocated_batches = _dispatch_finished_goods_batches(
+            [row.order_id for row in records if row.order_id.isdecimal()]
+        )
         results = []
-        for r in qs:
+        for r in records:
             company_name = getattr(r.company, 'display_name', getattr(r.company, 'name', 'CMHP')) if r.company else 'CMHP'
             if company_filter != "ALL":
                 if company_filter == "CMHP" and "cmhp" not in company_name.lower():
@@ -1785,6 +1765,7 @@ class DispatchRecordListView(APIView):
                 "product_type": r.product_type or "tablet",
                 "product_type_display": (r.product_type or "tablet").title(),
                 "batch_no": r.batch_no or "—",
+                "finished_goods_batches": sorted(allocated_batches.get((r.company_id, r.order_id), ())),
                 "order_date": r.order_date.strftime("%d-%m-%Y") if r.order_date else "—",
                 "dispatch_date": r.dispatched_at.strftime("%d-%m-%Y") if r.dispatched_at else "—",
                 "dispatched_at": r.dispatched_at.isoformat() if r.dispatched_at else None,

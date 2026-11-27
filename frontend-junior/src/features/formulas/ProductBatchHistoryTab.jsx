@@ -2,16 +2,43 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Spinner from '../../components/Spinner'
 import Alert from '../../components/Alert'
-import { listBatchPlans } from '../manufacturing/batchPlansService'
+import Button from '../../components/Button'
+import { confirmAction } from '../../components/ConfirmProvider'
+import { getErrorMessage } from '../../utils/errors'
+import { allocateBatchNumber, listBatchPlans } from '../manufacturing/batchPlansService'
 import { bmrDbService } from '../production/bmrDbService'
 import { operationsService } from '../operations/operationsService'
 
-export default function ProductBatchHistoryTab({ companyId, productId, product, revisions = [] }) {
+const HISTORY_PAGE_SIZE = 20
+
+export default function ProductBatchHistoryTab({ companyId, productId, product, canAllocateNumber = false }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [batches, setBatches] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
+  const [page, setPage] = useState(1)
+  const [allocationPending, setAllocationPending] = useState(false)
+  const [allocationError, setAllocationError] = useState('')
+  const [refresh, setRefresh] = useState(0)
+
+  const handleAllocate = async (row) => {
+    setAllocationPending(true)
+    setAllocationError('')
+    try {
+      if (!(await confirmAction('Allocate the official batch number for this plan?', {
+        title: 'Allocate Official Batch Number',
+        confirmLabel: 'Allocate Number',
+      }))) return
+      await allocateBatchNumber(companyId, row.planId, row.planVersion)
+      setLoading(true)
+      setRefresh((value) => value + 1)
+    } catch (err) {
+      setAllocationError(getErrorMessage(err))
+    } finally {
+      setAllocationPending(false)
+    }
+  }
 
   useEffect(() => {
     let isMounted = true
@@ -19,32 +46,24 @@ export default function ProductBatchHistoryTab({ companyId, productId, product, 
     async function fetchAllBatchesForProduct() {
       setLoading(true)
       setError('')
+      setPage(1)
+      setBatches([])
 
       try {
         const prodId = Number(productId)
         const prodCode = (product?.code || '').trim().toLowerCase()
         const prodName = (product?.name || '').trim().toLowerCase()
 
-        // 1. Fetch Backend BatchPlans
-        let backendPlans = []
-        try {
-          if (companyId) {
-            const res = await listBatchPlans(companyId, { page_size: 200 })
-            const allPlans = Array.isArray(res?.results) ? res.results : (Array.isArray(res) ? res : [])
-            backendPlans = allPlans.filter((p) => {
-              const pId = p.formula_revision?.formula?.product_id || p.sales_order_line?.product_id || p.product_id
-              const pCode = (p.product_code_snapshot || p.product_code || '').trim().toLowerCase()
-              const pName = (p.product_name_snapshot || p.product_name || '').trim().toLowerCase()
-
-              if (prodId && pId && Number(pId) === prodId) return true
-              if (prodCode && pCode && pCode === prodCode) return true
-              if (prodName && pName && pName === prodName) return true
-              return false
-            })
+        const backendPlans = []
+        if (companyId && prodId) {
+          let nextPage = true
+          for (let planPage = 1; nextPage && isMounted; planPage += 1) {
+            const data = await listBatchPlans(companyId, { product: prodId, page: planPage, page_size: 100 })
+            backendPlans.push(...(data.results || []))
+            nextPage = Boolean(data.next)
           }
-        } catch (e) {
-          console.warn('[ProductBatchHistory] BatchPlans API not available or error:', e?.message)
         }
+        if (!isMounted) return
 
         // 2. Fetch Orders with this product
         let matchedOrders = []
@@ -57,14 +76,13 @@ export default function ProductBatchHistoryTab({ companyId, productId, product, 
               const lineProdCode = (l.product?.code || l.product_code || '').trim().toLowerCase()
               const lineProdName = (l.product?.name || l.product_name || '').trim().toLowerCase()
 
-              if (prodId && lineProdId && Number(lineProdId) === prodId) return true
-              if (prodCode && lineProdCode && lineProdCode === prodCode) return true
-              if (prodName && lineProdName && lineProdName === prodName) return true
-              return false
+              if (prodId && lineProdId) return Number(lineProdId) === prodId
+              if (prodCode && lineProdCode) return lineProdCode === prodCode
+              return Boolean(prodName && lineProdName === prodName)
             })
 
-            const ordProdName = (ord.product_name || ord.product || '').trim().toLowerCase()
-            const matchTopLevel = prodName && ordProdName && ordProdName.includes(prodName)
+            const ordProdName = String(ord.product_name || ord.product?.name || ord.product || '').trim().toLowerCase()
+            const matchTopLevel = !ord.lines?.length && prodName && ordProdName === prodName
 
             return (hasProductInLines || matchTopLevel) && (ord.batch_number || ord.batch_no)
           })
@@ -79,27 +97,32 @@ export default function ProductBatchHistoryTab({ companyId, productId, product, 
           bmrRecords = (allBmrs || []).filter((b) => {
             const bName = (b.data?.product_name || b.productName || '').trim().toLowerCase()
             const bCode = (b.data?.product_code || b.productCode || '').trim().toLowerCase()
-            if (prodName && bName && (bName.includes(prodName) || prodName.includes(bName))) return true
-            if (prodCode && bCode && bCode === prodCode) return true
-            return false
+            if (prodCode && bCode) return bCode === prodCode
+            return Boolean(prodName && bName === prodName)
           })
         } catch (e) {
           console.warn('[ProductBatchHistory] BMR DB fetch error:', e?.message)
         }
 
         // 4. Combine and normalize records
-        const mapByBatchNo = new Map()
+        const rowsById = new Map()
+        const idsByBatchNo = new Map()
+        const batchKey = (number) => String(number).trim().toUpperCase()
 
         // Normalize Backend Plans
         backendPlans.forEach((p) => {
-          const bNo = p.official_batch_number || p.allocated_batch_number || p.batch_number || `PLAN-${p.id}`
-          mapByBatchNo.set(bNo, {
-            id: `plan-${p.id}`,
+          const bNo = p.official_batch_number || p.allocated_batch_number || p.batch_number || null
+          const id = `plan-${p.id}`
+          if (bNo) idsByBatchNo.set(batchKey(bNo), id)
+          rowsById.set(id, {
+            id,
+            planId: p.id,
+            planVersion: p.version,
             batchNo: bNo,
-            orderRef: p.sales_order_reference || p.order_reference || 'Production Plan',
+            orderRef: p.source_order_reference || p.sales_order_reference || p.order_reference || 'Production Plan',
             customer: p.customer_name || 'Internal Production',
             mfgDate: p.planned_manufacturing_date || p.created_at?.slice(0, 10) || '—',
-            quantity: p.target_output_quantity ? `${p.target_output_quantity} ${p.packing_content_uom_code || p.packing_content_uom || ''}`.trim() : '—',
+            quantity: p.target_output_quantity ? `${p.target_output_quantity} ${p.output_uom_code || ''}`.trim() : '—',
             packInfo: p.packing_size_note || (p.planned_pack_quantity ? `${p.planned_pack_quantity} Packs` : '—'),
             revisionNo: p.formula_revision_number ? `Rev ${p.formula_revision_number}` : '—',
             status: (p.official_batch_number || p.allocated_batch_number) ? 'Batch Allocated' : 'Planned',
@@ -115,9 +138,13 @@ export default function ProductBatchHistoryTab({ companyId, productId, product, 
           const bNo = ord.batch_number || ord.batch_no
           if (!bNo) return
 
-          const existing = mapByBatchNo.get(bNo) || {}
-          mapByBatchNo.set(bNo, {
-            id: existing.id || `ord-${ord.id}`,
+          const key = batchKey(bNo)
+          const id = idsByBatchNo.get(key) || `ord-${ord.id}-${batchKey(bNo)}`
+          const existing = rowsById.get(id) || {}
+          idsByBatchNo.set(key, id)
+          rowsById.set(id, {
+            ...existing,
+            id,
             batchNo: bNo,
             orderRef: ord.order_number || ord.reference || existing.orderRef || '—',
             customer: ord.customer_name || ord.customer?.name || existing.customer || '—',
@@ -138,9 +165,13 @@ export default function ProductBatchHistoryTab({ companyId, productId, product, 
           const bNo = bmr.batchNo || bmr.data?.batch_no
           if (!bNo) return
 
-          const existing = mapByBatchNo.get(bNo) || {}
-          mapByBatchNo.set(bNo, {
-            id: existing.id || `bmr-${bNo}`,
+          const key = batchKey(bNo)
+          const id = idsByBatchNo.get(key) || `bmr-${batchKey(bNo)}`
+          const existing = rowsById.get(id) || {}
+          idsByBatchNo.set(key, id)
+          rowsById.set(id, {
+            ...existing,
+            id,
             batchNo: bNo,
             orderRef: existing.orderRef || (bmr.orderId ? `Order #${bmr.orderId}` : 'BMR Master'),
             customer: existing.customer || '—',
@@ -158,11 +189,10 @@ export default function ProductBatchHistoryTab({ companyId, productId, product, 
 
         if (isMounted) {
           // Sort: batches with official batch numbers first, then by batchNo descending
-          const sorted = Array.from(mapByBatchNo.values()).sort((a, b) => {
-            const aIsOfficial = !a.batchNo.startsWith('PLAN-')
-            const bIsOfficial = !b.batchNo.startsWith('PLAN-')
-            if (aIsOfficial !== bIsOfficial) return aIsOfficial ? -1 : 1
-            return b.batchNo.localeCompare(a.batchNo)
+          const sorted = Array.from(rowsById.values()).sort((a, b) => {
+            return Number(Boolean(b.batchNo)) - Number(Boolean(a.batchNo)) ||
+              String(b.batchNo || '').localeCompare(String(a.batchNo || ''), undefined, { numeric: true }) ||
+              (b.planId || 0) - (a.planId || 0)
           })
           setBatches(sorted)
         }
@@ -182,7 +212,7 @@ export default function ProductBatchHistoryTab({ companyId, productId, product, 
     return () => {
       isMounted = false
     }
-  }, [companyId, productId, product])
+  }, [companyId, productId, product, refresh])
 
   // Filter batches
   const filteredBatches = useMemo(() => {
@@ -190,7 +220,7 @@ export default function ProductBatchHistoryTab({ companyId, productId, product, 
       const q = searchTerm.trim().toLowerCase()
       const matchesSearch =
         !q ||
-        b.batchNo.toLowerCase().includes(q) ||
+        String(b.batchNo || `PLAN-${b.planId}`).toLowerCase().includes(q) ||
         b.orderRef.toLowerCase().includes(q) ||
         b.customer.toLowerCase().includes(q)
 
@@ -202,6 +232,9 @@ export default function ProductBatchHistoryTab({ companyId, productId, product, 
       return matchesSearch && matchesStatus
     })
   }, [batches, searchTerm, statusFilter])
+
+  const totalPages = Math.ceil(filteredBatches.length / HISTORY_PAGE_SIZE)
+  const visibleBatches = filteredBatches.slice((page - 1) * HISTORY_PAGE_SIZE, page * HISTORY_PAGE_SIZE)
 
   // Metrics
   const metrics = useMemo(() => {
@@ -234,7 +267,7 @@ export default function ProductBatchHistoryTab({ companyId, productId, product, 
             type="search"
             placeholder="Search by Batch # or Order…"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => { setSearchTerm(e.target.value); setPage(1) }}
             style={{
               padding: '7px 12px',
               fontSize: 13,
@@ -246,7 +279,7 @@ export default function ProductBatchHistoryTab({ companyId, productId, product, 
           />
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
             style={{
               padding: '7px 12px',
               fontSize: 13,
@@ -284,6 +317,7 @@ export default function ProductBatchHistoryTab({ companyId, productId, product, 
       </div>
 
       {error && <Alert type="error" style={{ marginBottom: 14 }}>{error}</Alert>}
+      {allocationError && <Alert type="error">{allocationError}</Alert>}
 
       {/* Table */}
       {loading ? (
@@ -325,7 +359,7 @@ export default function ProductBatchHistoryTab({ companyId, productId, product, 
               </tr>
             </thead>
             <tbody>
-              {filteredBatches.map((row) => (
+              {visibleBatches.map((row) => (
                 <tr key={row.id}>
                   <td>
                     <span style={{
@@ -339,8 +373,16 @@ export default function ProductBatchHistoryTab({ companyId, productId, product, 
                       fontWeight: 700,
                       fontSize: 13,
                     }}>
-                      🏷️ {row.batchNo}
+                      {row.batchNo || 'Not allocated'}
                     </span>
+                    {!row.batchNo && row.planId && canAllocateNumber && (
+                      <div style={{ marginTop: 6 }}>
+                        <Button type="button" size="sm" variant="secondary" disabled={allocationPending}
+                          onClick={() => handleAllocate(row)}>
+                          Allocate Number
+                        </Button>
+                      </div>
+                    )}
                   </td>
                   <td style={{ fontWeight: 600, color: '#334155' }}>
                     {row.orderRef}
@@ -406,6 +448,13 @@ export default function ProductBatchHistoryTab({ companyId, productId, product, 
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+      {!loading && totalPages > 1 && (
+        <div className="ci-pagination">
+          <Button type="button" variant="secondary" disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</Button>
+          <span>Page {page} of {totalPages}</span>
+          <Button type="button" variant="secondary" disabled={page === totalPages} onClick={() => setPage(page + 1)}>Next</Button>
         </div>
       )}
     </div>

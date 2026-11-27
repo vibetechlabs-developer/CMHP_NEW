@@ -16,8 +16,6 @@ export default function RecordsPage({ mode = 'records' }) {
   const compKey = useSelector(selectActiveCompanyKey)
   const activeCompId = useSelector(selectActiveCompanyId)
   const companyId = activeCompId || (compKey === 'tej' ? 3 : 2)
-  const savedOrderInvoices = useSelector((state) => state.erp?.orderInvoices || {})
-  const reduxInvoices = useSelector((state) => state.erp?.byCompany?.[compKey]?.invoices || state.erp?.invoices || [])
 
   // State
   const [orders, setOrders] = useState([])
@@ -749,12 +747,7 @@ export default function RecordsPage({ mode = 'records' }) {
 
                             {/* 13. Invoice */}
                             <td>
-                              {Boolean(
-                                invoice.exists ||
-                                (order.id && savedOrderInvoices[String(order.id)]) ||
-                                (order.order_id && savedOrderInvoices[String(order.order_id)]) ||
-                                (reduxInvoices || []).some((inv) => String(inv.order || inv.order_id) === String(order.id || order.order_id))
-                              ) ? (
+                              {invoice.exists ? (
                                 <button
                                   type="button"
                                   className="records-view-btn"
